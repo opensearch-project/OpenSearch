@@ -356,15 +356,7 @@ allprojects {
   }
 
   File licenseHeaderFile
-  String prefix = ':x-pack'
-  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-    prefix = prefix.replace(':', '_')
-  }
-  if (eclipse.project.name.startsWith(prefix)) {
-    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
-  } else {
-    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
-  }
+  licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
 
   String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
   String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
@@ -467,11 +459,7 @@ allprojects {
   def checkPart1 = tasks.register('checkPart1')
   def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
-    if (project.path.startsWith(":x-pack:")) {
-      checkPart2.configure { dependsOn 'check' }
-    } else {
-      checkPart1.configure { dependsOn 'check' }
-    }
+    checkPart1.configure { dependsOn 'check' }
   }
 }
 

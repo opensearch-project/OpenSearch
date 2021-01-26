@@ -276,20 +276,6 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   restTestExpansions['expected.modules.count'] += 1
 }
 
-// use licenses from each of the bundled xpack plugins
-Project xpack = project(':x-pack:plugin')
-xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
-  File licenses = new File(xpackModule.projectDir, 'licenses')
-  if (licenses.exists()) {
-    buildDefaultNoticeTaskProvider.configure {
-      licensesDir licenses
-      source xpackModule.file('src/main/java')
-    }
-  }
-  copyModule(processDefaultOutputsTaskProvider, xpackModule)
-  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, xpackModule)
-}
-
 copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
 
 project(':test:external-modules').subprojects.each { Project testModule ->
@@ -341,7 +327,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
-    libsSecurityCli project(':x-pack:plugin:security:cli')
   }
 
   project.ext {
@@ -391,12 +376,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           excludePlatforms = []
         }
         from(buildModules) {
-          // geo registers the geo_shape mapper that is overridden by
-          // the geo_shape mapper registered in the x-pack-spatial plugin
-          if (oss == false) {
-            exclude "**/geo/**"
-          }
-
           for (String excludePlatform : excludePlatforms) {
             exclude "**/platform/${excludePlatform}/**"
           }
