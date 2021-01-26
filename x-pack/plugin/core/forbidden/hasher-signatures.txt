@@ -1,2 +1,0 @@
-@defaultMessage values should not be used as it can contain unwanted algorithms. Use Hasher#getAvailableAlgoStoredHash and Hasher#getAvailableAlgoCacheHash instead
-org.elasticsearch.xpack.core.security.authc.support.Hasher#values()
