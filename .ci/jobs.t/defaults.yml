@@ -35,7 +35,6 @@
           fail: true
       - ansicolor
       - timestamps
-      - gradle-build-scan
     properties:
         - github:
             url: https://github.com/elastic/elasticsearch/
