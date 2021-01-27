@@ -26,10 +26,3 @@ configure(project('painless-whitelist')) {
   }
 }
 
-configure(project('security-authorization-engine')) {
-  configurations.all {
-    resolutionStrategy.dependencySubstitution {
-      substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
-    }
-  }
-}
