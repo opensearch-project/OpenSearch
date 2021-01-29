@@ -533,12 +533,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         installModules();
 
-        if (isSettingTrue("xpack.security.enabled")) {
-            if (credentials.isEmpty()) {
-                user(Collections.emptyMap());
-            }
-        }
-
         if (credentials.isEmpty() == false) {
             logToProcessStdout("Setting up " + credentials.size() + " users");
 
@@ -1446,28 +1440,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             throw new TestClustersException("Interrupted while waiting for ports files", e);
         }
         return Files.exists(httpPortsFile) && Files.exists(transportPortFile);
-    }
-
-    @Internal
-    public boolean isHttpSslEnabled() {
-        return Boolean.valueOf(settings.getOrDefault("xpack.security.http.ssl.enabled", "false").toString());
-    }
-
-    void configureHttpWait(WaitForHttpResource wait) {
-        if (settings.containsKey("xpack.security.http.ssl.certificate_authorities")) {
-            wait.setCertificateAuthorities(
-                getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate_authorities").toString()).toFile()
-            );
-        }
-        if (settings.containsKey("xpack.security.http.ssl.certificate")) {
-            wait.setCertificateAuthorities(getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate").toString()).toFile());
-        }
-        if (settings.containsKey("xpack.security.http.ssl.keystore.path")) {
-            wait.setTrustStoreFile(getConfigDir().resolve(settings.get("xpack.security.http.ssl.keystore.path").toString()).toFile());
-        }
-        if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {
-            wait.setTrustStorePassword(keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString());
-        }
     }
 
     void setHttpPort(String httpPort) {

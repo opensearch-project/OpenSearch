@@ -282,8 +282,6 @@ public class DockerTests extends PackagingTestCase {
 
         Map<String, String> envVars = new HashMap<>();
         envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-        // Enable security so that we can test that the password has been used
-        envVars.put("xpack.security.enabled", "true");
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
@@ -336,7 +334,6 @@ public class DockerTests extends PackagingTestCase {
         // Enable security so that we can test that the password has been used
         Map<String, String> envVars = new HashMap<>();
         envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
-        envVars.put("xpack.security.enabled", "true");
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values. The wrapper will resolve the symlink
@@ -427,7 +424,6 @@ public class DockerTests extends PackagingTestCase {
         // Enable security so that we can test that the password has been used
         Map<String, String> envVars = new HashMap<>();
         envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
-        envVars.put("xpack.security.enabled", "true");
 
         // Set invalid permissions on the file that the symlink targets
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p775);

@@ -262,7 +262,6 @@ public class RestHighLevelClient implements Closeable {
     private final TasksClient tasksClient = new TasksClient(this);
     private final WatcherClient watcherClient = new WatcherClient(this);
     private final MigrationClient migrationClient = new MigrationClient(this);
-    private final SecurityClient securityClient = new SecurityClient(this);
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
     private final TransformClient transformClient = new TransformClient(this);
@@ -399,20 +398,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public MigrationClient migration() {
         return migrationClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Security APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api.html">
-     * Security APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Security API calls
-     */
-    public SecurityClient security() {
-        return securityClient;
     }
 
     /**

@@ -1140,9 +1140,6 @@ public final class InternalTestCluster extends TestCluster {
             if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
                 String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
                 builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transportType);
-                if (inFipsJvm() && transportType.equals("security4")) {
-                    builder.put("xpack.security.ssl.diagnose.trust", false);
-                }
             } else {
                 builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
             }
