@@ -129,7 +129,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:ilm',
   ':x-pack:plugin:mapper-constant-keyword',
   ':x-pack:plugin:mapper-flattened',
-  ':x-pack:plugin:ml',
   ':x-pack:plugin:monitoring',
   ':x-pack:plugin:ql',
   ':x-pack:plugin:rollup',
