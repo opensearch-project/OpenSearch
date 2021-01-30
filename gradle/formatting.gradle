@@ -131,7 +131,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:mapper-flattened',
   ':x-pack:plugin:monitoring',
   ':x-pack:plugin:ql',
-  ':x-pack:plugin:rollup',
   ':x-pack:plugin:search-business-rules',
   ':x-pack:plugin:spatial',
   ':x-pack:plugin:sql',

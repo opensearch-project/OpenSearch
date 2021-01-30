@@ -103,11 +103,6 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
     }
 
     @Override
-    protected boolean preserveRollupJobsUponCompletion() {
-        return true;
-    }
-
-    @Override
     protected boolean preserveILMPoliciesUponCompletion() {
         return true;
     }

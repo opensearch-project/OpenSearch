@@ -427,8 +427,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns whether to preserve the state of the cluster upon completion of this test. Defaults to false. If true, overrides the value of
      * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()},
-     * {@link #preserveSnapshotsUponCompletion()},{@link #preserveRollupJobsUponCompletion()},
-     * and {@link #preserveILMPoliciesUponCompletion()}.
+     * {@link #preserveSnapshotsUponCompletion()}, and {@link #preserveILMPoliciesUponCompletion()}.
      *
      * @return true if the state of the cluster should be preserved
      */
@@ -494,15 +493,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Returns whether to preserve the rollup jobs of this test. Defaults to
-     * not preserving them. Only runs at all if xpack is installed on the
-     * cluster being tested.
-     */
-    protected boolean preserveRollupJobsUponCompletion() {
-        return false;
-    }
-
-    /**
      * Returns whether to preserve ILM Policies of this test. Defaults to not
      * preserving them. Only runs at all if xpack is installed on the cluster
      * being tested.
@@ -535,14 +525,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected boolean waitForAllSnapshotsWiped() { return false; }
 
     private void wipeCluster() throws Exception {
-
-        // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
-        // so we need to fully shut them down first otherwise a job might stall waiting
-        // for a bulk to finish against a non-existing index (and then fail tests)
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
-            wipeRollupJobs();
-            waitForPendingRollupTasks();
-        }
 
         // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
         if (nodeVersions.first().onOrAfter(Version.V_7_4_0)) { // SLM was introduced in version 7.4
@@ -775,47 +757,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private void wipeRollupJobs() throws IOException {
-        final Response response;
-        try {
-            response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
-        } catch (ResponseException e) {
-            // If we don't see the rollup endpoint (possibly because of running against an older ES version) we just bail
-            if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
-                return;
-            }
-            throw e;
-        }
-        Map<String, Object> jobs = entityAsMap(response);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
-
-        if (jobConfigs == null) {
-            return;
-        }
-
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            @SuppressWarnings("unchecked")
-            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            Request request = new Request("POST", "/_rollup/job/" + jobId + "/_stop");
-            request.addParameter("ignore", "404");
-            request.addParameter("wait_for_completion", "true");
-            request.addParameter("timeout", "10s");
-            logger.debug("stopping rollup job [{}]", jobId);
-            adminClient().performRequest(request);
-        }
-
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            @SuppressWarnings("unchecked")
-            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            Request request = new Request("DELETE", "/_rollup/job/" + jobId);
-            request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
-            logger.debug("deleting rollup job [{}]", jobId);
-            adminClient().performRequest(request);
-        }
-    }
-
     protected void refreshAllIndices() throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         Request refreshRequest = new Request("POST", "/_refresh");
@@ -833,10 +774,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         });
         refreshRequest.setOptions(requestOptions);
         client().performRequest(refreshRequest);
-    }
-
-    private void waitForPendingRollupTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
     private static void deleteAllILMPolicies(Set<String> exclusions) throws IOException {
