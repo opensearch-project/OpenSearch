@@ -237,17 +237,12 @@ public class Packages {
             "elasticsearch-migrate",
             "elasticsearch-saml-metadata",
             "elasticsearch-setup-passwords",
-            "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"
         ).forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
-
-        // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
-        // the version through here
-        assertThat(es.bin("elasticsearch-sql-cli-" + distribution.version + ".jar"), file(File, "root", "root", p755));
 
         Stream.of("users", "users_roles", "roles.yml", "role_mapping.yml", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));

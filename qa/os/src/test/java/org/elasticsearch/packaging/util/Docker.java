@@ -537,17 +537,12 @@ public class Docker {
             "elasticsearch-croneval",
             "elasticsearch-saml-metadata",
             "elasticsearch-setup-passwords",
-            "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"
         ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
-
-        // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
-        // the version through here
-        assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p755);
 
         Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));

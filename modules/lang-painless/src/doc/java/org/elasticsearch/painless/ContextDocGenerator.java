@@ -798,12 +798,6 @@ public final class ContextDocGenerator {
 
     private static boolean isInternalClass(String javaName) {
         return  javaName.equals("org.elasticsearch.script.ScoreScript") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth") ||
-                javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.InternalQlScriptUtils") ||
-                javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils") ||
                 javaName.equals("org.elasticsearch.script.ScoreScript$ExplanationHolder");
     }
 
