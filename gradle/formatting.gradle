@@ -128,7 +128,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:identity-provider',
   ':x-pack:plugin:mapper-constant-keyword',
   ':x-pack:plugin:mapper-flattened',
-  ':x-pack:plugin:monitoring',
   ':x-pack:plugin:ql',
   ':x-pack:plugin:search-business-rules',
   ':x-pack:plugin:spatial',
