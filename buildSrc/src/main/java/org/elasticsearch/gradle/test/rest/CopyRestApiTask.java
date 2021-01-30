@@ -60,19 +60,15 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
 public class CopyRestApiTask extends DefaultTask {
     private static final String REST_API_PREFIX = "rest-api-spec/api";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
-    final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
     String sourceSetName;
     boolean skipHasRestTestCheck;
     Configuration coreConfig;
-    Configuration xpackConfig;
     Configuration additionalConfig;
 
     private final PatternFilterable corePatternSet;
-    private final PatternFilterable xpackPatternSet;
 
     public CopyRestApiTask() {
         corePatternSet = getPatternSetFactory().create();
-        xpackPatternSet = getPatternSetFactory().create();
     }
 
     @Inject
@@ -96,11 +92,6 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     @Input
-    public ListProperty<String> getIncludeXpack() {
-        return includeXpack;
-    }
-
-    @Input
     String getSourceSetName() {
         return sourceSetName;
     }
@@ -114,11 +105,6 @@ public class CopyRestApiTask extends DefaultTask {
     @InputFiles
     public FileTree getInputDir() {
         FileTree coreFileTree = null;
-        FileTree xpackFileTree = null;
-        if (includeXpack.get().isEmpty() == false) {
-            xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-            xpackFileTree = xpackConfig.getAsFileTree().matching(xpackPatternSet);
-        }
         boolean projectHasYamlRestTests = skipHasRestTestCheck || projectHasYamlRestTests();
         if (includeCore.get().isEmpty() == false || projectHasYamlRestTests) {
             if (BuildParams.isInternal()) {
@@ -130,13 +116,11 @@ public class CopyRestApiTask extends DefaultTask {
         }
 
         ConfigurableFileCollection fileCollection = additionalConfig == null
-            ? getProject().files(coreFileTree, xpackFileTree)
-            : getProject().files(coreFileTree, xpackFileTree, additionalConfig.getAsFileTree());
+            ? getProject().files(coreFileTree)
+            : getProject().files(coreFileTree, additionalConfig.getAsFileTree());
 
         // if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
-        return projectHasYamlRestTests || includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false
-            ? fileCollection.getAsFileTree()
-            : null;
+        return projectHasYamlRestTests || includeCore.get().isEmpty() == false ? fileCollection.getAsFileTree() : null;
     }
 
     @OutputDirectory
@@ -177,15 +161,6 @@ public class CopyRestApiTask extends DefaultTask {
                         includeCore.get().stream().map(prefix -> REST_API_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );
                 }
-            });
-        }
-        // only copy x-pack specs if explicitly instructed
-        if (includeXpack.get().isEmpty() == false) {
-            getLogger().debug("X-pack rest specs for project [{}] will be copied to the test resources.", projectPath);
-            getFileSystemOperations().copy(c -> {
-                c.from(xpackConfig.getSingleFile());
-                c.into(getOutputDir());
-                c.include(xpackPatternSet.getIncludes());
             });
         }
         // TODO: once https://github.com/elastic/elasticsearch/pull/62968 lands ensure that this uses `getFileSystemOperations()`

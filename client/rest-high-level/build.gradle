@@ -50,12 +50,6 @@ dependencies {
   testImplementation "junit:junit:${versions.junit}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
   testImplementation project(":rest-api-spec")
-  // Needed for serialization tests:
-  // (In order to serialize a server side class to a client side class or the other way around)
-  testImplementation(project(':x-pack:plugin:core')) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
-  }
-  testImplementation(project(':x-pack:plugin:eql'))
 }
 
 tasks.named('forbiddenApisMain').configure {

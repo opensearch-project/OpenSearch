@@ -57,19 +57,15 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
 public class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
-    final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
     String sourceSetName;
     Configuration coreConfig;
-    Configuration xpackConfig;
     Configuration additionalConfig;
 
     private final PatternFilterable corePatternSet;
-    private final PatternFilterable xpackPatternSet;
 
     public CopyRestTestsTask() {
         corePatternSet = getPatternSetFactory().create();
-        xpackPatternSet = getPatternSetFactory().create();
     }
 
     @Inject
@@ -93,11 +89,6 @@ public class CopyRestTestsTask extends DefaultTask {
     }
 
     @Input
-    public ListProperty<String> getIncludeXpack() {
-        return includeXpack;
-    }
-
-    @Input
     String getSourceSetName() {
         return sourceSetName;
     }
@@ -106,11 +97,6 @@ public class CopyRestTestsTask extends DefaultTask {
     @InputFiles
     public FileTree getInputDir() {
         FileTree coreFileTree = null;
-        FileTree xpackFileTree = null;
-        if (includeXpack.get().isEmpty() == false) {
-            xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-            xpackFileTree = xpackConfig.getAsFileTree().matching(xpackPatternSet);
-        }
         if (includeCore.get().isEmpty() == false) {
             if (BuildParams.isInternal()) {
                 corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
@@ -120,13 +106,11 @@ public class CopyRestTestsTask extends DefaultTask {
             }
         }
         ConfigurableFileCollection fileCollection = additionalConfig == null
-            ? getProject().files(coreFileTree, xpackFileTree)
-            : getProject().files(coreFileTree, xpackFileTree, additionalConfig.getAsFileTree());
+            ? getProject().files(coreFileTree)
+            : getProject().files(coreFileTree, additionalConfig.getAsFileTree());
 
         // copy tests only if explicitly requested
-        return includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false || additionalConfig != null
-            ? fileCollection.getAsFileTree()
-            : null;
+        return includeCore.get().isEmpty() == false || additionalConfig != null ? fileCollection.getAsFileTree() : null;
     }
 
     @OutputDirectory
@@ -166,15 +150,6 @@ public class CopyRestTestsTask extends DefaultTask {
                     );
                 });
             }
-        }
-        // only copy x-pack tests if explicitly instructed
-        if (includeXpack.get().isEmpty() == false) {
-            getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", projectPath);
-            getFileSystemOperations().copy(c -> {
-                c.from(xpackConfig.getAsFileTree());
-                c.into(getOutputDir());
-                c.include(xpackPatternSet.getIncludes());
-            });
         }
         // copy any additional config
         if (additionalConfig != null) {
