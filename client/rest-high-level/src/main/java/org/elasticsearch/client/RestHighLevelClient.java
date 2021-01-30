@@ -261,7 +261,6 @@ public class RestHighLevelClient implements Closeable {
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
     private final WatcherClient watcherClient = new WatcherClient(this);
-    private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final TransformClient transformClient = new TransformClient(this);
 
     /**
@@ -362,17 +361,6 @@ public class RestHighLevelClient implements Closeable {
      * Watcher APIs on elastic.co</a> for more information.
      */
     public WatcherClient watcher() { return watcherClient; }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Index Lifecycle APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management-api.html"> X-Pack APIs
-     * on elastic.co</a> for more information.
-     */
-    public IndexLifecycleClient indexLifecycle() {
-        return ilmClient;
-    }
 
     /**
      * Provides methods for accessing the Elastic Licensed Data Frame APIs that

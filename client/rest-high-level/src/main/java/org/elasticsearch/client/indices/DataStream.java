@@ -87,7 +87,6 @@ public final class DataStream {
     public static final ParseField GENERATION_FIELD = new ParseField("generation");
     public static final ParseField STATUS_FIELD = new ParseField("status");
     public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
-    public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
@@ -111,7 +110,6 @@ public final class DataStream {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_TEMPLATE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ILM_POLICY_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
