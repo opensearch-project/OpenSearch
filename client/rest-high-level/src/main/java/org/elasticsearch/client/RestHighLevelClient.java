@@ -260,7 +260,6 @@ public class RestHighLevelClient implements Closeable {
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
-    private final WatcherClient watcherClient = new WatcherClient(this);
     private final TransformClient transformClient = new TransformClient(this);
 
     /**
@@ -351,16 +350,6 @@ public class RestHighLevelClient implements Closeable {
     public final TasksClient tasks() {
         return tasksClient;
     }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Watcher APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api.html">
-     * Watcher APIs on elastic.co</a> for more information.
-     */
-    public WatcherClient watcher() { return watcherClient; }
 
     /**
      * Provides methods for accessing the Elastic Licensed Data Frame APIs that

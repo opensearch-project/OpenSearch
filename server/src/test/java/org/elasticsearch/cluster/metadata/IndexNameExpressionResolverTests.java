@@ -1834,15 +1834,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
-        assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
-    }
-
-    public void testWildcardSystemIndexResolutionMultipleMatchesAllowed() {
-        ClusterState state = systemIndexTestClusterState();
-        SearchRequest request = new SearchRequest(".w*");
-
-        List<String> indexNames = resolveConcreteIndexNameList(state, request);
-        assertThat(indexNames, containsInAnyOrder(".watches"));
+        assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta"));
     }
 
     public void testWildcardSystemIndexResolutionSingleMatchAllowed() {
@@ -1867,8 +1859,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
-        assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
-        assertWarnings("this request accesses system indices: [.ml-meta, .ml-stuff, .watches], but in a future major version, " +
+        assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta"));
+        assertWarnings("this request accesses system indices: [.ml-meta, .ml-stuff], but in a future major version, " +
             "direct access to system indices will be prevented by default");
 
     }
@@ -1881,18 +1873,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder(".ml-meta"));
         assertWarnings("this request accesses system indices: [.ml-meta], but in a future major version, direct access " +
-            "to system indices will be prevented by default");
-
-    }
-
-    public void testWildcardSystemIndexReslutionSingleMatchDeprecated() {
-        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
-        ClusterState state = systemIndexTestClusterState();
-        SearchRequest request = new SearchRequest(".w*");
-
-        List<String> indexNames = resolveConcreteIndexNameList(state, request);
-        assertThat(indexNames, containsInAnyOrder(".watches"));
-        assertWarnings("this request accesses system indices: [.watches], but in a future major version, direct access " +
             "to system indices will be prevented by default");
 
     }
@@ -2152,7 +2132,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder(".ml-meta", settings).state(State.OPEN).system(true))
-            .put(indexBuilder(".watches", settings).state(State.OPEN).system(true))
             .put(indexBuilder(".ml-stuff", settings).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
         return ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();

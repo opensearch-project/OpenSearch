@@ -1163,20 +1163,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".monitoring-")) {
             return true;
         }
-        if (name.startsWith(".watch") || name.startsWith(".triggered_watches")) {
-            return true;
-        }
-        if (name.startsWith(".data-frame-")) {
-            return true;
-        }
-        if (name.startsWith(".ml-")) {
-            return true;
-        }
         if (name.startsWith(".transform-")) {
             return true;
         }
         switch (name) {
-            case ".watches":
             case "logstash-index-template":
             case ".logstash-management":
             case "security_audit_log":
