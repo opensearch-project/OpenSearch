@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
@@ -51,7 +50,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -59,7 +57,6 @@ import static org.hamcrest.Matchers.containsString;
 public class ServerUtils {
 
     private static final Logger logger = LogManager.getLogger(ServerUtils.class);
-
 
     // generous timeout as nested virtualization can be quite slow ...
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);

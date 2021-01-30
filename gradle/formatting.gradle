@@ -126,7 +126,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:deprecation',
   ':x-pack:plugin:frozen-indices',
   ':x-pack:plugin:identity-provider',
-  ':x-pack:plugin:ilm',
   ':x-pack:plugin:mapper-constant-keyword',
   ':x-pack:plugin:mapper-flattened',
   ':x-pack:plugin:monitoring',

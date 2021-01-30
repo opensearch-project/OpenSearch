@@ -39,7 +39,6 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
-import static org.elasticsearch.packaging.util.FileUtils.escapePath;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assume.assumeTrue;
 
