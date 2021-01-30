@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.ml.inference.results;
 
+import org.elasticsearch.client.analytics.FeatureImportance;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
