@@ -155,16 +155,6 @@ def createAndSetWritable(Object... locations) {
   }
 }
 
-tasks.register("copyKeystore", Sync) {
-  from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  into "${buildDir}/certs"
-  doLast {
-    file("${buildDir}/certs").setReadable(true, false)
-    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
-  }
-}
-
 elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->
     Flavor.values().each { distroFlavor ->
@@ -181,7 +171,6 @@ elasticsearch_distributions {
 
 tasks.named("preProcessFixture").configure {
   dependsOn elasticsearch_distributions.docker_default, elasticsearch_distributions.docker_oss
-  dependsOn "copyKeystore"
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -197,11 +186,6 @@ tasks.named("preProcessFixture").configure {
       "${buildDir}/logs/oss-2"
     )
   }
-}
-
-tasks.named("processTestResources").configure {
-  from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
 }
 
 tasks.register("integTest", Test) {

@@ -68,12 +68,6 @@ public class TestWithSslPlugin implements Plugin<Project> {
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
             clusters.all(c -> {
-                // ceremony to set up ssl
-                c.setting("xpack.security.transport.ssl.keystore.path", "test-node.jks");
-                c.setting("xpack.security.http.ssl.keystore.path", "test-node.jks");
-                c.keystore("xpack.security.transport.ssl.keystore.secure_password", "keypass");
-                c.keystore("xpack.security.http.ssl.keystore.secure_password", "keypass");
-
                 // copy keystores & certs into config/
                 c.extraConfigFile(nodeKeystore.getName(), nodeKeystore);
                 c.extraConfigFile(clientKeyStore.getName(), clientKeyStore);
