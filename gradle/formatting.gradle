@@ -60,7 +60,6 @@ def projectPathsToExclude = [
   ':example-plugins:rescore',
   ':example-plugins:rest-handler',
   ':example-plugins:script-expert-scoring',
-  ':example-plugins:security-authorization-engine',
   ':libs:elasticsearch-cli',
   ':libs:elasticsearch-core',
   ':libs:elasticsearch-dissect',
