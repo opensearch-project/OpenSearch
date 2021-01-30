@@ -72,18 +72,6 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
             task.dependsOn(checkLicense);
             task.dependsOn(checkNotice);
         });
-
-        String projectName = project.getName();
-        if (projectName.contains("oss") == false && (projectName.contains("zip") || projectName.contains("tar"))) {
-            project.getExtensions().add("licenseName", "Elastic License");
-            project.getExtensions().add("licenseUrl", project.getExtensions().getExtraProperties().get("elasticLicenseUrl"));
-            TaskProvider<Task> checkMlCppNoticeTask = registerCheckMlCppNoticeTask(
-                project,
-                checkExtraction,
-                distributionArchiveCheckExtension
-            );
-            checkTask.configure(task -> task.dependsOn(checkMlCppNoticeTask));
-        }
     }
 
     private File calculateArchiveExtractionDir(Project project) {
@@ -94,40 +82,6 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
             throw new GradleException("Expecting project name containing 'zip' or 'tar'.");
         }
         return new File(project.getBuildDir(), "zip-extracted");
-    }
-
-    private static TaskProvider<Task> registerCheckMlCppNoticeTask(
-        Project project,
-        TaskProvider<Copy> checkExtraction,
-        DistributionArchiveCheckExtension extension
-    ) {
-        TaskProvider<Task> checkMlCppNoticeTask = project.getTasks().register("checkMlCppNotice", task -> {
-            task.dependsOn(checkExtraction);
-            task.doLast(new Action<Task>() {
-                @Override
-                public void execute(Task task) {
-                    // this is just a small sample from the C++ notices,
-                    // the idea being that if we've added these lines we've probably added all the required lines
-                    final List<String> expectedLines = extension.expectedMlLicenses.get();
-                    final Path noticePath = checkExtraction.get()
-                        .getDestinationDir()
-                        .toPath()
-                        .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/modules/x-pack-ml/NOTICE.txt");
-                    final List<String> actualLines;
-                    try {
-                        actualLines = Files.readAllLines(noticePath);
-                        for (final String expectedLine : expectedLines) {
-                            if (actualLines.contains(expectedLine) == false) {
-                                throw new GradleException("expected [" + noticePath + " to contain [" + expectedLine + "] but it did not");
-                            }
-                        }
-                    } catch (IOException ioException) {
-                        ioException.printStackTrace();
-                    }
-                }
-            });
-        });
-        return checkMlCppNoticeTask;
     }
 
     private TaskProvider<Task> registerCheckNoticeTask(Project project, TaskProvider<Copy> checkExtraction) {
@@ -153,12 +107,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
-                    String licenseFilename = null;
-                    if (project.getName().contains("oss-") || project.getName().equals("integ-test-zip")) {
-                        licenseFilename = "APACHE-LICENSE-2.0.txt";
-                    } else {
-                        licenseFilename = "ELASTIC-LICENSE.txt";
-                    }
+                    String licenseFilename = "APACHE-LICENSE-2.0.txt";
                     final List<String> licenseLines;
                     try {
                         licenseLines = Files.readAllLines(project.getRootDir().toPath().resolve("licenses/" + licenseFilename));
@@ -208,27 +157,10 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         }
     }
 
-    private static boolean toolExists(Project project) {
-        if (project.getName().contains("tar")) {
-            return tarExists();
-        } else {
-            assert project.getName().contains("zip");
-            return zipExists();
-        }
-    }
-
     private static void assertNoClassFile(File file) {
         if (file.getName().endsWith(".class")) {
             throw new GradleException("Detected class file in distribution ('" + file.getName() + "')");
         }
-    }
-
-    private static boolean zipExists() {
-        return new File("/bin/unzip").exists() || new File("/usr/bin/unzip").exists() || new File("/usr/local/bin/unzip").exists();
-    }
-
-    private static boolean tarExists() {
-        return new File("/bin/tar").exists() || new File("/usr/bin/tar").exists() || new File("/usr/local/bin/tar").exists();
     }
 
     private Object distTaskOutput(TaskProvider<Task> buildDistTask) {

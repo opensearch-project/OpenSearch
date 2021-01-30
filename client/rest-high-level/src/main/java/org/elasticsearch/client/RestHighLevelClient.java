@@ -260,10 +260,8 @@ public class RestHighLevelClient implements Closeable {
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
-    private final XPackClient xPackClient = new XPackClient(this);
     private final WatcherClient watcherClient = new WatcherClient(this);
     private final GraphClient graphClient = new GraphClient(this);
-    private final LicenseClient licenseClient = new LicenseClient(this);
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
@@ -373,19 +371,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides methods for accessing the Elastic Licensed X-Pack Info
-     * and Usage APIs that are shipped with the default distribution of
-     * Elasticsearch. All of these APIs will 404 if run against the OSS
-     * distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
-     * Info APIs on elastic.co</a> for more information.
-     */
-    public final XPackClient xpack() {
-        return xPackClient;
-    }
-
-    /**
      * Provides methods for accessing the Elastic Licensed Watcher APIs that
      * are shipped with the default distribution of Elasticsearch. All of
      * these APIs will 404 if run against the OSS distribution of Elasticsearch.
@@ -404,16 +389,6 @@ public class RestHighLevelClient implements Closeable {
      * Graph API on elastic.co</a> for more information.
      */
     public GraphClient graph() { return graphClient; }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Licensing APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
-     * Licensing APIs on elastic.co</a> for more information.
-     */
-    public LicenseClient license() { return licenseClient; }
 
     /**
      * A wrapper for the {@link RestHighLevelClient} that provides methods for

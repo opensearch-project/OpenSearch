@@ -97,13 +97,6 @@ if (System.getProperty('idea.active') == 'true') {
                specific language governing permissions and limitations
                under the License.'''.stripIndent()
             }
-            Elastic {
-              keyword = 'Licensed under the Elastic License'
-              notice = '''\
-               Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-               or more contributor license agreements. Licensed under the Elastic License;
-               you may not use this file except in compliance with the Elastic License.'''.stripIndent()
-            }
           }
         }
       }

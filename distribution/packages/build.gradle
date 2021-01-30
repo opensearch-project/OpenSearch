@@ -189,7 +189,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
       assert type == 'rpm'
       into('/usr/share/elasticsearch') {
         from(rootProject.file('licenses')) {
-          include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
+          include 'APACHE-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
         }
         fileMode 0644
@@ -327,11 +327,7 @@ Closure commonDebConfig(boolean oss, boolean jdk, String architecture) {
 
     // jdeb does not provide a way to set the License control attribute, and ospackage
     // silently ignores setting it. Instead, we set the license as "custom field"
-    if (oss) {
-      customFields['License'] = 'ASL-2.0'
-    } else {
-      customFields['License'] = 'Elastic-License'
-    }
+    customFields['License'] = 'ASL-2.0'
 
     archiveVersion = project.version.replace('-', '~')
     packageGroup 'web'
@@ -379,11 +375,7 @@ Closure commonRpmConfig(boolean oss, boolean jdk, String architecture) {
   return {
     configure(commonPackageConfig('rpm', oss, jdk, architecture))
 
-    if (oss) {
-      license 'ASL 2.0'
-    } else {
-      license 'Elastic License'
-    }
+    license 'ASL 2.0'
 
     packageGroup 'Application/Internet'
     requires '/bin/bash'
@@ -502,15 +494,9 @@ subprojects {
           Path copyrightPath
           String expectedLicense
           String licenseFilename
-          if (project.name.contains('oss-')) {
-            copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch-oss/copyright")
-            expectedLicense = "ASL-2.0"
-            licenseFilename = "APACHE-LICENSE-2.0.txt"
-          } else {
-            copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch/copyright")
-            expectedLicense = "Elastic-License"
-            licenseFilename = "ELASTIC-LICENSE.txt"
-          }
+          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch-oss/copyright")
+          expectedLicense = "ASL-2.0"
+          licenseFilename = "APACHE-LICENSE-2.0.txt"
           final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
             "Copyright: Elasticsearch B.V. <info@elastic.co>",
             "License: " + expectedLicense)
@@ -524,12 +510,7 @@ subprojects {
       tasks.named("checkLicense").configure {
         onlyIf rpmExists
         doLast {
-          String licenseFilename
-          if (project.name.contains('oss-')) {
-            licenseFilename = "APACHE-LICENSE-2.0.txt"
-          } else {
-            licenseFilename = "ELASTIC-LICENSE.txt"
-          }
+          String licenseFilename = "APACHE-LICENSE-2.0.txt"
           final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
           final Path licensePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/LICENSE.txt")
           assertLinesInFile(licensePath, licenseLines)
@@ -561,12 +542,7 @@ subprojects {
         exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
         exec.standardOutput = output
         doLast {
-          String expectedLicense
-          if (project.name.contains('oss-')) {
-            expectedLicense = "ASL-2.0"
-          } else {
-            expectedLicense = "Elastic-License"
-          }
+          String expectedLicense = "ASL-2.0"
           final Pattern pattern = Pattern.compile("\\s*License: (.+)")
           final String info = output.toString('UTF-8')
           final String[] actualLines = info.split("\n")
@@ -598,12 +574,7 @@ subprojects {
         exec.standardOutput = output
         doLast {
           String license = output.toString('UTF-8')
-          String expectedLicense
-          if (project.name.contains('oss-')) {
-            expectedLicense = "ASL 2.0"
-          } else {
-            expectedLicense = "Elastic License"
-          }
+          String expectedLicense = "ASL-2.0"
           if (license != expectedLicense) {
             throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.get().outputs.files.singleFile}] but was [${license}]")
           }
