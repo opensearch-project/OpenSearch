@@ -70,10 +70,6 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals("trial", info.getLicenseInfo().getMode());
         assertEquals(LicenseStatus.ACTIVE, info.getLicenseInfo().getStatus());
 
-        FeatureSet graph = info.getFeatureSetsInfo().getFeatureSets().get("graph");
-        assertTrue(graph.available());
-        assertTrue(graph.enabled());
-        assertNull(graph.nativeCodeInfo());
         FeatureSet monitoring = info.getFeatureSetsInfo().getFeatureSets().get("monitoring");
         assertTrue(monitoring.available());
         assertTrue(monitoring.enabled());
