@@ -51,38 +51,4 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertTrue(versionMap.get("number").toString().startsWith(info.getVersion().getNumber()));
         assertEquals(versionMap.get("lucene_version"), info.getVersion().getLuceneVersion());
     }
-
-    public void testXPackInfo() throws IOException {
-        XPackInfoRequest request = new XPackInfoRequest();
-        request.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
-        request.setVerbose(true);
-        XPackInfoResponse info = highLevelClient().xpack().info(request, RequestOptions.DEFAULT);
-
-        MainResponse mainResponse = highLevelClient().info(RequestOptions.DEFAULT);
-
-        assertEquals(mainResponse.getVersion().getBuildHash(), info.getBuildInfo().getHash());
-
-        assertEquals("trial", info.getLicenseInfo().getType());
-        assertEquals("trial", info.getLicenseInfo().getMode());
-        assertEquals(LicenseStatus.ACTIVE, info.getLicenseInfo().getStatus());
-
-        FeatureSet monitoring = info.getFeatureSetsInfo().getFeatureSets().get("monitoring");
-        assertTrue(monitoring.available());
-        assertTrue(monitoring.enabled());
-        assertNull(monitoring.nativeCodeInfo());
-    }
-
-    public void testXPackInfoEmptyRequest() throws IOException {
-        XPackInfoResponse info = highLevelClient().xpack().info(new XPackInfoRequest(), RequestOptions.DEFAULT);
-
-        /*
-         * The default in the transport client is non-verbose and returning
-         * no categories which is the opposite of the default when you use
-         * the API over REST. We don't want to break the transport client
-         * even though it doesn't feel like a good default.
-         */
-        assertNull(info.getBuildInfo());
-        assertNull(info.getLicenseInfo());
-        assertNull(info.getFeatureSetsInfo());
-    }
 }

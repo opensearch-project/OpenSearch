@@ -1160,9 +1160,6 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Is this template one that is automatically created by xpack?
      */
     protected static boolean isXPackTemplate(String name) {
-        if (name.startsWith(".monitoring-")) {
-            return true;
-        }
         if (name.startsWith(".transform-")) {
             return true;
         }
