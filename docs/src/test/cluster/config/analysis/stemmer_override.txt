@@ -1,3 +1,0 @@
-running, runs => run
-
-stemmer => stemmer
