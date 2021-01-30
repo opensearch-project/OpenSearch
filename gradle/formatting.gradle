@@ -135,7 +135,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:transform',
   ':x-pack:plugin:vectors',
   ':x-pack:plugin:voting-only-node',
-  ':x-pack:plugin:watcher',
   ':x-pack:plugin:wildcard',
   ':x-pack:qa',
   ':x-pack:qa:security-example-spi-extension',

@@ -539,8 +539,7 @@ public class Docker {
             "elasticsearch-syskeygen",
             "elasticsearch-users",
             "x-pack-env",
-            "x-pack-security-env",
-            "x-pack-watcher-env"
+            "x-pack-security-env"
         ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
         Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
