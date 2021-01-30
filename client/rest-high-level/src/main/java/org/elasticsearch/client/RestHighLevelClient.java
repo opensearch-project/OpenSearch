@@ -271,7 +271,6 @@ public class RestHighLevelClient implements Closeable {
     private final RollupClient rollupClient = new RollupClient(this);
     private final CcrClient ccrClient = new CcrClient(this);
     private final TransformClient transformClient = new TransformClient(this);
-    private final AsyncSearchClient asyncSearchClient = new AsyncSearchClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -440,16 +439,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public IndexLifecycleClient indexLifecycle() {
         return ilmClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Index Async Search APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"> X-Pack APIs on elastic.co</a>
-     * for more information.
-     */
-    public AsyncSearchClient asyncSearch() {
-        return asyncSearchClient;
     }
 
     /**
