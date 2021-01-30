@@ -39,7 +39,6 @@ plugins {
   id "com.diffplug.spotless" version "5.6.1" apply false
 }
 
-apply from: 'gradle/build-scan.gradle'
 apply from: 'gradle/build-complete.gradle'
 apply from: 'gradle/runtime-jdk-provision.gradle'
 apply from: 'gradle/ide.gradle'
