@@ -16,17 +16,6 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
-       - xpack.security.enabled=true
-       - xpack.security.transport.ssl.enabled=true
-       - xpack.security.http.ssl.enabled=true
-       - xpack.security.authc.token.enabled=true
-       - xpack.security.audit.enabled=true
-       - xpack.security.authc.realms.file.file1.order=0
-       - xpack.security.authc.realms.native.native1.order=1
-       - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.http.ssl.verification_mode=certificate
-       - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
     volumes:
        - ./build/repo:/tmp/es-repo
@@ -65,17 +54,6 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
-       - xpack.security.enabled=true
-       - xpack.security.transport.ssl.enabled=true
-       - xpack.security.http.ssl.enabled=true
-       - xpack.security.authc.token.enabled=true
-       - xpack.security.audit.enabled=true
-       - xpack.security.authc.realms.file.file1.order=0
-       - xpack.security.authc.realms.native.native1.order=1
-       - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.http.ssl.verification_mode=certificate
-       - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
     volumes:
        - ./build/repo:/tmp/es-repo

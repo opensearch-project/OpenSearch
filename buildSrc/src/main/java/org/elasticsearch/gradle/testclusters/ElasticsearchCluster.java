@@ -396,23 +396,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         node.stop(false);
         node.goToNextVersion();
         commonNodeConfig(node, null, null);
-        // We need to translate these settings there as there's no support to do per version config for testclusters yet
-        if (node.getVersion().onOrAfter("7.0.0")) {
-            if (node.settings.containsKey("xpack.security.authc.realms.file1.type")) {
-                node.settings.remove("xpack.security.authc.realms.file1.type");
-                node.settings.put(
-                    "xpack.security.authc.realms.file.file1.order",
-                    node.settings.remove("xpack.security.authc.realms.file1.order")
-                );
-            }
-            if (node.settings.containsKey("xpack.security.authc.realms.native1.type")) {
-                node.settings.remove("xpack.security.authc.realms.native1.type");
-                node.settings.put(
-                    "xpack.security.authc.realms.native.native1.order",
-                    node.settings.remove("xpack.security.authc.realms.native1.order")
-                );
-            }
-        }
         nodeIndex += 1;
         node.start();
     }
@@ -509,15 +492,12 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
             try {
-                boolean httpSslEnabled = getFirstNode().isHttpSslEnabled();
                 WaitForHttpResource wait = new WaitForHttpResource(
-                    httpSslEnabled ? "https" : "http",
+                   "http",
                     getFirstNode().getHttpSocketURI(),
                     nodes.size()
                 );
-                if (httpSslEnabled) {
-                    getFirstNode().configureHttpWait(wait);
-                }
+
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();
                 if (getFirstNode().getCredentials().isEmpty() == false) {
                     wait.setUsername(credentials.get(0).get("useradd"));

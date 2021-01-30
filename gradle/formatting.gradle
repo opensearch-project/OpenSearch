@@ -133,8 +133,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:ql',
   ':x-pack:plugin:rollup',
   ':x-pack:plugin:search-business-rules',
-  ':x-pack:plugin:security',
-  ':x-pack:plugin:security:cli',
   ':x-pack:plugin:spatial',
   ':x-pack:plugin:sql',
   ':x-pack:plugin:sql:jdbc',

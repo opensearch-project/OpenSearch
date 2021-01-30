@@ -53,7 +53,6 @@ import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -272,7 +271,6 @@ final class RequestConverters {
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
-        parameters.withRefresh(getRequest.refresh());
         parameters.withRealtime(getRequest.realtime());
         parameters.withStoredFields(getRequest.storedFields());
         parameters.withVersion(getRequest.version());
@@ -294,7 +292,6 @@ final class RequestConverters {
         Params parameters = new Params();
         parameters.withPreference(getSourceRequest.preference());
         parameters.withRouting(getSourceRequest.routing());
-        parameters.withRefresh(getSourceRequest.refresh());
         parameters.withRealtime(getSourceRequest.realtime());
         parameters.withFetchSourceContext(getSourceRequest.fetchSourceContext());
 
@@ -316,7 +313,6 @@ final class RequestConverters {
         Params parameters = new Params();
         parameters.withPreference(multiGetRequest.preference());
         parameters.withRealtime(multiGetRequest.realtime());
-        parameters.withRefresh(multiGetRequest.refresh());
         request.addParameters(parameters.asMap());
         request.setEntity(createEntity(multiGetRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -593,7 +589,6 @@ final class RequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params()
             .withWaitForCompletion(waitForCompletion)
-            .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
             .withRequestsPerSecond(reindexRequest.getRequestsPerSecond())
@@ -614,7 +609,6 @@ final class RequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params()
             .withRouting(deleteByQueryRequest.getRouting())
-            .withRefresh(deleteByQueryRequest.isRefresh())
             .withTimeout(deleteByQueryRequest.getTimeout())
             .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
@@ -646,7 +640,6 @@ final class RequestConverters {
         Params params = new Params()
             .withRouting(updateByQueryRequest.getRouting())
             .withPipeline(updateByQueryRequest.getPipeline())
-            .withRefresh(updateByQueryRequest.isRefresh())
             .withTimeout(updateByQueryRequest.getTimeout())
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
@@ -916,27 +909,12 @@ final class RequestConverters {
             return this;
         }
 
-        Params withRefresh(boolean refresh) {
-            if (refresh) {
-                return withRefreshPolicy(RefreshPolicy.IMMEDIATE);
-            }
-            return this;
-        }
-
         /**
-         *  @deprecated If creating a new HLRC ReST API call, use {@link RefreshPolicy}
-         *  instead of {@link WriteRequest.RefreshPolicy} from the server project
+         *  @deprecated
          */
         @Deprecated
         Params withRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
             if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                return putParam("refresh", refreshPolicy.getValue());
-            }
-            return this;
-        }
-
-        Params withRefreshPolicy(RefreshPolicy refreshPolicy) {
-            if (refreshPolicy != RefreshPolicy.NONE) {
                 return putParam("refresh", refreshPolicy.getValue());
             }
             return this;

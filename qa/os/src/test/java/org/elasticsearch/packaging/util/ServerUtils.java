@@ -60,8 +60,6 @@ public class ServerUtils {
 
     private static final Logger logger = LogManager.getLogger(ServerUtils.class);
 
-    private static String SECURITY_ENABLED = "xpack.security.enabled: true";
-    private static String SSL_ENABLED = "xpack.security.http.ssl.enabled: true";
 
     // generous timeout as nested virtualization can be quite slow ...
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
@@ -69,25 +67,7 @@ public class ServerUtils {
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
-        boolean xpackEnabled = false;
-
-        // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
-        if (installation.distribution.isDocker() == false) {
-            Path configFilePath = installation.config("elasticsearch.yml");
-            // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
-            try (Stream<String> lines = Files.lines(configFilePath, StandardCharsets.UTF_8)) {
-                xpackEnabled = lines.anyMatch(line -> line.contains(SECURITY_ENABLED) || line.contains(SSL_ENABLED));
-            }
-        }
-
-        if (xpackEnabled) {
-            // with security enabled, we may or may not have setup a user/pass, so we use a more generic port being available check.
-            // this isn't as good as a health check, but long term all this waiting should go away when node startup does not
-            // make the http port available until the system is really ready to serve requests
-            waitForXpack();
-        } else {
-            waitForElasticsearch("green", null, installation, null, null);
-        }
+        waitForElasticsearch("green", null, installation, null, null);
     }
 
     /**

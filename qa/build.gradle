@@ -13,9 +13,6 @@ subprojects { Project subproj ->
     testClusters.all {
       String configuredTestDistribution = System.getProperty('tests.distribution', 'oss').toUpperCase()
       testDistribution = configuredTestDistribution
-      if (configuredTestDistribution.equals("DEFAULT")) {
-        setting "xpack.security.enabled", "false"
-      }
     }
   }
 }

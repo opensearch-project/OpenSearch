@@ -103,20 +103,8 @@ public class CertGenCliTests extends PackagingTestCase {
         // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
         assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));
 
-        final String keyPath = escapePath(installation.config("certs/mynode/mynode.key"));
-        final String certPath = escapePath(installation.config("certs/mynode/mynode.crt"));
-        final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
-
         List<String> yaml = new ArrayList<>();
         yaml.add("node.name: mynode");
-        yaml.add("xpack.security.transport.ssl.key: " + keyPath);
-        yaml.add("xpack.security.transport.ssl.certificate: " + certPath);
-        yaml.add("xpack.security.transport.ssl.certificate_authorities: [\"" + caCertPath + "\"]");
-        yaml.add("xpack.security.http.ssl.key: " + keyPath);
-        yaml.add("xpack.security.http.ssl.certificate: " + certPath);
-        yaml.add("xpack.security.http.ssl.certificate_authorities: [\"" + caCertPath + "\"]");
-        yaml.add("xpack.security.transport.ssl.enabled: true");
-        yaml.add("xpack.security.http.ssl.enabled: true");
 
         Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
 
