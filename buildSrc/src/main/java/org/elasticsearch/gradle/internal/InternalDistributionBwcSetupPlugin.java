@@ -99,16 +99,6 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
             registerBwcArtifacts(project, distributionProject);
         }
-
-        // Create build tasks for the JDBC driver used for compatibility testing
-        String jdbcProjectDir = "x-pack/plugin/sql/jdbc";
-
-        File jdbcProjectArtifact = new File(
-            checkoutDir.get(),
-            jdbcProjectDir + "/build/distributions/x-pack-sql-jdbc-" + bwcVersion.get() + "-SNAPSHOT.jar"
-        );
-
-        createBuildBwcTask(bwcSetupExtension, project, bwcVersion, "jdbc", jdbcProjectDir, jdbcProjectArtifact, buildBwcTaskProvider);
     }
 
     private void registerBwcArtifacts(Project bwcProject, DistributionProject distributionProject) {

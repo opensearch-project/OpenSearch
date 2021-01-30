@@ -209,7 +209,6 @@ public class Archives {
             "elasticsearch-migrate",
             "elasticsearch-saml-metadata",
             "elasticsearch-setup-passwords",
-            "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
             "x-pack-env",
@@ -223,10 +222,6 @@ public class Archives {
                 assertThat(es.bin(executable + ".bat"), file(File, owner));
             }
         });
-
-        // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
-        // the version through here
-        assertThat(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), file(File, owner, owner, p755));
 
         Stream.of("users", "users_roles", "roles.yml", "role_mapping.yml", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));

@@ -48,28 +48,6 @@ public class XPackIT extends AbstractRollingTestCase {
     }
 
     /**
-     * Test a basic feature (SQL) which doesn't require any trial license.
-     * Note that the test methods on this class can run in any order so we
-     * <strong>might</strong> have already installed a trial license.
-     */
-    public void testBasicFeature() throws IOException {
-        Request bulk = new Request("POST", "/sql_test/doc/_bulk");
-        bulk.setJsonEntity(
-              "{\"index\":{}}\n"
-            + "{\"f\": \"1\"}\n"
-            + "{\"index\":{}}\n"
-            + "{\"f\": \"2\"}\n");
-        bulk.addParameter("refresh", "true");
-        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
-        client().performRequest(bulk);
-
-        Request sql = new Request("POST", "/_sql");
-        sql.setJsonEntity("{\"query\": \"SELECT * FROM sql_test WHERE f > 1 ORDER BY f ASC\"}");
-        String response = EntityUtils.toString(client().performRequest(sql).getEntity());
-        assertEquals("{\"columns\":[{\"name\":\"f\",\"type\":\"text\"}],\"rows\":[[\"2\"]]}", response);
-    }
-
-    /**
      * Test creating a trial license and using it. This is interesting because
      * our other tests test cover starting a new cluster with the default
      * distribution and enabling the trial license but this test is the only
