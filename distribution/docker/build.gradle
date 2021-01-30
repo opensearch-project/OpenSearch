@@ -65,7 +65,7 @@ RUN curl --retry 8 -S -L \\
     'base_image'          : base.getImage(),
     'build_date'          : BuildParams.buildDate,
     'git_revision'        : BuildParams.gitRevision,
-    'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
+    'license'             : 'Apache-2.0',
     'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
