@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xpack.core.watcher.watch.Payload.XContent;
 
 import java.io.IOException;
 import java.util.Map;
@@ -104,7 +103,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        xcontent.toXContent(builder, XContent.EMPTY_PARAMS);
+        xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
         return parser.map();

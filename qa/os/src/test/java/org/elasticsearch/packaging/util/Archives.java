@@ -212,8 +212,7 @@ public class Archives {
             "elasticsearch-syskeygen",
             "elasticsearch-users",
             "x-pack-env",
-            "x-pack-security-env",
-            "x-pack-watcher-env"
+            "x-pack-security-env"
         ).forEach(executable -> {
 
             assertThat(es.bin(executable), file(File, owner, owner, p755));
