@@ -108,7 +108,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
      * format of the response is incompatible i.e. it is not a JSON object.
      */
     static shouldAddShardFailureCheck(String path) {
-        return path.startsWith('_cat') == false && path.startsWith('_ml/datafeeds/') == false
+        return path.startsWith('_cat') == false
     }
 
     /**
