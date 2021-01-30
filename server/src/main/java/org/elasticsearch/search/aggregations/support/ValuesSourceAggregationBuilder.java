@@ -282,7 +282,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     public AB userValueTypeHint(ValueType valueType) {
         if (valueType == null) {
             // TODO: This is nonsense.  We allow the value to be null (via constructor), but don't allow it to be set to null.  This means
-            //       thing looking to copy settings (like RollupRequestTranslator) need to check if userValueTypeHint is not null, and then
+            //       thing looking to copy settings need to check if userValueTypeHint is not null, and then
             //       set it if and only if it is non-null.
             throw new IllegalArgumentException("[userValueTypeHint] must not be null: [" + name + "]");
         }

@@ -46,14 +46,4 @@ public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.elas
         assertThat(clientInstance.isAcknowledged(), is(serverTestInstance.isAcknowledged()));
     }
 
-    // Still needed for StopRollupJobResponseTests and StartRollupJobResponseTests test classes
-    // This method can't be moved to these classes because getFieldName() method isn't accessible from these test classes.
-    public static void toXContent(AcknowledgedResponse response, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        {
-            builder.field(response.getFieldName(), response.isAcknowledged());
-        }
-        builder.endObject();
-    }
-
 }
