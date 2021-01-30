@@ -529,15 +529,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Returns whether to preserve auto-follow patterns. Defaults to not
-     * preserving them. Only runs at all if xpack is installed on the cluster
-     * being tested.
-     */
-    protected boolean preserveAutoFollowPatternsUponCompletion() {
-        return false;
-    }
-
-    /**
      * Returns whether to wait to make absolutely certain that all snapshots
      * have been deleted.
      */
@@ -663,10 +654,6 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
             deleteAllILMPolicies(preserveILMPolicyIds());
-        }
-
-        if (hasXPack && false == preserveAutoFollowPatternsUponCompletion()) {
-            deleteAllAutoFollowPatterns();
         }
 
         assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
@@ -901,31 +888,6 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         for (String policyName : policies.keySet()) {
             adminClient().performRequest(new Request("DELETE", "/_slm/policy/" + policyName));
-        }
-    }
-
-    private static void deleteAllAutoFollowPatterns() throws IOException {
-        final List<Map<?, ?>> patterns;
-
-        try {
-            Response response = adminClient().performRequest(new Request("GET", "/_ccr/auto_follow"));
-            patterns = (List<Map<?, ?>>) entityAsMap(response).get("patterns");
-        } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode() ||
-                RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
-                // If bad request returned, CCR is not enabled.
-                return;
-            }
-            throw e;
-        }
-
-        if (patterns == null || patterns.isEmpty()) {
-            return;
-        }
-
-        for (Map<?, ?> pattern : patterns) {
-            String patternName = (String) pattern.get("name");
-            adminClient().performRequest(new Request("DELETE", "/_ccr/auto_follow/" + patternName));
         }
     }
 
