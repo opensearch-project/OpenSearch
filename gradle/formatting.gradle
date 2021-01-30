@@ -122,8 +122,6 @@ def projectPathsToExclude = [
   ':test:logger-usage',
   ':x-pack:license-tools',
   ':x-pack:plugin:analytics',
-  ':x-pack:plugin:ccr',
-  ':x-pack:plugin:ccr:qa',
   ':x-pack:plugin:core',
   ':x-pack:plugin:deprecation',
   ':x-pack:plugin:frozen-indices',
