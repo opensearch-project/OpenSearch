@@ -48,7 +48,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -427,7 +426,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns whether to preserve the state of the cluster upon completion of this test. Defaults to false. If true, overrides the value of
      * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()},
-     * {@link #preserveSnapshotsUponCompletion()}, and {@link #preserveILMPoliciesUponCompletion()}.
+     * and {@link #preserveSnapshotsUponCompletion()}.
      *
      * @return true if the state of the cluster should be preserved
      */
@@ -493,29 +492,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Returns whether to preserve ILM Policies of this test. Defaults to not
-     * preserving them. Only runs at all if xpack is installed on the cluster
-     * being tested.
-     */
-    protected boolean preserveILMPoliciesUponCompletion() {
-        return false;
-    }
-
-    /**
      * Returns whether to preserve SLM Policies of this test. Defaults to not
      * preserving them. Only runs at all if xpack is installed on the cluster
      * being tested.
      */
     protected boolean preserveSLMPoliciesUponCompletion() {
         return false;
-    }
-
-    /**
-     * A set of ILM policies that should be preserved between runs.
-     */
-    protected Set<String> preserveILMPolicyIds() {
-        return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy",
-            "watch-history-ilm-policy", "ml-size-based-ilm-policy", "logs", "metrics");
     }
 
     /**
@@ -632,10 +614,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe cluster settings
         if (preserveClusterSettings() == false) {
             wipeClusterSettings();
-        }
-
-        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
-            deleteAllILMPolicies(preserveILMPolicyIds());
         }
 
         assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
@@ -774,35 +752,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         });
         refreshRequest.setOptions(requestOptions);
         client().performRequest(refreshRequest);
-    }
-
-    private static void deleteAllILMPolicies(Set<String> exclusions) throws IOException {
-        Map<String, Object> policies;
-
-        try {
-            Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
-            policies = entityAsMap(response);
-        } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
-                // If bad request returned, ILM is not enabled.
-                return;
-            }
-            throw e;
-        }
-
-        if (policies == null || policies.isEmpty()) {
-            return;
-        }
-
-        policies.keySet().stream()
-            .filter(p -> exclusions.contains(p) == false)
-            .forEach(policyName -> {
-                try {
-                    adminClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
-                } catch (IOException e) {
-                    throw new RuntimeException("failed to delete policy: " + policyName, e);
-                }
-            });
     }
 
     private static void deleteAllSLMPolicies() throws IOException {
@@ -1233,7 +1182,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "security_audit_log":
             case ".slm-history":
             case "saml-service-provider":
-            case "ilm-history":
             case "logs":
             case "logs-settings":
             case "logs-mappings":
