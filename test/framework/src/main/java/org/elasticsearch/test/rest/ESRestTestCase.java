@@ -652,9 +652,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void wipeDataStreams() throws IOException {
         try {
-            if (hasXPack()) {
-                adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
-            }
+            adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
         } catch (ResponseException e) {
             // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field or
             // that doesn't support data streams so it's safe to ignore
