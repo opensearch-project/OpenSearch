@@ -45,8 +45,6 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
-import org.elasticsearch.client.transform.transforms.SyncConfig;
-import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -689,78 +687,6 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(12), categories.get(LifecycleAction.class));
-        assertTrue(names.contains(UnfollowAction.NAME));
-        assertTrue(names.contains(AllocateAction.NAME));
-        assertTrue(names.contains(DeleteAction.NAME));
-        assertTrue(names.contains(ForceMergeAction.NAME));
-        assertTrue(names.contains(ReadOnlyAction.NAME));
-        assertTrue(names.contains(RolloverAction.NAME));
-        assertTrue(names.contains(WaitForSnapshotAction.NAME));
-        assertTrue(names.contains(ShrinkAction.NAME));
-        assertTrue(names.contains(FreezeAction.NAME));
-        assertTrue(names.contains(SetPriorityAction.NAME));
-        assertTrue(names.contains(SearchableSnapshotAction.NAME));
-        assertEquals(Integer.valueOf(3), categories.get(DataFrameAnalysis.class));
-        assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.OutlierDetection.NAME.getPreferredName()));
-        assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.Regression.NAME.getPreferredName()));
-        assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.Classification.NAME.getPreferredName()));
-        assertTrue(names.contains(OutlierDetectionStats.NAME.getPreferredName()));
-        assertTrue(names.contains(RegressionStats.NAME.getPreferredName()));
-        assertTrue(names.contains(ClassificationStats.NAME.getPreferredName()));
-        assertEquals(Integer.valueOf(1), categories.get(SyncConfig.class));
-        assertTrue(names.contains(TimeSyncConfig.NAME));
-        assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
-        assertThat(names, hasItems(OutlierDetection.NAME, Classification.NAME, Regression.NAME));
-        assertEquals(Integer.valueOf(13), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
-        assertThat(names,
-            hasItems(
-                registeredMetricName(
-                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME),
-                registeredMetricName(
-                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.NAME),
-                registeredMetricName(
-                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.NAME),
-                registeredMetricName(OutlierDetection.NAME, ConfusionMatrixMetric.NAME),
-                registeredMetricName(Classification.NAME, AucRocMetric.NAME),
-                registeredMetricName(Classification.NAME, AccuracyMetric.NAME),
-                registeredMetricName(Classification.NAME, PrecisionMetric.NAME),
-                registeredMetricName(Classification.NAME, RecallMetric.NAME),
-                registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
-                registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
-                registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME),
-                registeredMetricName(Regression.NAME, HuberMetric.NAME),
-                registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
-        assertEquals(Integer.valueOf(13), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
-        assertThat(names,
-            hasItems(
-                registeredMetricName(
-                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME),
-                registeredMetricName(
-                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.NAME),
-                registeredMetricName(
-                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.NAME),
-                registeredMetricName(OutlierDetection.NAME, ConfusionMatrixMetric.NAME),
-                registeredMetricName(Classification.NAME, AucRocMetric.NAME),
-                registeredMetricName(Classification.NAME, AccuracyMetric.NAME),
-                registeredMetricName(Classification.NAME, PrecisionMetric.NAME),
-                registeredMetricName(Classification.NAME, RecallMetric.NAME),
-                registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
-                registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
-                registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME),
-                registeredMetricName(Regression.NAME, HuberMetric.NAME),
-                registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
-        assertEquals(Integer.valueOf(5), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
-        assertThat(names,
-            hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME, CustomWordEmbedding.NAME, NGram.NAME));
-        assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
-        assertThat(names, hasItems(Tree.NAME, Ensemble.NAME, LangIdentNeuralNetwork.NAME));
-        assertEquals(Integer.valueOf(4),
-            categories.get(org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator.class));
-        assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME, Exponent.NAME));
-        assertEquals(Integer.valueOf(2),
-            categories.get(org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig.class));
-        assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
     }
 
     public void testApiNamingConventions() throws Exception {
