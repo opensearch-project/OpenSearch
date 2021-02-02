@@ -28,10 +28,7 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -55,11 +52,6 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test010Install() throws Exception {
         install();
-
-        List<String> lines = new ArrayList<>();
-        lines.add("xpack.license.self_generated.type: trial");
-
-        Files.write(installation.config("elasticsearch.yml"), lines, StandardOpenOption.APPEND);
     }
 
     public void test20GeneratePasswords() throws Exception {
