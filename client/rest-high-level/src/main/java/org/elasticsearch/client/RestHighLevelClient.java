@@ -260,7 +260,6 @@ public class RestHighLevelClient implements Closeable {
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
-    private final TransformClient transformClient = new TransformClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -349,20 +348,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final TasksClient tasks() {
         return tasksClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Data Frame APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-apis.html">
-     *     Transform APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Data Frame API calls
-     */
-    public TransformClient transform() {
-        return transformClient;
     }
 
     /**

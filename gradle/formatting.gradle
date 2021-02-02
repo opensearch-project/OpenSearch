@@ -131,7 +131,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:ql',
   ':x-pack:plugin:search-business-rules',
   ':x-pack:plugin:spatial',
-  ':x-pack:plugin:transform',
   ':x-pack:plugin:vectors',
   ':x-pack:plugin:voting-only-node',
   ':x-pack:plugin:wildcard',
