@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.cluster;
 
 import org.apache.lucene.util.LuceneTestCase;
@@ -89,6 +90,7 @@ public final class DataStreamTestHelper {
             "    }";
     }
 
+
     public static List<Index> randomIndexInstances() {
         int numIndices = ESTestCase.randomIntBetween(0, 128);
         List<Index> indices = new ArrayList<>(numIndices);
@@ -148,4 +150,6 @@ public final class DataStreamTestHelper {
 
         return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(1).build();
     }
+
+
 }

@@ -17,31 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.client.indices;
+package org.elasticsearch.action.admin.indices.datastream;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-public class DataStreamsStatsResponseTests extends AbstractResponseTestCase<DataStreamsStatsAction.Response, DataStreamsStatsResponse> {
-
-    private static long randomRecentTimestamp() {
-        long base = System.currentTimeMillis();
-        return randomLongBetween(base - TimeUnit.HOURS.toMillis(1), base);
+public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCase<DataStreamsStatsAction.Response> {
+    @Override
+    protected Writeable.Reader<DataStreamsStatsAction.Response> instanceReader() {
+        return DataStreamsStatsAction.Response::new;
     }
 
     @Override
-    protected DataStreamsStatsAction.Response createServerTestInstance(XContentType xContentType) {
+    protected DataStreamsStatsAction.Response createTestInstance() {
+        return randomStatsResponse();
+    }
+
+    public static DataStreamsStatsAction.Response randomStatsResponse() {
         int dataStreamCount = randomInt(10);
         int backingIndicesTotal = 0;
         long totalStoreSize = 0L;
@@ -69,29 +69,8 @@ public class DataStreamsStatsResponseTests extends AbstractResponseTestCase<Data
             dataStreamStats.toArray(new DataStreamsStatsAction.DataStreamStats[0]));
     }
 
-    @Override
-    protected DataStreamsStatsResponse doParseToClientInstance(XContentParser parser) throws IOException {
-        return DataStreamsStatsResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected void assertInstances(DataStreamsStatsAction.Response serverTestInstance, DataStreamsStatsResponse clientInstance) {
-        assertEquals(serverTestInstance.getTotalShards(), clientInstance.shards().total());
-        assertEquals(serverTestInstance.getSuccessfulShards(), clientInstance.shards().successful());
-        assertEquals(serverTestInstance.getFailedShards(), clientInstance.shards().failed());
-        assertEquals(serverTestInstance.getShardFailures().length, clientInstance.shards().failures().size());
-
-        assertEquals(serverTestInstance.getDataStreamCount(), clientInstance.getDataStreamCount());
-        assertEquals(serverTestInstance.getBackingIndices(), clientInstance.getBackingIndices());
-        assertEquals(serverTestInstance.getTotalStoreSize(), clientInstance.getTotalStoreSize());
-        assertEquals(serverTestInstance.getDataStreams().length, clientInstance.getDataStreams().size());
-        for (DataStreamsStatsAction.DataStreamStats serverStats : serverTestInstance.getDataStreams()) {
-            DataStreamsStatsResponse.DataStreamStats clientStats = clientInstance.getDataStreams()
-                .get(serverStats.getDataStream());
-            assertEquals(serverStats.getDataStream(), clientStats.getDataStream());
-            assertEquals(serverStats.getBackingIndices(), clientStats.getBackingIndices());
-            assertEquals(serverStats.getStoreSize(), clientStats.getStoreSize());
-            assertEquals(serverStats.getMaximumTimestamp(), clientStats.getMaximumTimestamp());
-        }
+    private static long randomRecentTimestamp() {
+        long base = System.currentTimeMillis();
+        return randomLongBetween(base - TimeUnit.HOURS.toMillis(1), base);
     }
 }
