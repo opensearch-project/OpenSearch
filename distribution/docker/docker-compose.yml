@@ -16,7 +16,6 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
-       - xpack.license.self_generated.type=trial
     volumes:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
@@ -44,7 +43,6 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
-       - xpack.license.self_generated.type=trial
     volumes:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
