@@ -1,0 +1,18 @@
+name: Build and Test Search
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  search_sanity:
+    name: "Search Sanity Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Search"
+        uses: actions/checkout@v2
+      - name: "Run tests"
+        run: ./gradlew ':server:test'
