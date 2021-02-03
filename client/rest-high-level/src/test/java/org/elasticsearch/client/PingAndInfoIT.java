@@ -23,7 +23,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.core.MainResponse;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Map;
 
 public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
