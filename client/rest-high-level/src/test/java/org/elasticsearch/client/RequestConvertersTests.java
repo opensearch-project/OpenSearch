@@ -199,13 +199,6 @@ public class RequestConvertersTests extends ESTestCase {
                 expectedParams.put("realtime", "false");
             }
         }
-        if (randomBoolean()) {
-            boolean refresh = randomBoolean();
-            getRequest.refresh(refresh);
-            if (refresh) {
-                expectedParams.put("refresh", "true");
-            }
-        }
         Request request = RequestConverters.sourceExists(getRequest);
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
         String type = getRequest.type();
@@ -242,13 +235,6 @@ public class RequestConvertersTests extends ESTestCase {
                 expectedParams.put("realtime", "false");
             }
         }
-        if (randomBoolean()) {
-            boolean refresh = randomBoolean();
-            getRequest.refresh(refresh);
-            if (refresh) {
-                expectedParams.put("refresh", "true");
-            }
-        }
         Request request = RequestConverters.getSource(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
@@ -269,12 +255,6 @@ public class RequestConvertersTests extends ESTestCase {
             multiGetRequest.realtime(randomBoolean());
             if (multiGetRequest.realtime() == false) {
                 expectedParams.put("realtime", "false");
-            }
-        }
-        if (randomBoolean()) {
-            multiGetRequest.refresh(randomBoolean());
-            if (multiGetRequest.refresh()) {
-                expectedParams.put("refresh", "true");
             }
         }
 
@@ -389,13 +369,6 @@ public class RequestConvertersTests extends ESTestCase {
                 getRequest.realtime(realtime);
                 if (realtime == false) {
                     expectedParams.put("realtime", "false");
-                }
-            }
-            if (randomBoolean()) {
-                boolean refresh = randomBoolean();
-                getRequest.refresh(refresh);
-                if (refresh) {
-                    expectedParams.put("refresh", "true");
                 }
             }
             if (randomBoolean()) {
