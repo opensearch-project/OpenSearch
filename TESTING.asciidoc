@@ -66,9 +66,6 @@ To for example start the open source distribution:
 ./gradlew run -Drun.distribution=oss
 -------------------------------------
 
-This enables security and other paid features and adds a superuser with the username: `elastic-admin` and
-password: `elastic-password`.
-
 ==== Other useful arguments
 
 - In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
