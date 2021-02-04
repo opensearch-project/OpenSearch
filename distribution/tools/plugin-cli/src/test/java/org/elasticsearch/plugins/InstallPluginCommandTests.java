@@ -525,15 +525,6 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallCleaned(env.v2());
     }
 
-    public void testBuiltinXpackModule() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("x-pack", pluginDir);
-        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("is a system module"));
-        assertInstallCleaned(env.v2());
-    }
-
     public void testJarHell() throws Exception {
         // jar hell test needs a real filesystem
         assumeTrue("real filesystem", isReal);
@@ -811,33 +802,6 @@ public class InstallPluginCommandTests extends ESTestCase {
                 assertThat(line, not(endsWith("example")));
             }
         }
-    }
-
-    public void testInstallXPack() throws IOException {
-        runInstallXPackTest(Build.Flavor.DEFAULT, UserException.class, "this distribution of Elasticsearch contains X-Pack by default");
-        runInstallXPackTest(
-            Build.Flavor.OSS,
-            UserException.class,
-            "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
-        );
-        runInstallXPackTest(Build.Flavor.UNKNOWN, IllegalStateException.class, "your distribution is broken");
-    }
-
-    private <T extends Exception> void runInstallXPackTest(final Build.Flavor flavor, final Class<T> clazz, final String expectedMessage)
-        throws IOException {
-        final InstallPluginCommand flavorCommand = new InstallPluginCommand() {
-            @Override
-            Build.Flavor buildFlavor() {
-                return flavor;
-            }
-        };
-
-        final Environment environment = createEnv(fs, temp).v2();
-        final T exception = expectThrows(
-            clazz,
-            () -> flavorCommand.execute(terminal, Collections.singletonList("x-pack"), false, environment)
-        );
-        assertThat(exception, hasToString(containsString(expectedMessage)));
     }
 
     public void testInstallMisspelledOfficialPlugins() throws Exception {

@@ -110,20 +110,6 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the /_xpack API endpoint's presence is correct for the type of distribution being tested.
-     */
-    public void test011PresenceOfXpack() throws Exception {
-        waitForElasticsearch(installation);
-        final int statusCode = Request.Get("http://localhost:9200/_xpack").execute().returnResponse().getStatusLine().getStatusCode();
-
-        if (distribution.isOSS()) {
-            assertThat(statusCode, greaterThanOrEqualTo(400));
-        } else {
-            assertThat(statusCode, equalTo(200));
-        }
-    }
-
-    /**
      * Checks that no plugins are initially active.
      */
     public void test020PluginsListWithNoPlugins() {

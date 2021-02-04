@@ -114,26 +114,6 @@ public class ServerUtils {
         return executor.execute(request).returnResponse();
     }
 
-    // polls every second for Elasticsearch to be running on 9200
-    private static void waitForXpack() {
-        int retries = 60;
-        while (retries > 0) {
-            retries -= 1;
-            try (Socket s = new Socket(InetAddress.getLoopbackAddress(), 9200)) {
-                return;
-            } catch (IOException e) {
-                // ignore, only want to establish a connection
-            }
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-        }
-        throw new RuntimeException("Elasticsearch (with x-pack) did not start");
-    }
-
     public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
         throws Exception {
 
