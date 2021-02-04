@@ -66,20 +66,6 @@ To for example start the open source distribution:
 ./gradlew run -Drun.distribution=oss
 -------------------------------------
 
-==== License type
-
-By default a node is started with the `basic` license type.
-In order to start with a different license type use the `-Drun.license_type` argument.
-
-In order to start a node with a trial license execute the following command:
-
--------------------------------------
-./gradlew run -Drun.license_type=trial
--------------------------------------
-
-This enables security and other paid features and adds a superuser with the username: `elastic-admin` and
-password: `elastic-password`.
-
 ==== Other useful arguments
 
 - In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
