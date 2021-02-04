@@ -489,11 +489,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             pluginsToInstall.addAll(plugins.stream().map(Provider::get).map(p -> p.toURI().toString()).collect(Collectors.toList()));
         }
 
-        if (requiresAddingXPack()) {
-            logToProcessStdout("emulating the " + testDistribution + " flavor for " + getVersion() + " by installing x-pack");
-            pluginsToInstall.add("x-pack");
-        }
-
         if (pluginsToInstall.isEmpty() == false) {
             if (getVersion().onOrAfter("7.6.0")) {
                 logToProcessStdout("installing " + pluginsToInstall.size() + " plugins in a single transaction");
@@ -554,18 +549,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         startElasticsearchProcess();
     }
 
-    private boolean requiresAddingXPack() {
-        return getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT;
-    }
-
     private boolean canUseSharedDistribution() {
         // using original location can be too long due to MAX_PATH restrictions on windows CI
         // TODO revisit when moving to shorter paths on CI by using Teamcity
-        return OS.current() != OS.WINDOWS
-            && extraJarFiles.size() == 0
-            && modules.size() == 0
-            && plugins.size() == 0
-            && requiresAddingXPack() == false;
+        return OS.current() != OS.WINDOWS && extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
     }
 
     private void logToProcessStdout(String message) {
