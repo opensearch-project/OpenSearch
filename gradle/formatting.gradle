@@ -119,30 +119,7 @@ def projectPathsToExclude = [
   ':test:fixtures:old-elasticsearch',
   ':test:fixtures:s3-fixture',
   ':test:framework',
-  ':test:logger-usage',
-  ':x-pack:license-tools',
-  ':x-pack:plugin:analytics',
-  ':x-pack:plugin:core',
-  ':x-pack:plugin:deprecation',
-  ':x-pack:plugin:frozen-indices',
-  ':x-pack:plugin:identity-provider',
-  ':x-pack:plugin:mapper-constant-keyword',
-  ':x-pack:plugin:mapper-flattened',
-  ':x-pack:plugin:ql',
-  ':x-pack:plugin:search-business-rules',
-  ':x-pack:plugin:spatial',
-  ':x-pack:plugin:vectors',
-  ':x-pack:plugin:voting-only-node',
-  ':x-pack:plugin:wildcard',
-  ':x-pack:qa',
-  ':x-pack:qa:security-example-spi-extension',
-  ':x-pack:snapshot-tool',
-  ':x-pack:snapshot-tool:qa:google-cloud-storage',
-  ':x-pack:snapshot-tool:qa:s3',
-  ':x-pack:test:feature-aware',
-  ':x-pack:test:idp-fixture',
-  ':x-pack:test:smb-fixture',
-  ':x-pack:transport-client'
+  ':test:logger-usage'
 ]
 
 subprojects {

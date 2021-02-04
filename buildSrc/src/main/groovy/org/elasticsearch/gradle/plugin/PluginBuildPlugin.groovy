@@ -58,8 +58,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
 
-        boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
-        boolean isModule = project.path.startsWith(':modules:') || isXPackModule
+        boolean isModule = project.path.startsWith(':modules:')
 
         createBundleTasks(project, extension)
 
@@ -103,7 +102,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                 expand(properties)
                 inputs.properties(properties)
             }
-            if (isModule == false || isXPackModule) {
+            if (isModule == false) {
                 addNoticeGeneration(project, extension1)
             }
         }

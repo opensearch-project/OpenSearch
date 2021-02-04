@@ -238,9 +238,7 @@ public class Packages {
             "elasticsearch-saml-metadata",
             "elasticsearch-setup-passwords",
             "elasticsearch-syskeygen",
-            "elasticsearch-users",
-            "x-pack-env",
-            "x-pack-security-env"
+            "elasticsearch-users"
         ).forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
 
         Stream.of("users", "users_roles", "roles.yml", "role_mapping.yml", "log4j2.properties")

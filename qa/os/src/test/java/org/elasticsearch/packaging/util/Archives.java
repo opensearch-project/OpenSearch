@@ -210,9 +210,7 @@ public class Archives {
             "elasticsearch-saml-metadata",
             "elasticsearch-setup-passwords",
             "elasticsearch-syskeygen",
-            "elasticsearch-users",
-            "x-pack-env",
-            "x-pack-security-env"
+            "elasticsearch-users"
         ).forEach(executable -> {
 
             assertThat(es.bin(executable), file(File, owner, owner, p755));

@@ -67,7 +67,6 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -107,20 +106,6 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test010Install() {
         verifyContainerInstallation(installation, distribution());
-    }
-
-    /**
-     * Check that the /_xpack API endpoint's presence is correct for the type of distribution being tested.
-     */
-    public void test011PresenceOfXpack() throws Exception {
-        waitForElasticsearch(installation);
-        final int statusCode = Request.Get("http://localhost:9200/_xpack").execute().returnResponse().getStatusLine().getStatusCode();
-
-        if (distribution.isOSS()) {
-            assertThat(statusCode, greaterThanOrEqualTo(400));
-        } else {
-            assertThat(statusCode, equalTo(200));
-        }
     }
 
     /**
