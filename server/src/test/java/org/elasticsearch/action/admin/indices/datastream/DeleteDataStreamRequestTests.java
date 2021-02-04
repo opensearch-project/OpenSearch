@@ -136,7 +136,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     private SnapshotsInProgress.Entry createEntry(String dataStreamName, String repo, boolean partial) {
         return new SnapshotsInProgress.Entry(new Snapshot(repo, new SnapshotId("", "")), false, partial,
-            SnapshotsInProgress.State.STARTED, Collections.emptyList(), Collections.singletonList(dataStreamName), 0, 1,
+            SnapshotsInProgress.State.SUCCESS, Collections.emptyList(), Collections.singletonList(dataStreamName), 0, 1,
             ImmutableOpenMap.of(), null, null, null);
     }
 
