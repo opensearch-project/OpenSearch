@@ -72,8 +72,6 @@ import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
-import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
-import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
 import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.ResizeResponse;
 import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
@@ -1835,30 +1833,6 @@ public final class IndicesClient {
                                                 ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteIndexTemplate,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
-     * Synchronously calls the _reload_search_analyzers API
-     *
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     */
-    public ReloadAnalyzersResponse reloadAnalyzers(ReloadAnalyzersRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::reloadAnalyzers, options,
-                ReloadAnalyzersResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Asynchronously calls the _reload_search_analyzers API
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable reloadAnalyzersAsync(ReloadAnalyzersRequest request, RequestOptions options,
-                                            ActionListener<ReloadAnalyzersResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::reloadAnalyzers, options,
-                ReloadAnalyzersResponse::fromXContent, listener, emptySet());
     }
 
     /**
