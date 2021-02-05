@@ -88,8 +88,6 @@ import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
-import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
-import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
 import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
 import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
@@ -1994,16 +1992,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             client.indices()::unfreezeAsync);
         assertTrue(unfreeze.isShardsAcknowledged());
         assertTrue(unfreeze.isAcknowledged());
-    }
-
-    public void testReloadAnalyzer() throws IOException {
-        createIndex("test", Settings.EMPTY);
-        RestHighLevelClient client = highLevelClient();
-
-        ReloadAnalyzersResponse reloadResponse = execute(new ReloadAnalyzersRequest("test"), client.indices()::reloadAnalyzers,
-            client.indices()::reloadAnalyzersAsync);
-        assertNotNull(reloadResponse.shards());
-        assertTrue(reloadResponse.getReloadedDetails().containsKey("test"));
     }
 
     public void testDeleteAlias() throws IOException {
