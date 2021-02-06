@@ -199,13 +199,6 @@ public class RequestConvertersTests extends ESTestCase {
                 expectedParams.put("realtime", "false");
             }
         }
-        if (randomBoolean()) {
-            boolean refresh = randomBoolean();
-            getRequest.refresh(refresh);
-            if (refresh) {
-                expectedParams.put("refresh", "true");
-            }
-        }
         Request request = RequestConverters.sourceExists(getRequest);
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
         String type = getRequest.type();
@@ -242,13 +235,6 @@ public class RequestConvertersTests extends ESTestCase {
                 expectedParams.put("realtime", "false");
             }
         }
-        if (randomBoolean()) {
-            boolean refresh = randomBoolean();
-            getRequest.refresh(refresh);
-            if (refresh) {
-                expectedParams.put("refresh", "true");
-            }
-        }
         Request request = RequestConverters.getSource(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
@@ -269,12 +255,6 @@ public class RequestConvertersTests extends ESTestCase {
             multiGetRequest.realtime(randomBoolean());
             if (multiGetRequest.realtime() == false) {
                 expectedParams.put("realtime", "false");
-            }
-        }
-        if (randomBoolean()) {
-            multiGetRequest.refresh(randomBoolean());
-            if (multiGetRequest.refresh()) {
-                expectedParams.put("refresh", "true");
             }
         }
 
@@ -327,7 +307,6 @@ public class RequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
 
         setRandomTimeout(deleteRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
-        setRandomRefreshPolicy(deleteRequest::setRefreshPolicy, expectedParams);
         setRandomVersion(deleteRequest, expectedParams);
         setRandomVersionType(deleteRequest::versionType, expectedParams);
         setRandomIfSeqNoAndTerm(deleteRequest, expectedParams);
@@ -389,13 +368,6 @@ public class RequestConvertersTests extends ESTestCase {
                 getRequest.realtime(realtime);
                 if (realtime == false) {
                     expectedParams.put("realtime", "false");
-                }
-            }
-            if (randomBoolean()) {
-                boolean refresh = randomBoolean();
-                getRequest.refresh(refresh);
-                if (refresh) {
-                    expectedParams.put("refresh", "true");
                 }
             }
             if (randomBoolean()) {
@@ -721,7 +693,6 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         setRandomTimeout(indexRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
-        setRandomRefreshPolicy(indexRequest::setRefreshPolicy, expectedParams);
 
         // There is some logic around _create endpoint and version/version type
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
@@ -858,13 +829,6 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
         }
-        if (randomBoolean()) {
-            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-            updateRequest.setRefreshPolicy(refreshPolicy);
-            if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                expectedParams.put("refresh", refreshPolicy.getValue());
-            }
-        }
         setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
         setRandomIfSeqNoAndTerm(updateRequest, new HashMap<>()); // if* params are passed in the body
         if (randomBoolean()) {
@@ -967,7 +931,6 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("timeout", BulkShardRequest.DEFAULT_TIMEOUT.getStringRep());
         }
 
-        setRandomRefreshPolicy(bulkRequest::setRefreshPolicy, expectedParams);
 
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
 
@@ -2236,16 +2199,6 @@ public class RequestConvertersTests extends ESTestCase {
             setter.accept(activeShardCount);
             if (defaultActiveShardCount.equals(activeShardCount) == false) {
                 expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
-            }
-        }
-    }
-
-    private static void setRandomRefreshPolicy(Consumer<WriteRequest.RefreshPolicy> setter, Map<String, String> expectedParams) {
-        if (randomBoolean()) {
-            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-            setter.accept(refreshPolicy);
-            if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                expectedParams.put("refresh", refreshPolicy.getValue());
             }
         }
     }
