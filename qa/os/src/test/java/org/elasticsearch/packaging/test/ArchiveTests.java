@@ -334,27 +334,6 @@ public class ArchiveTests extends PackagingTestCase {
         });
     }
 
-    public void test90SecurityCliPackaging() throws Exception {
-        final Installation.Executables bin = installation.executables();
-
-        if (distribution().isDefault()) {
-            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
-            final Platforms.PlatformAction action = () -> {
-                Result result = sh.run(bin.certutilTool + " --help");
-                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
-
-                // Ensure that the exit code from the java command is passed back up through the shell script
-                result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
-                assertThat(result.exitCode, is(not(0)));
-                assertThat(result.stderr, containsString("Unknown command [invalid-command]"));
-            };
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        } else {
-            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileDoesNotExist());
-        }
-    }
-
     public void test91ElasticsearchShardCliPackaging() throws Exception {
         final Installation.Executables bin = installation.executables();
 
@@ -397,28 +376,4 @@ public class ArchiveTests extends PackagingTestCase {
         Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
     }
-
-    public void test94ElasticsearchNodeExecuteCliNotEsHomeWorkDir() throws Exception {
-        final Installation.Executables bin = installation.executables();
-        // Run the cli tools from the tmp dir
-        sh.setWorkingDirectory(getRootTempDir());
-
-        Platforms.PlatformAction action = () -> {
-            Result result = sh.run(bin.certutilTool + " -h");
-            assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            result = sh.run(bin.syskeygenTool + " -h");
-            assertThat(result.stdout, containsString("system key tool"));
-            result = sh.run(bin.setupPasswordsTool + " -h");
-            assertThat(result.stdout, containsString("Sets the passwords for reserved users"));
-            result = sh.run(bin.usersTool + " -h");
-            assertThat(result.stdout, containsString("Manages elasticsearch file users"));
-        };
-
-        // TODO: this should be checked on all distributions
-        if (distribution().isDefault()) {
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        }
-    }
-
 }

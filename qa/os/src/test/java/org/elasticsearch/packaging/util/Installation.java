@@ -191,13 +191,7 @@ public class Installation {
         public final Executable elasticsearch = new Executable("elasticsearch");
         public final Executable pluginTool = new Executable("elasticsearch-plugin");
         public final Executable keystoreTool = new Executable("elasticsearch-keystore");
-        public final Executable certutilTool = new Executable("elasticsearch-certutil");
-        public final Executable certgenTool = new Executable("elasticsearch-certgen");
-        public final Executable cronevalTool = new Executable("elasticsearch-croneval");
         public final Executable shardTool = new Executable("elasticsearch-shard");
         public final Executable nodeTool = new Executable("elasticsearch-node");
-        public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");
-        public final Executable syskeygenTool = new Executable("elasticsearch-syskeygen");
-        public final Executable usersTool = new Executable("elasticsearch-users");
     }
 }
