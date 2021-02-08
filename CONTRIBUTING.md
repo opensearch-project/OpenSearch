@@ -224,45 +224,6 @@ The `paddedCell()` option is disabled for normal operation in order to
 detect any misbehaviour. You can enabled the option from the command line
 by running Gradle with `-Dspotless.paddedcell`.
 
-### License Headers
-
-We require license headers on all Java files. With the exception of the
-top-level `x-pack` directory, all contributed code should have the following
-license header unless instructed otherwise:
-
-    /*
-     * Licensed to Elasticsearch under one or more contributor
-     * license agreements. See the NOTICE file distributed with
-     * this work for additional information regarding copyright
-     * ownership. Elasticsearch licenses this file to you under
-     * the Apache License, Version 2.0 (the "License"); you may
-     * not use this file except in compliance with the License.
-     * You may obtain a copy of the License at
-     *
-     *    http://www.apache.org/licenses/LICENSE-2.0
-     *
-     * Unless required by applicable law or agreed to in writing,
-     * software distributed under the License is distributed on an
-     * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-     * KIND, either express or implied.  See the License for the
-     * specific language governing permissions and limitations
-     * under the License.
-     */
-
-The top-level `x-pack` directory contains code covered by the [Elastic
-license](licenses/ELASTIC-LICENSE.txt). Community contributions to this code are
-welcome, and should have the following license header unless instructed
-otherwise:
-
-    /*
-     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-     * or more contributor license agreements. Licensed under the Elastic License;
-     * you may not use this file except in compliance with the Elastic License.
-     */
-
-It is important that the only code covered by the Elastic licence is contained
-within the top-level `x-pack` directory. The build will fail its pre-commit
-checks if contributed code does not have the appropriate license headers.
 
 > **NOTE:** If you have imported the project into IntelliJ IDEA the project will
 > be automatically configured to add the correct license header to new source
@@ -397,13 +358,6 @@ running specific tests that rely on them.
 For example, we have an hdfs test that uses mini-hdfs to test our
 repository-hdfs plugin.
 
-#### `x-pack`
-Commercially licensed code that integrates with the rest of Elasticsearch. The
-`docs` subdirectory functions just like the top level `docs` subdirectory and
-the `qa` subdirectory functions just like the top level `qa` subdirectory. The
-`plugin` subdirectory contains the x-pack module which runs inside the
-Elasticsearch process. The `transport-client` subdirectory contains extensions
-to Elasticsearch's standard transport client to work properly with x-pack.
 
 ### Gradle Build
 
