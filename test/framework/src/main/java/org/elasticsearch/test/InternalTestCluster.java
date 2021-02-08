@@ -164,7 +164,6 @@ import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOS
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
-import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
