@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.analytics;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 
+@BadApple(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/51")
 public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
     public void testStringStats() throws IOException {
         BulkRequest bulk = new BulkRequest("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
