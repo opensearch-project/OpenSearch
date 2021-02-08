@@ -271,6 +271,7 @@ final class RequestConverters {
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
+        parameters.withRefresh(getRequest.refresh());
         parameters.withRealtime(getRequest.realtime());
         parameters.withStoredFields(getRequest.storedFields());
         parameters.withVersion(getRequest.version());
@@ -292,6 +293,7 @@ final class RequestConverters {
         Params parameters = new Params();
         parameters.withPreference(getSourceRequest.preference());
         parameters.withRouting(getSourceRequest.routing());
+        parameters.withRefresh(getSourceRequest.refresh());
         parameters.withRealtime(getSourceRequest.realtime());
         parameters.withFetchSourceContext(getSourceRequest.fetchSourceContext());
 
@@ -313,6 +315,7 @@ final class RequestConverters {
         Params parameters = new Params();
         parameters.withPreference(multiGetRequest.preference());
         parameters.withRealtime(multiGetRequest.realtime());
+        parameters.withRefresh(multiGetRequest.refresh());
         request.addParameters(parameters.asMap());
         request.setEntity(createEntity(multiGetRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -588,6 +591,7 @@ final class RequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params()
             .withWaitForCompletion(waitForCompletion)
+            .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
             .withRequestsPerSecond(reindexRequest.getRequestsPerSecond())
@@ -608,6 +612,7 @@ final class RequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params()
             .withRouting(deleteByQueryRequest.getRouting())
+            .withRefresh(deleteByQueryRequest.isRefresh())
             .withTimeout(deleteByQueryRequest.getTimeout())
             .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
@@ -639,6 +644,7 @@ final class RequestConverters {
         Params params = new Params()
             .withRouting(updateByQueryRequest.getRouting())
             .withPipeline(updateByQueryRequest.getPipeline())
+            .withRefresh(updateByQueryRequest.isRefresh())
             .withTimeout(updateByQueryRequest.getTimeout())
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
@@ -904,6 +910,13 @@ final class RequestConverters {
         Params withRealtime(boolean realtime) {
             if (realtime == false) {
                 return putParam("realtime", Boolean.FALSE.toString());
+            }
+            return this;
+        }
+
+        Params withRefresh(boolean refresh) {
+            if (refresh) {
+                return withRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             }
             return this;
         }
