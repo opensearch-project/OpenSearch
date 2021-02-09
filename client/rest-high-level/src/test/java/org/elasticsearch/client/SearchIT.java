@@ -1380,16 +1380,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(3, countResponse.getCount());
     }
 
-    public void testSearchWithBasicLicensedQuery() throws IOException {
-        SearchRequest searchRequest = new SearchRequest("index");
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchRequest.source(searchSourceBuilder);
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
-        assertSearchHeader(searchResponse);
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("1"));
-    }
-
     private static void assertCountHeader(CountResponse countResponse) {
         assertEquals(0, countResponse.getSkippedShards());
         assertEquals(0, countResponse.getFailedShards());
