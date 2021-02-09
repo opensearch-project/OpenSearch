@@ -1979,6 +1979,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertNotNull(detailsResponse.detail());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/57")
     public void testFreezeAndUnfreeze() throws IOException {
         createIndex("test", Settings.EMPTY);
         RestHighLevelClient client = highLevelClient();
