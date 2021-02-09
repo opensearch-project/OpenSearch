@@ -133,14 +133,6 @@ by default, thus the related skip sections can be removed from the tests.
 The `features` field can either be a string or an array of strings.
 The skip section requires to specify either a `version` or a `features` list.
 
-=== Available Features
-
-=== `xpack`
-Requires x-pack to be enabled on the `Elasticsearch` instance the rest test is running against
-
-=== `no_xpack`
-Requires the test to run against an oss distribution of `Elasticsearch`
-
 === `catch_unauthorized`
 
 Runner supports `catch: unauthorized` on a `do` operator.
