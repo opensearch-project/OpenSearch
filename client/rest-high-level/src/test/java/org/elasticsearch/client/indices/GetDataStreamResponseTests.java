@@ -56,8 +56,7 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
         DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation);
-        return new DataStreamInfo(dataStream, ClusterHealthStatus.YELLOW, randomAlphaOfLengthBetween(2, 10),
-            randomAlphaOfLengthBetween(2, 10));
+        return new DataStreamInfo(dataStream, ClusterHealthStatus.YELLOW, randomAlphaOfLengthBetween(2, 10));
     }
 
     @Override

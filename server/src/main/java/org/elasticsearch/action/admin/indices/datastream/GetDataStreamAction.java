@@ -137,23 +137,19 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
-            public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
 
             DataStream dataStream;
             ClusterHealthStatus dataStreamStatus;
             @Nullable String indexTemplate;
-            @Nullable String ilmPolicyName;
 
-            public DataStreamInfo(DataStream dataStream, ClusterHealthStatus dataStreamStatus, @Nullable String indexTemplate,
-                                  @Nullable String ilmPolicyName) {
+            public DataStreamInfo(DataStream dataStream, ClusterHealthStatus dataStreamStatus, @Nullable String indexTemplate) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
-                this.ilmPolicyName = ilmPolicyName;
             }
 
             public DataStreamInfo(StreamInput in) throws IOException {
-                this(new DataStream(in), ClusterHealthStatus.readFrom(in), in.readOptionalString(), in.readOptionalString());
+                this(new DataStream(in), ClusterHealthStatus.readFrom(in), in.readOptionalString());
             }
 
             public DataStream getDataStream() {
@@ -169,17 +165,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return indexTemplate;
             }
 
-            @Nullable
-            public String getIlmPolicy() {
-                return ilmPolicyName;
-            }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
-                out.writeOptionalString(ilmPolicyName);
             }
 
             @Override
@@ -193,9 +184,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (indexTemplate != null) {
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
                 }
-                if (ilmPolicyName != null) {
-                    builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
-                }
                 builder.endObject();
                 return builder;
             }
@@ -207,13 +195,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 DataStreamInfo that = (DataStreamInfo) o;
                 return dataStream.equals(that.dataStream) &&
                     dataStreamStatus == that.dataStreamStatus &&
-                    Objects.equals(indexTemplate, that.indexTemplate) &&
-                    Objects.equals(ilmPolicyName, that.ilmPolicyName);
+                    Objects.equals(indexTemplate, that.indexTemplate);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName);
+                return Objects.hash(dataStream, dataStreamStatus, indexTemplate);
             }
         }
 
@@ -299,7 +286,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 ClusterStateHealth streamHealth = new ClusterStateHealth(state,
                     dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new));
-                dataStreamInfos.add(new Response.DataStreamInfo(dataStream, streamHealth.getStatus(), indexTemplate, ilmPolicyName));
+                dataStreamInfos.add(new Response.DataStreamInfo(dataStream, streamHealth.getStatus(), indexTemplate));
             }
             listener.onResponse(new Response(dataStreamInfos));
         }

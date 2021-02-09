@@ -39,18 +39,15 @@ public final class DataStream {
     ClusterHealthStatus dataStreamStatus;
     @Nullable
     String indexTemplate;
-    @Nullable
-    String ilmPolicyName;
 
     public DataStream(String name, String timeStampField, List<String> indices, long generation, ClusterHealthStatus dataStreamStatus,
-                      @Nullable String indexTemplate, @Nullable String ilmPolicyName) {
+                      @Nullable String indexTemplate) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;
         this.generation = generation;
         this.dataStreamStatus = dataStreamStatus;
         this.indexTemplate = indexTemplate;
-        this.ilmPolicyName = ilmPolicyName;
     }
 
     public String getName() {
@@ -77,10 +74,6 @@ public final class DataStream {
         return indexTemplate;
     }
 
-    public String getIlmPolicyName() {
-        return ilmPolicyName;
-    }
-
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -99,8 +92,7 @@ public final class DataStream {
             String statusStr = (String) args[4];
             ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
             String indexTemplate = (String) args[5];
-            String ilmPolicy = (String) args[6];
-            return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate, ilmPolicy);
+            return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate);
         });
 
     static {
@@ -126,12 +118,11 @@ public final class DataStream {
             timeStampField.equals(that.timeStampField) &&
             indices.equals(that.indices) &&
             dataStreamStatus == that.dataStreamStatus &&
-            Objects.equals(indexTemplate, that.indexTemplate) &&
-            Objects.equals(ilmPolicyName, that.ilmPolicyName);
+            Objects.equals(indexTemplate, that.indexTemplate);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, dataStreamStatus, indexTemplate, ilmPolicyName);
+        return Objects.hash(name, timeStampField, indices, generation, dataStreamStatus, indexTemplate);
     }
 }
