@@ -255,17 +255,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println("        - stash_path_replace")
                 current.println("        - warnings")
                 if (test.testEnv != null) {
-                    switch (test.testEnv) {
-                    case 'basic':
-                    case 'gold':
-                    case 'platinum':
-                    case 'enterprise':
-                        current.println("        - xpack")
-                        break;
-                    default:
-                        throw new InvalidUserDataException('Unsupported testEnv: '
-                                + test.testEnv)
-                    }
+                    throw new InvalidUserDataException('Unsupported testEnv: ' + test.testEnv);
                 }
             }
             if (test.skip) {
