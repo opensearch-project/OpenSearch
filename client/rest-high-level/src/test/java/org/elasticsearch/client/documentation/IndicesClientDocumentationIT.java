@@ -2952,6 +2952,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/57")
     public void testFreezeIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -3030,6 +3031,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/57")
     public void testUnfreezeIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

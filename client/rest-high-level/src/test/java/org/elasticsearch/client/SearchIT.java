@@ -1380,6 +1380,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(3, countResponse.getCount());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/61")
     public void testSearchWithBasicLicensedQuery() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
