@@ -143,16 +143,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    /**
-     * Does any node in the cluster being tested have x-pack installed?
-     */
-    public static boolean hasXPack() {
-        if (hasXPack == null) {
-            throw new IllegalStateException("must be called inside of a rest test case test");
-        }
-        return hasXPack;
-    }
-
     private static List<HttpHost> clusterHosts;
     /**
      * A client for the running Elasticsearch cluster
@@ -163,7 +153,6 @@ public abstract class ESRestTestCase extends ESTestCase {
      * completes
      */
     private static RestClient adminClient;
-    private static Boolean hasXPack;
     private static TreeSet<Version> nodeVersions;
 
     @Before
@@ -171,7 +160,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (client == null) {
             assert adminClient == null;
             assert clusterHosts == null;
-            assert hasXPack == null;
             assert nodeVersions == null;
             String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
@@ -190,25 +178,17 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
-            hasXPack = false;
             nodeVersions = new TreeSet<>();
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
                 Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
                 nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
-                for (Object module: (List<?>) nodeInfo.get("modules")) {
-                    Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                    if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
-                        hasXPack = true;
-                    }
-                }
             }
         }
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
-        assert hasXPack != null;
         assert nodeVersions != null;
     }
 
@@ -350,7 +330,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             clusterHosts = null;
             client = null;
             adminClient = null;
-            hasXPack = null;
             nodeVersions = null;
         }
     }
@@ -547,67 +526,13 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         // wipe index templates
         if (preserveTemplatesUponCompletion() == false) {
-            if (hasXPack) {
-                /*
-                 * Delete only templates that xpack doesn't automatically
-                 * recreate. Deleting them doesn't hurt anything, but it
-                 * slows down the test because xpack will just recreate
-                 * them.
-                 */
-                Request request = new Request("GET", "_cat/templates");
-                request.addParameter("h", "name");
-                String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
-                if (false == "".equals(templates)) {
-                    for (String template : templates.split("\n")) {
-                        if (isXPackTemplate(template)) continue;
-                        if ("".equals(template)) {
-                            throw new IllegalStateException("empty template in templates list:\n" + templates);
-                        }
-                        logger.info("Clearing template [{}]", template);
-                        try {
-                            adminClient().performRequest(new Request("DELETE", "_template/" + template));
-                        } catch (ResponseException e) {
-                            // This is fine, it could be a V2 template
-                            assertThat(e.getMessage(), containsString("index_template [" + template + "] missing"));
-                            try {
-                                adminClient().performRequest(new Request("DELETE", "_index_template/" + template));
-                            } catch (ResponseException e2) {
-                                // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
-                            }
-                        }
-                    }
-                }
-                try {
-                    Request compReq = new Request("GET", "_component_template");
-                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    @SuppressWarnings("unchecked")
-                    List<String> names = ((List<Map<String, Object>>) cTemplates.get("component_templates")).stream()
-                        .map(ct -> (String) ct.get("name"))
-                        .collect(Collectors.toList());
-                    for (String componentTemplate : names) {
-                        try {
-                            if (isXPackTemplate(componentTemplate)) {
-                                continue;
-                            }
-                            adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
-                        } catch (ResponseException e) {
-                                logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.info("ignoring exception removing all component templates", e);
-                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
-                }
-            } else {
-                logger.debug("Clearing all templates");
-                adminClient().performRequest(new Request("DELETE", "_template/*"));
-                try {
-                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
-                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
-                } catch (ResponseException e) {
-                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
-                }
+            logger.debug("Clearing all templates");
+            adminClient().performRequest(new Request("DELETE", "_template/*"));
+            try {
+                adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                adminClient().performRequest(new Request("DELETE", "_component_template/*"));
+            } catch (ResponseException e) {
+                // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
             }
         }
 
@@ -1154,35 +1079,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(message + ": response is not acknowledged", acknowledged, equalTo(Boolean.TRUE));
     }
 
-    /**
-     * Is this template one that is automatically created by xpack?
-     */
-    protected static boolean isXPackTemplate(String name) {
-        if (name.startsWith(".transform-")) {
-            return true;
-        }
-        switch (name) {
-            case "logstash-index-template":
-            case ".logstash-management":
-            case "security_audit_log":
-            case ".slm-history":
-            case "saml-service-provider":
-            case "logs":
-            case "logs-settings":
-            case "logs-mappings":
-            case "metrics":
-            case "metrics-settings":
-            case "metrics-mappings":
-            case "synthetics":
-            case "synthetics-settings":
-            case "synthetics-mappings":
-            case ".snapshot-blob-cache":
-                return true;
-            default:
-                return false;
-        }
-    }
-
     public void flush(String index, boolean force) throws IOException {
         logger.info("flushing index {} force={}", index, force);
         final Request flushRequest = new Request("POST", "/" + index + "/_flush");
@@ -1269,10 +1165,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    public static Boolean getHasXPack() {
-        return hasXPack;
-    }
-
     /**
      * Returns the minimum node version among all nodes of the cluster
      */
@@ -1321,37 +1213,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 if (retryOnConflict) {
                     throw new AssertionError(ex); // cause assert busy to retry
                 }
-            }
-        });
-    }
-
-    /**
-     * Wait for the license to be applied and active. The specified admin client is used to check the license and this is done using
-     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give some time to the License to be applied on nodes.
-     *
-     * @param restClient the client to use
-     * @throws Exception if an exception is thrown while checking the status of the license
-     */
-    protected static void waitForActiveLicense(final RestClient restClient) throws Exception {
-        assertBusy(() -> {
-            final Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
-            request.setOptions(RequestOptions.DEFAULT.toBuilder());
-
-            final Response response = restClient.performRequest(request);
-            assertOK(response);
-
-            try (InputStream is = response.getEntity().getContent()) {
-                XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-                final Map<String, ?> map = XContentHelper.convertToMap(xContentType.xContent(), is, true);
-                assertThat(map, notNullValue());
-                assertThat("License must exist", map.containsKey("license"), equalTo(true));
-                @SuppressWarnings("unchecked")
-                final Map<String, ?> license = (Map<String, ?>) map.get("license");
-                assertThat("Expecting non-null license", license, notNullValue());
-                assertThat("License status must exist", license.containsKey("status"), equalTo(true));
-                final String status = (String) license.get("status");
-                assertThat("Expecting non-null license status", status, notNullValue());
-                assertThat("Expecting active license", status, equalTo("active"));
             }
         });
     }

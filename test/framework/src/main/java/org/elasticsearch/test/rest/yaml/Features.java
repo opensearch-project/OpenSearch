@@ -63,15 +63,7 @@ public final class Features {
      */
     public static boolean areAllSupported(List<String> features) {
         for (String feature : features) {
-            if (feature.equals("xpack")) {
-                if (false == ESRestTestCase.hasXPack()) {
-                    return false;
-                }
-            } else if (feature.equals("no_xpack")) {
-                if (ESRestTestCase.hasXPack()) {
-                    return false;
-                }
-            } else if (false == isSupported(feature)) {
+            if (false == isSupported(feature)) {
                 return false;
             }
         }

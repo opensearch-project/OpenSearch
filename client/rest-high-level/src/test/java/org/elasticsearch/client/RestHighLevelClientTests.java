@@ -782,26 +782,9 @@ public class RestHighLevelClientTests extends ESTestCase {
                             assertTrue("method [" + method.getName() + "], api [" + apiName + "] should be deprecated",
                                 method.isAnnotationPresent(Deprecated.class));
                         } else {
-                            //TODO xpack api are currently ignored, we need to load xpack yaml spec too
-                            if (apiName.startsWith("xpack.") == false &&
-                                apiName.startsWith("license.") == false &&
-                                apiName.startsWith("machine_learning.") == false &&
-                                apiName.startsWith("watcher.") == false &&
-                                apiName.startsWith("graph.") == false &&
-                                apiName.startsWith("migration.") == false &&
-                                apiName.startsWith("security.") == false &&
-                                apiName.startsWith("index_lifecycle.") == false &&
-                                apiName.startsWith("transform.") == false &&
-                                apiName.endsWith("freeze") == false &&
-                                apiName.endsWith("reload_analyzers") == false &&
-                                apiName.startsWith("async_search") == false &&
-                                // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
+                            if (// IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                                 // can get rid of 7.0's deprecated "getTemplate"
-                                apiName.equals("indices.get_index_template") == false &&
-                                org.elasticsearch.common.collect.List.of("indices.data_streams_stats",
-                                    "indices.delete_data_stream",
-                                    "indices.create_data_stream",
-                                    "indices.get_data_stream").contains(apiName) == false) {
+                                apiName.equals("indices.get_index_template") == false ) {
                                 apiNotFound.add(apiName);
                             }
                         }

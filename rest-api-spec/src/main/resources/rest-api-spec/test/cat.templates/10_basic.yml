@@ -20,7 +20,7 @@
 ---
 "No templates":
     - skip:
-        features: default_shards, no_xpack
+        features: default_shards
     - do:
         cat.templates: {}
 
@@ -199,7 +199,7 @@
     - skip:
         version: " - 7.7.99"
         reason: "format changed in 7.8 to accomodate V2 index templates"
-        features: default_shards, no_xpack
+        features: default_shards
 
     - do:
         indices.put_template:
@@ -252,7 +252,7 @@
     - skip:
         version: " - 7.7.99"
         reason: "format changed in 7.8 to accomodate V2 index templates"
-        features: default_shards, no_xpack
+        features: default_shards
 
     - do:
         indices.put_template:
@@ -279,7 +279,6 @@
                  \n
                  test_1       \s+
                  \[t\*,\ te\*\]
-                 \n
                  \n
               $/
 
