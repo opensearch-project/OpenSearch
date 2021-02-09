@@ -484,9 +484,6 @@ public class Docker {
      */
     public static void verifyContainerInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation);
-        }
     }
 
     private static void verifyOssInstallation(Installation es) {
@@ -527,21 +524,6 @@ public class Docker {
             final Shell.Result result = dockerShell.runIgnoreExitCode("rpm -q " + cliPackage);
             assertTrue(cliPackage + " ought to be installed. " + result, result.isSuccess());
         });
-    }
-
-    private static void verifyDefaultInstallation(Installation es) {
-        Stream.of(
-            "elasticsearch-certgen",
-            "elasticsearch-certutil",
-            "elasticsearch-croneval",
-            "elasticsearch-saml-metadata",
-            "elasticsearch-setup-passwords",
-            "elasticsearch-syskeygen",
-            "elasticsearch-users"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
-
-        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {

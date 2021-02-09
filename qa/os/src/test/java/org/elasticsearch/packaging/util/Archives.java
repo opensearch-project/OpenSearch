@@ -158,9 +158,6 @@ public class Archives {
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation, distribution, ARCHIVE_OWNER);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
-        }
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, String owner) {
@@ -198,30 +195,6 @@ public class Archives {
 
         Stream.of("NOTICE.txt", "LICENSE.txt", "README.asciidoc")
             .forEach(doc -> assertThat(es.home.resolve(doc), file(File, owner, owner, p644)));
-    }
-
-    private static void verifyDefaultInstallation(Installation es, Distribution distribution, String owner) {
-
-        Stream.of(
-            "elasticsearch-certgen",
-            "elasticsearch-certutil",
-            "elasticsearch-croneval",
-            "elasticsearch-migrate",
-            "elasticsearch-saml-metadata",
-            "elasticsearch-setup-passwords",
-            "elasticsearch-syskeygen",
-            "elasticsearch-users"
-        ).forEach(executable -> {
-
-            assertThat(es.bin(executable), file(File, owner, owner, p755));
-
-            if (distribution.packaging == Distribution.Packaging.ZIP) {
-                assertThat(es.bin(executable + ".bat"), file(File, owner));
-            }
-        });
-
-        Stream.of("users", "users_roles", "roles.yml", "role_mapping.yml", "log4j2.properties")
-            .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
     public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
