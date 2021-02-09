@@ -163,9 +163,6 @@ public class Packages {
 
     public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
         verifyOssInstallation(installation, distribution, sh);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution);
-        }
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, Shell sh) {
@@ -226,23 +223,6 @@ public class Packages {
         if (isSysVInit()) {
             assertThat(SYSVINIT_SCRIPT, file(File, "root", "root", p750));
         }
-    }
-
-    private static void verifyDefaultInstallation(Installation es, Distribution distribution) {
-
-        Stream.of(
-            "elasticsearch-certgen",
-            "elasticsearch-certutil",
-            "elasticsearch-croneval",
-            "elasticsearch-migrate",
-            "elasticsearch-saml-metadata",
-            "elasticsearch-setup-passwords",
-            "elasticsearch-syskeygen",
-            "elasticsearch-users"
-        ).forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
-
-        Stream.of("users", "users_roles", "roles.yml", "role_mapping.yml", "log4j2.properties")
-            .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
     }
 
     /**

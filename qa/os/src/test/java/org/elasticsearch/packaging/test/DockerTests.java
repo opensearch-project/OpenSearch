@@ -450,30 +450,6 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check whether the elasticsearch-certutil tool has been shipped correctly,
-     * and if present then it can execute.
-     */
-    public void test090SecurityCliPackaging() {
-        final Installation.Executables bin = installation.executables();
-
-        final Path securityCli = installation.lib.resolve("tools").resolve("security-cli");
-
-        if (distribution().isDefault()) {
-            assertTrue(existsInContainer(securityCli));
-
-            Result result = sh.run(bin.certutilTool + " --help");
-            assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
-
-            // Ensure that the exit code from the java command is passed back up through the shell script
-            result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
-            assertThat(result.isSuccess(), is(false));
-            assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
-        } else {
-            assertFalse(existsInContainer(securityCli));
-        }
-    }
-
-    /**
      * Check that the elasticsearch-shard tool is shipped in the Docker image and is executable.
      */
     public void test091ElasticsearchShardCliPackaging() {
