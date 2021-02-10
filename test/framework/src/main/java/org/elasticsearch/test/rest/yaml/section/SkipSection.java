@@ -71,7 +71,17 @@ public class SkipSection {
                 } else if ("reason".equals(currentFieldName)) {
                     reason = parser.text();
                 } else if ("features".equals(currentFieldName)) {
-                    features.add(parser.text());
+                    String f = parser.text();
+                    // split on ','
+                    String[] fs = f.split(",");
+                    if (fs != null) {
+                        // add each feature, separately:
+                        for (String feature : fs) {
+                            features.add(feature.trim());
+                        }
+                    } else {
+                        features.add(f);
+                    }
                 }
                 else {
                     throw new ParsingException(parser.getTokenLocation(),

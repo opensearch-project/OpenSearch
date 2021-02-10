@@ -230,8 +230,8 @@
     - match:
         $body: |
               /^
-                  test   \s+ \[t\*\]  \s+   \n \n
-                  test_1 \s+ \[te\*\] \s+ 1 \n \n
+                  test   \s+ \[t\*\]  \s+   \n
+                  test_1 \s+ \[te\*\] \s+ 1 \n
               $/
 
     - do:
@@ -242,8 +242,8 @@
     - match:
         $body: |
               /^
-                  test_1 \s+ \[te\*\]   \s+ 1\n \n
-                  test   \s+ \[t\*\]    \s+  \n \n
+                  test_1 \s+ \[te\*\]   \s+ 1\n
+                  test   \s+ \[t\*\]    \s+  \n
 
               $/
 
