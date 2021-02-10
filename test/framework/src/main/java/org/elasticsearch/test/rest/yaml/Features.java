@@ -20,7 +20,6 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.Arrays;
 import java.util.List;
