@@ -654,8 +654,6 @@ subprojects {
  'archives:oss-linux-aarch64-tar',
  'archives:oss-linux-tar',
  'archives:integ-test-zip',
- 'packages:rpm', 'packages:deb',
- 'packages:aarch64-rpm', 'packages:aarch64-deb',
  'packages:oss-rpm', 'packages:oss-deb',
  'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
 ].forEach { subName ->
