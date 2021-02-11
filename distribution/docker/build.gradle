@@ -21,7 +21,6 @@ configurations {
 }
 
 dependencies {
-  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
   aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar", configuration:"default")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar", configuration:"default")
 }
@@ -43,7 +42,8 @@ ext.expansions = { Architecture architecture, boolean oss, DockerBase base, bool
     classifier = "linux-\$(arch)"
   }
 
-  final String elasticsearch = "elasticsearch-${oss ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
+  """ TODO: temporary workaround """
+  final String elasticsearch = "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
 
   /* Both the following Dockerfile commands put the resulting artifact at
    * the same location, regardless of classifier, so that the commands that

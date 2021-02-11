@@ -649,9 +649,9 @@ subprojects {
   }
 }
 
-['archives:windows-zip', 'archives:oss-windows-zip',
- 'archives:darwin-tar', 'archives:oss-darwin-tar',
- 'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
+['archives:oss-windows-zip',
+ 'archives:oss-darwin-tar',
+ 'archives:oss-linux-aarch64-tar',
  'archives:oss-linux-tar',
  'archives:integ-test-zip',
  'packages:rpm', 'packages:deb',
