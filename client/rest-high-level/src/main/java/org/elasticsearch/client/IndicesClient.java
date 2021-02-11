@@ -55,7 +55,6 @@ import org.elasticsearch.client.indices.DataStreamsStatsResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DeleteDataStreamRequest;
-import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetDataStreamRequest;
@@ -76,7 +75,6 @@ import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.ResizeResponse;
 import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
 import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
-import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -1725,55 +1723,6 @@ public final class IndicesClient {
                                     ActionListener<AnalyzeResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::analyze, options,
             AnalyzeResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
-     * Synchronously calls the _freeze API
-     *
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     */
-    public ShardsAcknowledgedResponse freeze(FreezeIndexRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Asynchronously calls the _freeze API
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable freezeAsync(FreezeIndexRequest request, RequestOptions options,
-                                   ActionListener<ShardsAcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
-     * Synchronously calls the _unfreeze API
-     *
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     */
-    public ShardsAcknowledgedResponse unfreeze(UnfreezeIndexRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Asynchronously calls the _unfreeze API
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable unfreezeAsync(UnfreezeIndexRequest request, RequestOptions options,
-                                     ActionListener<ShardsAcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            IndicesRequestConverters::unfreezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**

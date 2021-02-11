@@ -47,7 +47,6 @@ import org.elasticsearch.client.indices.GetDataStreamRequest;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DeleteDataStreamRequest;
-import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
@@ -60,7 +59,6 @@ import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
-import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -759,30 +757,6 @@ final class IndicesRequestConverters {
         Request req = new Request(HttpGet.METHOD_NAME, builder.build());
         req.setEntity(RequestConverters.createEntity(request, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return req;
-    }
-
-    static Request freezeIndex(FreezeIndexRequest freezeIndexRequest) {
-        String endpoint = RequestConverters.endpoint(freezeIndexRequest.getIndices(), "_freeze");
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withTimeout(freezeIndexRequest.timeout());
-        parameters.withMasterTimeout(freezeIndexRequest.masterNodeTimeout());
-        parameters.withIndicesOptions(freezeIndexRequest.indicesOptions());
-        parameters.withWaitForActiveShards(freezeIndexRequest.getWaitForActiveShards());
-        request.addParameters(parameters.asMap());
-        return request;
-    }
-
-    static Request unfreezeIndex(UnfreezeIndexRequest unfreezeIndexRequest) {
-        String endpoint = RequestConverters.endpoint(unfreezeIndexRequest.getIndices(), "_unfreeze");
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withTimeout(unfreezeIndexRequest.timeout());
-        parameters.withMasterTimeout(unfreezeIndexRequest.masterNodeTimeout());
-        parameters.withIndicesOptions(unfreezeIndexRequest.indicesOptions());
-        parameters.withWaitForActiveShards(unfreezeIndexRequest.getWaitForActiveShards());
-        request.addParameters(parameters.asMap());
-        return request;
     }
 
     static Request deleteTemplate(DeleteIndexTemplateRequest deleteIndexTemplateRequest) {
