@@ -347,24 +347,12 @@ Closure commonDebConfig(boolean oss, boolean jdk, String architecture) {
   }
 }
 
-tasks.register('buildAarch64Deb', Deb) {
-  configure(commonDebConfig(false, true, 'aarch64'))
-}
-
-tasks.register('buildDeb', Deb) {
-  configure(commonDebConfig(false, true, 'x64'))
-}
-
 tasks.register('buildAarch64OssDeb', Deb) {
   configure(commonDebConfig(true, true, 'aarch64'))
 }
 
 tasks.register('buildOssDeb', Deb) {
   configure(commonDebConfig(true, true, 'x64'))
-}
-
-tasks.register('buildNoJdkDeb', Deb) {
-  configure(commonDebConfig(false, false, 'x64'))
 }
 
 tasks.register('buildOssNoJdkDeb', Deb) {
@@ -396,24 +384,12 @@ Closure commonRpmConfig(boolean oss, boolean jdk, String architecture) {
   }
 }
 
-tasks.register('buildAarch64Rpm', Rpm) {
-  configure(commonRpmConfig(false, true, 'aarch64'))
-}
-
-tasks.register('buildRpm', Rpm) {
-  configure(commonRpmConfig(false, true, 'x64'))
-}
-
 tasks.register('buildAarch64OssRpm', Rpm) {
   configure(commonRpmConfig(true, true, 'aarch64'))
 }
 
 tasks.register('buildOssRpm', Rpm) {
   configure(commonRpmConfig(true, true, 'x64'))
-}
-
-tasks.register('buildNoJdkRpm', Rpm) {
-  configure(commonRpmConfig(false, false, 'x64'))
 }
 
 tasks.register('buildOssNoJdkRpm', Rpm) {
