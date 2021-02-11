@@ -74,7 +74,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     }
 
     public enum Flavor {
-        DEFAULT,
         OSS;
 
         @Override
@@ -282,7 +281,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         }
 
         if (flavor.isPresent() == false) {
-            flavor.set(Flavor.DEFAULT);
+            flavor.set(Flavor.OSS);
         }
         if (bundledJdk.isPresent() == false) {
             bundledJdk.set(true);

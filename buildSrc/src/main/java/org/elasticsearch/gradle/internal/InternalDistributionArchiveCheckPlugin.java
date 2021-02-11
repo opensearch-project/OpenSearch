@@ -55,7 +55,15 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPlugins().apply(BasePlugin.class);
         String buildTaskName = calculateBuildTask(project.getName());
+
+        //TODO setiah
+        System.out.println("Himanshu, project: " + project.getName());
+
         TaskProvider<Task> buildDistTask = project.getParent().getTasks().named(buildTaskName);
+
+        //TODO setiah
+        System.out.println(buildDistTask.toString());
+
         DistributionArchiveCheckExtension distributionArchiveCheckExtension = project.getExtensions()
             .create("distributionArchiveCheck", DistributionArchiveCheckExtension.class);
 

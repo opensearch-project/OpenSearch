@@ -137,7 +137,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             null,
             true
         );
-        assertEquals(distro.getFlavor(), Flavor.DEFAULT);
+        assertEquals(distro.getFlavor(), Flavor.OSS);
     }
 
     public void testFlavorForIntegTest() {

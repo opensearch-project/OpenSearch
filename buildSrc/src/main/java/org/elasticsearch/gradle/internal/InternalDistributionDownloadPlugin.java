@@ -169,7 +169,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                         ? "-zip"
                         : "-tar");
                 } else {
-                    projectName = distribution.getFlavor().equals(ElasticsearchDistribution.Flavor.DEFAULT) ? "zip" : "oss-zip";
+                    projectName = "oss-zip";
                 }
                 break;
 

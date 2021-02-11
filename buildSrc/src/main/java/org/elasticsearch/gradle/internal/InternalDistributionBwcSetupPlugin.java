@@ -145,7 +145,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         projects.addAll(asList("deb", "rpm", "oss-deb", "oss-rpm"));
 
         if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
-            projects.addAll(asList("oss-windows-zip", "windows-zip", "oss-darwin-tar", "darwin-tar", "oss-linux-tar", "linux-tar"));
+            projects.addAll(asList("oss-windows-zip", "windows-zip", "oss-darwin-tar", "darwin-tar", "oss-linux-tar"));
         } else { // prior to 7.0 we published only a single zip and tar archives for oss and default distributions
             projects.addAll(asList("oss-zip", "zip", "tar", "oss-tar"));
         }

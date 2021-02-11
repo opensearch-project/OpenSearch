@@ -273,7 +273,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } else {
             distribution.setType(ElasticsearchDistribution.Type.ARCHIVE);
             if (testDistribution == TestDistribution.DEFAULT) {
-                distribution.setFlavor(ElasticsearchDistribution.Flavor.DEFAULT);
+                distribution.setFlavor(ElasticsearchDistribution.Flavor.OSS);
             } else {
                 distribution.setFlavor(ElasticsearchDistribution.Flavor.OSS);
             }

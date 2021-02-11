@@ -22,7 +22,6 @@ configurations {
 
 dependencies {
   aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
-  dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
   aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar", configuration:"default")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar", configuration:"default")
 }

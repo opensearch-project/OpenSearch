@@ -29,7 +29,7 @@ apply plugin:'elasticsearch.internal-distribution-download'
 
 elasticsearch_distributions {
   local {
-    flavor = 'default'
+    flavor = 'oss'
     type = 'archive'
     architecture = Architecture.current()
   }

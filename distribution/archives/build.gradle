@@ -143,13 +143,6 @@ distribution_archives {
     }
   }
 
-  linuxTar {
-    archiveClassifier = 'linux-x86_64'
-    content {
-      archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
-    }
-  }
-
   ossLinuxAarch64Tar {
     archiveClassifier = 'linux-aarch64'
     content {
