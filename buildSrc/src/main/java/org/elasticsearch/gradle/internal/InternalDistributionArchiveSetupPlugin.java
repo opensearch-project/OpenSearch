@@ -74,7 +74,6 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
             TaskContainer tasks = project.getTasks();
             var explodedDist = tasks.register(copyDistributionTaskName, Sync.class, sync -> sync.into(subProjectDir + "/build/install/"));
             var archiveTaskName = "build" + capitalize(name);
-
             return name.endsWith("Tar")
                 ? new DistributionArchive(tasks.register(archiveTaskName, SymbolicLinkPreservingTar.class), explodedDist, name)
                 : new DistributionArchive(tasks.register(archiveTaskName, Zip.class), explodedDist, name);

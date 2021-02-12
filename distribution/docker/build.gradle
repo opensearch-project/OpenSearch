@@ -231,15 +231,12 @@ void addBuildDockerImage(Architecture architecture, boolean oss, DockerBase base
 }
 
 for (final Architecture architecture : Architecture.values()) {
-  // only create oss docker images
+  // We only create Docker images for the OSS distribution on CentOS.
   for (final DockerBase base : DockerBase.values()) {
-    if (base != DockerBase.CENTOS) {
-      // We only create Docker images for the OSS distribution on CentOS.
-      // Other bases only use the default distribution.
-      continue
+    if (base == DockerBase.CENTOS) {
+      addCopyDockerContextTask(architecture, true, base)
+      addBuildDockerImage(architecture, true, base)
     }
-    addCopyDockerContextTask(architecture, true, base)
-    addBuildDockerImage(architecture, true, base)
   }
 }
 
