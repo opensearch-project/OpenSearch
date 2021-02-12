@@ -1,4 +1,4 @@
-name: Search Sanity Checks
+name: Search CI
 on:
   push:
     branches:
