@@ -42,7 +42,6 @@ ext.expansions = { Architecture architecture, boolean oss, DockerBase base, bool
     classifier = "linux-\$(arch)"
   }
 
-  """ TODO: temporary workaround """
   final String elasticsearch = "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
 
   /* Both the following Dockerfile commands put the resulting artifact at
@@ -232,16 +231,15 @@ void addBuildDockerImage(Architecture architecture, boolean oss, DockerBase base
 }
 
 for (final Architecture architecture : Architecture.values()) {
+  // only create oss docker images
   for (final DockerBase base : DockerBase.values()) {
-    for (final boolean oss : [true]) {
-      if (oss && base != DockerBase.CENTOS) {
-        // We only create Docker images for the OSS distribution on CentOS.
-        // Other bases only use the default distribution.
-        continue
-      }
-      addCopyDockerContextTask(architecture, oss, base)
-      addBuildDockerImage(architecture, oss, base)
+    if (base != DockerBase.CENTOS) {
+      // We only create Docker images for the OSS distribution on CentOS.
+      // Other bases only use the default distribution.
+      continue
     }
+    addCopyDockerContextTask(architecture, true, base)
+    addBuildDockerImage(architecture, true, base)
   }
 }
 
