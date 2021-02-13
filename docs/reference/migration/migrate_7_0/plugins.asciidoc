@@ -1,0 +1,91 @@
+[discrete]
+[[breaking_70_plugins_changes]]
+=== Plugins changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[discrete]
+==== Azure Repository plugin
+
+* The legacy azure settings which where starting with `cloud.azure.storage.` prefix have been removed.
+This includes `account`, `key`, `default` and `timeout`.
+You need to use settings which are starting with `azure.client.` prefix instead.
+
+* Global timeout setting `cloud.azure.storage.timeout` has been removed.
+You must set it per azure client instead. Like `azure.client.default.timeout: 10s` for example.
+
+See {plugins}/repository-azure-repository-settings.html#repository-azure-repository-settings[Azure Repository settings].
+
+[discrete]
+==== Google Cloud Storage Repository plugin
+
+* The repository settings `application_name`, `connect_timeout` and `read_timeout` have been removed and
+must now be specified in the client settings instead.
+
+See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].
+
+[discrete]
+==== S3 Repository Plugin
+
+* The plugin now uses the path style access pattern for all requests.
+In previous versions it was automatically determining whether to use virtual hosted style or path style
+access.
+
+[discrete]
+==== Analysis Plugin changes
+
+* The misspelled helper method `requriesAnalysisSettings(AnalyzerProvider<T> provider)` has been
+renamed to `requiresAnalysisSettings`
+
+[discrete]
+==== File-based discovery plugin
+
+* This plugin has been removed since its functionality is now part of
+Elasticsearch and requires no plugin. The location of the hosts file has moved
+from `$ES_PATH_CONF/file-discovery/unicast_hosts.txt` to
+`$ES_PATH_CONF/unicast_hosts.txt`. See <<file-based-hosts-provider,the
+file-based hosts provider documentation>> for further information.
+
+[discrete]
+==== Security Extensions
+
+As a consequence of the <<include-realm-type-in-setting, change to Realm settings>>,
+the `getRealmSettings` method has been removed from the `SecurityExtension` class,
+and the `settings` method on `RealmConfig` now returns the node's (global) settings.
+Custom security extensions should register their settings by implementing the standard
+`Plugin.getSettings` method, and can retrieve them from `RealmConfig.settings()` or
+using one of the `RealmConfig.getSetting` methods.
+Each realm setting should be defined as an `AffixSetting` as shown in the example below:
+[source,java]
+--------------------------------------------------
+Setting.AffixSetting<String> MY_SETTING = Setting.affixKeySetting(
+  "xpack.security.authc.realms." + MY_REALM_TYPE + ".", "my_setting",
+  key -> Setting.simpleString(key, properties)
+);
+--------------------------------------------------
+
+The `RealmSettings.simpleString` method can be used as a convenience for the above.
+
+[discrete]
+==== Tribe node removed
+
+Tribe node functionality has been removed in favor of
+<<modules-cross-cluster-search,Cross Cluster Search>>.
+
+[discrete]
+==== Discovery implementations are no longer pluggable
+
+* The method `DiscoveryPlugin#getDiscoveryTypes()` was removed, so that plugins
+  can no longer provide their own discovery implementations.
+
+[discrete]
+[[watcher-hipchat-action-removed]]
+==== Watcher 'hipchat' action removed
+
+Hipchat has been deprecated and shut down as a service. The `hipchat` action for
+watches has been removed.
