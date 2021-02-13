@@ -1,0 +1,40 @@
+[[indices-types-exists]]
+=== Type exists API
+++++
+<titleabbrev>Type exists</titleabbrev>
+++++
+
+deprecated::[7.0.0, Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.]
+
+Checks if a <<mapping-type-field,mapping type>> exists.
+
+[source,console]
+----
+HEAD my-index-000001/_mapping/message
+----
+// TEST[setup:my_index]
+// TEST[warning:Type exists requests are deprecated, as types have been deprecated.]
+
+
+[[indices-types-exists-api-request]]
+==== {api-request-title}
+
+`HEAD /<index>/_mapping/<type>`
+
+
+[[indices-types-exists-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=type]
+
+
+[[indices-types-exists-api-response-codes]]
+==== {api-response-codes-title}
+
+`200`::
+Indicates all specified mapping types exist.
+
+ `404`::
+Indicates one or more specified mapping types **do not** exist.

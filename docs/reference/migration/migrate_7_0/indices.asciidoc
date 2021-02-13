@@ -1,0 +1,105 @@
+[discrete]
+[[breaking_70_indices_changes]]
+=== Indices changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[discrete]
+==== Index creation no longer defaults to five shards
+Previous versions of Elasticsearch defaulted to creating five shards per index.
+Starting with 7.0.0, the default is now one shard per index.
+
+[discrete]
+[[_literal_literal_is_no_longer_allowed_in_index_name]]
+==== `:` is no longer allowed in index name
+
+Due to cross-cluster search using `:` to separate a cluster and index name,
+index names may no longer contain `:`.
+
+[discrete]
+[[index-unassigned-node-left-delayed-timeout-no-longer-negative]]
+==== `index.unassigned.node_left.delayed_timeout` may no longer be negative
+
+Negative values were interpreted as zero in earlier versions but are no
+longer accepted.
+
+[discrete]
+[[flush-force-merge-no-longer-refresh]]
+==== `_flush` and `_force_merge` will no longer refresh
+
+In previous versions issuing a `_flush` or `_force_merge` (with `flush=true`)
+had the undocumented side-effect of refreshing the index which made new documents
+visible to searches and non-realtime GET operations. From now on these operations
+don't have this side-effect anymore. To make documents visible an explicit `_refresh`
+call is needed unless the index is refreshed by the internal scheduler.
+
+[discrete]
+==== Document distribution changes
+
+Indices created with version `7.0.0` onwards will have an automatic `index.number_of_routing_shards`
+value set. This might change how documents are distributed across shards depending on how many
+shards the index has. In order to maintain the exact same distribution as a pre `7.0.0` index, the
+`index.number_of_routing_shards` must be set to the `index.number_of_shards` at index creation time.
+Note: if the number of routing shards equals the number of shards `_split` operations are not supported.
+
+[discrete]
+==== Skipped background refresh on search idle shards
+
+Shards belonging to an index that does not have an explicit
+`index.refresh_interval` configured will  no longer refresh in the background
+once the shard becomes "search idle", ie the shard hasn't seen any search
+traffic for `index.search.idle.after` seconds (defaults to `30s`). Searches
+that access a search idle shard will be "parked" until the next refresh
+happens.  Indexing requests with `wait_for_refresh` will also trigger
+a background refresh.
+
+[discrete]
+==== Remove deprecated url parameters for Clear Indices Cache API
+
+The following previously deprecated url parameter have been removed:
+
+* `filter` - use `query` instead
+* `filter_cache` - use `query` instead
+* `request_cache` - use `request` instead
+* `field_data` - use `fielddata` instead
+
+[discrete]
+[[network-breaker-inflight-requests-overhead-increased-to-2]]
+==== `network.breaker.inflight_requests.overhead` increased to 2
+
+Previously the in flight requests circuit breaker considered only the raw byte representation.
+By bumping the value of `network.breaker.inflight_requests.overhead` from 1 to 2, this circuit
+breaker considers now also the memory overhead of representing the request as a structured object.
+
+[discrete]
+==== Parent circuit breaker changes
+
+The parent circuit breaker defines a new setting `indices.breaker.total.use_real_memory` which is
+`true` by default. This means that the parent circuit breaker will trip based on currently used
+heap memory instead of only considering the reserved memory by child circuit breakers. When this
+setting is `true`, the default parent breaker limit also changes from 70% to 95% of the JVM heap size.
+The previous behavior can be restored by setting `indices.breaker.total.use_real_memory` to `false`.
+
+[discrete]
+==== Field data circuit breaker changes
+As doc values have been enabled by default in earlier versions of Elasticsearch,
+there is less need for fielddata. Therefore, the default value of the setting
+`indices.breaker.fielddata.limit` has been lowered from 60% to 40% of the JVM
+heap size.
+
+[discrete]
+[[fix-value-for-index-shard-check-on-startup-removed]]
+==== `fix` value for `index.shard.check_on_startup` is removed
+
+Deprecated option value `fix` for setting `index.shard.check_on_startup` is not supported.
+
+[discrete]
+[[elasticsearch-translog-removed]]
+==== `elasticsearch-translog` is removed
+
+Use the `elasticsearch-shard` tool to remove corrupted translog data.

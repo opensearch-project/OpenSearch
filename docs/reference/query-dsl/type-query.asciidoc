@@ -1,0 +1,18 @@
+[[query-dsl-type-query]]
+=== Type Query
+
+deprecated[7.0.0,Types and the `type` query are deprecated and in the process of being removed. See <<removal-of-types>>.]
+
+Filters documents matching the provided document / mapping type.
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "type": {
+      "value": "_doc"
+    }
+  }
+}
+--------------------------------------------------
