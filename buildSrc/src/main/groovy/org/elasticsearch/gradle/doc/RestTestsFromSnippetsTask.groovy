@@ -108,7 +108,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
      * format of the response is incompatible i.e. it is not a JSON object.
      */
     static shouldAddShardFailureCheck(String path) {
-        return path.startsWith('_cat') == false
+        return path.startsWith('_cat') == false && path.startsWith('_ml/datafeeds/') == false
     }
 
     /**
@@ -255,7 +255,17 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println("        - stash_path_replace")
                 current.println("        - warnings")
                 if (test.testEnv != null) {
-                    throw new InvalidUserDataException('Unsupported testEnv: ' + test.testEnv);
+                    switch (test.testEnv) {
+                        case 'basic':
+                        case 'gold':
+                        case 'platinum':
+                        case 'enterprise':
+                            current.println("        - xpack")
+                            break;
+                        default:
+                            throw new InvalidUserDataException('Unsupported testEnv: '
+                                + test.testEnv)
+                    }
                 }
             }
             if (test.skip) {
