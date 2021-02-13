@@ -1,0 +1,459 @@
+[[release-notes-7.0.0-alpha1]]
+== {es} version 7.0.0-alpha1
+
+The changes listed below have been released for the first time in Elasticsearch 7.0.0-alpha1.
+
+[[breaking-7.0.0-alpha1]]
+[discrete]
+=== Breaking changes
+
+Aggregations::
+* Remove support for deprecated params._agg/_aggs for scripted metric aggregations {es-pull}32979[#32979] (issues: {es-issue}29328[#29328], {es-issue}31597[#31597])
+* Percentile/Ranks should return null instead of NaN when empty {es-pull}30460[#30460] (issue: {es-issue}29066[#29066])
+* Render sum as zero if count is zero for stats aggregation {es-pull}27193[#27193] (issue: {es-issue}26893[#26893])
+
+Analysis::
+* Remove `delimited_payload_filter` {es-pull}27705[#27705] (issues: {es-issue}26625[#26625], {es-issue}27704[#27704])
+* Limit the number of tokens produced by _analyze {es-pull}27529[#27529] (issue: {es-issue}27038[#27038])
+* Add limits for ngram and shingle settings {es-pull}27211[#27211] (issue: {es-issue}25887[#25887])
+
+Audit::
+* Logfile auditing settings remove after deprecation  {es-pull}35205[#35205]
+
+Authentication::
+* Security: remove wrapping in put user response {es-pull}33512[#33512] (issue: {es-issue}32332[#32332])
+
+Authorization::
+* Remove aliases resolution limitations when security is enabled {es-pull}31952[#31952] (issue: {es-issue}31516[#31516])
+
+CRUD::
+* Version conflict exception message enhancement {es-pull}29432[#29432] (issue: {es-issue}21278[#21278])
+* Using ObjectParser in UpdateRequest {es-pull}29293[#29293] (issue: {es-issue}28740[#28740])
+
+Distributed::
+* Remove undocumented action.master.force_local setting {es-pull}29351[#29351]
+* Remove tribe node support {es-pull}28443[#28443]
+* Forbid negative values for index.unassigned.node_left.delayed_timeout {es-pull}26828[#26828]
+
+Features/Indices APIs::
+* Indices Exists API should return 404 for empty wildcards {es-pull}34499[#34499]
+* Default to one shard {es-pull}30539[#30539]
+* Limit the number of nested documents {es-pull}27405[#27405] (issue: {es-issue}26962[#26962])
+
+Features/Ingest::
+* INGEST: Add Configuration Except. Data to Metdata {es-pull}32322[#32322] (issue: {es-issue}27728[#27728])
+
+Features/Stats::
+* Remove the suggest metric from stats APIs {es-pull}29635[#29635] (issue: {es-issue}29589[#29589])
+* Align cat thread pool info to thread pool config {es-pull}29195[#29195] (issue: {es-issue}29123[#29123])
+* Align thread pool info to thread pool configuration {es-pull}29123[#29123] (issue: {es-issue}29113[#29113])
+
+Geo::
+* Use geohash cell instead of just a corner in geo_bounding_box {es-pull}30698[#30698] (issue: {es-issue}25154[#25154])
+
+Infra/Circuit Breakers::
+* Introduce durability of circuit breaking exception {es-pull}34460[#34460] (issue: {es-issue}31986[#31986])
+* Circuit-break based on real memory usage {es-pull}31767[#31767]
+
+Infra/Core::
+* Core: Default node.name to the hostname {es-pull}33677[#33677]
+* Remove bulk fallback for write thread pool {es-pull}29609[#29609]
+* CCS: Drop http address from remote cluster info {es-pull}29568[#29568] (issue: {es-issue}29207[#29207])
+* Remove the index thread pool {es-pull}29556[#29556]
+* Main response should not have status 503 when okay {es-pull}29045[#29045] (issue: {es-issue}8902[#8902])
+* Automatically prepare indices for splitting {es-pull}27451[#27451]
+* Don't refresh on `_flush` `_force_merge` and `_upgrade` {es-pull}27000[#27000] (issue: {es-issue}26972[#26972])
+
+Infra/Packaging::
+* Packaging: Remove windows bin files from the tar distribution {es-pull}30596[#30596]
+
+Infra/REST API::
+* REST: Remove GET support for clear cache indices {es-pull}29525[#29525]
+* REST : Clear Indices Cache API remove deprecated url params {es-pull}29068[#29068]
+
+Infra/Scripting::
+* Remove support for deprecated StoredScript contexts {es-pull}31394[#31394] (issues: {es-issue}27612[#27612], {es-issue}28939[#28939])
+* Scripting: Remove getDate methods from ScriptDocValues {es-pull}30690[#30690]
+* Handle missing and multiple values in script {es-pull}29611[#29611] (issue: {es-issue}29286[#29286])
+* Drop `ScriptDocValues#date` and `ScriptDocValues#dates` in 7.0.0 [ISSUE] {es-pull}23008[#23008]
+
+Infra/Settings::
+* Remove config prompting for secrets and text {es-pull}27216[#27216]
+
+Mapping::
+* Match phrase queries against non-indexed fields should throw an exception {es-pull}31060[#31060]
+* Remove legacy mapping code. {es-pull}29224[#29224]
+* Reject updates to the `_default_` mapping. {es-pull}29165[#29165] (issues: {es-issue}15613[#15613], {es-issue}28248[#28248])
+* Remove the `update_all_types` option. {es-pull}28288[#28288]
+* Remove the `_default_` mapping. {es-pull}28248[#28248]
+* Reject the `index_options` parameter for numeric fields {es-pull}26668[#26668] (issue: {es-issue}21475[#21475])
+
+Network::
+* Network: Remove http.enabled setting {es-pull}29601[#29601] (issue: {es-issue}12792[#12792])
+* Remove HTTP max content length leniency {es-pull}29337[#29337]
+
+Percolator::
+* remove deprecated percolator map_unmapped_fields_as_string setting {es-pull}28060[#28060]
+
+Ranking::
+* Add minimal sanity checks to custom/scripted similarities. {es-pull}33564[#33564] (issue: {es-issue}33309[#33309])
+* Scroll queries asking for rescore are considered invalid {es-pull}32918[#32918] (issue: {es-issue}31775[#31775])
+
+Search::
+* Remove deprecated url parameters `_source_include` and `_source_exclude` {es-pull}35097[#35097] (issues: {es-issue}22792[#22792], {es-issue}33475[#33475])
+* Disallow negative query boost {es-pull}34486[#34486] (issue: {es-issue}33309[#33309])
+* Forbid negative `weight` in Function Score Query {es-pull}33390[#33390] (issue: {es-issue}31927[#31927])
+* In the field capabilities API, remove support for providing fields in the request body. {es-pull}30185[#30185]
+* Remove deprecated options for query_string {es-pull}29203[#29203] (issue: {es-issue}25551[#25551])
+* Fix Laplace scorer to multiply by alpha (and not add) {es-pull}27125[#27125]
+* Remove _primary and _replica shard preferences {es-pull}26791[#26791] (issue: {es-issue}26335[#26335])
+* Limit the number of expanded fields it query_string and simple_query_string {es-pull}26541[#26541] (issue: {es-issue}25105[#25105])
+* Make purely negative queries return scores of 0. {es-pull}26015[#26015] (issue: {es-issue}23449[#23449])
+
+Snapshot/Restore::
+* Include size of snapshot in snapshot metadata  {es-pull}30890[#30890] (issue: {es-issue}18543[#18543])
+* Remove azure deprecated settings {es-pull}26099[#26099] (issue: {es-issue}23405[#23405])
+
+Store::
+* drop elasticsearch-translog for 7.0 {es-pull}33373[#33373] (issues: {es-issue}31389[#31389], {es-issue}32281[#32281])
+* completely drop `index.shard.check_on_startup: fix` for 7.0 {es-pull}33194[#33194]
+
+Suggesters::
+* Fix threshold frequency computation in Suggesters {es-pull}34312[#34312] (issue: {es-issue}34282[#34282])
+* Make Geo Context Mapping Parsing More Strict {es-pull}32821[#32821] (issues: {es-issue}32202[#32202], {es-issue}32412[#32412])
+*  Make Geo Context Parsing More Strict {es-pull}32412[#32412] (issue: {es-issue}32202[#32202])
+* Remove the ability to index or query context suggestions without context {es-pull}31007[#31007] (issue: {es-issue}30712[#30712])
+
+
+
+[[breaking-java-7.0.0-alpha1]]
+[discrete]
+=== Breaking Java changes
+
+Aggregations::
+* Change GeoHashGrid.Bucket#getKey() to return String {es-pull}31748[#31748] (issue: {es-issue}30320[#30320])
+
+Analysis::
+* Remove deprecated AnalysisPlugin#requriesAnalysisSettings method {es-pull}32037[#32037] (issue: {es-issue}32025[#32025])
+
+Features/Java High Level REST Client::
+* API: Drop deprecated methods from Retry {es-pull}33925[#33925]
+* REST hl client: cluster health to default to cluster level {es-pull}31268[#31268] (issue: {es-issue}29331[#29331])
+* REST high-level Client: remove deprecated API methods {es-pull}31200[#31200] (issue: {es-issue}31069[#31069])
+
+Features/Java Low Level REST Client::
+* LLREST: Drop deprecated methods {es-pull}33223[#33223] (issues: {es-issue}29623[#29623], {es-issue}30315[#30315])
+
+Geo::
+* [Geo] Decouple geojson parse logic from ShapeBuilders {es-pull}27212[#27212]
+
+Infra/Core::
+* Core: Remove RequestBuilder from Action {es-pull}30966[#30966]
+
+Infra/Transport API::
+* Java api clean up: remove deprecated `isShardsAcked` {es-pull}28311[#28311] (issues: {es-issue}27784[#27784], {es-issue}27819[#27819])
+
+[[deprecation-7.0.0-alpha1]]
+[discrete]
+=== Deprecations
+
+Analysis::
+* Replace parameter unicodeSetFilter with unicode_set_filter  {es-pull}29215[#29215] (issue: {es-issue}22823[#22823])
+* Replace delimited_payload_filter by delimited_payload {es-pull}26625[#26625] (issue: {es-issue}21978[#21978])
+
+Features/Indices APIs::
+* Default copy settings to true and deprecate on the REST layer {es-pull}30598[#30598]
+
+Infra/Transport API::
+* Deprecate the transport client in favour of the high-level REST client {es-pull}27085[#27085]
+
+Mapping::
+* Deprecate type exists requests. {es-pull}34663[#34663]
+
+Search::
+* Deprecate filtering on `_type`. {es-pull}29468[#29468] (issue: {es-issue}15613[#15613])
+
+
+
+[[feature-7.0.0-alpha1]]
+[discrete]
+=== New features
+
+Analysis::
+* Relax TermVectors API to work with textual fields other than TextFieldType {es-pull}31915[#31915] (issue: {es-issue}31902[#31902])
+
+CCR::
+* Generalize search.remote settings to cluster.remote {es-pull}33413[#33413]
+
+Distributed::
+* log messages from allocation commands {es-pull}25955[#25955] (issues: {es-issue}22821[#22821], {es-issue}25325[#25325])
+
+Features/Ingest::
+* Revert "Introduce a Hashing Processor (#31087)" {es-pull}32178[#32178]
+* Add ingest-attachment support for per document `indexed_chars` limit {es-pull}28977[#28977] (issue: {es-issue}28942[#28942])
+
+Features/Java High Level REST Client::
+* GraphClient for the high level REST client and associated tests {es-pull}32366[#32366]
+
+Features/Monitoring::
+* [Elasticsearch Monitoring] Collect only display_name (for now) {es-pull}35265[#35265] (issue: {es-issue}8445[#8445])
+
+Infra/Core::
+* Skip shard refreshes if shard is `search idle` {es-pull}27500[#27500]
+
+Infra/Logging::
+* Logging: Unify log rotation for index/search slow log {es-pull}27298[#27298]
+
+Infra/Plugins::
+* Reload secure settings for plugins {es-pull}31383[#31383] (issue: {es-issue}29135[#29135])
+
+Infra/REST API::
+* Add an `include_type_name` option. {es-pull}29453[#29453] (issue: {es-issue}15613[#15613])
+
+Machine Learning::
+* [ML] Filter undefined job groups from update job calendar actions {es-pull}30757[#30757]
+
+Mapping::
+* Add a `feature_vector` field. {es-pull}31102[#31102] (issue: {es-issue}27552[#27552])
+* Expose Lucene's FeatureField. {es-pull}30618[#30618]
+
+Ranking::
+* Add ranking evaluation API {es-pull}27478[#27478] (issue: {es-issue}19195[#19195])
+
+Recovery::
+* Allow to trim all ops above a certain seq# with a term lower than X, … {es-pull}31211[#31211] (issue: {es-issue}10708[#10708])
+
+SQL::
+* SQL: Add basic support for ST_AsWKT geo function {es-pull}34205[#34205]
+* SQL: Add support for SYS GEOMETRY_COLUMNS {es-pull}30496[#30496] (issue: {es-issue}29872[#29872])
+
+Search::
+* Add “took” timing info to response for _msearch/template API {es-pull}30961[#30961] (issue: {es-issue}30957[#30957])
+* Expose the lucene Matches API to searches [ISSUE] {es-pull}29631[#29631]
+* Add allow_partial_search_results flag to search requests with default setting true {es-pull}28440[#28440] (issue: {es-issue}27435[#27435])
+* Enable adaptive replica selection by default {es-pull}26522[#26522] (issue: {es-issue}24915[#24915])
+
+Suggesters::
+* serialize suggestion responses as named writeables {es-pull}30284[#30284] (issue: {es-issue}26585[#26585])
+
+
+
+[[enhancement-7.0.0-alpha1]]
+[discrete]
+=== Enhancements
+
+Aggregations::
+* Uses MergingDigest instead of AVLDigest in percentiles agg {es-pull}28702[#28702] (issue: {es-issue}19528[#19528])
+
+Discovery-Plugins::
+* Rename discovery.zen.minimum_master_nodes [ISSUE] {es-pull}14058[#14058]
+
+Engine::
+* Remove versionType from translog {es-pull}31945[#31945]
+*  do retry if primary fails on AsyncAfterWriteAction {es-pull}31857[#31857] (issues: {es-issue}31716[#31716], {es-issue}31755[#31755])
+* handle AsyncAfterWriteAction exception before listener is registered {es-pull}31755[#31755] (issue: {es-issue}31716[#31716])
+* Use IndexWriter#flushNextBuffer to free memory {es-pull}27753[#27753]
+* Remove pre 6.0.0 support from InternalEngine {es-pull}27720[#27720]
+
+Features/Indices APIs::
+*  Add cluster-wide shard limit {es-pull}32856[#32856] (issue: {es-issue}20705[#20705])
+* Remove RestGetAllAliasesAction {es-pull}31308[#31308] (issue: {es-issue}31129[#31129])
+* Add rollover-creation-date setting to rolled over index {es-pull}31144[#31144] (issue: {es-issue}30887[#30887])
+* add is-write-index flag to aliases {es-pull}30942[#30942]
+* Make index and bulk APIs work without types. {es-pull}29479[#29479]
+
+Features/Ingest::
+* ingest: Add ignore_missing property to foreach filter (#22147) {es-pull}31578[#31578] (issue: {es-issue}22147[#22147])
+
+Features/Java High Level REST Client::
+* HLRC API for _termvectors {es-pull}32610[#32610] (issue: {es-issue}27205[#27205])
+
+Features/Stats::
+* Stats to record how often the ClusterState diff mechanism is used successfully {es-pull}26973[#26973]
+
+Features/Watcher::
+* Watcher: Validate email adresses when storing a watch {es-pull}34042[#34042] (issue: {es-issue}33980[#33980])
+
+Infra/Circuit Breakers::
+* Have circuit breaker succeed on unknown mem usage {es-pull}33125[#33125] (issue: {es-issue}31767[#31767])
+* Account for XContent overhead in in-flight breaker {es-pull}31613[#31613]
+* Script Stats: Add compilation limit counter to stats {es-pull}26387[#26387]
+
+Infra/Core::
+* Add RunOnce utility class that executes a Runnable exactly once {es-pull}35484[#35484]
+* Improved IndexNotFoundException's default error message {es-pull}34649[#34649] (issue: {es-issue}34628[#34628])
+* Set a bounded default for http.max_warning_header_count [ISSUE] {es-pull}33479[#33479]
+
+Infra/Packaging::
+* Choose JVM options ergonomically {es-pull}30684[#30684]
+
+Infra/REST API::
+* Remove hand-coded XContent duplicate checks {es-pull}34588[#34588] (issues: {es-issue}22073[#22073], {es-issue}22225[#22225], {es-issue}22253[#22253])
+* Add the `include_type_name` option to the search and document APIs. {es-pull}29506[#29506] (issue: {es-issue}15613[#15613])
+* Validate `op_type` for `_create` {es-pull}27483[#27483]
+
+Infra/Scripting::
+* Tests: Add support for custom contexts to mock scripts {es-pull}34100[#34100]
+* Scripting: Reflect factory signatures in painless classloader {es-pull}34088[#34088]
+* Handle missing values in painless {es-pull}32207[#32207] (issue: {es-issue}29286[#29286])
+
+Infra/Settings::
+* Settings: Add keystore creation to add commands {es-pull}26126[#26126]
+
+Infra/Transport API::
+* Change BWC version for VerifyRepositoryResponse {es-pull}30796[#30796] (issue: {es-issue}30762[#30762])
+
+Network::
+* Add cors support to NioHttpServerTransport {es-pull}30827[#30827] (issue: {es-issue}28898[#28898])
+* Reintroduce mandatory http pipelining support {es-pull}30820[#30820]
+* Make http pipelining support mandatory {es-pull}30695[#30695] (issues: {es-issue}28898[#28898], {es-issue}29500[#29500])
+* Add nio http server transport {es-pull}29587[#29587] (issue: {es-issue}28898[#28898])
+* Add class for serializing message to bytes {es-pull}29384[#29384] (issue: {es-issue}28898[#28898])
+* Selectors operate on channel contexts {es-pull}28468[#28468] (issue: {es-issue}27260[#27260])
+* Unify nio read / write channel contexts {es-pull}28160[#28160] (issue: {es-issue}27260[#27260])
+* Create nio-transport plugin for NioTransport {es-pull}27949[#27949] (issue: {es-issue}27260[#27260])
+* Add elasticsearch-nio jar for base nio classes {es-pull}27801[#27801] (issue: {es-issue}27802[#27802])
+
+Ranking::
+* Add k parameter to PrecisionAtK metric {es-pull}27569[#27569]
+
+SQL::
+* SQL: Introduce support for NULL values {es-pull}34573[#34573] (issue: {es-issue}32079[#32079])
+
+Search::
+* Make limit on number of expanded fields configurable {es-pull}35284[#35284] (issues: {es-issue}26541[#26541], {es-issue}34778[#34778])
+* Search: Simply SingleFieldsVisitor {es-pull}34052[#34052]
+* Don't count hits via the collector if the hit count can be computed from index stats. {es-pull}33701[#33701]
+* Limit the number of concurrent requests per node {es-pull}31206[#31206] (issue: {es-issue}31192[#31192])
+* Default max concurrent search req. numNodes * 5 {es-pull}31171[#31171] (issues: {es-issue}30783[#30783], {es-issue}30994[#30994])
+* Change ScriptException status to 400 (bad request) {es-pull}30861[#30861] (issue: {es-issue}12315[#12315])
+* Change default value to true for transpositions parameter of fuzzy query {es-pull}26901[#26901]
+* Introducing "took" time (in ms) for `_msearch` {es-pull}23767[#23767] (issue: {es-issue}23131[#23131])
+
+Snapshot/Restore::
+* #31608 Add S3 Setting to Force Path Type Access {es-pull}34721[#34721] (issue: {es-issue}31608[#31608])
+
+Store::
+* add RemoveCorruptedShardDataCommand {es-pull}32281[#32281] (issues: {es-issue}31389[#31389], {es-issue}32279[#32279])
+
+ZenDiscovery::
+* [Zen2] Introduce vote withdrawal {es-pull}35446[#35446]
+* Zen2: Add basic Zen1 transport-level BWC {es-pull}35443[#35443]
+* Zen2: Add diff-based publishing {es-pull}35290[#35290]
+* [Zen2] Introduce auto_shrink_voting_configuration setting {es-pull}35217[#35217]
+* Introduce transport API for cluster bootstrapping {es-pull}34961[#34961]
+* [Zen2] Reconfigure cluster as its membership changes {es-pull}34592[#34592] (issue: {es-issue}33924[#33924])
+* Zen2: Fail fast on disconnects {es-pull}34503[#34503]
+* [Zen2] Add storage-layer disruptions to CoordinatorTests {es-pull}34347[#34347]
+* [Zen2] Add low-level bootstrap implementation {es-pull}34345[#34345]
+* [Zen2] Gather votes from all nodes {es-pull}34335[#34335]
+* Zen2: Add Cluster State Applier {es-pull}34257[#34257]
+* [Zen2] Add safety phase to CoordinatorTests {es-pull}34241[#34241]
+* [Zen2] Integrate FollowerChecker with Coordinator {es-pull}34075[#34075]
+* Integrate LeaderChecker with Coordinator {es-pull}34049[#34049]
+* Zen2: Trigger join when active master detected {es-pull}34008[#34008]
+* Zen2: Update PeerFinder term on term bump {es-pull}33992[#33992]
+* [Zen2] Calculate optimal cluster configuration {es-pull}33924[#33924]
+* [Zen2] Introduce FollowersChecker {es-pull}33917[#33917]
+* Zen2: Integrate publication pipeline into Coordinator {es-pull}33771[#33771]
+* Zen2: Add DisruptableMockTransport {es-pull}33713[#33713]
+* [Zen2] Implement basic cluster formation {es-pull}33668[#33668]
+* [Zen2] Introduce LeaderChecker {es-pull}33024[#33024]
+* Zen2: Add leader-side join handling logic {es-pull}33013[#33013]
+* [Zen2] Add PeerFinder#onFoundPeersUpdated {es-pull}32939[#32939]
+* [Zen2] Introduce PreVoteCollector {es-pull}32847[#32847]
+* [Zen2] Introduce ElectionScheduler {es-pull}32846[#32846]
+* [Zen2] Introduce ElectionScheduler {es-pull}32709[#32709]
+* [Zen2] Add HandshakingTransportAddressConnector {es-pull}32643[#32643] (issue: {es-issue}32246[#32246])
+* [Zen2] Add UnicastConfiguredHostsResolver {es-pull}32642[#32642] (issue: {es-issue}32246[#32246])
+* Zen2: Cluster state publication pipeline {es-pull}32584[#32584] (issue: {es-issue}32006[#32006])
+* [Zen2] Introduce gossip-like discovery of master nodes {es-pull}32246[#32246]
+* Add core coordination algorithm for cluster state publishing  {es-pull}32171[#32171] (issue: {es-issue}32006[#32006])
+* Add term and config to cluster state {es-pull}32100[#32100] (issue: {es-issue}32006[#32006])
+
+
+
+[[bug-7.0.0-alpha1]]
+[discrete]
+=== Bug fixes
+
+Aggregations::
+* Fix InternalAutoDateHistogram reproducible failure {es-pull}32723[#32723] (issue: {es-issue}32215[#32215])
+
+Analysis::
+* Close #26771: beider_morse phonetic encoder failure when languageset unspecified  {es-pull}26848[#26848] (issue: {es-issue}26771[#26771])
+
+Authorization::
+* Empty GetAliases authorization fix {es-pull}34444[#34444] (issue: {es-issue}31952[#31952])
+
+Docs Infrastructure::
+* Docs build fails due to missing nexus.png [ISSUE] {es-pull}33101[#33101]
+
+Features/Indices APIs::
+* Validate top-level keys for create index request (#23755) {es-pull}23869[#23869] (issue: {es-issue}23755[#23755])
+
+Features/Ingest::
+* INGEST: Fix Deprecation Warning in Script Proc. {es-pull}32407[#32407]
+
+Features/Java High Level REST Client::
+* HLRC: Drop extra level from user parser {es-pull}34932[#34932]
+
+Features/Java Low Level REST Client::
+* Remove I/O pool blocking sniffing call from onFailure callback, add some logic around host exclusion {es-pull}27985[#27985] (issue: {es-issue}27984[#27984])
+
+Features/Watcher::
+* Watcher: Ignore system locale/timezone in croneval CLI tool {es-pull}33215[#33215]
+
+Geo::
+* [build] Test `GeoShapeQueryTests#testPointsOnly` fails  [ISSUE] {es-pull}27454[#27454]
+
+Infra/Core::
+* Ensure shard is refreshed once it's inactive {es-pull}27559[#27559] (issue: {es-issue}27500[#27500])
+
+Infra/Settings::
+* Change format how settings represent lists / array {es-pull}26723[#26723]
+
+Infra/Transport API::
+* Remove version read/write logic in Verify Response {es-pull}30879[#30879] (issue: {es-issue}30807[#30807])
+* Enable muted Repository test {es-pull}30875[#30875] (issue: {es-issue}30807[#30807])
+* Bad regex in CORS settings should throw a nicer error {es-pull}29108[#29108]
+
+License::
+* Update versions for start_trial after backport {es-pull}30218[#30218] (issue: {es-issue}30135[#30135])
+
+Mapping::
+* Ensure that field aliases cannot be used in multi-fields. {es-pull}32219[#32219]
+
+Network::
+* Adjust SSLDriver behavior for JDK11 changes {es-pull}32145[#32145] (issues: {es-issue}32122[#32122], {es-issue}32144[#32144])
+* Netty4SizeHeaderFrameDecoder error {es-pull}31057[#31057]
+* Fix memory leak in http pipelining {es-pull}30815[#30815] (issue: {es-issue}30801[#30801])
+* Fix issue with finishing handshake in ssl driver {es-pull}30580[#30580]
+
+Search::
+* Ensure realtime `_get` and `_termvectors` don't run on the network thread {es-pull}33814[#33814] (issue: {es-issue}27500[#27500])
+* [bug] fuzziness custom auto {es-pull}33462[#33462] (issue: {es-issue}33454[#33454])
+* Fix inner hits retrieval when stored fields are disabled (_none_) {es-pull}33018[#33018] (issue: {es-issue}32941[#32941])
+* Set maxScore for empty TopDocs to Nan rather than 0 {es-pull}32938[#32938]
+* Handle leniency for cross_fields type in multi_match query {es-pull}27045[#27045] (issue: {es-issue}23210[#23210])
+* Raise IllegalArgumentException instead if query validation failed {es-pull}26811[#26811] (issue: {es-issue}26799[#26799])
+
+Security::
+* Handle 6.4.0+ BWC for Application Privileges {es-pull}32929[#32929]
+
+ZenDiscovery::
+* [Zen2] Remove duplicate discovered peers {es-pull}35505[#35505]
+
+
+[[upgrade-7.0.0-alpha1]]
+[discrete]
+=== Upgrades
+
+Geo::
+* Upgrade JTS to 1.14.0 {es-pull}29141[#29141] (issue: {es-issue}29122[#29122])
+
+Infra/Core::
+* Upgrade to a Lucene 8 snapshot {es-pull}33310[#33310] (issues: {es-issue}32899[#32899], {es-issue}33028[#33028], {es-issue}33309[#33309])
+
+Network::
+* NETWORKING: Fix Netty Leaks by upgrading to 4.1.28 {es-pull}32511[#32511] (issue: {es-issue}32487[#32487])
