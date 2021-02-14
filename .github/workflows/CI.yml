@@ -1,4 +1,4 @@
-name: Build and Test Search
+name: Search CI
 on:
   push:
     branches:
@@ -8,8 +8,8 @@ on:
       - main
 
 jobs:
-  search_sanity:
-    name: Search Sanity Checks
+  precommit_check:
+    name: Precommit Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Search
@@ -18,7 +18,5 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 14
-      - name: Run Pre-commit Checks
-        run: ./gradlew precommit
-      - name: Run Unit Tests
-        run: ./gradlew test --parallel
+      - name: Run Precommit Checks
+        run: ./gradlew precommit --parallel
