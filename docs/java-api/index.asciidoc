@@ -1,6 +1,6 @@
 = Java API (deprecated)
 
-include::{elasticsearch-root}/docs/Versions.asciidoc[]
+include::{search-root}/docs/Versions.asciidoc[]
 
 [[java-api]]
 [preface]
@@ -131,10 +131,10 @@ and add it as a dependency. As an example, we will use the `slf4j-simple` logger
 </dependency>
 --------------------------------------------------
 
-:client-tests: {elasticsearch-root}/server/src/internalClusterTest/java/org/elasticsearch/client/documentation
-:hlrc-tests: {elasticsearch-root}/client/rest-high-level/src/test/java/org/elasticsearch/client
+:client-tests: {search-root}/server/src/internalClusterTest/java/org/elasticsearch/client/documentation
+:hlrc-tests: {search-root}/client/rest-high-level/src/test/java/org/elasticsearch/client
 
-:client-reindex-tests: {elasticsearch-root}/modules/reindex/src/internalClusterTest/java/org/elasticsearch/client/documentation
+:client-reindex-tests: {search-root}/modules/reindex/src/internalClusterTest/java/org/elasticsearch/client/documentation
 
 include::client.asciidoc[]
 
