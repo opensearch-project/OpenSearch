@@ -1,3 +1,4 @@
+[testenv="enterprise"]
 [[data-stream-apis]]
 == Data stream APIs
 
