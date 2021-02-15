@@ -82,7 +82,6 @@ dependencies {
 company, you need to add the repository as per the following screenshot:
 +
 --
-image::security/images/nexus.png["Adding the Elastic repo in Nexus",link="images/nexus.png"]
 
 Then in your project's `pom.xml` if using maven, add the following repositories and dependencies definitions:
 
