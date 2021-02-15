@@ -279,11 +279,16 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /** Downloads the plugin and returns the file it was downloaded to. */
     private Path download(Terminal terminal, String pluginId, Path tmpDir, boolean isBatch) throws Exception {
-        if (OFFICIAL_PLUGINS.contains(pluginId)) {
-            final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
-            terminal.println("-> Downloading " + pluginId + " from elastic");
-            return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
-        }
+        //
+        // Disabled installing of plugins by name (https://github.com/opendistro-for-elasticsearch/search/issues/71)
+        // TODO: Once we have the new artifacts repository URL, We will uncomment this section and update the URLs.
+        // https://github.com/opendistro-for-elasticsearch/search/issues/100
+        //
+        // if (OFFICIAL_PLUGINS.contains(pluginId)) {
+        // final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
+        // terminal.println("-> Downloading " + pluginId + " from elastic");
+        // return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
+        // }
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
         String[] coordinates = pluginId.split(":");
