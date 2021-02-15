@@ -8,8 +8,7 @@ List projects = [
   'build-tools',
   'build-tools:reaper',
   'rest-api-spec',
-  // TODO: Clean up Docs https://github.com/opendistro-for-elasticsearch/search/issues/88
-  // 'docs',
+  'docs',
   'client:rest',
   'client:rest-high-level',
   'client:sniffer',
