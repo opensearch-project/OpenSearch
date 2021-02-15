@@ -615,7 +615,7 @@ subprojects {
       ],
 
       'license.name': [
-        'deb': oss ? 'ASL-2.0' : 'Elastic-License'
+        'deb': 'ASL-2.0'
       ],
 
       'license.text': [

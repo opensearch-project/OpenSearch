@@ -494,7 +494,14 @@ subprojects {
           Path copyrightPath
           String expectedLicense
           String licenseFilename
-          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch-oss/copyright")
+          if (project.name.contains('oss-')) {
+            copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch-oss/copyright")
+          }
+          // TODO - remove this block and only check for the OSS distribution
+          // https://github.com/opendistro-for-elasticsearch/search/issues/50
+          else {
+            copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch/copyright")
+          }
           expectedLicense = "ASL-2.0"
           licenseFilename = "APACHE-LICENSE-2.0.txt"
           final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
