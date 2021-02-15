@@ -38,8 +38,6 @@ include::aggregations.asciidoc[]
 
 include::eql/eql.asciidoc[]
 
-include::sql/index.asciidoc[]
-
 include::scripting.asciidoc[]
 
 include::data-management.asciidoc[]
