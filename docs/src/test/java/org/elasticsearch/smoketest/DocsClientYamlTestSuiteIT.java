@@ -25,7 +25,6 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -60,7 +59,6 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/98")
 //The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
