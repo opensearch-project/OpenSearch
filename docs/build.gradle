@@ -43,8 +43,8 @@ testClusters.integTest {
       systemProperty 'es.autoscaling_feature_flag_registered', 'true'
     }
     setting 'xpack.autoscaling.enabled', 'true'
-    keystorePassword 's3cr3t'
   }
+  keystorePassword 's3cr3t'
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'

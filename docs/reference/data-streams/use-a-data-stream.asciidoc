@@ -1,4 +1,4 @@
-[testenv="enterprise"]
+[testenv="basic+"]
 [[use-a-data-stream]]
 == Use a data stream
 
