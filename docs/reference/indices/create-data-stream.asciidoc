@@ -1,3 +1,4 @@
+[testenv="enterprise"]
 [[indices-create-data-stream]]
 === Create data stream API
 ++++

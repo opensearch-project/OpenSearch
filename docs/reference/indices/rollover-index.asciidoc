@@ -224,6 +224,7 @@ The API returns the following response:
 <3> The result of each condition.
 
 
+[testenv="enterprise"]
 [[rollover-data-stream-ex]]
 ===== Roll over a data stream
 
