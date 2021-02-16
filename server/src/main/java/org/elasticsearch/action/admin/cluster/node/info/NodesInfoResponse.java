@@ -45,6 +45,8 @@ import java.util.Map;
 
 public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContentFragment {
 
+    private static final String OSS = "oss";
+
     public NodesInfoResponse(StreamInput in) throws IOException {
         super(in);
     }
@@ -75,6 +77,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             builder.field("ip", nodeInfo.getNode().getHostAddress());
 
             builder.field("version", nodeInfo.getVersion());
+            // TODO - for bwc, we don't support build flavor and this needs to be removed
+            // when we don't support 6.x
+            builder.field("build_flavor", OSS);
             builder.field("build_type", nodeInfo.getBuild().type().displayName());
             builder.field("build_hash", nodeInfo.getBuild().hash());
             if (nodeInfo.getTotalIndexingBuffer() != null) {

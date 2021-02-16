@@ -74,6 +74,8 @@ public class RestNodesAction extends AbstractCatAction {
     static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act " +
             "locally, and should not be used. It will be unsupported in version 8.0.";
 
+    private static final String OSS = "oss";
+
     @Override
     public List<Route> routes() {
         return singletonList(new Route(GET, "/_cat/nodes"));
@@ -143,6 +145,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("http_address", "default:false;alias:http;desc:bound http address");
 
         table.addCell("version", "default:false;alias:v;desc:es version");
+        table.addCell("flavor", "default:false;alias:f;desc:es distribution flavor");
         table.addCell("type", "default:false;alias:t;desc:es distribution type");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
         table.addCell("jdk", "default:false;alias:j;desc:jdk version");
@@ -298,6 +301,9 @@ public class RestNodesAction extends AbstractCatAction {
             }
 
             table.addCell(node.getVersion().toString());
+            // TODO - for bwc, we don't support build flavor and this needs to be removed
+            // when we don't support 6.x
+            table.addCell(info == null ? null : OSS);
             table.addCell(info == null ? null : info.getBuild().type().displayName());
             table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
