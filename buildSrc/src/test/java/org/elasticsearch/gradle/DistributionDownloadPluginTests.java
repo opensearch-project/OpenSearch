@@ -62,14 +62,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     );
 
     public void testVersionDefault() {
-        ElasticsearchDistribution distro = checkDistro(
-            createProject(null, false),
-            "testdistro",
-            null,
-            Type.ARCHIVE,
-            Platform.LINUX,
-            true
-        );
+        ElasticsearchDistribution distro = checkDistro(createProject(null, false), "testdistro", null, Type.ARCHIVE, Platform.LINUX, true);
         assertEquals(distro.getVersion(), VersionProperties.getElasticsearch());
     }
 
@@ -86,26 +79,12 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testTypeDefault() {
-        ElasticsearchDistribution distro = checkDistro(
-            createProject(null, false),
-            "testdistro",
-            "5.0.0",
-            null,
-            Platform.LINUX,
-            true
-        );
+        ElasticsearchDistribution distro = checkDistro(createProject(null, false), "testdistro", "5.0.0", null, Platform.LINUX, true);
         assertEquals(distro.getType(), Type.ARCHIVE);
     }
 
     public void testPlatformDefault() {
-        ElasticsearchDistribution distro = checkDistro(
-            createProject(null, false),
-            "testdistro",
-            "5.0.0",
-            Type.ARCHIVE,
-            null,
-            true
-        );
+        ElasticsearchDistribution distro = checkDistro(createProject(null, false), "testdistro", "5.0.0", Type.ARCHIVE, null, true);
         assertEquals(distro.getPlatform(), ElasticsearchDistribution.CURRENT_PLATFORM);
     }
 
@@ -118,18 +97,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             Platform.LINUX,
             null,
             "platform cannot be set on elasticsearch distribution [testdistro]"
-        );
-    }
-
-    public void testFlavorForIntegTest() {
-        assertDistroError(
-            createProject(null, false),
-            "testdistro",
-            "5.0.0",
-            Type.INTEG_TEST_ZIP,
-            null,
-            null,
-            "flavor [oss] not allowed for elasticsearch distribution [testdistro] of type [integ_test_zip]"
         );
     }
 
@@ -168,7 +135,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
 
     public void testLocalCurrentVersionArchives() {
         for (Platform platform : Platform.values()) {
-            for (boolean bundledJdk : new boolean[]{true, false}) {
+            for (boolean bundledJdk : new boolean[] { true, false }) {
                 // create a new project in each iteration, so that we know we are resolving the only additional project being created
                 Project project = createProject(BWC_MINOR, true);
                 String projectName = projectName(platform.toString(), bundledJdk);
@@ -183,8 +150,8 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testLocalCurrentVersionPackages() {
-        for (Type packageType : new Type[]{Type.RPM, Type.DEB}) {
-            for (boolean bundledJdk : new boolean[]{true, false}) {
+        for (Type packageType : new Type[] { Type.RPM, Type.DEB }) {
+            for (boolean bundledJdk : new boolean[] { true, false }) {
                 Project project = createProject(BWC_MINOR, true);
                 String projectName = projectName(packageType.toString(), bundledJdk);
                 Project packageProject = ProjectBuilder.builder().withParent(packagesProject).withName(projectName).build();
@@ -210,7 +177,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testLocalBwcPackages() {
-        for (Type packageType : new Type[]{Type.RPM, Type.DEB}) {
+        for (Type packageType : new Type[] { Type.RPM, Type.DEB }) {
             // note: no non bundled jdk for bwc
             String configName = projectName(packageType.toString(), true);
 

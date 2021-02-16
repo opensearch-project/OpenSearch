@@ -81,29 +81,10 @@ public class DebPreservationTests extends PackagingTestCase {
 
         assertPathsDoNotExist(installation.config("elasticsearch.keystore"), installation.config(".elasticsearch.keystore.initial_md5sum"));
 
-        // doc files were removed
-
-        assertPathsDoNotExist(
-            Paths.get("/usr/share/doc/" + distribution().flavor.name),
-            Paths.get("/usr/share/doc/" + distribution().flavor.name + "/copyright")
-        );
-
         // sysvinit service file was not removed
         assertThat(SYSVINIT_SCRIPT, fileExists());
 
         // defaults file was not removed
         assertThat(installation.envFile, fileExists());
-    }
-
-    public void test30Purge() throws Exception {
-        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
-
-        sh.run("dpkg --purge " + distribution().flavor.name);
-
-        assertRemoved(distribution());
-
-        assertPathsDoNotExist(installation.config, installation.envFile, SYSVINIT_SCRIPT);
-
-        assertThat(packageStatus(distribution()).exitCode, is(1));
     }
 }

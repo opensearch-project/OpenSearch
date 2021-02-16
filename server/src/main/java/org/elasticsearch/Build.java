@@ -41,42 +41,6 @@ public class Build {
      */
     public static final Build CURRENT;
 
-    public enum Flavor {
-
-        DEFAULT("default"),
-        OSS("oss"),
-        UNKNOWN("unknown");
-
-        final String displayName;
-
-        Flavor(final String displayName) {
-            this.displayName = displayName;
-        }
-
-        public String displayName() {
-            return displayName;
-        }
-
-        public static Flavor fromDisplayName(final String displayName, final boolean strict) {
-            switch (displayName) {
-                case "default":
-                    return Flavor.DEFAULT;
-                case "oss":
-                    return Flavor.OSS;
-                case "unknown":
-                    return Flavor.UNKNOWN;
-                default:
-                    if (strict) {
-                        final String message = "unexpected distribution flavor [" + displayName + "]; your distribution is broken";
-                        throw new IllegalStateException(message);
-                    } else {
-                        return Flavor.UNKNOWN;
-                    }
-            }
-        }
-
-    }
-
     public enum Type {
 
         DEB("deb"),
@@ -122,7 +86,6 @@ public class Build {
     }
 
     static {
-        final Flavor flavor;
         final Type type;
         final String hash;
         final String date;
@@ -130,7 +93,6 @@ public class Build {
         final String version;
 
         // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
-        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"), true);
         type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
@@ -180,7 +142,7 @@ public class Build {
                 "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
 
-        CURRENT = new Build(flavor, type, hash, date, isSnapshot, version);
+        CURRENT = new Build(type, hash, date, isSnapshot, version);
     }
 
     private final boolean isSnapshot;
@@ -195,17 +157,15 @@ public class Build {
         return codeSource == null ? null : codeSource.getLocation();
     }
 
-    private final Flavor flavor;
     private final Type type;
     private final String hash;
     private final String date;
     private final String version;
 
     public Build(
-        final Flavor flavor, final Type type, final String hash, final String date, boolean isSnapshot,
+        final Type type, final String hash, final String date, boolean isSnapshot,
         String version
     ) {
-        this.flavor = flavor;
         this.type = type;
         this.hash = hash;
         this.date = date;
@@ -222,14 +182,7 @@ public class Build {
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
-        final Flavor flavor;
         final Type type;
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-            flavor = Flavor.fromDisplayName(in.readString(), false);
-        } else {
-            flavor = Flavor.OSS;
-        }
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
             type = Type.fromDisplayName(in.readString(), false);
@@ -246,13 +199,10 @@ public class Build {
         } else {
             version = in.getVersion().toString();
         }
-        return new Build(flavor, type, hash, date, snapshot, version);
+        return new Build(type, hash, date, snapshot, version);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeString(build.flavor().displayName());
-        }
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             final Type buildType;
             if (out.getVersion().before(Version.V_6_7_0) && build.type() == Type.DOCKER) {
@@ -283,10 +233,6 @@ public class Build {
         return version;
     }
 
-    public Flavor flavor() {
-        return flavor;
-    }
-
     public Type type() {
         return type;
     }
@@ -306,7 +252,7 @@ public class Build {
 
     @Override
     public String toString() {
-        return "[" + flavor.displayName() + "][" + type.displayName + "][" + hash + "][" + date + "][" + version +"]";
+        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version +"]";
     }
 
     @Override
@@ -319,10 +265,6 @@ public class Build {
         }
 
         Build build = (Build) o;
-
-        if (!flavor.equals(build.flavor)) {
-            return false;
-        }
 
         if (!type.equals(build.type)) {
             return false;
@@ -342,7 +284,7 @@ public class Build {
 
     @Override
     public int hashCode() {
-        return Objects.hash(flavor, type, isSnapshot, hash, date, version);
+        return Objects.hash(type, isSnapshot, hash, date, version);
     }
 
 }

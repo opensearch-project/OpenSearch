@@ -190,9 +190,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                     vmProject,
                     windowsTestTasks,
                     depsTasks,
-                    wrapperTask -> {
-                        vmLifecyleTasks.get(Type.ARCHIVE).configure(t -> t.dependsOn(wrapperTask));
-                    },
+                    wrapperTask -> { vmLifecyleTasks.get(Type.ARCHIVE).configure(t -> t.dependsOn(wrapperTask)); },
                     vmDependencies
                 );
             } else {
@@ -226,9 +224,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         vmProject,
                         entry.getValue(),
                         depsTasks,
-                        wrapperTask -> {
-                            vmVersionTask.configure(t -> t.dependsOn(wrapperTask));
-                        },
+                        wrapperTask -> { vmVersionTask.configure(t -> t.dependsOn(wrapperTask)); },
                         vmDependencies
                     );
                 }
@@ -404,14 +400,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                     }
 
                     currentDistros.add(
-                        createDistro(
-                            distributions,
-                            architecture,
-                            Type.ARCHIVE,
-                            platform,
-                            bundledJdk,
-                            VersionProperties.getElasticsearch()
-                        )
+                        createDistro(distributions, architecture, Type.ARCHIVE, platform, bundledJdk, VersionProperties.getElasticsearch())
                     );
                 }
             }
@@ -457,16 +446,14 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static String distroId(Type type, Platform platform, boolean bundledJdk, Architecture architecture) {
-        return (type == Type.ARCHIVE ? platform + "-" : "")
-            + type
-            + (bundledJdk ? "" : "-no-jdk")
-            + (architecture == Architecture.X64 ? "" : "-" + architecture.toString().toLowerCase());
+        return (type == Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk ? "" : "-no-jdk") + (architecture == Architecture.X64
+            ? ""
+            : "-" + architecture.toString().toLowerCase());
     }
 
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
         Type type = distro.getType();
-        return "destructiveDistroTest."
-            + distroId(type, distro.getPlatform(), distro.getBundledJdk(), distro.getArchitecture());
+        return "destructiveDistroTest." + distroId(type, distro.getPlatform(), distro.getBundledJdk(), distro.getArchitecture());
     }
 
     private static String destructiveDistroUpgradeTestTaskName(ElasticsearchDistribution distro, String bwcVersion) {

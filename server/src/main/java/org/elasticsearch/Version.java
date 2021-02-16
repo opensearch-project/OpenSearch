@@ -484,7 +484,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             Locale.ROOT,
             "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
             Build.CURRENT.getQualifiedVersion(),
-            Build.CURRENT.flavor().displayName(),
             Build.CURRENT.type().displayName(),
             Build.CURRENT.hash(),
             Build.CURRENT.date(),
