@@ -1,4 +1,3 @@
-[testenv="enterprise"]
 [[data-streams-change-mappings-and-settings]]
 == Change mappings and settings for a data stream
 

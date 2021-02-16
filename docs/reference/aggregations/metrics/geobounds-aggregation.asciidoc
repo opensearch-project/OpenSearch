@@ -82,7 +82,6 @@ The response for the above aggregation:
 
 [discrete]
 [role="xpack"]
-[testenv="enterprise"]
 [[geobounds-aggregation-geo-shape]]
 ==== Geo Bounds Aggregation on `geo_shape` fields
 
