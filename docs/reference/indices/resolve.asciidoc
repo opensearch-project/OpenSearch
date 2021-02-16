@@ -1,4 +1,4 @@
-[testenv="basic+"]
+[testenv="enterprise"]
 [[indices-resolve-index-api]]
 === Resolve index API
 ++++

@@ -8,8 +8,8 @@ nodes in the cluster while in the case of
 <<restart-cluster-rolling,rolling restart>>, you shut down only one node at a
 time, so the service remains uninterrupted.
 
-[testenv="basic+"]
 [discrete]
+[testenv="enterprise"]
 [[restart-cluster-full]]
 === Full-cluster restart
 

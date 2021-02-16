@@ -38,8 +38,8 @@ IDs can be completely different across replicas of the same data. When paging
 search hits, you might occasionally see that documents with the same sort values
 are not ordered consistently.
 
-[testenv="basic+"]
 [discrete]
+[testenv="enterprise"]
 [[search-after]]
 === Search after
 
