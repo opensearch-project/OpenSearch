@@ -20,7 +20,6 @@
 package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -59,7 +58,6 @@ import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -370,9 +368,7 @@ public class DockerTests extends PackagingTestCase {
         staticLabels.put("vcs-url", "https://github.com/elastic/elasticsearch");
         staticLabels.put("vendor", "Elastic");
 
-
         staticLabels.put("license", "Apache-2.0");
-
 
         // TODO: we should check the actual version value
         final Set<String> dynamicLabels = new HashSet<>();
@@ -409,7 +405,6 @@ public class DockerTests extends PackagingTestCase {
         staticLabels.put("vendor", "Elastic");
 
         staticLabels.put("licenses", "Apache-2.0");
-
 
         // TODO: we should check the actual version value
         final Set<String> dynamicLabels = new HashSet<>();

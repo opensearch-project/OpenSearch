@@ -32,10 +32,8 @@ import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
-import static org.elasticsearch.packaging.util.Packages.packageStatus;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeTrue;
 
 public class DebPreservationTests extends PackagingTestCase {
