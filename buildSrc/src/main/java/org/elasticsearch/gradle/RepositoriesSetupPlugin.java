@@ -79,6 +79,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
                 throw new GradleException("Malformed lucene snapshot version: " + luceneVersion);
             }
             String revision = matcher.group(1);
+            // TODO(cleanup) - Setup own lucene snapshot repo
             MavenArtifactRepository luceneRepo = repos.maven(repo -> {
                 repo.setName("lucene-snapshots");
                 repo.setUrl("https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + revision);
