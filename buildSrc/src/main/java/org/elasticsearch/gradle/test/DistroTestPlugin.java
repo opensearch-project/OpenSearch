@@ -22,7 +22,6 @@ package org.elasticsearch.gradle.test;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
-import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.Jdk;
@@ -110,24 +109,28 @@ public class DistroTestPlugin implements Plugin<Project> {
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             depsTask.configure(t -> t.dependsOn(distribution, examplePlugin));
             depsTasks.put(taskname, depsTask);
-            TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
-                t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
-                addSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
-                addSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
-                t.exclude("**/PackageUpgradeTests.class");
-            }, depsTask);
+            System.out.println(distribution);
+            try {
+                TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
+                    t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
+                    addSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
+                    addSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
+                    t.exclude("**/PackageUpgradeTests.class");
+                }, depsTask);
+                if (distribution.getPlatform() == Platform.WINDOWS) {
+                    windowsTestTasks.add(destructiveTask);
+                } else {
+                    linuxTestTasks.computeIfAbsent(distribution.getType(), k -> new ArrayList<>()).add(destructiveTask);
+                }
+                destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
+                lifecycleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
+            } catch (Exception ex) {
 
-            if (distribution.getPlatform() == Platform.WINDOWS) {
-                windowsTestTasks.add(destructiveTask);
-            } else {
-                linuxTestTasks.computeIfAbsent(distribution.getType(), k -> new ArrayList<>()).add(destructiveTask);
             }
-            destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
-            lifecycleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
 
             if ((distribution.getType() == Type.DEB || distribution.getType() == Type.RPM) && distribution.getBundledJdk()) {
                 for (Version version : BuildParams.getBwcVersions().getIndexCompatible()) {
-                    if (distribution.getFlavor() == Flavor.OSS && version.before("6.3.0")) {
+                    if (version.before("6.3.0")) {
                         continue; // before opening xpack
                     }
                     final ElasticsearchDistribution bwcDistro;
@@ -140,7 +143,6 @@ public class DistroTestPlugin implements Plugin<Project> {
                             distribution.getArchitecture(),
                             distribution.getType(),
                             distribution.getPlatform(),
-                            distribution.getFlavor(),
                             distribution.getBundledJdk(),
                             version.toString()
                         );
@@ -188,7 +190,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                     vmProject,
                     windowsTestTasks,
                     depsTasks,
-                    wrapperTask -> { vmLifecyleTasks.get(Type.ARCHIVE).configure(t -> t.dependsOn(wrapperTask)); },
+                    wrapperTask -> {
+                        vmLifecyleTasks.get(Type.ARCHIVE).configure(t -> t.dependsOn(wrapperTask));
+                    },
                     vmDependencies
                 );
             } else {
@@ -222,7 +226,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                         vmProject,
                         entry.getValue(),
                         depsTasks,
-                        wrapperTask -> { vmVersionTask.configure(t -> t.dependsOn(wrapperTask)); },
+                        wrapperTask -> {
+                            vmVersionTask.configure(t -> t.dependsOn(wrapperTask));
+                        },
                         vmDependencies
                     );
                 }
@@ -364,54 +370,49 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         for (Architecture architecture : Architecture.values()) {
             for (Type type : Arrays.asList(Type.DEB, Type.RPM, Type.DOCKER, Type.DOCKER_UBI)) {
-                for (Flavor flavor : Flavor.values()) {
-                    for (boolean bundledJdk : Arrays.asList(true, false)) {
-                        if (bundledJdk == false) {
-                            // We'll never publish an ARM (aarch64) build without a bundled JDK.
-                            if (architecture == Architecture.AARCH64) {
-                                continue;
-                            }
-                            // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
-                            if (type == Type.DOCKER || type == Type.DOCKER_UBI) {
-                                continue;
-                            }
-                        }
-
-                        // We don't publish the OSS distribution on UBI
-                        if (type == Type.DOCKER_UBI && flavor == Flavor.OSS) {
+                for (boolean bundledJdk : Arrays.asList(true, false)) {
+                    if (bundledJdk == false) {
+                        // We'll never publish an ARM (aarch64) build without a bundled JDK.
+                        if (architecture == Architecture.AARCH64) {
                             continue;
                         }
-
-                        currentDistros.add(
-                            createDistro(distributions, architecture, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch())
-                        );
+                        // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
+                        if (type == Type.DOCKER || type == Type.DOCKER_UBI) {
+                            continue;
+                        }
                     }
+
+                    // We don't publish the OSS distribution on UBI
+                    if (type == Type.DOCKER_UBI) {
+                        continue;
+                    }
+
+                    currentDistros.add(
+                        createDistro(distributions, architecture, type, null, bundledJdk, VersionProperties.getElasticsearch())
+                    );
                 }
             }
         }
 
         for (Architecture architecture : Architecture.values()) {
             for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
-                for (Flavor flavor : Flavor.values()) {
-                    for (boolean bundledJdk : Arrays.asList(true, false)) {
-                        if (bundledJdk == false && architecture != Architecture.X64) {
-                            // We will never publish distributions for non-x86 (amd64) platforms
-                            // without a bundled JDK
-                            continue;
-                        }
-
-                        currentDistros.add(
-                            createDistro(
-                                distributions,
-                                architecture,
-                                Type.ARCHIVE,
-                                platform,
-                                flavor,
-                                bundledJdk,
-                                VersionProperties.getElasticsearch()
-                            )
-                        );
+                for (boolean bundledJdk : Arrays.asList(true, false)) {
+                    if (bundledJdk == false && architecture != Architecture.X64) {
+                        // We will never publish distributions for non-x86 (amd64) platforms
+                        // without a bundled JDK
+                        continue;
                     }
+
+                    currentDistros.add(
+                        createDistro(
+                            distributions,
+                            architecture,
+                            Type.ARCHIVE,
+                            platform,
+                            bundledJdk,
+                            VersionProperties.getElasticsearch()
+                        )
+                    );
                 }
             }
         }
@@ -424,15 +425,13 @@ public class DistroTestPlugin implements Plugin<Project> {
         Architecture architecture,
         Type type,
         Platform platform,
-        Flavor flavor,
         boolean bundledJdk,
         String version
     ) {
-        String name = distroId(type, platform, flavor, bundledJdk, architecture) + "-" + version;
+        String name = distroId(type, platform, bundledJdk, architecture) + "-" + version;
         boolean isDocker = type == Type.DOCKER || type == Type.DOCKER_UBI;
         ElasticsearchDistribution distro = distributions.create(name, d -> {
             d.setArchitecture(architecture);
-            d.setFlavor(flavor);
             d.setType(type);
             if (type == Type.ARCHIVE) {
                 d.setPlatform(platform);
@@ -457,10 +456,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         return project.getName().contains("windows");
     }
 
-    private static String distroId(Type type, Platform platform, Flavor flavor, boolean bundledJdk, Architecture architecture) {
-        return flavor
-            + "-"
-            + (type == Type.ARCHIVE ? platform + "-" : "")
+    private static String distroId(Type type, Platform platform, boolean bundledJdk, Architecture architecture) {
+        return (type == Type.ARCHIVE ? platform + "-" : "")
             + type
             + (bundledJdk ? "" : "-no-jdk")
             + (architecture == Architecture.X64 ? "" : "-" + architecture.toString().toLowerCase());
@@ -469,7 +466,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
         Type type = distro.getType();
         return "destructiveDistroTest."
-            + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk(), distro.getArchitecture());
+            + distroId(type, distro.getPlatform(), distro.getBundledJdk(), distro.getArchitecture());
     }
 
     private static String destructiveDistroUpgradeTestTaskName(ElasticsearchDistribution distro, String bwcVersion) {
@@ -477,7 +474,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         return "destructiveDistroUpgradeTest.v"
             + bwcVersion
             + "."
-            + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk(), distro.getArchitecture());
+            + distroId(type, distro.getPlatform(), distro.getBundledJdk(), distro.getArchitecture());
     }
 
     private static void addSysprop(Test task, String sysprop, Supplier<String> valueSupplier) {
