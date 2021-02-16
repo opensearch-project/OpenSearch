@@ -66,12 +66,6 @@ include::search/suggesters.asciidoc[]
 
 include::search/multi-search.asciidoc[]
 
-include::eql/eql-search-api.asciidoc[]
-
-include::eql/get-async-eql-search-api.asciidoc[]
-
-include::eql/delete-async-eql-search-api.asciidoc[]
-
 include::search/count.asciidoc[]
 
 include::search/validate.asciidoc[]
