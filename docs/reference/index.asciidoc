@@ -36,21 +36,13 @@ include::query-dsl.asciidoc[]
 
 include::aggregations.asciidoc[]
 
-include::eql/eql.asciidoc[]
-
 include::scripting.asciidoc[]
 
 include::data-management.asciidoc[]
 
-include::ilm/index.asciidoc[]
-
 ifdef::permanently-unreleased-branch[]
 
-include::autoscaling/index.asciidoc[]
-
 endif::[]
-
-include::monitoring/index.asciidoc[]
 
 include::frozen-indices.asciidoc[]
 
