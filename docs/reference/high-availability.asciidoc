@@ -29,4 +29,3 @@ include::high-availability/cluster-design.asciidoc[]
 
 include::high-availability/backup-cluster.asciidoc[]
 
-include::ccr/index.asciidoc[]
