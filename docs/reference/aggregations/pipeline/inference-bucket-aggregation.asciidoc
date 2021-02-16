@@ -8,7 +8,7 @@
 
 experimental::[]
 
-A parent pipeline aggregation which loads a pre-trained model and performs 
+A parent pipeline aggregation which loads a pre-trained model and performs
 {infer} on the collated result fields from the parent bucket aggregation.
 
 To use the {infer} bucket aggregation, you need to have the same security
@@ -66,7 +66,6 @@ aggregations some options can be overridden for each of the two types of model.
 
 `num_top_feature_importance_values`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
 
 [discrete]
 [[inference-agg-classification-opt]]
@@ -74,15 +73,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num
 
 `num_top_classes`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
 
 `num_top_feature_importance_values`::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
 
 `prediction_field_type`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
 
 
 [[inference-bucket-agg-example]]
