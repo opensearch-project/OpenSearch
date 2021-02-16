@@ -114,6 +114,4 @@ include::take-snapshot.asciidoc[]
 include::restore-snapshot.asciidoc[]
 include::monitor-snapshot-restore.asciidoc[]
 include::delete-snapshot.asciidoc[]
-include::../slm/index.asciidoc[]
-include::../searchable-snapshots/index.asciidoc[]
 
