@@ -9,7 +9,6 @@ nodes in the cluster while in the case of
 time, so the service remains uninterrupted.
 
 [discrete]
-[testenv="enterprise"]
 [[restart-cluster-full]]
 === Full-cluster restart
 

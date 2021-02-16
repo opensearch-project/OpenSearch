@@ -39,7 +39,6 @@ search hits, you might occasionally see that documents with the same sort values
 are not ordered consistently.
 
 [discrete]
-[testenv="enterprise"]
 [[search-after]]
 === Search after
 

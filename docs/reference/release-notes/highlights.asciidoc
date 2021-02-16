@@ -104,7 +104,6 @@ easily follow the same life cycle.
 
 
 [discrete]
-[testenv="enterprise"]
 [[points-in-time-for-search]]
 === Points in time (PITs) for search
 
@@ -192,7 +191,6 @@ the size of the source aggregations and replace the estimation with the
 serialized size of the newly reduced result.
 
 [discrete]
-[testenv="enterprise"]
 [[eql-case-sensitivity-operator]]
 === EQL: Case-sensitivity and the `:` operator
 

@@ -289,7 +289,6 @@ PUT /_index_template/template_1
 
 To check the `_meta`, you can use the <<indices-get-template, get index template>> API.
 
-[testenv="enterprise"]
 [[data-stream-definition]]
 ===== Data stream definition
 

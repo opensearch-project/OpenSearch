@@ -1,4 +1,3 @@
-[testenv="enterprise"]
 [[indices-get-data-stream]]
 === Get data stream API
 ++++
