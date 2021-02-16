@@ -44,10 +44,6 @@ ifdef::permanently-unreleased-branch[]
 
 endif::[]
 
-include::frozen-indices.asciidoc[]
-
-include::data-rollup-transform.asciidoc[]
-
 include::high-availability.asciidoc[]
 
 include::snapshot-restore/index.asciidoc[]
