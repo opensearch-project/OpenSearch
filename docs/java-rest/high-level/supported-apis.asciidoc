@@ -83,10 +83,6 @@ The Java High Level REST Client supports the following Async Search APIs:
 * <<{upid}-asyncsearch-get>>
 * <<{upid}-asyncsearch-delete>>
 
-include::asyncsearch/submit.asciidoc[]
-include::asyncsearch/get.asciidoc[]
-include::asyncsearch/delete.asciidoc[]
-
 == Miscellaneous APIs
 
 The Java High Level REST Client supports the following Miscellaneous APIs:
@@ -98,8 +94,6 @@ The Java High Level REST Client supports the following Miscellaneous APIs:
 
 include::miscellaneous/main.asciidoc[]
 include::miscellaneous/ping.asciidoc[]
-include::miscellaneous/x-pack-info.asciidoc[]
-include::miscellaneous/x-pack-usage.asciidoc[]
 
 == Index APIs
 
@@ -174,10 +168,7 @@ include::indices/validate_query.asciidoc[]
 include::indices/get_templates.asciidoc[]
 include::indices/templates_exist.asciidoc[]
 include::indices/get_index.asciidoc[]
-include::indices/freeze_index.asciidoc[]
-include::indices/unfreeze_index.asciidoc[]
 include::indices/delete_template.asciidoc[]
-include::indices/reload_analyzers.asciidoc[]
 include::indices/get_index_template.asciidoc[]
 include::indices/put_index_template.asciidoc[]
 include::indices/delete_index_template.asciidoc[]
@@ -273,13 +264,6 @@ The Java High Level REST Client supports the following Licensing APIs:
 * <<java-rest-high-get-trial-status>>
 * <<java-rest-high-get-basic-status>>
 
-include::licensing/put-license.asciidoc[]
-include::licensing/get-license.asciidoc[]
-include::licensing/delete-license.asciidoc[]
-include::licensing/start-trial.asciidoc[]
-include::licensing/start-basic.asciidoc[]
-include::licensing/get-trial-status.asciidoc[]
-include::licensing/get-basic-status.asciidoc[]
 
 [role="xpack"]
 == Machine Learning APIs
@@ -347,82 +331,6 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-update-filter>>
 * <<{upid}-update-model-snapshot>>
 
-// CLOSE
-include::ml/close-job.asciidoc[]
-// DELETE
-include::ml/delete-job.asciidoc[]
-include::ml/delete-calendar-job.asciidoc[]
-include::ml/delete-calendar-event.asciidoc[]
-include::ml/delete-calendar.asciidoc[]
-include::ml/delete-data-frame-analytics.asciidoc[]
-include::ml/delete-datafeed.asciidoc[]
-include::ml/delete-expired-data.asciidoc[]
-include::ml/delete-filter.asciidoc[]
-include::ml/delete-forecast.asciidoc[]
-include::ml/delete-model-snapshot.asciidoc[]
-include::ml/delete-trained-models.asciidoc[]
-// ESTIMATE
-include::ml/estimate-model-memory.asciidoc[]
-// EVALUATE
-include::ml/evaluate-data-frame.asciidoc[]
-// EXPLAIN
-include::ml/explain-data-frame-analytics.asciidoc[]
-// FIND
-include::ml/find-file-structure.asciidoc[]
-// FLUSH
-include::ml/flush-job.asciidoc[]
-// FORECAST
-include::ml/forecast-job.asciidoc[]
-// GET
-include::ml/get-job.asciidoc[]
-include::ml/get-job-stats.asciidoc[]
-include::ml/get-buckets.asciidoc[]
-include::ml/get-calendar-events.asciidoc[]
-include::ml/get-calendars.asciidoc[]
-include::ml/get-categories.asciidoc[]
-include::ml/get-data-frame-analytics.asciidoc[]
-include::ml/get-data-frame-analytics-stats.asciidoc[]
-include::ml/get-datafeed.asciidoc[]
-include::ml/get-datafeed-stats.asciidoc[]
-include::ml/get-filters.asciidoc[]
-include::ml/get-influencers.asciidoc[]
-include::ml/get-info.asciidoc[]
-include::ml/get-model-snapshots.asciidoc[]
-include::ml/get-overall-buckets.asciidoc[]
-include::ml/get-records.asciidoc[]
-include::ml/get-trained-models.asciidoc[]
-include::ml/get-trained-models-stats.asciidoc[]
-// OPEN
-include::ml/open-job.asciidoc[]
-// POST
-include::ml/post-calendar-event.asciidoc[]
-include::ml/post-data.asciidoc[]
-// PREVIEW
-include::ml/preview-datafeed.asciidoc[]
-// PUT
-include::ml/put-job.asciidoc[]
-include::ml/put-calendar-job.asciidoc[]
-include::ml/put-calendar.asciidoc[]
-include::ml/put-data-frame-analytics.asciidoc[]
-include::ml/put-datafeed.asciidoc[]
-include::ml/put-filter.asciidoc[]
-include::ml/put-trained-model.asciidoc[]
-// REVERT
-include::ml/revert-model-snapshot.asciidoc[]
-// SET
-include::ml/set-upgrade-mode.asciidoc[]
-// START
-include::ml/start-data-frame-analytics.asciidoc[]
-include::ml/start-datafeed.asciidoc[]
-// STOP
-include::ml/stop-data-frame-analytics.asciidoc[]
-include::ml/stop-datafeed.asciidoc[]
-// UPDATE
-include::ml/update-job.asciidoc[]
-include::ml/update-data-frame-analytics.asciidoc[]
-include::ml/update-datafeed.asciidoc[]
-include::ml/update-filter.asciidoc[]
-include::ml/update-model-snapshot.asciidoc[]
 
 == Migration APIs
 
@@ -433,7 +341,6 @@ The Java High Level REST Client supports the following Migration APIs:
 
 * <<{upid}-get-deprecation-info>>
 
-include::migration/get-deprecation-info.asciidoc[]
 
 [role="xpack"]
 == Rollup APIs
@@ -452,14 +359,6 @@ The Java High Level REST Client supports the following Rollup APIs:
 * <<{upid}-x-pack-rollup-get-rollup-caps>>
 * <<{upid}-x-pack-rollup-get-rollup-index-caps>>
 
-include::rollup/put_job.asciidoc[]
-include::rollup/start_job.asciidoc[]
-include::rollup/stop_job.asciidoc[]
-include::rollup/delete_job.asciidoc[]
-include::rollup/get_job.asciidoc[]
-include::rollup/search.asciidoc[]
-include::rollup/get_rollup_caps.asciidoc[]
-include::rollup/get_rollup_index_caps.asciidoc[]
 
 [role="xpack"]
 == Security APIs
@@ -499,35 +398,6 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-get-api-key>>
 * <<{upid}-invalidate-api-key>>
 
-include::security/put-user.asciidoc[]
-include::security/get-users.asciidoc[]
-include::security/delete-user.asciidoc[]
-include::security/enable-user.asciidoc[]
-include::security/disable-user.asciidoc[]
-include::security/change-password.asciidoc[]
-include::security/put-role.asciidoc[]
-include::security/get-roles.asciidoc[]
-include::security/delete-role.asciidoc[]
-include::security/delete-privileges.asciidoc[]
-include::security/get-builtin-privileges.asciidoc[]
-include::security/get-privileges.asciidoc[]
-include::security/clear-roles-cache.asciidoc[]
-include::security/clear-privileges-cache.asciidoc[]
-include::security/clear-realm-cache.asciidoc[]
-include::security/clear-api-key-cache.asciidoc[]
-include::security/authenticate.asciidoc[]
-include::security/has-privileges.asciidoc[]
-include::security/get-user-privileges.asciidoc[]
-include::security/get-certificates.asciidoc[]
-include::security/put-role-mapping.asciidoc[]
-include::security/get-role-mappings.asciidoc[]
-include::security/delete-role-mapping.asciidoc[]
-include::security/create-token.asciidoc[]
-include::security/invalidate-token.asciidoc[]
-include::security/put-privileges.asciidoc[]
-include::security/create-api-key.asciidoc[]
-include::security/get-api-key.asciidoc[]
-include::security/invalidate-api-key.asciidoc[]
 
 [role="xpack"]
 == Watcher APIs
@@ -548,16 +418,6 @@ The Java High Level REST Client supports the following Watcher APIs:
 * <<{upid}-execute-watch>>
 * <<{upid}-watcher-stats>>
 
-include::watcher/start-watch-service.asciidoc[]
-include::watcher/stop-watch-service.asciidoc[]
-include::watcher/put-watch.asciidoc[]
-include::watcher/get-watch.asciidoc[]
-include::watcher/delete-watch.asciidoc[]
-include::watcher/ack-watch.asciidoc[]
-include::watcher/deactivate-watch.asciidoc[]
-include::watcher/activate-watch.asciidoc[]
-include::watcher/execute-watch.asciidoc[]
-include::watcher/watcher-stats.asciidoc[]
 
 [role="xpack"]
 == Graph APIs
@@ -566,7 +426,6 @@ The Java High Level REST Client supports the following Graph APIs:
 
 * <<java-rest-high-x-pack-graph-explore>>
 
-include::graph/explore.asciidoc[]
 
 ////
 Clear attributes that we use to document that APIs included above so they
@@ -602,19 +461,6 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-get-follow-stats>>
 * <<{upid}-ccr-get-follow-info>>
 
-include::ccr/put_follow.asciidoc[]
-include::ccr/pause_follow.asciidoc[]
-include::ccr/resume_follow.asciidoc[]
-include::ccr/unfollow.asciidoc[]
-include::ccr/forget_follower.asciidoc[]
-include::ccr/put_auto_follow_pattern.asciidoc[]
-include::ccr/delete_auto_follow_pattern.asciidoc[]
-include::ccr/get_auto_follow_pattern.asciidoc[]
-include::ccr/pause_auto_follow_pattern.asciidoc[]
-include::ccr/resume_auto_follow_pattern.asciidoc[]
-include::ccr/get_stats.asciidoc[]
-include::ccr/get_follow_stats.asciidoc[]
-include::ccr/get_follow_info.asciidoc[]
 
 [role="xpack"]
 == Index Lifecycle Management APIs
@@ -636,15 +482,6 @@ Management APIs:
 * <<{upid}-ilm-remove-lifecycle-policy-from-index>>
 
 
-include::ilm/put_lifecycle_policy.asciidoc[]
-include::ilm/delete_lifecycle_policy.asciidoc[]
-include::ilm/get_lifecycle_policy.asciidoc[]
-include::ilm/explain_lifecycle.asciidoc[]
-include::ilm/start_lifecycle_management.asciidoc[]
-include::ilm/stop_lifecycle_management.asciidoc[]
-include::ilm/lifecycle_management_status.asciidoc[]
-include::ilm/retry_lifecycle_policy.asciidoc[]
-include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 
 [role="xpack"]
 == Snapshot Lifecycle Management APIs
@@ -665,14 +502,6 @@ Management APIs:
 * <<{upid}-slm-execute-snapshot-lifecycle-retention>>
 
 
-include::ilm/put_snapshot_lifecycle_policy.asciidoc[]
-include::ilm/delete_snapshot_lifecycle_policy.asciidoc[]
-include::ilm/get_snapshot_lifecycle_policy.asciidoc[]
-include::ilm/start_snapshot_lifecycle_management.asciidoc[]
-include::ilm/stop_snapshot_lifecycle_management.asciidoc[]
-include::ilm/snapshot_lifecycle_management_status.asciidoc[]
-include::ilm/execute_snapshot_lifecycle_policy.asciidoc[]
-include::ilm/execute_snapshot_lifecycle_retention.asciidoc[]
 
 
 [role="xpack"]
@@ -694,14 +523,6 @@ APIs:
 * <<{upid}-start-transform>>
 * <<{upid}-stop-transform>>
 
-include::transform/get_transform.asciidoc[]
-include::transform/get_transform_stats.asciidoc[]
-include::transform/put_transform.asciidoc[]
-include::transform/update_transform.asciidoc[]
-include::transform/delete_transform.asciidoc[]
-include::transform/preview_transform.asciidoc[]
-include::transform/start_transform.asciidoc[]
-include::transform/stop_transform.asciidoc[]
 
 == Enrich APIs
 
@@ -716,8 +537,3 @@ The Java High Level REST Client supports the following Enrich APIs:
 * <<{upid}-enrich-stats>>
 * <<{upid}-enrich-execute-policy>>
 
-include::enrich/put_policy.asciidoc[]
-include::enrich/delete_policy.asciidoc[]
-include::enrich/get_policy.asciidoc[]
-include::enrich/stats.asciidoc[]
-include::enrich/execute_policy.asciidoc[]
