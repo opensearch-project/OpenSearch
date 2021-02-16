@@ -52,12 +52,5 @@ public class DebMetadataTests extends PackagingTestCase {
         final Shell.Result result = sh.run("dpkg -I " + getDistributionFile(distribution()));
 
         TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout).find());
-
-        String oppositePackageName = "elasticsearch";
-        if (distribution().isDefault()) {
-            oppositePackageName += "-oss";
-        }
-
-        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout).find());
     }
 }

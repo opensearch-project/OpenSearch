@@ -67,16 +67,6 @@ public class DebPreservationTests extends PackagingTestCase {
             installation.config(Paths.get("jvm.options.d", "heap.options"))
         );
 
-        if (distribution().isDefault()) {
-            assertPathsExist(
-                installation.config,
-                installation.config("role_mapping.yml"),
-                installation.config("roles.yml"),
-                installation.config("users"),
-                installation.config("users_roles")
-            );
-        }
-
         // keystore was removed
 
         assertPathsDoNotExist(installation.config("elasticsearch.keystore"), installation.config(".elasticsearch.keystore.initial_md5sum"));

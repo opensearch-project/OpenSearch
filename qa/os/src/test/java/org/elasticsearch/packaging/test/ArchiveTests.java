@@ -339,12 +339,6 @@ public class ArchiveTests extends PackagingTestCase {
             final Result result = sh.run(bin.shardTool + " -h");
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
-
-        // TODO: this should be checked on all distributions
-        if (distribution().isDefault()) {
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        }
     }
 
     public void test92ElasticsearchNodeCliPackaging() throws Exception {
@@ -354,12 +348,6 @@ public class ArchiveTests extends PackagingTestCase {
             final Result result = sh.run(bin.nodeTool + " -h");
             assertThat(result.stdout, containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
-
-        // TODO: this should be checked on all distributions
-        if (distribution().isDefault()) {
-            Platforms.onLinux(action);
-            Platforms.onWindows(action);
-        }
     }
 
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
