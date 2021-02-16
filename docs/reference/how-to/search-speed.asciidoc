@@ -423,7 +423,7 @@ indexes prefixes of all terms and is automatically leveraged by query parsers to
 run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.
 
-[testenv="basic+"]
+[testenv="enterprise"]
 [[faster-filtering-with-constant-keyword]]
 === Use `constant_keyword` to speed up filtering
 

@@ -103,8 +103,8 @@ The result is simplified model management as both the features and the model can
 easily follow the same life cycle.
 
 
-[testenv="basic+"]
 [discrete]
+[testenv="enterprise"]
 [[points-in-time-for-search]]
 === Points in time (PITs) for search
 
@@ -191,8 +191,8 @@ completes. If the reduce is successful, we update the circuit breaker to remove
 the size of the source aggregations and replace the estimation with the
 serialized size of the newly reduced result.
 
-[testenv="basic+"]
 [discrete]
+[testenv="enterprise"]
 [[eql-case-sensitivity-operator]]
 === EQL: Case-sensitivity and the `:` operator
 
