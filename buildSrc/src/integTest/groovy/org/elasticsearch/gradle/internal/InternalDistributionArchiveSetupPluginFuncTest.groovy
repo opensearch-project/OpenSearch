@@ -33,7 +33,7 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
     def setup() {
         buildFile << """
         import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
-        
+
         plugins {
             id 'elasticsearch.internal-distribution-archive-setup'
         }
@@ -60,7 +60,6 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
 
         where:
         buildTaskName       | expectedOutputArchivePath
-        "buildDarwinTar"    | "darwin-tar/build/distributions/elasticsearch.tar.gz"
         "buildOssDarwinTar" | "oss-darwin-tar/build/distributions/elasticsearch-oss.tar.gz"
     }
 
@@ -111,23 +110,23 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
                 }
             }
         }
-        
+
         project('consumer') { p ->
             configurations {
                 consumeArchive {}
                 consumeDir {}
             }
-            
+
             dependencies {
                 consumeDir project(path: ':producer-tar', configuration:'extracted')
                 consumeArchive project(path: ':producer-tar', configuration:'default' )
             }
-            
+
             tasks.register("copyDir", Copy) {
                 from(configurations.consumeDir)
                 into('build/dir')
             }
-            
+
             tasks.register("copyArchive", Copy) {
                 from(configurations.consumeArchive)
                 into('build/archives')
