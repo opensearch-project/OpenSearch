@@ -38,8 +38,6 @@ include::aggregations.asciidoc[]
 
 include::scripting.asciidoc[]
 
-include::data-management.asciidoc[]
-
 ifdef::permanently-unreleased-branch[]
 
 endif::[]

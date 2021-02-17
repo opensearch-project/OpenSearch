@@ -65,7 +65,6 @@ such as:
 * <<indices-clone-index,Clone>>
 * <<indices-close,Close>>
 * <<indices-delete-index,Delete>>
-* <<freeze-index-api,Freeze>>
 * <<indices-shrink-index,Shrink>>
 * <<indices-split-index,Split>>
 

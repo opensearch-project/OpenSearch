@@ -13,8 +13,6 @@ exception of the <<search-explain,explain API>>.
 
 * <<search-search>>
 * <<search-multi-search>>
-* <<async-search>>
-* <<point-in-time-api>>
 * <<scroll-api>>
 * <<clear-scroll-api>>
 * <<search-suggesters>>
@@ -37,22 +35,8 @@ exception of the <<search-explain,explain API>>.
 * <<search-template>>
 * <<multi-search-template>>
 
-[discrete]
-[[eql-search-apis]]
-=== EQL search
-
-For an overview of EQL and related tutorials, see <<eql>>.
-
-* <<eql-search-api>>
-* <<get-async-eql-search-api>>
-* <<delete-async-eql-search-api>>
-
 
 include::search/search.asciidoc[]
-
-include::search/async-search.asciidoc[]
-
-include::search/point-in-time-api.asciidoc[]
 
 include::search/scroll-api.asciidoc[]
 
