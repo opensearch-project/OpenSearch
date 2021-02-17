@@ -94,10 +94,8 @@ PUT /my-data-stream/_bulk?refresh
 The following search APIs support data streams:
 
 * <<search-search, Search>>
-* <<async-search, Async search>>
 * <<search-multi-search, Multi search>>
 * <<search-field-caps, Field capabilities>>
-* <<eql-search-api, EQL search>>
 
 [discrete]
 [[get-stats-for-a-data-stream]]
