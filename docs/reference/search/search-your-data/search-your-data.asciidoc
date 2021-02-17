@@ -448,7 +448,6 @@ results.
 include::collapse-search-results.asciidoc[]
 include::filter-search-results.asciidoc[]
 include::highlighting.asciidoc[]
-include::long-running-searches.asciidoc[]
 include::near-real-time.asciidoc[]
 include::paginate-search-results.asciidoc[]
 include::retrieve-inner-hits.asciidoc[]
