@@ -30,37 +30,6 @@ recovery.
 include::{es-repo-dir}/upgrade/synced-flush.asciidoc[]
 --
 // end::stop_indexing[]
-//tag::stop_ml[]
-. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
-+
---
-{ml-cap} features require specific {subscriptions}[subscriptions].
-
-You have two options to handle {ml} jobs and {dfeeds} when you shut down a
-cluster:
-
-* Temporarily halt the tasks associated with your {ml} jobs and {dfeeds} and
-prevent new jobs from opening by using the
-<<ml-set-upgrade-mode,set upgrade mode API>>:
-+
-[source,console]
---------------------------------------------------
-POST _ml/set_upgrade_mode?enabled=true
---------------------------------------------------
-// TEST
-+
-When you disable upgrade mode, the jobs resume using the last model state that
-was automatically saved. This option avoids the overhead of managing active jobs
-during the shutdown and is faster than explicitly stopping {dfeeds} and closing
-jobs.
-
-* {ml-docs}/stopping-ml.html[Stop all {dfeeds} and close all jobs]. This option
-saves the model state at the time of closure. When you reopen the jobs after the
-cluster restart, they use the exact same model. However, saving the latest model
-state takes longer than using upgrade mode, especially if you have a lot of jobs
-or jobs with large model states.
---
-// end::stop_ml[]
 
 . *Shut down all nodes.*
 +
@@ -144,24 +113,6 @@ GET _cat/recovery
 --------------------------------------------------
 // TEST[continued]
 --
-// tag::restart_ml[]
-. *Restart machine learning jobs.* (Optional)
-+
---
-If you temporarily halted the tasks associated with your {ml} jobs, use the
-<<ml-set-upgrade-mode,set upgrade mode API>> to return them to active states:
-
-[source,console]
---------------------------------------------------
-POST _ml/set_upgrade_mode?enabled=false
---------------------------------------------------
-// TEST[continued]
-
-If you closed all {ml} jobs before stopping the nodes, open the jobs and start
-the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
-<<ml-start-datafeed,start datafeed>> APIs.
---
-// end::restart_ml[]
 
 
 [discrete]
@@ -172,8 +123,6 @@ the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
 include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=disable_shard_alloc]
 
 include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=stop_indexing]
-
-include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=stop_ml]
 +
 --
 * If you perform a rolling restart, you can also leave your machine learning
@@ -229,5 +178,3 @@ PUT _cluster/settings
 When the node has recovered and the cluster is stable, repeat these steps
 for each node that needs to be changed.
 --
-
-include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=restart_ml]
