@@ -31,12 +31,6 @@ recovery.
 include::synced-flush.asciidoc[]
 --
 
-. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
-+
---
-include::close-ml.asciidoc[]
---
-
 . *Shutdown all nodes.*
 +
 --
@@ -71,7 +65,7 @@ a node.
 . If you use {es} {security-features} to define realms, verify that your realm
 settings are up-to-date. The format of realm settings changed in version 7.0, in
 particular, the placement of the realm type changed. See
-<<realm-settings,Realm settings>>. 
+<<realm-settings,Realm settings>>.
 
 . *Start each upgraded node.*
 +
@@ -143,10 +137,4 @@ GET _cat/health
 
 GET _cat/recovery
 --------------------------------------------------
---
-
-. *Restart machine learning jobs.*
-+
---
-include::open-ml.asciidoc[]
 --
