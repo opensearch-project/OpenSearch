@@ -105,7 +105,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Before
     public void waitForRequirements() throws Exception {
         if (isCcrTest() || isGetLicenseTest() || isXpackInfoTest()) {
-            //ESRestTestCase.waitForActiveLicense(adminClient());
+            ESRestTestCase.waitForActiveLicense(adminClient());
         }
     }
 
@@ -121,7 +121,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
         if (false == "".equals(templates)) {
             for (String template : templates.split("\n")) {
-                //if (isXPackTemplate(template)) continue;
+                if (isXPackTemplate(template)) continue;
                 if ("".equals(template)) {
                     throw new IllegalStateException("empty template in templates list:\n" + templates);
                 }
@@ -135,10 +135,10 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return isSLMTest() == false;
     }
 
-//    @Override
-//    protected boolean preserveILMPoliciesUponCompletion() {
-//        return isILMTest() == false;
-//    }
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return isILMTest() == false;
+    }
 
     /**
      * Tests are themselves responsible for cleaning up templates, which speeds up build.
