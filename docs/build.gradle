@@ -36,16 +36,8 @@ restResources {
 }
 
 testClusters.integTest {
-  if (singleNode().testDistribution == DEFAULT) {
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'indices.lifecycle.history_index_enabled', 'false'
-    if (BuildParams.isSnapshotBuild() == false) {
-      systemProperty 'es.autoscaling_feature_flag_registered', 'true'
-    }
-    setting 'xpack.autoscaling.enabled', 'true'
-  }
+  // Used for testing the snippets of nodes reload_secure_settings API
   keystorePassword 's3cr3t'
-
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
   setting 'path.repo', "${buildDir}/cluster/shared/repo"
