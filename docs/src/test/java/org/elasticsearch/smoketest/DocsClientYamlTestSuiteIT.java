@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
@@ -45,7 +44,6 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -102,26 +100,14 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
-    @Before
-    public void waitForRequirements() throws Exception {
-        if (isCcrTest() || isGetLicenseTest() || isXpackInfoTest()) {
-            ESRestTestCase.waitForActiveLicense(adminClient());
-        }
-    }
-
     @After
     public void cleanup() throws Exception {
-        if (isMachineLearningTest() || isTransformTest()) {
-            ESRestTestCase.waitForPendingTasks(adminClient());
-        }
-
         // check that there are no templates
         Request request = new Request("GET", "_cat/templates");
         request.addParameter("h", "name");
         String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
         if (false == "".equals(templates)) {
             for (String template : templates.split("\n")) {
-                if (isXPackTemplate(template)) continue;
                 if ("".equals(template)) {
                     throw new IllegalStateException("empty template in templates list:\n" + templates);
                 }
@@ -130,59 +116,12 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         }
     }
 
-    @Override
-    protected boolean preserveSLMPoliciesUponCompletion() {
-        return isSLMTest() == false;
-    }
-
-    @Override
-    protected boolean preserveILMPoliciesUponCompletion() {
-        return isILMTest() == false;
-    }
-
     /**
      * Tests are themselves responsible for cleaning up templates, which speeds up build.
      */
     @Override
     protected boolean preserveTemplatesUponCompletion() {
         return true;
-    }
-
-    protected boolean isSLMTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("/slm/") || testName.contains("\\slm\\") || (testName.contains("\\slm/")) ||
-            // TODO: Remove after backport of https://github.com/elastic/elasticsearch/pull/48705 which moves SLM docs to correct folder
-            testName.contains("/ilm/") || testName.contains("\\ilm\\") || testName.contains("\\ilm/"));
-    }
-
-    protected boolean isILMTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("/ilm/") || testName.contains("\\ilm\\") || testName.contains("\\ilm/"));
-    }
-
-    protected boolean isMachineLearningTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("/ml/") || testName.contains("\\ml\\"));
-    }
-
-    protected boolean isTransformTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("/transform/") || testName.contains("\\transform\\"));
-    }
-
-    protected boolean isCcrTest() {
-        String testName = getTestName();
-        return testName != null && testName.contains("/ccr/");
-    }
-
-    protected boolean isGetLicenseTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("/get-license/") || testName.contains("\\get-license\\"));
-    }
-
-    protected boolean isXpackInfoTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("/info/") || testName.contains("\\info\\"));
     }
 
     /**
