@@ -57,7 +57,7 @@ GET _cat/health
 
 GET _cat/nodes
 --------------------------------------------------
-// TEST[continued]
+// TEST
 
 The `status` column returned by `_cat/health` shows the health of each node
 in the cluster: `red`, `yellow`, or `green`.
