@@ -335,20 +335,11 @@ different installation directory to the default one:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------
-start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory\{version}" 
+start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory\{version}"
 --------------------------------------------
 
 Consult the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options]
 for additional rules related to values containing quotation marks.
-
-ifdef::include-xpack[]
-[role="xpack"]
-[[msi-installer-enable-indices]]
-==== Enable automatic creation of system indices
-
-include::xpack-indices.asciidoc[]
-
-endif::include-xpack[]
 
 [[msi-installer-command-line-running]]
 include::msi-windows-start.asciidoc[]
