@@ -57,49 +57,6 @@ modifications to the document data and metadata during reindexing.
 .. Add an alias with the old index name to the new index.
 .. Add any aliases that existed on the old index to the new index.
 
-ifdef::include-xpack[]
-[TIP]
-====
-If you use {ml-features} and your {ml} indices were created before
-{prev-major-version}, you must temporarily halt the tasks associated with your
-{ml} jobs and {dfeeds} and prevent new jobs from opening during the reindex. Use
-the <<ml-set-upgrade-mode,set upgrade mode API>> or
-{ml-docs}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
-
-If you use {es} {security-features}, before you reindex `.security*` internal
-indices it is a good idea to create a temporary superuser account in the `file`
-realm.
-
-. On a single node, add a temporary superuser account to the `file` realm. For
-example, run the <<users-command,elasticsearch-users useradd>> command:
-+
---
-[source,sh]
-----------------------------------------------------------
-bin/elasticsearch-users useradd <user_name> \
--p <password> -r superuser
-----------------------------------------------------------
---
-
-. Use these credentials when you reindex the `.security*` index. That is to say,
-use them to log into {kib} and run the Upgrade Assistant or to call the
-reindex API. You can use your regular administration credentials to
-reindex the other internal indices.
-
-. Delete the temporary superuser account from the file realm. For
-example, run the {ref}/users-command.html[elasticsearch-users userdel] command:
-+
---
-[source,sh]
-----------------------------------------------------------
-bin/elasticsearch-users userdel <user_name>
-----------------------------------------------------------
---
-
-For more information, see <<file-realm>>.
-====
-endif::include-xpack[]
-
 [[reindex-upgrade-remote]]
 === Reindex from a remote cluster
 
@@ -117,17 +74,6 @@ resolve any backward compatibility issues yourself.
 
 {es} does not support forward compatibility across major versions.
 For example, you cannot reindex from a 7.x cluster into a 6.x cluster.
-
-ifdef::include-xpack[]
-If you use {ml-features} and you're migrating indices from a 6.5 or earlier
-cluster, the job and {dfeed} configuration information are not stored in an
-index. You must recreate your {ml} jobs in the new cluster. If you are migrating
-from a 6.6 or later cluster, it is a good idea to temporarily halt the tasks
-associated with your {ml} jobs and {dfeeds} to prevent inconsistencies between
-different {ml} indices that are reindexed at slightly different times. Use the
-<<ml-set-upgrade-mode,set upgrade mode API>> or 
-{ml-docs}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
-endif::include-xpack[]
 
 =============================================
 
