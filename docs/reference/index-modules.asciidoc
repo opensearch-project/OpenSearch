@@ -322,14 +322,6 @@ Other index settings are available in index modules:
 <<index-modules-indexing-pressure,Indexing pressure>>::
 
     Configure indexing back pressure limits.
-
-[discrete]
-[[x-pack-index-settings]]
-=== [xpack]#{xpack} index settings#
-
-<<ilm-settings,{ilm-cap}>>::
-
-    Specify the lifecycle policy and rollover alias for an index.
 --
 
 include::index-modules/analysis.asciidoc[]
