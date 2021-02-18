@@ -19,8 +19,6 @@ PUT /remotecluster-bar-01
 
 PUT /freeze-index
 
-POST /freeze-index/_freeze
-
 PUT /my-index-000001
 
 PUT /freeze-index/_alias/f-alias
@@ -104,7 +102,6 @@ The API returns the following response:
         "f-alias"
       ],
       "attributes": [
-        "frozen",
         "open"
       ]
     },
