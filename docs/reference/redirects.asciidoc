@@ -18,31 +18,6 @@ See <<cluster-name,Cluster name setting>>.
 
 See <<heap-size-settings>>.
 
-[role="exclude",id="ccr-remedy-follower-index"]
-=== Leader index retaining operations for replication
-
-See <<ccr-leader-requirements,Requirements for leader indices>>.
-
-[role="exclude",id="ccr-leader-not-replicating"]
-=== Remedying a follower that has fallen behind
-
-See <<ccr-recreate-follower-index,Recreating a follower index>>.
-
-[role="exclude",id="remote-reovery"]
-=== Remote recovery process
-
-See <<ccr-remote-recovery,Remote recovery process>>.
-
-[role="exclude",id="ccr-requirements"]
-=== Leader index requirements
-
-See <<ccr-leader-requirements,Requirements for leader indices>>.
-
-[role="exclude",id="ccr-overview"]
-=== Cross-cluster replication overview
-
-See <<xpack-ccr,Cross-cluster replication>>.
-
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
@@ -59,34 +34,6 @@ The `_parent` field has been removed in favour of the <<parent-join,`join` field
 
 Warmers have been removed. There have been significant improvements to the
 index that make warmers not necessary anymore.
-
-[role="exclude",id="xpack-commands"]
-=== X-Pack commands
-
-See <<commands>>.
-
-[role="exclude",id="xpack-api"]
-=== X-Pack APIs
-
-{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>.
-
-[role="exclude",id="ml-calendar-resource"]]
-=== Calendar resources
-
-See <<ml-get-calendar>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
-
-[role="exclude",id="ml-filter-resource"]
-=== Filter resources
-
-See <<ml-get-filter>> and
-{ml-docs}/ml-rules.html[Machine learning custom rules].
-
-[role="exclude",id="ml-event-resource"]
-=== Scheduled event resources
-
-See <<ml-get-calendar-event>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]
 === Index APIs
@@ -286,320 +233,16 @@ See <<ccs-works>>.
 === Administering {es}
 See <<high-availability>>.
 
-[role="exclude",id="slm-api"]
-=== Snapshot lifecycle management API
-See <<snapshot-lifecycle-management-api>>.
-
-[role="exclude",id="delete-data-frame-transform"]
-===  Delete {transforms} API
-
-See <<delete-transform>>.
-
-[role="exclude",id="get-data-frame-transform-stats"]
-=== Get {transform} statistics API
-
-See <<get-transform-stats>>.
-
-[role="exclude",id="get-data-frame-transform"]
-=== Get {transforms} API
-
-See <<get-transform>>.
-
-[role="exclude",id="preview-data-frame-transform"]
-=== Preview {transforms} API
-
-See <<preview-transform>>.
-
-[role="exclude",id="put-data-frame-transform"]
-===  Create {transforms} API
-
-See <<put-transform>>.
-
-[role="exclude",id="start-data-frame-transform"]
-=== Start {transforms} API
-
-See <<start-transform>>.
-
-[role="exclude",id="stop-data-frame-transform"]
-=== Stop {transforms} API
-
-See <<stop-transform>>.
-
-[role="exclude",id="update-data-frame-transform"]
-=== Update {transforms} API
-
-See <<update-transform>>.
-
-[role="exclude",id="data-frame-apis"]
-=== {transform-cap} APIs
-
-See <<transform-apis>>.
-
-[role="exclude",id="data-frame-transform-resource"]
-=== {transform-cap} resources
-
-See <<transform-resource>>.
-
-[role="exclude",id="data-frame-transform-dest"]
-=== Dest objects
-
-See <<transform-resource>>.
-
-[role="exclude",id="data-frame-transform-source"]
-==== Source objects
-
-See <<transform-resource>>.
-
-[role="exclude",id="data-frame-transform-pivot"]
-==== Pivot objects
-
-See <<transform-resource>>.
-
-[role="exclude",id="configuring-monitoring"]
-=== Configuring monitoring
-
-See <<monitoring-overview>>.
-
-[role="exclude",id="es-monitoring"]
-=== Monitoring {es}
-
-See <<monitor-elasticsearch-cluster>>.
-
 [role="exclude",id="docker-cli-run"]
 === Docker Run
 
 See <<docker-cli-run-dev-mode>>.
-
-[role="exclude",id="auditing"]
-=== Audit logging
-
-See <<enable-audit-logging>>.
 
 [role="exclude",id="analysis-compound-word-tokenfilter"]
 === Compound word token filters
 
 See <<analysis-dict-decomp-tokenfilter>> and
 <<analysis-hyp-decomp-tokenfilter>>.
-
-[role="exclude",id="configuring-native-realm"]
-=== Configuring a native realm
-
-See <<native-realm-configuration>>.
-
-[role="exclude",id="native-settings"]
-==== Native realm settings
-
-See <<ref-native-settings>>.
-
-[role="exclude",id="configuring-saml-realm"]
-=== Configuring a SAML realm
-
-See <<saml-guide>>.
-
-[role="exclude",id="saml-settings"]
-==== SAML realm settings
-
-See <<ref-saml-settings>>.
-
-[role="exclude",id="_saml_realm_signing_settings"]
-==== SAML realm signing settings
-
-See <<ref-saml-signing-settings>>.
-
-[role="exclude",id="_saml_realm_encryption_settings"]
-==== SAML realm encryption settings
-
-See <<ref-saml-encryption-settings>>.
-
-[role="exclude",id="_saml_realm_ssl_settings"]
-==== SAML realm SSL settings
-
-See <<ref-saml-ssl-settings>>.
-
-[role="exclude",id="configuring-file-realm"]
-=== Configuring a file realm
-
-See <<file-realm-configuration>>.
-
-[role="exclude",id="ldap-user-search"]
-=== User search mode and user DN templates mode
-
-See <<ldap-realm-configuration>>.
-
-[role="exclude",id="configuring-ldap-realm"]
-=== Configuring an LDAP realm
-
-See <<ldap-realm-configuration>>.
-
-[role="exclude",id="ldap-settings"]
-=== LDAP realm settings
-
-See <<ref-ldap-settings>>.
-
-[role="exclude",id="ldap-ssl"]
-=== Setting up SSL between Elasticsearch and LDAP
-
-See <<tls-ldap>>.
-
-[role="exclude",id="configuring-kerberos-realm"]
-=== Configuring a Kerberos realm
-
-See <<kerberos-realm-configuration>>.
-
-[role="exclude",id="beats"]
-=== Beats and Security
-
-See:
-
-* {auditbeat-ref}/securing-auditbeat.html[{auditbeat}]
-* {filebeat-ref}/securing-filebeat.html[{filebeat}]
-* {heartbeat-ref}/securing-heartbeat.html[{heartbeat}]
-* {metricbeat-ref}/securing-metricbeat.html[{metricbeat}]
-* {packetbeat-ref}/securing-packetbeat.html[{packetbeat}]
-* {winlogbeat-ref}/securing-winlogbeat.html[{winlogbeat}]
-
-[role="exclude",id="configuring-pki-realm"]
-=== Configuring a PKI realm
-
-See <<pki-realm>>.
-
-[role="exclude",id="pki-settings"]
-==== PKI realm settings
-
-See <<ref-pki-settings>>.
-
-[role="exclude",id="configuring-ad-realm"]
-=== Configuring an Active Directory realm
-
-See <<ad-realm-configuration>>.
-
-[role="exclude",id="ad-settings"]
-=== Active Directory realm settings
-
-See <<ref-ad-settings>>.
-
-[role="exclude",id="mapping-roles-ad"]
-=== Mapping Active Directory users and groups to roles
-
-See <<ad-realm-configuration>>.
-
-[role="exclude",id="how-security-works"]
-=== How security works
-
-See <<elasticsearch-security>>.
-
-[role="exclude",id="rollup-job-config"]
-=== Rollup job configuration
-
-See <<rollup-put-job-api-request-body>>.
-
-[role="exclude",id="transform-resource"]
-=== {transform-cap} resources
-
-This page was deleted.
-See <<put-transform>>, <<preview-transform>>, <<update-transform>>,
-<<get-transform>>.
-
-[role="exclude",id="ml-job-resource"]
-=== Job resources
-
-This page was deleted.
-[[ml-analysisconfig]]
-See the details in
-[[ml-apimodelplotconfig]]
-<<ml-put-job>>, <<ml-update-job>>, and <<ml-get-job>>.
-
-[role="exclude",id="ml-datafeed-resource"]
-=== {dfeed-cap} resources
-
-This page was deleted.
-[[ml-datafeed-chunking-config]]
-See the details in <<ml-put-datafeed>>, <<ml-update-datafeed>>,
-[[ml-datafeed-delayed-data-check-config]]
-<<ml-get-datafeed>>,
-[[ml-datafeed-counts]]
-<<ml-get-datafeed-stats>>.
-
-[role="exclude",id="ml-jobstats"]
-=== Job statistics
-
-This
-[[ml-datacounts]]
-page
-[[ml-modelsizestats]]
-was
-[[ml-forecastsstats]]
-deleted.
-[[ml-timingstats]]
-See
-[[ml-stats-node]]
-the details in <<ml-get-job-stats>>.
-
-[role="exclude",id="ml-snapshot-resource"]
-=== Model snapshot resources
-
-This page was deleted.
-[[ml-snapshot-stats]]
-See <<ml-update-snapshot>> and <<ml-get-snapshot>>.
-
-[role="exclude",id="ml-dfanalytics-resources"]
-=== {dfanalytics-cap} job resources
-
-This page was deleted.
-See <<put-dfanalytics>>.
-
-[role="exclude",id="ml-dfa-analysis-objects"]
-=== Analysis configuration objects
-
-This page was deleted.
-See <<put-dfanalytics>>.
-
-[role="exclude",id="put-inference"]
-=== Create trained model API
-
-See <<put-trained-models>>.
-
-[role="exclude",id="get-inference-stats"]
-=== Get trained model statistics API
-
-See <<get-trained-models-stats>>.
-
-[role="exclude",id="get-inference"]
-=== Get trained model API
-
-See <<get-trained-models>>.
-
-[role="exclude",id="delete-inference"]
-=== Delete trained model API
-
-See <<delete-trained-models>>.
-
-[role="exclude",id="data-frames-settings"]
-=== {transforms-cap}  settings in Elasticsearch
-
-See <<transform-settings>>.
-
-[role="exclude",id="general-data-frames-settings"]
-==== General {transforms} settings
-
-See <<general-transform-settings>>.
-
-[role="exclude",id="ml-results-resource"]
-=== Results resources
-
-This page was deleted.
-[[ml-results-buckets]]
-See <<ml-get-bucket>>,
-[[ml-results-bucket-influencers]]
-<<ml-get-bucket>>,
-[[ml-results-influencers]]
-<<ml-get-influencer>>,
-[[ml-results-records]]
-<<ml-get-record>>,
-[[ml-results-categories]]
-<<ml-get-category>>, and
-[[ml-results-overall-buckets]]
-<<ml-get-overall-buckets>>.
 
 [role="exclude",id="modules-snapshots"]
 === Snapshot module
@@ -625,51 +268,6 @@ See <<snapshots-restore-snapshot>>.
 === Snapshot repositories
 
 See <<snapshots-register-repository>>.
-
-[role="exclude",id="slm-api-delete"]
-=== {slm-init} delete policy API
-
-See <<slm-api-delete-policy>>.
-
-[role="exclude",id="slm-api-execute"]
-=== {slm-init} execute lifecycle API
-
-See <<slm-api-execute-lifecycle>>.
-
-[role="exclude",id="slm-api-execute-policy"]
-=== {slm-init} execute lifecycle API
-
-See <<slm-api-execute-lifecycle>>.
-
-[role="exclude",id="slm-api-get"]
-=== {slm-init} get policy API
-
-See <<slm-api-get-policy>>.
-
-[role="exclude",id="slm-get-stats"]
-=== {slm-init} get stats API
-
-See <<slm-api-get-stats>>.
-
-[role="exclude",id="slm-get-status"]
-=== {slm-init} status API
-
-See <<slm-api-get-status>>.
-
-[role="exclude",id="slm-api-put"]
-=== {slm-init} put policy API
-
-See <<slm-api-put-policy>>.
-
-[role="exclude",id="slm-start"]
-=== Start {slm} API
-
-See <<slm-api-start>>.
-
-[role="exclude",id="slm-stop"]
-=== Stop {slm} API
-
-See <<slm-api-stop>>.
 
 [role="exclude",id="ccs-works"]
 === How {ccs} works
@@ -810,76 +408,6 @@ This section was deleted.
 
 This page was deleted.
 
-[role="exclude",id="_actions"]
-=== {ilm-init} actions
-
-See <<ilm-actions>>.
-
-[role="exclude",id="ilm-allocate-action"]
-==== Allocate action
-
-See <<ilm-allocate>>.
-
-[role="exclude",id="ilm-delete-action"]
-==== Delete action
-
-See <<ilm-delete>>.
-
-[role="exclude",id="ilm-forcemerge-action"]
-==== Force merge action
-
-See <<ilm-forcemerge>>.
-
-[role="exclude",id="ilm-freeze-action"]
-==== Freeze action
-
-See <<ilm-freeze>>.
-
-[role="exclude",id="ilm-migrate-action"]
-==== Migrate action
-
-See <<ilm-migrate>>.
-
-[role="exclude",id="ilm-readonly-action"]
-==== Read only action
-
-See <<ilm-readonly>>.
-
-[role="exclude",id="ilm-rollover-action"]
-==== Rollover action
-
-See <<ilm-rollover>>.
-
-[role="exclude",id="ilm-searchable-snapshot-action"]
-==== Searchable snapshot action
-
-See <<ilm-searchable-snapshot>>.
-
-[role="exclude",id="ilm-set-priority-action"]
-==== Set priority action
-
-See <<ilm-set-priority>>.
-
-[role="exclude",id="ilm-shrink-action"]
-==== Shrink action
-
-See <<ilm-shrink>>.
-
-[role="exclude",id="ilm-unfollow-action"]
-==== Unfollow action
-
-See <<ilm-unfollow>>.
-
-[role="exclude",id="ilm-wait-for-snapshot-action"]
-==== Wait for snapshot action
-
-See <<ilm-wait-for-snapshot>>.
-
-[role="exclude",id="ilm-policy-definition"]
-=== {ilm-init} policy definition
-
-See <<ilm-index-lifecycle>>.
-
 [role="exclude",id="search-uri-request"]
 === URI search
 
@@ -948,11 +476,6 @@ For other information, see:
 
 See <<add-elasticsearch-nodes>>.
 
-[role="exclude",id="_timing"]
-=== Timing
-
-See <<ilm-phase-transitions>>.
-
 [role="exclude",id="_installation"]
 === Installation
 
@@ -961,9 +484,7 @@ See <<install-elasticsearch>>.
 [role="exclude",id="mapping-ttl-field"]
 === `_ttl` mappings
 
-The `_ttl` mappings have been removed. As a replacement for `_ttl`
-mappings, we recommend using <<index-lifecycle-management,{ilm-init}>> to create
-time-based indices.
+The `_ttl` mappings have been removed.
 
 [role="exclude",id="setup-service"]
 === Running as a service on Linux
@@ -974,16 +495,6 @@ See <<starting-elasticsearch>>.
 === Painless syntax
 
 See {painless}/painless-lang-spec.html[Painless language specification].
-
-[role="exclude",id="using-policies-rollover"]
-=== Using policies to manage index rollover
-
-See <<getting-started-index-lifecycle-management>>.
-
-[role="exclude",id="_applying_a_policy_to_our_index"]
-=== Applying a policy to our index
-
-See <<ilm-gs-apply-policy>>.
 
 [role="exclude",id="setup-dir-layout"]
 === Directory layout
@@ -999,11 +510,6 @@ See <<scroll-search-results>>.
 === Dynamic mapping
 
 See <<dynamic-mapping>>.
-
-[role="exclude",id="applying-policy-to-template"]
-=== Applying a policy to an index template
-
-See <<ilm-gs-apply-policy>>.
 
 [role="exclude",id="indices-status"]
 === Index status API
@@ -1038,16 +544,6 @@ We have stopped adding new customers to our {esms}.
 
 If you are interested in similar capabilities, contact
 https://support.elastic.co[Elastic Support] to discuss available options.
-
-[role="exclude",id="ilm-with-existing-periodic-indices"]
-=== Manage existing periodic indices with {ilm-init}
-
-See <<ilm-existing-indices-apply>>.
-
-[role="exclude",id="ilm-reindexing-into-rollover"]
-=== Reindexing via {ilm-init}
-
-See <<ilm-existing-indices-reindex>>.
 
 [role="exclude",id="analysis-pathhierarchy-tokenizer-examples"]
 === Path hierarchy tokenizer examples
@@ -1089,21 +585,6 @@ See <<run-an-es-search>>.
 === How highlighters work internally
 
 See <<how-es-highlighters-work-internally>>.
-
-[role="exclude",id="eql-search"]
-=== Run an EQL search
-
-See <<run-an-eql-search>>.
-
-[role="exclude",id="eql-limitations"]
-=== EQL limitations
-
-See <<eql-syntax-limitations>>.
-
-[role="exclude",id="eql-requirements"]
-=== EQL requirements
-
-See <<eql-required-fields>>.
 
 [role="exclude",id="search-request-body"]
 === Request body search
@@ -1237,24 +718,12 @@ See <<joining-queries-notes>>.
 
 See <<percolate-query-notes>>.
 
-[role="exclude",id="constant-keyword"]
-=== Constant keyword field type
-
-See <<constant-keyword-field-type>>.
-
-[role="exclude",id="wildcard"]
-=== Wildcard field type
-
-See <<wildcard-field-type>>.
-
 [role="exclude",id="searchable-snapshots-api-clear-cache"]
 === Clear cache API
 
 We have removed documentation for this API. This a low-level API used to clear
 the searchable snapshot cache. We plan to remove or drastically change this API
 as part of a future release.
-
-For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
 
 [role="exclude",id="searchable-snapshots-api-stats"]
 === Searchable snapshot statistics API
@@ -1263,8 +732,6 @@ We have removed documentation for this API. This a low-level API used to get
 information about searchable snapshot indices. We plan to remove or drastically
 change this API as part of a future release.
 
-For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-
 [role="exclude",id="searchable-snapshots-repository-stats"]
 === Searchable snapshot repository statistics API
 
@@ -1272,22 +739,10 @@ We have removed documentation for this API. This a low-level API used to get
 information about searchable snapshot indices. We plan to remove or drastically
 change this API as part of a future release.
 
-For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-
-[role="exclude",id="point-in-time"]
-=== Point in time API
-
-See <<point-in-time-api>>.
-
 [role="exclude",id="avoid-oversharding"]
 === Avoid oversharding
 
 See <<size-your-shards>>.
-
-[role="exclude",id="_parameters_8"]
-=== elasticsearch-croneval parameters
-
-See <<elasticsearch-croneval-parameters>>.
 
 [role="exclude",id="caching-heavy-aggregations"]
 === Caching heavy aggregations
@@ -1308,11 +763,6 @@ See <<add-metadata-to-an-agg>>.
 === Returning the type of the aggregation
 
 See <<return-agg-type>>.
-
-[role="exclude",id="indexing-aggregation-results"]
-=== Indexing aggregation results with transforms
-
-See <<transforms>>.
 
 [role="exclude",id="search-aggregations-matrix"]
 === Matrix aggregations
