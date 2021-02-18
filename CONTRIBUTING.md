@@ -1,17 +1,29 @@
-Contributing to elasticsearch
+Contributing to RENAMEME
 =============================
 
-Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
+RENAMEME is a community project that is built and maintained by people just like you.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
 
-If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
-make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
+Please note:  RENAMEME is a fork of Elasticsearch in a pre-alpha state.  We are still in the process of renaming and removing any non-Apache 2.0 licensed code.  If you do find references to Elasticsearch (outside of attributions and licences!) please let us know RENAMEME issue link  
+
+Getting Started
+-----------
+
+1. When in doubt, open an issue
+For almost any type of contribution, the first step is going to be to open an issue REANAMEME issue link.  Even if you think you already know what the solution is, writing down a description of the problem you're trying to solve will help everyone get context when they review your pull request. 
+
+2. Only submit your own work
+Please make sure that any code or documentation you submit is your work, or you have the rights to submit it.  When in doubt, submit an issue.
 
 Bug reports
 -----------
 
-If you think you have found a bug in Elasticsearch, first make sure that you are testing against the [latest version of Elasticsearch](https://www.elastic.co/downloads/elasticsearch) - your issue may already have been fixed. If not, search our [issues list](https://github.com/elastic/elasticsearch/issues) on GitHub in case a similar issue has already been opened.
+Ugh!  Bugs!
 
-It is very helpful if you can prepare a reproduction of the bug. In other words, provide a small test case which we can run to confirm your bug. It makes it easier to find the problem and to fix it. Test cases should be provided as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
+A bug is when  software behaves in a way that you didn't expect and the developer didn't intend.  To help us understand what's going on, we first want to make sure you're working from the latest version.  Please make sure you're testing against the latest version which you can find here (RENAMEME link)
+
+Once you've confirmed that the bug still exists in the version, you'll want to check to make sure it's not something we already know about.  You can see all of our open issues here (RENAMEME link).
+
+If you've upgraded to the latest version and you can't find it our open issues list, then you'll need to tell us how to reproduce it.  To make the behavior as clear as possible, please provided your steps as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
 
 ```sh
 # delete the index
@@ -31,25 +43,16 @@ Provide as much information as you can. You may think that the problem lies with
 Feature requests
 ----------------
 
-If you find yourself wishing for a feature that doesn't exist in Elasticsearch, you are probably not alone. There are bound to be others out there with similar needs. Many of the features that Elasticsearch has today have been added because our users saw the need.
-Open an issue on our [issues list](https://github.com/elastic/elasticsearch/issues) on GitHub which describes the feature you would like to see, why you need it, and how it should work.
+If you've thought of a way that RENAMEME could be better, we want to hear about it.  We track feature requests using Github, so please feel free to open an issue  RENAMEME issue link which describes the feature you would like to see, why you need it, and how it should work.
 
 Contributing code and documentation changes
 -------------------------------------------
 
-If you would like to contribute a new feature or a bug fix to Elasticsearch,
-please discuss your idea first on the Github issue. If there is no Github issue
-for your idea, please open one. It may be that somebody is already working on
-it, or that there are particular complexities that you should know about before
-starting the implementation. There are often a number of ways to fix a problem
-and it is important to find the right approach before spending time on a PR
-that cannot be merged.
+So you want to contribute code or documentation to RENAMEME?  Excellent!  
 
-We add the `help wanted` label to existing Github issues for which community
-contributions are particularly welcome, and we use the `good first issue` label
-to mark issues that we think will be suitable for new contributors.
+The first step is to open an issue on github.  Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem.  It also lets us work together to find the right approach before you spend a bunch of time on a PR.  So again, when in doubt, open an issue RENAMEME issue link
 
-The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar. Details for individual projects can be found below.
+Once you've open as issue, here are some general steps to take:
 
 ### Fork and clone the repository
 
@@ -67,20 +70,16 @@ Once your changes and tests are ready to submit for review:
     Run the test suite to make sure that nothing is broken. See the
 [TESTING](TESTING.asciidoc) file for help running tests.
 
-2. Sign the Contributor License Agreement
+2. Rebase your changes
 
-    Please make sure you have signed our [Contributor License Agreement](https://www.elastic.co/contributor-agreement/). We are not asking you to assign copyright to us, but to give us the right to distribute your code without restriction. We ask this of all contributors in order to assure our users of the origin and continuing existence of the code. You only need to sign the CLA once.
-
-3. Rebase your changes
-
-    Update your local repository with the most recent code from the main Elasticsearch repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
+Update your local repository with the most recent code from the main RENAMEME repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
 
 
-4. Submit a pull request
+3. Submit a pull request
 
     Push your local changes to your forked copy of the repository and [submit a pull request](https://help.github.com/articles/using-pull-requests). In the pull request, choose a title which sums up the changes that you have made, and in the body provide more details about what your changes do. Also mention the number of the issue where discussion has taken place, eg "Closes #123".
 
-Then sit back and wait. There will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into Elasticsearch.
+There will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into Elasticsearch.
 
 Please adhere to the general guideline that you should never force push
 to a publicly shared branch. Once you have opened your pull request, you
@@ -98,7 +97,7 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
+JDK 14 is required to build RENAMEME. You must have a JDK 14 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
 your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 8, the build supports compiling with
@@ -312,7 +311,7 @@ and asm and we don't believe that *all* of Elasticsearch should have access to
 them.
 
 #### `plugins`
-Officially supported plugins to Elasticsearch. We decide that a feature should
+Officially supported plugins to RENAMEME. We decide that a feature should
 be a plugin rather than shipped as a module because we feel that it is only
 important to a subset of users, especially if it requires extra dependencies.
 
