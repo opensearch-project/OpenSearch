@@ -418,7 +418,6 @@ Returns:
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
-      "index.routing.allocation.include._tier_preference" : "data_content",
       "index.provided_name" : "my-index-000001"
     }
   }
@@ -451,13 +450,6 @@ Returns:
         "uuid": "n6gzFZTgS664GUfx0Xrpjw",
         "version": {
           "created": ...
-        },
-        "routing": {
-          "allocation": {
-            "include": {
-              "_tier_preference": "data_content"
-            }
-          }
         },
         "provided_name" : "my-index-000001"
       }

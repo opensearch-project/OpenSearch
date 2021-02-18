@@ -26,8 +26,8 @@ explanations for shard allocations in the cluster.  For unassigned shards,
 the explain API provides an explanation for why the shard is unassigned.
 For assigned shards, the explain API provides an explanation for why the
 shard is remaining on its current node and has not moved or rebalanced to
-another node. This API can be very useful when attempting to diagnose why a 
-shard is unassigned or why a shard continues to remain on its current node when 
+another node. This API can be very useful when attempting to diagnose why a
+shard is unassigned or why a shard continues to remain on its current node when
 you might expect otherwise.
 
 
@@ -35,11 +35,11 @@ you might expect otherwise.
 ==== {api-query-parms-title}
 
 `include_disk_info`::
-    (Optional, Boolean) If `true`, returns information about disk usage and 
+    (Optional, Boolean) If `true`, returns information about disk usage and
     shard sizes. Defaults to `false`.
-    
+
 `include_yes_decisions`::
-    (Optional, Boolean) If `true`, returns 'YES' decisions in explanation. 
+    (Optional, Boolean) If `true`, returns 'YES' decisions in explanation.
     Defaults to `false`.
 
 
@@ -47,22 +47,22 @@ you might expect otherwise.
 ==== {api-request-body-title}
 
 `current_node`::
-    (Optional, string) Specifies the node ID or the name of the node to only 
+    (Optional, string) Specifies the node ID or the name of the node to only
     explain a shard that is currently located on the specified node.
 
 `index`::
-    (Optional, string) Specifies the name of the index that you would like an 
+    (Optional, string) Specifies the name of the index that you would like an
     explanation for.
 
 `primary`::
-    (Optional, Boolean) If `true`, returns explanation for the primary shard 
+    (Optional, Boolean) If `true`, returns explanation for the primary shard
     for the given shard ID.
 
 `shard`::
-    (Optional, integer) Specifies the ID of the shard that you would like an 
+    (Optional, integer) Specifies the ID of the shard that you would like an
     explanation for.
 
-You can also have {es} explain the allocation of the first unassigned shard that 
+You can also have {es} explain the allocation of the first unassigned shard that
 it finds by sending an empty body for the request.
 
 
@@ -72,9 +72,9 @@ it finds by sending an empty body for the request.
 
 //////
 [source,console]
---------------------------------------------------	
-PUT /my-index-000001	
---------------------------------------------------	
+--------------------------------------------------
+PUT /my-index-000001
+--------------------------------------------------
 // TESTSETUP
 //////
 
@@ -110,20 +110,15 @@ GET /_cluster/allocation/explain
 
 //////
 [source,console]
---------------------------------------------------	
+--------------------------------------------------
 DELETE my-index-000001
---------------------------------------------------	
+--------------------------------------------------
 //////
 
 [source,console]
 --------------------------------------------------
 PUT /my-index-000001?master_timeout=1s&timeout=1s
-{
-  "settings": {
-    "index.routing.allocation.include._name": "non_existent_node",
-    "index.routing.allocation.include._tier_preference": null
-  }
-}
+{"settings": {"index.routing.allocation.include._name": "non_existent_node"} }
 
 GET /_cluster/allocation/explain
 {
@@ -208,7 +203,7 @@ allocated to a node in the cluster:
 
 ===== Example of an unassigned replica shard explanation
 
-The API response output for a replica that is unassigned due to delayed 
+The API response output for a replica that is unassigned due to delayed
 allocation:
 
 [source,js]
@@ -265,7 +260,7 @@ allocation:
 
 ===== Examples of allocated shard explanations
 
-The API response output for an assigned shard that is not allowed to remain on 
+The API response output for an assigned shard that is not allowed to remain on
 its current node and is required to move:
 
 [source,js]
