@@ -10,36 +10,10 @@ See <<get-info-about-a-data-stream>>.
 ////
 [source,console]
 ----
-PUT /_ilm/policy/my-lifecycle-policy
-{
-  "policy": {
-    "phases": {
-      "hot": {
-        "actions": {
-          "rollover": {
-            "max_size": "25GB"
-          }
-        }
-      },
-      "delete": {
-        "min_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
-
 PUT /_index_template/my-index-template
 {
   "index_patterns": [ "my-data-stream*" ],
-  "data_stream": {},
-  "template": {
-    "settings": {
-      "index.lifecycle.name": "my-lifecycle-policy"
-    }
-  }
+  "data_stream": {}
 }
 
 PUT /_data_stream/my-data-stream
@@ -56,7 +30,6 @@ PUT /_data_stream/my-data-stream_two
 ----
 DELETE /_data_stream/*
 DELETE /_index_template/*
-DELETE /_ilm/policy/my-lifecycle-policy
 ----
 // TEARDOWN
 ////
@@ -214,8 +187,7 @@ The API returns the following response:
       ],
       "generation": 2,
       "status": "GREEN",
-      "template": "my-index-template",
-      "ilm_policy": "my-lifecycle-policy"
+      "template": "my-index-template"
     },
     {
       "name": "my-data-stream_two",
@@ -230,8 +202,7 @@ The API returns the following response:
       ],
       "generation": 1,
       "status": "YELLOW",
-      "template": "my-index-template",
-      "ilm_policy": "my-lifecycle-policy"
+      "template": "my-index-template"
     }
   ]
 }

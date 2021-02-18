@@ -27,27 +27,6 @@ mappings and change <<index-modules-settings,dynamic index settings>>. See
 ////
 [source,console]
 ----
-PUT /_ilm/policy/my-data-stream-policy
-{
-  "policy": {
-    "phases": {
-      "hot": {
-        "actions": {
-          "rollover": {
-            "max_size": "25GB"
-          }
-        }
-      },
-      "delete": {
-        "min_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
-
 PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
@@ -73,8 +52,6 @@ PUT /_data_stream/new-data-stream
 DELETE /_data_stream/*
 
 DELETE /_index_template/*
-
-DELETE /_ilm/policy/my-data-stream-policy
 ----
 // TEARDOWN
 ////
@@ -503,26 +480,6 @@ indexing of new documents. While mixing old and new data is safe, it could
 interfere with data retention. See <<data-stream-mix-new-old-data,Mixing new and
 old data in a data stream>>.
 
-. If you use {ilm-init} to <<getting-started-index-lifecycle-management,automate
-rollover>>, reduce the {ilm-init} poll interval. This ensures the current write
-index doesn’t grow too large while waiting for the rollover check. By default,
-{ilm-init} checks rollover conditions every 10 minutes.
-+
---
-The following <<cluster-update-settings,update cluster settings API>> request
-lowers the `indices.lifecycle.poll_interval` setting to `1m` (one minute).
-
-[source,console]
-----
-PUT /_cluster/settings
-{
-  "transient": {
-    "indices.lifecycle.poll_interval": "1m"
-  }
-}
-----
---
-
 . Reindex your data to the new data stream using an `op_type` of `create`.
 +
 If you want to partition the data in the order in which it was originally
@@ -630,25 +587,6 @@ POST /_reindex
   "dest": {
     "index": "new-data-stream",
     "op_type": "create"
-  }
-}
-----
---
-
-. If you previously changed your {ilm-init} poll interval, change it back to its
-original value when reindexing is complete. This prevents unnecessary load on
-the master node.
-+
---
-The following update cluster settings API request resets the
-`indices.lifecycle.poll_interval` setting to its default value, 10 minutes.
-
-[source,console]
-----
-PUT /_cluster/settings
-{
-  "transient": {
-    "indices.lifecycle.poll_interval": null
   }
 }
 ----

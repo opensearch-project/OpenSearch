@@ -3,54 +3,9 @@
 
 To set up a data stream, follow these steps:
 
-. <<configure-a-data-stream-ilm-policy>>.
 . <<create-a-data-stream-template>>.
 . <<create-a-data-stream>>.
 . <<secure-a-data-stream>>.
-
-[discrete]
-[[configure-a-data-stream-ilm-policy]]
-=== Optional: Configure an {ilm-init} lifecycle policy
-
-While optional, we recommend you configure an <<set-up-lifecycle-policy,{ilm}
-({ilm-init}) policy>> to automate the management of your data stream's backing
-indices.
-
-In {kib}, open the menu and go to *Stack Management > Index Lifecycle Policies*.
-Click *Index Lifecycle Policies*.
-
-[role="screenshot"]
-image::images/ilm/create-policy.png[Index Lifecycle Policies page]
-
-[%collapsible]
-.API example
-====
-Use the <<ilm-put-lifecycle,create lifecycle policy API>> to configure a policy:
-
-[source,console]
-----
-PUT /_ilm/policy/my-data-stream-policy
-{
-  "policy": {
-    "phases": {
-      "hot": {
-        "actions": {
-          "rollover": {
-            "max_size": "25GB"
-          }
-        }
-      },
-      "delete": {
-        "min_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
-----
-====
 
 [discrete]
 [[create-a-data-stream-template]]
@@ -110,15 +65,9 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
-  "priority": 200,
-  "template": {
-    "settings": {
-      "index.lifecycle.name": "my-data-stream-policy"
-    }
-  }
+  "priority": 200
 }
 ----
-// TEST[continued]
 ====
 
 [discrete]
@@ -220,7 +169,6 @@ DELETE /_data_stream/my-data-stream
 ----
 DELETE /_data_stream/*
 DELETE /_index_template/*
-DELETE /_ilm/policy/my-data-stream-policy
 ----
 // TEST[continued]
 ////
