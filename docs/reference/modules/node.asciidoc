@@ -18,10 +18,6 @@ By default, a node is all of the following types: master-eligible, data, ingest,
 and (if available) machine learning. All data nodes are also transform nodes.
 // end::modules-node-description-tag[]
 
-TIP: As the cluster grows and in particular if you have large {ml} jobs or
-{ctransforms}, consider separating dedicated master-eligible nodes from
-dedicated data nodes, {ml} nodes, and {transform} nodes.
-
 [[node-roles]]
 ==== Node roles
 
@@ -30,12 +26,7 @@ configure this setting, then the node has the following roles by default:
 
 * `master`
 * `data`
-* `data_content`
-* `data_hot`
-* `data_warm`
-* `data_cold`
 * `ingest`
-* `ml`
 * `remote_cluster_client`
 
 NOTE: If you set `node.roles`, the node is assigned only the roles you specify.
@@ -63,22 +54,6 @@ the `master` or `data` roles.
 A node that has the `remote_cluster_client` role (default), which makes it
 eligible to act as a remote client. By default, any node in the cluster can act
 as a cross-cluster client and connect to remote clusters.
-
-<<ml-node,Machine learning node>>::
-
-A node that has `xpack.ml.enabled` and the `ml` role, which is the default
-behavior in the {es} {default-dist}. If you want to use {ml-features}, there
-must be at least one {ml} node in your cluster. For more information about
-{ml-features}, see {ml-docs}/index.html[Machine learning in the {stack}].
-+
-IMPORTANT: If you use the {oss-dist}, do not add the `ml` role. Otherwise, the
-node fails to start.
-
-<<transform-node,{transform-cap} node>>::
-
-A node that has the `transform` role. If you want to use {transforms}, there
-be at least one {transform} node in your cluster. For more information, see
-<<transform-settings>> and <<transforms>>.
 
 [NOTE]
 [[coordinating-node]]
@@ -210,58 +185,6 @@ To create a dedicated data node, set:
 node.roles: [ data ]
 ----
 
-In a multi-tier deployment architecture, you use specialised data roles to assign data nodes to specific tiers: `data_content`,`data_hot`,
-`data_warm`, or `data_cold`. A node can belong to multiple tiers, but a node that has one of the specialised data roles cannot have the
-generic `data` role.
-
-[[data-content-node]]
-==== [x-pack]#Content data node#
-
-Content data nodes accommodate user-created content. They enable operations like CRUD,
-search and aggregations.
-
-To create a dedicated content node, set:
-[source,yaml]
-----
-node.roles: [ data_content ]
-----
-
-[[data-hot-node]]
-==== [x-pack]#Hot data node#
-
-Hot data nodes store time series data as it enters {es}. The hot tier must be fast for
-both reads and writes, and requires more hardware resources (such as SSD drives).
-
-To create a dedicated hot node, set:
-[source,yaml]
-----
-node.roles: [ data_hot ]
-----
-
-[[data-warm-node]]
-==== [x-pack]#Warm data node#
-
-Warm data nodes store indices that are no longer being regularly updated, but are still being
-queried. Query volume is usually at a lower frequency than it was while the index was in the hot tier.
-Less performant hardware can usually be used for nodes in this tier.
-
-To create a dedicated warm node, set:
-[source,yaml]
-----
-node.roles: [ data_warm ]
-----
-
-[[data-cold-node]]
-==== [x-pack]#Cold data node#
-
-Cold data nodes store read-only indices that are accessed less frequently. This tier uses less performant hardware and may leverage searchable snapshot indices to minimize the resources required.
-
-To create a dedicated cold node, set:
-[source,yaml]
-----
-node.roles: [ data_cold ]
-----
-
 [[node-ingest-node]]
 ==== Ingest node
 
@@ -309,49 +232,11 @@ node.roles: [ ]
 
 By default, any node in a cluster can act as a cross-cluster client and connect
 to <<modules-remote-clusters,remote clusters>>. Once connected, you can search
-remote clusters using <<modules-cross-cluster-search,{ccs}>>. You can also sync
-data between clusters using <<xpack-ccr,{ccr}>>.
+remote clusters using <<modules-cross-cluster-search,{ccs}>>.
 
 [source,yaml]
 ----
 node.roles: [ remote_cluster_client ]
-----
-
-[[ml-node]]
-==== [xpack]#Machine learning node#
-
-The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
-requests. If `xpack.ml.enabled` is set to `true` and the node does not have the
-`ml` role, the node can service API requests but it cannot run jobs.
-
-If you want to use {ml-features} in your cluster, you must enable {ml}
-(set `xpack.ml.enabled` to `true`) on all master-eligible nodes. If you want to
-use {ml-features} in clients (including {kib}), it must also be enabled on all
-coordinating nodes. If you have the {oss-dist}, do not use these settings.
-
-For more information about these settings, see <<ml-settings>>.
-
-To create a dedicated {ml} node in the {default-dist}, set:
-
-[source,yaml]
-----
-node.roles: [ ml ]
-xpack.ml.enabled: true <1>
-----
-<1> The `xpack.ml.enabled` setting is enabled by default.
-
-[[transform-node]]
-==== [xpack]#{transform-cap} node#
-
-{transform-cap} nodes run {transforms} and handle {transform} API requests. If
-you have the {oss-dist}, do not use these settings. For more information, see
-<<transform-settings>>.
-
-To create a dedicated {transform} node in the {default-dist}, set:
-
-[source,yaml]
-----
-node.roles: [ transform ]
 ----
 
 [[change-node-role]]
