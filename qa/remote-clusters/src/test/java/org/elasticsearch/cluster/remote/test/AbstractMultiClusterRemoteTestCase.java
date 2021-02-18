@@ -24,11 +24,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
@@ -37,18 +34,11 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.CharBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 
 public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase {
-
-    private static final String USER = "x_pack_rest_user";
-    private static final String PASS = "x-pack-test-password";
-    private static final String KEYSTORE_PASS = "testnode";
 
     @Override
     protected boolean preserveClusterUponCompletion() {
@@ -62,7 +52,7 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
 
     @Override
     protected String getTestRestCluster() {
-        return "localhost:" + getProperty("test.fixtures.elasticsearch-" + getDistribution() + "-1.tcp.9200");
+        return "localhost:" + getProperty("test.fixtures.elasticsearch-oss-1.tcp.9200");
     }
 
     @Before
@@ -71,8 +61,8 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
             return;
         }
 
-        cluster1Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-" + getDistribution() + "-1.tcp.9200"));
-        cluster2Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-" + getDistribution() + "-2.tcp.9200"));
+        cluster1Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-oss-1.tcp.9200"));
+        cluster2Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-oss-2.tcp.9200"));
 
         cluster1Client().cluster().health(new ClusterHealthRequest().waitForNodes("1").waitForYellowStatus(), RequestOptions.DEFAULT);
         cluster2Client().cluster().health(new ClusterHealthRequest().waitForNodes("1").waitForYellowStatus(), RequestOptions.DEFAULT);
@@ -80,13 +70,6 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         initialized = true;
     }
 
-    protected String getDistribution() {
-        String distribution = System.getProperty("tests.distribution", "default");
-        if (distribution.equals("oss") == false && distribution.equals("default") == false) {
-            throw new IllegalArgumentException("supported values for tests.distribution are oss or default but it was " + distribution);
-        }
-        return distribution;
-    }
 
     @AfterClass
     public static void destroyClients() throws IOException {
@@ -119,10 +102,6 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         return new HighLevelClient(buildClient(restAdminSettings(), new HttpHost[]{httpHost}));
     }
 
-    protected boolean isOss() {
-        return getDistribution().equals("oss");
-    }
-
     static Path keyStore;
 
     @BeforeClass
@@ -144,41 +123,12 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
 
     @Override
     protected Settings restClientSettings() {
-        if (isOss()) {
-            return super.restClientSettings();
-        }
-        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .put(ESRestTestCase.TRUSTSTORE_PATH, keyStore)
-            .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
-            .build();
+        return super.restClientSettings();
     }
 
     @Override
     protected String getProtocol() {
-        if (isOss()) {
-            return "http";
-        }
-        return "https";
-    }
-
-    private static String basicAuthHeaderValue(String username, SecureString passwd) {
-        CharBuffer chars = CharBuffer.allocate(username.length() + passwd.length() + 1);
-        byte[] charBytes = null;
-        try {
-            chars.put(username).put(':').put(passwd.getChars());
-            charBytes = CharArrays.toUtf8Bytes(chars.array());
-
-            //TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
-            String basicToken = Base64.getEncoder().encodeToString(charBytes);
-            return "Basic " + basicToken;
-        } finally {
-            Arrays.fill(chars.array(), (char) 0);
-            if (charBytes != null) {
-                Arrays.fill(charBytes, (byte) 0);
-            }
-        }
+        return "http";
     }
 
     private String getProperty(String key) {

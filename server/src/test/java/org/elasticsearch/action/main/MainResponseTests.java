@@ -44,7 +44,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         final String date = new Date(randomNonNegativeLong()).toString();
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_1, Version.CURRENT);
         Build build = new Build(
-            Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
+            Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
             version.toString()
         );
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build);
@@ -64,7 +64,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Build current = Build.CURRENT;
         Build build = new Build(
-            current.flavor(), current.type(), current.hash(), current.date(), current.isSnapshot(),
+            current.type(), current.hash(), current.date(), current.isSnapshot(),
             current.getQualifiedVersion()
         );
         Version version = Version.CURRENT;
@@ -77,7 +77,6 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                 + "\"cluster_uuid\":\"" + clusterUUID + "\","
                 + "\"version\":{"
                     + "\"number\":\"" + build.getQualifiedVersion() + "\","
-                    + "\"build_flavor\":\"" + current.flavor().displayName() + "\","
                     + "\"build_type\":\"" + current.type().displayName() + "\","
                     + "\"build_hash\":\"" + current.hash() + "\","
                     + "\"build_date\":\"" + current.date() + "\","
@@ -106,7 +105,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
             case 2:
                 // toggle the snapshot flag of the original Build parameter
                 build = new Build(
-                    Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, build.hash(), build.date(), !build.isSnapshot(),
+                    Build.Type.UNKNOWN, build.hash(), build.date(), !build.isSnapshot(),
                     build.getQualifiedVersion()
                 );
                 break;

@@ -334,7 +334,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = { oss ->
+    libFiles = {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
@@ -344,15 +344,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/keystore-cli') {
           from(configurations.libsKeystoreCli)
         }
-        if (oss == false) {
-          into('tools/security-cli') {
-            from(configurations.libsSecurityCli)
-          }
-        }
       }
     }
 
-    modulesFiles = { oss, platform ->
+    modulesFiles = { platform ->
       copySpec {
         eachFile {
           if (it.relativePath.segments[-2] == 'bin' || (platform == 'darwin-x86_64' && it.relativePath.segments[-2] == 'MacOS')) {
@@ -363,12 +358,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.mode = 0644
           }
         }
-        def buildModules
-        if (oss) {
-          buildModules = buildOssModulesTaskProvider
-        } else {
-          buildModules = buildDefaultModulesTaskProvider
-        }
+        def buildModules = buildOssModulesTaskProvider
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64']
         if (platform != null) {
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
@@ -393,25 +383,20 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       from buildTransportModulesTaskProvider
     }
 
-    configFiles = { distributionType, oss, jdk ->
+    configFiles = { distributionType, jdk ->
       copySpec {
         with copySpec {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, jdk))
         }
-        if (oss) {
-          from project(':distribution').buildOssLog4jConfig
-          from project(':distribution').buildOssConfig
-        } else {
-          from project(':distribution').buildDefaultLog4jConfig
-          from project(':distribution').buildDefaultConfig
-        }
+        from project(':distribution').buildOssLog4jConfig
+        from project(':distribution').buildOssConfig
       }
     }
 
-    binFiles = { distributionType, oss, jdk ->
+    binFiles = { distributionType, jdk ->
       copySpec {
         // non-windows files, for all distributions
         with copySpec {
@@ -419,7 +404,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, jdk))
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -427,7 +412,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, jdk))
           }
           with copySpec {
             from '../src/bin'
@@ -437,11 +422,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          if (oss) {
-            from project(':distribution').buildOssBin
-          } else {
-            from project(':distribution').buildDefaultBin
-          }
+          from project(':distribution').buildOssBin
           if (distributionType != 'zip') {
             exclude '*.bat'
           }
@@ -449,19 +430,15 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    noticeFile = { oss, jdk ->
+    noticeFile = { jdk ->
       copySpec {
         if (project.name == 'integ-test-zip') {
           from buildServerNoticeTaskProvider
         } else {
-          if (oss && jdk) {
+          if (jdk) {
             from buildOssNoticeTaskProvider
-          } else if (oss) {
-            from buildOssNoJdkNoticeTaskProvider
-          } else if (jdk) {
-            from buildDefaultNoticeTaskProvider
           } else {
-            from buildDefaultNoJdkNoticeTaskProvider
+            from buildOssNoJdkNoticeTaskProvider
           }
         }
       }
@@ -522,7 +499,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  * </dl>
  */
 subprojects {
-  ext.expansionsForDistribution = { distributionType, oss, jdk ->
+  ext.expansionsForDistribution = { distributionType, jdk ->
     final String defaultHeapSize = "1g"
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
@@ -597,11 +574,6 @@ subprojects {
         'deb': "exit 0\n${footer}",
         'def': footer
       ],
-
-      'es.distribution.flavor': [
-        'def': oss ? 'oss' : 'default'
-      ],
-
 
       'es.distribution.type': [
         'deb': 'deb',

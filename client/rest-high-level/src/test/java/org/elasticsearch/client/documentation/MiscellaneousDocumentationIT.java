@@ -46,7 +46,6 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             String nodeName = response.getNodeName();
             MainResponse.Version version = response.getVersion();
             String buildDate = version.getBuildDate();
-            String buildFlavor = version.getBuildFlavor();
             String buildHash = version.getBuildHash();
             String buildType = version.getBuildType();
             String luceneVersion = version.getLuceneVersion();
@@ -59,7 +58,6 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             assertNotNull(nodeName);
             assertNotNull(version);
             assertNotNull(buildDate);
-            assertNotNull(buildFlavor);
             assertNotNull(buildHash);
             assertNotNull(buildType);
             assertNotNull(luceneVersion);
