@@ -160,25 +160,21 @@ public class BuildTests extends ESTestCase {
             // Note: the cast of the Copy- and MutateFunction is needed for some IDE (specifically Eclipse 4.10.0) to infer the right type
             (WriteableBuild b) -> copyWriteable(b, writableRegistry(), WriteableBuild::new, Version.CURRENT),
             (WriteableBuild b) -> {
-                switch (randomIntBetween(1, 6)) {
+                switch (randomIntBetween(1, 5)) {
                     case 1:
-                        return new WriteableBuild(new Build(
-                            b.build.type(),
-                            b.build.hash(), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion()));
-                    case 2:
                         return new WriteableBuild(new Build(
                             randomValueOtherThan(b.build.type(), () -> randomFrom(Build.Type.values())),
                             b.build.hash(), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion()));
-                    case 3:
+                    case 2:
                         return new WriteableBuild(new Build(b.build.type(),
                             randomStringExcept(b.build.hash()), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion()));
-                    case 4:
+                    case 3:
                         return new WriteableBuild(new Build(b.build.type(),
                             b.build.hash(), randomStringExcept(b.build.date()), b.build.isSnapshot(), b.build.getQualifiedVersion()));
-                    case 5:
+                    case 4:
                         return new WriteableBuild(new Build(b.build.type(),
                             b.build.hash(), b.build.date(), b.build.isSnapshot() == false, b.build.getQualifiedVersion()));
-                    case 6:
+                    case 5:
                         return new WriteableBuild(new Build(b.build.type(),
                             b.build.hash(), b.build.date(), b.build.isSnapshot(), randomStringExcept(b.build.getQualifiedVersion())));
                 }

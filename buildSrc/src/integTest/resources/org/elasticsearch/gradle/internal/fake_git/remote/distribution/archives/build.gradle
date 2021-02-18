@@ -23,7 +23,7 @@ subprojects {
     tasks.register('tar', Tar) {
         from('.')
         destinationDirectory.set(file('build/distributions'))
-        archiveBaseName.set("elasticsearch${project.name.startsWith('oss')?'-oss':''}")
+        archiveBaseName.set("elasticsearch-oss")
         archiveVersion.set("8.0.1-SNAPSHOT")
         archiveClassifier.set("darwin-x86_64")
         archiveExtension.set('tar.gz')

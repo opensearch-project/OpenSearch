@@ -57,56 +57,56 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         result.output.contains("[8.0.1] > Task :distribution:archives:oss-darwin-tar:assemble")
     }
 
-//    def "bwc distribution archives can be resolved as bwc project artifact"() {
-//        setup:
-//        new File(testProjectDir.root, 'remote/build.gradle') << """
-//        
-//        configurations {
-//            dists
-//        }
-//        
-//        dependencies {
-//            dists project(path: ":distribution:bwc:bugfix", configuration:"oss-darwin-tar")
-//        }
-//        
-//        tasks.register("resolveDistributionArchive") {
-//            inputs.files(configurations.dists)
-//            doLast {
-//                configurations.dists.files.each {
-//                    println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
-//                }
-//            }
-//        }
-//        """
-//        when:
-//        def result = gradleRunner(new File(testProjectDir.root, "remote"),
-//                ":resolveDistributionArchive",
-//                "-DtestRemoteRepo=" + remoteGitRepo,
-//                "-Dbwc.remote=origin")
-//                .build()
-//        then:
-//        result.task(":resolveDistributionArchive").outcome == TaskOutcome.SUCCESS
-//        result.task(":distribution:bwc:bugfix:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
-//
-//        and: "assemble task triggered"
-//        result.output.contains("[8.0.1] > Task :distribution:archives:oss-darwin-tar:assemble")
-//        normalizedOutput(result.output)
-//                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/distribution/archives/oss-darwin-tar/" +
-//                        "build/distributions/elasticsearch-8.0.1-SNAPSHOT-oss-darwin-x86_64.tar.gz")
-//    }
+    def "bwc distribution archives can be resolved as bwc project artifact"() {
+        setup:
+        new File(testProjectDir.root, 'remote/build.gradle') << """
+
+        configurations {
+            dists
+        }
+
+        dependencies {
+            dists project(path: ":distribution:bwc:bugfix", configuration:"oss-darwin-tar")
+        }
+
+        tasks.register("resolveDistributionArchive") {
+            inputs.files(configurations.dists)
+            doLast {
+                configurations.dists.files.each {
+                    println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
+                }
+            }
+        }
+        """
+        when:
+        def result = gradleRunner(new File(testProjectDir.root, "remote"),
+                ":resolveDistributionArchive",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin")
+                .build()
+        then:
+        result.task(":resolveDistributionArchive").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:bugfix:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
+
+        and: "assemble task triggered"
+        result.output.contains("[8.0.1] > Task :distribution:archives:oss-darwin-tar:assemble")
+        normalizedOutput(result.output)
+                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/distribution/archives/oss-darwin-tar/" +
+                        "build/distributions/elasticsearch-oss-8.0.1-SNAPSHOT-darwin-x86_64.tar.gz")
+    }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
         setup:
         new File(testProjectDir.root, 'remote/build.gradle') << """
-        
+
         configurations {
             expandedDist
         }
-        
+
         dependencies {
             expandedDist project(path: ":distribution:bwc:bugfix", configuration:"expanded-oss-darwin-tar")
         }
-        
+
         tasks.register("resolveExpandedDistribution") {
             inputs.files(configurations.expandedDist)
             doLast {

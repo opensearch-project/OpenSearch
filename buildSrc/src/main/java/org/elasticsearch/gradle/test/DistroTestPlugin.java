@@ -109,7 +109,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             depsTask.configure(t -> t.dependsOn(distribution, examplePlugin));
             depsTasks.put(taskname, depsTask);
-            //TODO - suppressing failure temporarily where duplicate tasks are created for docker.
+            // TODO - suppressing failure temporarily where duplicate tasks are created for docker.
             try {
                 TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                     t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);

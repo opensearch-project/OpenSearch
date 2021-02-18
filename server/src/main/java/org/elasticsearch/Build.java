@@ -182,7 +182,13 @@ public class Build {
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
+        final String flavor;
         final Type type;
+        // The following block is kept for existing BWS tests to pass.
+        // TODO - clean up this code when we remove all v6 bwc tests.
+        if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.getVersion().onOrBefore(Version.V_7_0_0)) {
+            flavor = in.readString();
+        }
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
             type = Type.fromDisplayName(in.readString(), false);
@@ -203,6 +209,11 @@ public class Build {
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
+        // The following block is kept for existing BWS tests to pass.
+        // TODO - clean up this code when we remove all v6 bwc tests.
+        if (out.getVersion().onOrAfter(Version.V_6_3_0) && out.getVersion().onOrBefore(Version.V_7_0_0)) {
+            out.writeString("oss");
+        }
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             final Type buildType;
             if (out.getVersion().before(Version.V_6_7_0) && build.type() == Type.DOCKER) {
