@@ -20,10 +20,6 @@
 ################################################################################
 
 FROM ${base_image} AS builder
-<% if (docker_base == 'ubi') { %>
-# Install required packages to extract the Elasticsearch distribution
-RUN ${package_manager} install -y tar gzip
-<% } %>
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
 #
@@ -70,7 +66,7 @@ ENV ELASTIC_CONTAINER true
 RUN for iter in {1..10}; do \\
       ${package_manager} update --setopt=tsflags=nodocs -y && \\
       ${package_manager} install --setopt=tsflags=nodocs -y \\
-        nc shadow-utils zip unzip <%= docker_base == 'ubi' ? 'findutils procps-ng' : '' %> && \\
+        nc shadow-utils zip unzip && \\
       ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
       sleep 10; \\
     done; \\
@@ -124,18 +120,6 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
-<% if (docker_base == 'ubi') { %>
-LABEL name="Elasticsearch" \\
-  maintainer="infra@elastic.co" \\
-  vendor="Elastic" \\
-  version="${version}" \\
-  release="1" \\
-  summary="Elasticsearch" \\
-  description="You know, for search."
-
-RUN mkdir /licenses && \\
-    cp LICENSE.txt /licenses/LICENSE
-<% } %>
 
 ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint
