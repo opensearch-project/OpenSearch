@@ -261,5 +261,3 @@ include::cat/tasks.asciidoc[]
 include::cat/templates.asciidoc[]
 
 include::cat/thread_pool.asciidoc[]
-
-include::cat/transforms.asciidoc[]
