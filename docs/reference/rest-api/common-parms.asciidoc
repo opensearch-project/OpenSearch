@@ -158,10 +158,10 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}. The mappings of the destination 
-index are deduced based on the source fields when possible. If alternate 
-mappings are required, use the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+The _destination index_ for the {transform}. The mappings of the destination
+index are deduced based on the source fields when possible. If alternate
+mappings are required, use the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
 prior to starting the {transform}.
 end::dest-index[]
 
@@ -678,7 +678,7 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are 
+Defines how to aggregate the grouped data. The following aggregations are
 currently supported:
 +
 --
@@ -703,7 +703,7 @@ currently supported:
 end::pivot-aggs[]
 
 tag::pivot-group-by[]
-Defines how to group the data. More than one grouping can be defined per pivot. 
+Defines how to group the data. More than one grouping can be defined per pivot.
 The following groupings are currently supported:
 +
 --
@@ -1052,13 +1052,6 @@ Identifier for the {transform}. It can be a {transform} identifier or a wildcard
 expression. If you do not specify one of these options, the API returns
 information for all {transforms}.
 end::transform-id-wildcard[]
-
-tag::trigger-count[]
-The number of times the {transform} has been triggered by the scheduler. For
-example, the scheduler triggers the {transform} indexer to check for updates
-or ingest new data at an interval specified in the
-<<put-transform-request-body,`frequency` property>>.
-end::trigger-count[]
 
 tag::cat-v[]
 `v`::
