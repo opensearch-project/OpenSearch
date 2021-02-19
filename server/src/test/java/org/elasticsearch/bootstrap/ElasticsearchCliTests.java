@@ -65,8 +65,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
             assertThat(output, containsString("Version: " + Build.CURRENT.getQualifiedVersion()));
             final String expectedBuildOutput = String.format(
                     Locale.ROOT,
-                    "Build: %s/%s/%s/%s",
-                    Build.CURRENT.flavor().displayName(),
+                    "Build: %s/%s/%s",
                     Build.CURRENT.type().displayName(),
                     Build.CURRENT.hash(),
                     Build.CURRENT.date());
