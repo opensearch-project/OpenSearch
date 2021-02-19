@@ -49,9 +49,6 @@ ifeval::["{release-state}"!="unreleased"]
 endif::[]
 
 :javadoc-client: {rest-high-level-client-javadoc}/org/elasticsearch/client
-:javadoc-xpack: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack
-:javadoc-license: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/license
-:javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
 
 ///////
 Permanently unreleased branches (master, n.X)
