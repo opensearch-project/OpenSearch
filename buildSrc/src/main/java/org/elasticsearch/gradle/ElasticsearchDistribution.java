@@ -50,9 +50,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         ARCHIVE,
         RPM,
         DEB,
-        DOCKER,
-        // This is a different flavour of Docker image
-        DOCKER_UBI;
+        DOCKER;
 
         @Override
         public String toString() {
@@ -63,7 +61,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             switch (this) {
                 case DEB:
                 case DOCKER:
-                case DOCKER_UBI:
                 case RPM:
                     return false;
 
@@ -148,7 +145,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     public boolean isDocker() {
         final Type type = this.type.get();
-        return type == Type.DOCKER || type == Type.DOCKER_UBI;
+        return type == Type.DOCKER;
     }
 
     public void setBundledJdk(Boolean bundledJdk) {
@@ -184,7 +181,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         switch (getType()) {
             case DEB:
             case DOCKER:
-            case DOCKER_UBI:
             case RPM:
                 throw new UnsupportedOperationException(
                     "distribution type [" + getType() + "] for " + "elasticsearch distribution [" + name + "] cannot be extracted"
@@ -250,9 +246,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                     throw new IllegalArgumentException(
                         "bundledJdk cannot be set on elasticsearch distribution [" + name + "] of type " + "[docker]"
                     );
-                }
-                if (type.get() == Type.DOCKER_UBI) {
-                    throw new IllegalArgumentException("Cannot build a UBI docker image for the OSS distribution");
                 }
             }
         }

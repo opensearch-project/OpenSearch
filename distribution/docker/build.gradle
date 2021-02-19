@@ -61,7 +61,7 @@ RUN curl --retry 8 -S -L \\
     'build_date'          : BuildParams.buildDate,
     'git_revision'        : BuildParams.gitRevision,
     'license'             : 'Apache-2.0',
-    'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
+    'package_manager'     : 'yum',
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch
@@ -72,7 +72,6 @@ private static String buildPath(Architecture architecture, DockerBase base) {
   return 'build/' +
     (architecture == Architecture.AARCH64 ? 'aarch64-' : '') +
     'oss-' +
-    (base == DockerBase.UBI ? 'ubi-' : '') +
     'docker'
 }
 
@@ -80,7 +79,6 @@ private static String taskName(String prefix, Architecture architecture, DockerB
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
     'Oss' +
-    (base == DockerBase.UBI ? 'Ubi' : '') +
     suffix
 }
 
@@ -221,11 +219,11 @@ subprojects { Project subProject ->
     apply plugin: 'distribution'
 
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
-    final DockerBase base = subProject.name.contains('ubi-') ? DockerBase.UBI : DockerBase.CENTOS
+    final DockerBase base = DockerBase.CENTOS
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     final String suffix = '-oss'
-    final String extension = base == DockerBase.UBI ? 'ubi.tar' : 'docker.tar'
+    final String extension = 'docker.tar'
     final String artifactName = "elasticsearch${arch}${suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, "DockerImage")

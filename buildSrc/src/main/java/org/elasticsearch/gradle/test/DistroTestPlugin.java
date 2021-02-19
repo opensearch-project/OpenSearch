@@ -208,8 +208,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         // auto-detection doesn't work.
                         //
                         // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
-                        boolean shouldExecute = (type != Type.DOCKER && type != Type.DOCKER_UBI)
-                            || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
+                        boolean shouldExecute = (type != Type.DOCKER) || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
 
                         if (shouldExecute) {
                             distroTest.configure(t -> t.dependsOn(wrapperTask));
@@ -236,7 +235,6 @@ public class DistroTestPlugin implements Plugin<Project> {
         Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks = new HashMap<>();
 
         lifecyleTasks.put(Type.DOCKER, project.getTasks().register(taskPrefix + ".docker"));
-        lifecyleTasks.put(Type.DOCKER_UBI, project.getTasks().register(taskPrefix + ".ubi"));
         lifecyleTasks.put(Type.ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
         lifecyleTasks.put(Type.DEB, project.getTasks().register(taskPrefix + ".packages"));
         lifecyleTasks.put(Type.RPM, lifecyleTasks.get(Type.DEB));
@@ -365,7 +363,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            for (Type type : Arrays.asList(Type.DEB, Type.RPM, Type.DOCKER, Type.DOCKER_UBI)) {
+            for (Type type : Arrays.asList(Type.DEB, Type.RPM, Type.DOCKER)) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     if (bundledJdk == false) {
                         // We'll never publish an ARM (aarch64) build without a bundled JDK.
@@ -373,14 +371,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                             continue;
                         }
                         // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
-                        if (type == Type.DOCKER || type == Type.DOCKER_UBI) {
+                        if (type == Type.DOCKER) {
                             continue;
                         }
-                    }
-
-                    // We don't publish the OSS distribution on UBI
-                    if (type == Type.DOCKER_UBI) {
-                        continue;
                     }
 
                     currentDistros.add(
@@ -418,7 +411,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         String version
     ) {
         String name = distroId(type, platform, bundledJdk, architecture) + "-" + version;
-        boolean isDocker = type == Type.DOCKER || type == Type.DOCKER_UBI;
+        boolean isDocker = type == Type.DOCKER;
         ElasticsearchDistribution distro = distributions.create(name, d -> {
             d.setArchitecture(architecture);
             d.setType(type);
