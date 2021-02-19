@@ -20,10 +20,6 @@
 ################################################################################
 
 FROM ${base_image} AS builder
-<% if (docker_base == 'ubi') { %>
-# Install required packages to extract the Elasticsearch distribution
-RUN ${package_manager} install -y tar gzip
-<% } %>
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
 #
@@ -70,7 +66,7 @@ ENV ELASTIC_CONTAINER true
 RUN for iter in {1..10}; do \\
       ${package_manager} update --setopt=tsflags=nodocs -y && \\
       ${package_manager} install --setopt=tsflags=nodocs -y \\
-        nc shadow-utils zip unzip <%= docker_base == 'ubi' ? 'findutils procps-ng' : '' %> && \\
+        nc shadow-utils zip unzip && \\
       ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
       sleep 10; \\
     done; \\

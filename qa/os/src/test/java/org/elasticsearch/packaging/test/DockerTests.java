@@ -491,46 +491,4 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Failed to find [cpu] in node OS cgroup stats", cgroupStats.get("cpu"), not(nullValue()));
         assertThat("Failed to find [cpuacct] in node OS cgroup stats", cgroupStats.get("cpuacct"), not(nullValue()));
     }
-
-    /**
-     * Check that the UBI images has the correct license information in the correct place.
-     */
-    public void test200UbiImagesHaveLicenseDirectory() {
-        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
-
-        final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
-        assertThat(files, arrayContaining("/licenses/LICENSE"));
-
-        // UBI image doesn't contain `diff`
-        final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout;
-        final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout;
-        assertThat(ubiLicense, equalTo(distroLicense));
-    }
-
-    /**
-     * Check that the UBI image has the expected labels
-     */
-    public void test210UbiLabels() throws Exception {
-        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
-
-        final Map<String, String> labels = getImageLabels(distribution);
-
-        final Map<String, String> staticLabels = new HashMap<>();
-        staticLabels.put("name", "Elasticsearch");
-        staticLabels.put("maintainer", "infra@elastic.co");
-        staticLabels.put("vendor", "Elastic");
-        staticLabels.put("summary", "Elasticsearch");
-        staticLabels.put("description", "You know, for search.");
-
-        final Set<String> dynamicLabels = new HashSet<>();
-        dynamicLabels.add("release");
-        dynamicLabels.add("version");
-
-        staticLabels.forEach((key, value) -> {
-            assertThat(labels, hasKey(key));
-            assertThat(labels.get(key), equalTo(value));
-        });
-
-        dynamicLabels.forEach(key -> assertThat(labels, hasKey(key)));
-    }
 }
