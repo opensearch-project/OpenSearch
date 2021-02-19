@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -39,29 +38,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -77,7 +64,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
@@ -91,12 +77,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(DummyPlugin.class);
-    }
-
     public void testIndexTemplateInvalidNumberOfShards() {
         PutRequest request = new PutRequest("test", "test_shards");
         request.patterns(singletonList("test_shards*"));
@@ -109,10 +89,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertEquals(throwables.size(), 1);
         assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
         assertThat(throwables.get(0).getMessage(),
-                containsString("Failed to parse value [0] for setting [index.number_of_shards] must be >= 1"));
+            containsString("Failed to parse value [0] for setting [index.number_of_shards] must be >= 1"));
         assertThat(throwables.get(0).getMessage(),
-                containsString("unknown value for [index.shard.check_on_startup] " +
-                                "must be one of [true, false, checksum] but was: blargh"));
+            containsString("unknown value for [index.shard.check_on_startup] " +
+                "must be one of [true, false, checksum] but was: blargh"));
     }
 
     public void testIndexTemplateValidationWithSpecifiedReplicas() throws Exception {
@@ -120,9 +100,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         request.patterns(singletonList("test_shards_wait*"));
 
         Settings.Builder settingsBuilder = builder()
-        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-        .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+            .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
 
         request.settings(settingsBuilder.build());
 
@@ -174,7 +154,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(throwables.get(0).getMessage(), containsString("name must not contain a space"));
         assertThat(throwables.get(0).getMessage(), containsString("index_pattern [_test_shards*] must not start with '_'"));
         assertThat(throwables.get(0).getMessage(),
-                containsString("Failed to parse value [0] for setting [index.number_of_shards] must be >= 1"));
+            containsString("Failed to parse value [0] for setting [index.number_of_shards] must be >= 1"));
     }
 
     public void testIndexTemplateWithAliasNameEqualToTemplatePattern() {
@@ -192,8 +172,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(singletonList("te*"));
         request.putMapping("type1", Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                        .startObject("properties").startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
-                        .endObject().endObject().endObject()));
+            .startObject("properties").startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
+            .endObject().endObject().endObject()));
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -288,7 +268,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), containsString("global templates may not specify the setting index.hidden"));
     }
 
-    public void testAddComponentTemplate() throws Exception{
+    public void testAddComponentTemplate() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
         Template template = new Template(Settings.builder().build(), null, ComponentTemplateTests.randomAliases());
@@ -334,18 +314,18 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().componentTemplates().get("foo"));
 
         ComposableIndexTemplate firstGlobalIndexTemplate =
-                new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"), template,
-                        org.elasticsearch.common.collect.List.of("foo"), 1L, null, null, null);
+            new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"), template,
+                org.elasticsearch.common.collect.List.of("foo"), 1L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate1", firstGlobalIndexTemplate);
 
         ComposableIndexTemplate secondGlobalIndexTemplate =
-                new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"), template,
-                        org.elasticsearch.common.collect.List.of("foo"), 2L, null, null, null);
+            new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"), template,
+                org.elasticsearch.common.collect.List.of("foo"), 2L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate2", secondGlobalIndexTemplate);
 
         ComposableIndexTemplate fooPatternIndexTemplate =
-                new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("foo-*"), template,
-                        org.elasticsearch.common.collect.List.of("foo"), 3L, null, null, null);
+            new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("foo-*"), template,
+                org.elasticsearch.common.collect.List.of("foo"), 3L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "foopatternindextemplate", fooPatternIndexTemplate);
 
         // update the component template to set the index.hidden setting
@@ -649,10 +629,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
         ComposableIndexTemplate it = new ComposableIndexTemplate(Collections.singletonList("i*"),
-                null, Collections.singletonList("ct"), null, 1L, null, null);
+            null, Collections.singletonList("ct"), null, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
         ComposableIndexTemplate it2 = new ComposableIndexTemplate(Collections.singletonList("in*"),
-                null, Collections.singletonList("ct"), 10L, 2L, null, null);
+            null, Collections.singletonList("ct"), 10L, 2L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean());
@@ -668,10 +648,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
         ComposableIndexTemplate it = new ComposableIndexTemplate(Collections.singletonList("i*"),
-                null, Collections.singletonList("ct"), 0L, 1L, null, null);
+            null, Collections.singletonList("ct"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
         ComposableIndexTemplate it2 = new ComposableIndexTemplate(Collections.singletonList("*"),
-                null, Collections.singletonList("ct"), 10L, 2L, null, null);
+            null, Collections.singletonList("ct"), 10L, 2L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", true);
@@ -686,8 +666,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             ComposableIndexTemplate invalidGlobalTemplate = new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"),
                 templateWithHiddenSetting, org.elasticsearch.common.collect.List.of("ct"), 5L, 1L, null, null);
             Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(ComposableIndexTemplateMetadata.TYPE,
-                    new ComposableIndexTemplateMetadata(org.elasticsearch.common.collect.Map.of("invalid_global_template",
-                                    invalidGlobalTemplate))).build();
+                new ComposableIndexTemplateMetadata(org.elasticsearch.common.collect.Map.of("invalid_global_template",
+                    invalidGlobalTemplate))).build();
 
             MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", false);
             fail("expecting an exception as the matching global template is invalid");
@@ -1197,7 +1177,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      * Tests that we check that settings/mappings/etc are valid even after template composition,
      * when adding/updating a composable index template
      */
-    public void  testIndexTemplateFailsToOverrideComponentTemplateMappingField() throws Exception {
+    public void testIndexTemplateFailsToOverrideComponentTemplateMappingField() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
@@ -1420,22 +1400,22 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
-                Settings.EMPTY,
-                null,
-                null,
-                null,
-                null,
-                createTestShardLimitService(randomIntBetween(1, 1000)),
-                new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                null,
-                xContentRegistry,
-                new SystemIndices(Collections.emptyMap()),
-                true
+            Settings.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000)),
+            new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            null,
+            xContentRegistry,
+            new SystemIndices(Collections.emptyMap()),
+            true
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(null, createIndexService,
-                new AliasValidator(), null,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
+            new AliasValidator(), null,
+            new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
 
         final List<Throwable> throwables = new ArrayList<>();
         service.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
@@ -1477,22 +1457,22 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
-                Settings.EMPTY,
-                clusterService,
-                indicesService,
-                null,
-                null,
-                createTestShardLimitService(randomIntBetween(1, 1000)),
-                new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                null,
-                xContentRegistry(),
-                new SystemIndices(Collections.emptyMap()),
-                true
+            Settings.EMPTY,
+            clusterService,
+            indicesService,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000)),
+            new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            null,
+            xContentRegistry(),
+            new SystemIndices(Collections.emptyMap()),
+            true
         );
         return new MetadataIndexTemplateService(
-                clusterService, createIndexService, new AliasValidator(), indicesService,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
+            clusterService, createIndexService, new AliasValidator(), indicesService,
+            new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
     }
 
     @SuppressWarnings("unchecked")
@@ -1543,82 +1523,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
                 assertThat(actualMappings, equalTo(expectedMappings));
             }
-        }
-    }
-
-    // Composable index template with data_stream definition need _timestamp meta field mapper,
-    // this is a dummy impl, so that tests don't fail with the fact that the _timestamp field can't be found.
-    // (tests using this dummy impl doesn't test the _timestamp validation, but need it to tests other functionality)
-    public static class DummyPlugin extends Plugin implements MapperPlugin {
-
-        @Override
-        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Collections.singletonMap("_data_stream_timestamp", new MetadataFieldMapper.ConfigurableTypeParser(
-                c -> new MetadataTimestampFieldMapper(false),
-                c -> new MetadataTimestampFieldBuilder())
-            );
-        }
-    }
-
-    private static MetadataTimestampFieldMapper toType(FieldMapper in) {
-        return (MetadataTimestampFieldMapper) in;
-    }
-
-    public static class MetadataTimestampFieldBuilder extends MetadataFieldMapper.Builder {
-
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false);
-
-        protected MetadataTimestampFieldBuilder() {
-            super("_data_stream_timestamp");
-        }
-
-        @Override
-        protected List<ParametrizedFieldMapper.Parameter<?>> getParameters() {
-            return Collections.singletonList(enabled);
-        }
-
-        @Override
-        public MetadataFieldMapper build(Mapper.BuilderContext context) {
-            return new MetadataTimestampFieldMapper(enabled.getValue());
-        }
-    }
-
-    public static class MetadataTimestampFieldMapper extends MetadataFieldMapper {
-        final boolean enabled;
-
-        public MetadataTimestampFieldMapper(boolean enabled) {
-            super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
-                @Override
-                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public String typeName() {
-                    return "_data_stream_timestamp";
-                }
-
-                @Override
-                public Query termQuery(Object value, QueryShardContext context) {
-                    return null;
-                }
-
-                @Override
-                public Query existsQuery(QueryShardContext context) {
-                    return null;
-                }
-            });
-            this.enabled = enabled;
-        }
-
-        @Override
-        public ParametrizedFieldMapper.Builder getMergeBuilder() {
-            return new MetadataTimestampFieldBuilder().init(this);
-        }
-
-        @Override
-        protected String contentType() {
-            return "_data_stream_timestamp";
         }
     }
 }
