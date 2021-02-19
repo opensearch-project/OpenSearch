@@ -317,7 +317,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldNameLengthLimit() throws Throwable {
-        int maxFieldNameLength = randomIntBetween(15, 20);
+        int maxFieldNameLength = randomIntBetween(25, 30); // extend the max length due to "_data_stream_timestamp"
         String testString = new String(new char[maxFieldNameLength + 1]).replace("\0", "a");
         Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
             .build();
@@ -376,7 +376,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testAliasFieldNameLengthLimit() throws Throwable {
-        int maxFieldNameLength = randomIntBetween(15, 20);
+        int maxFieldNameLength = randomIntBetween(25, 30); // extend the max length due to "_data_stream_timestamp"
         String testString = new String(new char[maxFieldNameLength + 1]).replace("\0", "a");
         Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), maxFieldNameLength)
             .build();
