@@ -110,7 +110,7 @@ You may type this line on your own when writing your commit messages.  However, 
 
 We deeply appreciate everyone who takes the time to make a contribution.  We will review all contributions as quickly as possible.  As a reminder, opening an issue and discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatable with our architectual direction. 
 
-During the PR process, expect that they'll be some back and forth.  Please try to respond to comments in a timely fashion, and if you don't wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionally, if you stop responding we may close the PR as abandonded.  In either case, if you feel this was done in error, please add a comment on the PR.   
+During the PR process, expect that there will be some back and forth.  Please try to respond to comments in a timely fashion, and if you don't wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionally, if you stop responding we may close the PR as abandonded.  In either case, if you feel this was done in error, please add a comment on the PR.   
 
 If we accept the PR, we will merge your change and usually take care of backporting it to appropriate branches ourselves.
 
