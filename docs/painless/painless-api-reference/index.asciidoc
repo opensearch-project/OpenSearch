@@ -26,9 +26,6 @@
 |Template | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-template, Specialized API>>
 |Terms Set | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-terms-set, Specialized API>>
 |Update | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-update, Specialized API>>
-|Watcher Condition | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-watcher-condition, Specialized API>>
-|Watcher Transform | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-watcher-transform, Specialized API>>
-|Xpack Template | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-xpack-template, Specialized API>>
 |====
 
 include::painless-api-reference-shared/index.asciidoc[]
@@ -56,6 +53,3 @@ include::painless-api-reference-string-sort/index.asciidoc[]
 include::painless-api-reference-template/index.asciidoc[]
 include::painless-api-reference-terms-set/index.asciidoc[]
 include::painless-api-reference-update/index.asciidoc[]
-include::painless-api-reference-watcher-condition/index.asciidoc[]
-include::painless-api-reference-watcher-transform/index.asciidoc[]
-include::painless-api-reference-xpack-template/index.asciidoc[]
