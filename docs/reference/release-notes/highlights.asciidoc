@@ -53,31 +53,6 @@ Elasticsearch offers the ability to configure the
 `default` and `best_compression` will get better compression with this change.
 
 [discrete]
-[[data-tier-formalization]]
-=== Data tiers
-
-7.10 introduces the concept of formalized data tiers within {es}.
-{ref}/data-tiers.html[Data tiers] are a simple, integrated approach that gives
-users control over optimizing for cost, performance, and breadth/depth of data.
-Prior to this formalization, many users configured their own tier topology using
-custom node attributes as well as using {ilm-init} to manage the lifecycle and
-location of data within a cluster.
-
-With this formalization, data tiers (content, hot, warm, and cold) can be
-explicitly configured using {ref}/modules-node.html#node-roles[node roles], and
-indices can be configured to be allocated within a specific tier using
-{ref}/data-tier-shard-filtering.html[index-level data tier allocation filtering].
-{ilm-init} will make use of these tiers to
-{ref}/ilm-migrate.html[automatically migrate] data between nodes as an index
-goes through the phases of its lifecycle.
-
-Newly created indices abstracted by a {ref}/data-streams.html[data stream] will
-be allocated to the `data_hot` tier automatically, while standalone indices will
-be allocated to the `data_content` tier automatically. Nodes with the
-pre-existing `data` role are considered to be part of all tiers.
-
-
-[discrete]
 [[auc-roc-eval-class]]
 === AUC ROC evaluation metrics for classification analysis
 
@@ -88,88 +63,6 @@ performance of the {classification} process at different predicted probability
 thresholds. The true positive rate for a specific class is compared against the
 rate of all the other classes combined at the different threshold levels to
 create the curve.
-
-
-[discrete]
-[[custom-feature-processor-dfa]]
-=== Custom feature processors in {dfanalytics}
-
-Feature processors enable you to extract process features from document fields.
-You can use these features in model training and model deployment. Custom
-feature processors provide a mechanism to create features that can be used at
-search and ingest time and they don’t take up space in the index.
-This process more tightly couples feature generation with the resulting model.
-The result is simplified model management as both the features and the model can
-easily follow the same life cycle.
-
-
-[discrete]
-[[points-in-time-for-search]]
-=== Points in time (PITs) for search
-
-In 7.10, we're introducing points in time (PITs), a lightweight way to preserve
-index state over searches. PITs improve end-user experience by making UIs more
-reactive.
-
-By default, a search request waits for complete results before returning a
-response. For example, a search that retrieves top hits and aggregations returns
-a response only after both top hits and aggregations are computed. However,
-aggregations are usually slower and more expensive to compute than top hits.
-Instead of sending a combined request, you can send two separate requests: one
-for top hits and another one for aggregations. With separate search requests, a
-UI can display top hits as soon as they're available and display aggregation
-data after the slower aggregation request completes. You can use a PIT to ensure
-both search requests run on the same data and index state.
-
-To use a PIT in a search, you must first explicitly create the PIT using the new
-{ref}/point-in-time-api.html[open PIT API]. PITs get automatically garbage-collected
-after `keep_alive` if no follow-up request extends their duration.
-
-[source,console]
-----
-POST /my-index-000001/_pit?keep_alive=1m
-----
-// TEST[setup:my_index]
-
-The API returns a PIT ID you can use in search requests. You can also
-configure by how long to extend your PIT's lifespan using the search request's
-`keep_alive` parameter.
-
-[source,console]
-----
-POST /_search
-{
-    "size": 100,
-    "query": {
-        "match" : {
-            "title" : "elasticsearch"
-        }
-    },
-    "pit": {
-	    "id":  "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==",
-	    "keep_alive": "1m"
-    }
-}
-----
-// TEST[catch:missing]
-
-PITs automatically close when their `keep_alive` period ends. You can
-also manually close PITs you no longer need using the
-{ref}/point-in-time-api.html[close PIT API]. Closing a PIT releases the
-resources needed to maintain the PIT's index state.
-
-[source,console]
-----
-DELETE /_pit
-{
-    "id" : "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWIBBXV1aWQyAAA="
-}
-----
-// TEST[catch:missing]
-
-For more information about using PITs in search, see
-{ref}/paginate-search-results.html#search-after[Paginate search results with
-`search_after`] or the {ref}/point-in-time-api.html[PIT API documentation].
 
 [discrete]
 [[support-for-request-level-circuit-breakers]]
@@ -189,29 +82,6 @@ some aggregations but it is corrected with the real size after the reduce
 completes. If the reduce is successful, we update the circuit breaker to remove
 the size of the source aggregations and replace the estimation with the
 serialized size of the newly reduced result.
-
-[discrete]
-[[eql-case-sensitivity-operator]]
-=== EQL: Case-sensitivity and the `:` operator
-
-In 7.10, we made most EQL operators and functions case-sensitive by default.
-We've also added `:`, a new case-insensitive equal operator. Designed for
-security use cases, you can use the `:` operator to search for strings in
-Windows event logs and other event data containing a mix of letter cases.
-
-[source,console]
-----
-GET /my-index-000001/_eql/search
-{
-  "query": """
-    process where process.executable : "c:\\\\windows\\\\system32\\\\cmd.exe"
-  """
-}
-----
-// TEST[setup:sec_logs]
-
-For more information, see the {ref}/eql-syntax.html[EQL
-syntax documentation].
 
 [discrete]
 [[deprecate-rest-api-access-to-system-indices]]
