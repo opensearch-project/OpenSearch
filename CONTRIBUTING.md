@@ -18,7 +18,7 @@ Table of Contents:
 * For almost any type of contribution, the first step is going to be to open an issue REANAMEME issue link.  Even if you think you already know what the solution is, writing down a description of the problem you're trying to solve will help everyone get context when they review your pull request.  If it's truly a trivial change (e.g. spelling error), you can skip this step -- but as the subject says, when it doubt, open an issue.
 
 2. Only submit your own work
-* Please make sure that any code or documentation you submit is your work or you have the rights to submit it.  As part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll use your contribution.  There's more information about the DCO in [DCO section]((#developer-certificate-of-origin).  
+* Please make sure that any code or documentation you submit is your work or you have the rights to submit it.  As part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll use your contribution.  There's more information about the DCO in [DCO section]((#developer-certificate-of-origin).   In particular, do not submit code that is under the SSPL license, and do not copy code from any Elastic code trees.
 
 ## Ways to Contribute
 
