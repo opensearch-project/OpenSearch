@@ -26,7 +26,7 @@ Table of Contents:
 
 Ugh!  Bugs!
 
-A bug is when  software behaves in a way that you didn't expect and the developer didn't intend.  To help us understand what's going on, we first want to make sure you're working from the latest version.  Please make sure you're testing against the latest version which you can find here (RENAMEME link)
+A bug is when  software behaves in a way that you didn't expect and the developer didn't intend.  To help us understand what's going on, we first want to make sure you're working from the latest version.  Please make sure you're testing against the [latest version](Add REANAMEME Link).
 
 Once you've confirmed that the bug still exists in the version, you'll want to check to make sure it's not something we already know about.  You can see all of our open issues here (RENAMEME link).
 
@@ -34,10 +34,10 @@ If you've upgraded to the latest version and you can't find it our open issues l
 
 ```sh
 # delete the index
-curl -XDELETE localhost:9200/test
+curl -X DELETE localhost:9200/test
 
 # insert a document
-curl -XPUT localhost:9200/test/test/1 -d '{
+curl -x PUT localhost:9200/test/test/1 -d '{
  "title": "test document"
 }'
 
