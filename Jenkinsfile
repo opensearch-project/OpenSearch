@@ -1,5 +1,5 @@
 pipeline {
-    agent Search
+    agent search-cloud-ec2-c518xlarge
 
     stages {
         stage('Build') {
