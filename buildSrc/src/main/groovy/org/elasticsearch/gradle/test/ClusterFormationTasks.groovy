@@ -193,35 +193,20 @@ class ClusterFormationTasks {
             }
             return
         }
-        // TEMP HACK
-        // The oss docs CI build overrides the distro on the command line. This hack handles backcompat until CI is updated.
-        if (distro.equals('oss-zip')) {
-            distro = 'oss'
-        }
-        if (distro.equals('zip')) {
-            distro = 'default'
-        }
-        // END TEMP HACK
-        if (['oss', 'default'].contains(distro) == false) {
-            throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
-        }
+        distro = 'oss'
+
         Version version = Version.fromString(elasticsearchVersion)
         String os = getOs()
         String classifier = "-${os}-x86_64"
         String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
-        String artifactName = 'elasticsearch'
-        if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
-            artifactName += '-oss'
-        }
+        String artifactName = 'elasticsearch-oss'
         Object dependency
         String snapshotProject = "${os}-${os.equals('windows') ? 'zip' : 'tar'}"
         if (version.before("7.0.0")) {
             snapshotProject = "zip"
             packaging = "zip"
         }
-        if (distro.equals("oss")) {
-            snapshotProject = "oss-" + snapshotProject
-        }
+        snapshotProject = "oss-" + snapshotProject
 
         BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
 
