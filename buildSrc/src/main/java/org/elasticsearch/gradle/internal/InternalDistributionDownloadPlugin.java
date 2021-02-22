@@ -127,7 +127,6 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 break;
 
             case DOCKER:
-            case DOCKER_UBI:
                 projectPath += ":docker:";
                 projectPath += distributionProjectName(distribution);
                 break;
@@ -155,9 +154,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             ? ""
             : "-" + architecture.toString().toLowerCase();
 
-        if (distribution.getFlavor() == ElasticsearchDistribution.Flavor.OSS) {
-            projectName += "oss-";
-        }
+        projectName += "oss-";
 
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
@@ -169,16 +166,12 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                         ? "-zip"
                         : "-tar");
                 } else {
-                    projectName = distribution.getFlavor().equals(ElasticsearchDistribution.Flavor.DEFAULT) ? "zip" : "oss-zip";
+                    projectName = "oss-zip";
                 }
                 break;
 
             case DOCKER:
                 projectName += "docker" + archString + "-export";
-                break;
-
-            case DOCKER_UBI:
-                projectName += "ubi-docker" + archString + "-export";
                 break;
 
             default:

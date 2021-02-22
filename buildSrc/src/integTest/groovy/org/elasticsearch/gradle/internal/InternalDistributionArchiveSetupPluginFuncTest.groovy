@@ -33,7 +33,7 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
     def setup() {
         buildFile << """
         import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
-        
+
         plugins {
             id 'elasticsearch.internal-distribution-archive-setup'
         }
@@ -60,7 +60,6 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
 
         where:
         buildTaskName       | expectedOutputArchivePath
-        "buildDarwinTar"    | "darwin-tar/build/distributions/elasticsearch.tar.gz"
         "buildOssDarwinTar" | "oss-darwin-tar/build/distributions/elasticsearch-oss.tar.gz"
     }
 
@@ -82,7 +81,6 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
 
         where:
         buildTaskName       | expectedOutputArchivePath
-        "buildDarwinZip"    | "darwin-zip/build/distributions/elasticsearch.zip"
         "buildOssDarwinZip" | "oss-darwin-zip/build/distributions/elasticsearch-oss.zip"
     }
 
@@ -111,23 +109,23 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
                 }
             }
         }
-        
+
         project('consumer') { p ->
             configurations {
                 consumeArchive {}
                 consumeDir {}
             }
-            
+
             dependencies {
                 consumeDir project(path: ':producer-tar', configuration:'extracted')
                 consumeArchive project(path: ':producer-tar', configuration:'default' )
             }
-            
+
             tasks.register("copyDir", Copy) {
                 from(configurations.consumeDir)
                 into('build/dir')
             }
-            
+
             tasks.register("copyArchive", Copy) {
                 from(configurations.consumeArchive)
                 into('build/archives')
@@ -140,8 +138,8 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         then: "tar task executed and target folder contains plain tar"
         result.task(':buildProducerTar').outcome == TaskOutcome.SUCCESS
         result.task(':consumer:copyArchive').outcome == TaskOutcome.SUCCESS
-        file("producer-tar/build/distributions/elasticsearch.tar.gz").exists()
-        file("consumer/build/archives/elasticsearch.tar.gz").exists()
+        file("producer-tar/build/distributions/elasticsearch-oss.tar.gz").exists()
+        file("consumer/build/archives/elasticsearch-oss.tar.gz").exists()
 
         when:
         result = gradleRunner("copyDir", "-Pversion=1.0").build()

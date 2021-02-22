@@ -46,32 +46,29 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
     def "builds distribution from branches via archives assemble"() {
         when:
         def result = gradleRunner(new File(testProjectDir.root, "remote"),
-                ":distribution:bwc:bugfix:buildBwcDarwinTar",
                 ":distribution:bwc:bugfix:buildBwcOssDarwinTar",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin")
                 .build()
         then:
-        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
         result.task(":distribution:bwc:bugfix:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
-        result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
         result.output.contains("[8.0.1] > Task :distribution:archives:oss-darwin-tar:assemble")
     }
 
     def "bwc distribution archives can be resolved as bwc project artifact"() {
         setup:
         new File(testProjectDir.root, 'remote/build.gradle') << """
-        
+
         configurations {
             dists
         }
-        
+
         dependencies {
-            dists project(path: ":distribution:bwc:bugfix", configuration:"darwin-tar")
+            dists project(path: ":distribution:bwc:bugfix", configuration:"oss-darwin-tar")
         }
-        
+
         tasks.register("resolveDistributionArchive") {
             inputs.files(configurations.dists)
             doLast {
@@ -89,27 +86,27 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
                 .build()
         then:
         result.task(":resolveDistributionArchive").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:bugfix:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
-        result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
+        result.output.contains("[8.0.1] > Task :distribution:archives:oss-darwin-tar:assemble")
         normalizedOutput(result.output)
-                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/distribution/archives/darwin-tar/" +
-                        "build/distributions/elasticsearch-8.0.1-SNAPSHOT-darwin-x86_64.tar.gz")
+                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/distribution/archives/oss-darwin-tar/" +
+                        "build/distributions/elasticsearch-oss-8.0.1-SNAPSHOT-darwin-x86_64.tar.gz")
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
         setup:
         new File(testProjectDir.root, 'remote/build.gradle') << """
-        
+
         configurations {
             expandedDist
         }
-        
+
         dependencies {
-            expandedDist project(path: ":distribution:bwc:bugfix", configuration:"expanded-darwin-tar")
+            expandedDist project(path: ":distribution:bwc:bugfix", configuration:"expanded-oss-darwin-tar")
         }
-        
+
         tasks.register("resolveExpandedDistribution") {
             inputs.files(configurations.expandedDist)
             doLast {
@@ -127,13 +124,13 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
                 .build()
         then:
         result.task(":resolveExpandedDistribution").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:bugfix:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
-        result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
+        result.output.contains("[8.0.1] > Task :distribution:archives:oss-darwin-tar:assemble")
         normalizedOutput(result.output)
                 .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/" +
-                        "distribution/archives/darwin-tar/build/install")
+                        "distribution/archives/oss-darwin-tar/build/install")
     }
 
     File setupGitRemote() {

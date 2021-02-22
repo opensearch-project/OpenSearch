@@ -20,8 +20,6 @@
 package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -59,10 +57,8 @@ import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -254,85 +250,6 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
-     */
-    public void test080ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
-        // Test relies on configuring security
-        assumeTrue(distribution.isDefault());
-
-        final String xpackPassword = "hunter2";
-        final String passwordFilename = "password.txt";
-
-        append(tempDir.resolve(passwordFilename), xpackPassword + "\n");
-
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-
-        // File permissions need to be secured in order for the ES wrapper to accept
-        // them for populating env var values
-        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
-        // But when running in Vagrant, also ensure ES can actually access the file
-        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
-
-        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/run/secrets"));
-
-        // Restart the container
-        runContainer(distribution(), volumes, envVars);
-
-        // If we configured security correctly, then this call will only work if we specify the correct credentials.
-        try {
-            waitForElasticsearch("green", null, installation, "elastic", "hunter2");
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
-
-        // Also check that an unauthenticated call fails
-        final int statusCode = Request.Get("http://localhost:9200/_nodes").execute().returnResponse().getStatusLine().getStatusCode();
-        assertThat("Expected server to require authentication", statusCode, equalTo(401));
-    }
-
-    /**
-     * Check that when verifying the file permissions of _FILE environment variables, symlinks
-     * are followed.
-     */
-    public void test081SymlinksAreFollowedWithEnvironmentVariableFiles() throws Exception {
-        // Test relies on configuring security
-        assumeTrue(distribution.isDefault());
-        // Test relies on symlinks
-        assumeFalse(Platforms.WINDOWS);
-
-        final String xpackPassword = "hunter2";
-        final String passwordFilename = "password.txt";
-        final String symlinkFilename = "password_symlink";
-
-        // ELASTIC_PASSWORD_FILE
-        Files.write(tempDir.resolve(passwordFilename), (xpackPassword + "\n").getBytes(StandardCharsets.UTF_8));
-
-        // Link to the password file. We can't use an absolute path for the target, because
-        // it won't resolve inside the container.
-        Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Paths.get(passwordFilename));
-
-        // Enable security so that we can test that the password has been used
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
-
-        // File permissions need to be secured in order for the ES wrapper to accept
-        // them for populating env var values. The wrapper will resolve the symlink
-        // and check the target's permissions.
-        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
-
-        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/run/secrets"));
-
-        // Restart the container - this will check that Elasticsearch started correctly,
-        // and didn't fail to follow the symlink and check the file permissions
-        runContainer(distribution(), volumes, envVars);
-    }
-
-    /**
      * Check that environment variables cannot be used with _FILE environment variables.
      */
     public void test082CannotUseEnvVarsAndFiles() throws Exception {
@@ -383,70 +300,6 @@ public class DockerTests extends PackagingTestCase {
                 "ERROR: File /run/secrets/" + passwordFilename + " from ELASTIC_PASSWORD_FILE must have file permissions 400 or 600"
             )
         );
-    }
-
-    /**
-     * Check that when verifying the file permissions of _FILE environment variables, symlinks
-     * are followed, and that invalid target permissions are detected.
-     */
-    public void test084SymlinkToFileWithInvalidPermissionsIsRejected() throws Exception {
-        // Test relies on configuring security
-        assumeTrue(distribution.isDefault());
-        // Test relies on symlinks
-        assumeFalse(Platforms.WINDOWS);
-
-        final String xpackPassword = "hunter2";
-        final String passwordFilename = "password.txt";
-        final String symlinkFilename = "password_symlink";
-
-        // ELASTIC_PASSWORD_FILE
-        Files.write(tempDir.resolve(passwordFilename), (xpackPassword + "\n").getBytes(StandardCharsets.UTF_8));
-
-        // Link to the password file. We can't use an absolute path for the target, because
-        // it won't resolve inside the container.
-        Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Paths.get(passwordFilename));
-
-        // Enable security so that we can test that the password has been used
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
-
-        // Set invalid permissions on the file that the symlink targets
-        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p775);
-
-        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/run/secrets"));
-
-        // Restart the container
-        final Result dockerLogs = runContainerExpectingFailure(distribution(), volumes, envVars);
-
-        assertThat(
-            dockerLogs.stderr,
-            containsString(
-                "ERROR: File "
-                    + passwordFilename
-                    + " (target of symlink /run/secrets/"
-                    + symlinkFilename
-                    + " from ELASTIC_PASSWORD_FILE) must have file permissions 400 or 600, but actually has: 775"
-            )
-        );
-    }
-
-    /**
-     * Check that environment variables are translated to -E options even for commands invoked under
-     * `docker exec`, where the Docker image's entrypoint is not executed.
-     */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67097")
-    public void test085EnvironmentVariablesAreRespectedUnderDockerExec() {
-        // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
-        // tool in question is only in the default distribution.
-        assumeTrue(distribution.isDefault());
-
-        runContainer(distribution(), null, singletonMap("http.host", "this.is.not.valid"));
-
-        // This will fail if the env var above is passed as a -E argument
-        final Result result = sh.runIgnoreExitCode("elasticsearch-setup-passwords auto");
-
-        assertFalse("elasticsearch-setup-passwords command should have failed", result.isSuccess());
-        assertThat(result.stdout, containsString("java.net.UnknownHostException: this.is.not.valid: Name or service not known"));
     }
 
     /**
@@ -513,11 +366,7 @@ public class DockerTests extends PackagingTestCase {
         staticLabels.put("vcs-url", "https://github.com/elastic/elasticsearch");
         staticLabels.put("vendor", "Elastic");
 
-        if (distribution.isOSS()) {
-            staticLabels.put("license", "Apache-2.0");
-        } else {
-            staticLabels.put("license", "Elastic-License");
-        }
+        staticLabels.put("license", "Apache-2.0");
 
         // TODO: we should check the actual version value
         final Set<String> dynamicLabels = new HashSet<>();
@@ -553,11 +402,7 @@ public class DockerTests extends PackagingTestCase {
         staticLabels.put("source", "https://github.com/elastic/elasticsearch");
         staticLabels.put("vendor", "Elastic");
 
-        if (distribution.isOSS()) {
-            staticLabels.put("licenses", "Apache-2.0");
-        } else {
-            staticLabels.put("licenses", "Elastic-License");
-        }
+        staticLabels.put("licenses", "Apache-2.0");
 
         // TODO: we should check the actual version value
         final Set<String> dynamicLabels = new HashSet<>();
@@ -643,47 +488,5 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat("Failed to find [cpu] in node OS cgroup stats", cgroupStats.get("cpu"), not(nullValue()));
         assertThat("Failed to find [cpuacct] in node OS cgroup stats", cgroupStats.get("cpuacct"), not(nullValue()));
-    }
-
-    /**
-     * Check that the UBI images has the correct license information in the correct place.
-     */
-    public void test200UbiImagesHaveLicenseDirectory() {
-        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
-
-        final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
-        assertThat(files, arrayContaining("/licenses/LICENSE"));
-
-        // UBI image doesn't contain `diff`
-        final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout;
-        final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout;
-        assertThat(ubiLicense, equalTo(distroLicense));
-    }
-
-    /**
-     * Check that the UBI image has the expected labels
-     */
-    public void test210UbiLabels() throws Exception {
-        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
-
-        final Map<String, String> labels = getImageLabels(distribution);
-
-        final Map<String, String> staticLabels = new HashMap<>();
-        staticLabels.put("name", "Elasticsearch");
-        staticLabels.put("maintainer", "infra@elastic.co");
-        staticLabels.put("vendor", "Elastic");
-        staticLabels.put("summary", "Elasticsearch");
-        staticLabels.put("description", "You know, for search.");
-
-        final Set<String> dynamicLabels = new HashSet<>();
-        dynamicLabels.add("release");
-        dynamicLabels.add("version");
-
-        staticLabels.forEach((key, value) -> {
-            assertThat(labels, hasKey(key));
-            assertThat(labels.get(key), equalTo(value));
-        });
-
-        dynamicLabels.forEach(key -> assertThat(labels, hasKey(key)));
     }
 }

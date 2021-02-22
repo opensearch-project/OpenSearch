@@ -42,7 +42,6 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertNotNull(info.getNodeName());
         @SuppressWarnings("unchecked")
         Map<String, Object> versionMap = (Map<String, Object>) infoAsMap.get("version");
-        assertEquals(versionMap.get("build_flavor"), info.getVersion().getBuildFlavor());
         assertEquals(versionMap.get("build_type"), info.getVersion().getBuildType());
         assertEquals(versionMap.get("build_hash"), info.getVersion().getBuildHash());
         assertEquals(versionMap.get("build_date"), info.getVersion().getBuildDate());

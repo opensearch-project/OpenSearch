@@ -119,7 +119,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private void registerDistributionArchiveArtifact(Project bwcProject, DistributionProject distributionProject, String buildBwcTask) {
         String artifactFileName = distributionProject.getDistFile().getName();
-        String artifactName = artifactFileName.contains("oss") ? "elasticsearch-oss" : "elasticsearch";
+        String artifactName = "elasticsearch-oss";
 
         String suffix = artifactFileName.endsWith("tar.gz") ? "tar.gz" : artifactFileName.substring(artifactFileName.length() - 3);
         int archIndex = artifactFileName.indexOf("x86_64");
@@ -142,12 +142,12 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     private static List<DistributionProject> resolveArchiveProjects(File checkoutDir, Version bwcVersion) {
         List<String> projects = new ArrayList<>();
         // All active BWC branches publish default and oss variants of rpm and deb packages
-        projects.addAll(asList("deb", "rpm", "oss-deb", "oss-rpm"));
+        projects.addAll(asList("oss-deb", "oss-rpm"));
 
         if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
-            projects.addAll(asList("oss-windows-zip", "windows-zip", "oss-darwin-tar", "darwin-tar", "oss-linux-tar", "linux-tar"));
+            projects.addAll(asList("oss-windows-zip", "oss-darwin-tar", "oss-linux-tar"));
         } else { // prior to 7.0 we published only a single zip and tar archives for oss and default distributions
-            projects.addAll(asList("oss-zip", "zip", "tar", "oss-tar"));
+            projects.addAll(asList("oss-zip", "oss-tar"));
         }
 
         return projects.stream().map(name -> {
@@ -157,7 +157,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             if (bwcVersion.onOrAfter("7.0.0")) {
                 if (name.contains("zip") || name.contains("tar")) {
                     int index = name.lastIndexOf('-');
-                    String baseName = name.startsWith("oss-") ? name.substring(4, index) : name.substring(0, index);
+                    String baseName = name.substring(4, index); // oss-
                     classifier = "-" + baseName + "-x86_64";
                     extension = name.substring(index + 1);
                     if (extension.equals("tar")) {
@@ -168,7 +168,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 } else if (name.contains("rpm")) {
                     classifier = "-x86_64";
                 }
-            } else if (name.contains("oss-")) {
+            } else {
                 extension = name.substring(4);
             }
             return new DistributionProject(name, baseDir, bwcVersion, classifier, extension, checkoutDir);
@@ -228,16 +228,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             this.projectPath = baseDir + "/" + name;
             this.distFile = new File(
                 checkoutDir,
-                baseDir
-                    + "/"
-                    + name
-                    + "/build/distributions/elasticsearch-"
-                    + (name.startsWith("oss") ? "oss-" : "")
-                    + version
-                    + "-SNAPSHOT"
-                    + classifier
-                    + "."
-                    + extension
+                baseDir + "/" + name + "/build/distributions/elasticsearch-oss-" + version + "-SNAPSHOT" + classifier + "." + extension
             );
             // we only ported this down to the 7.x branch.
             if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
