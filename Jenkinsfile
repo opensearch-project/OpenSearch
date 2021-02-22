@@ -1,11 +1,13 @@
 pipeline {
-    agent any
+    agent { label 'search-cloud-ec2-c518xlarge' }
+
 
     stages {
         stage('Build') {
             steps {
                 echo 'Building..'
-                sh './gradlew check --no-daemon'
+                // Disable backward compability tasks
+                sh './gradlew check --no-daemon --no-scan -Pbwc_tests_enabled=false'
             }
         }
         stage('Test') {
