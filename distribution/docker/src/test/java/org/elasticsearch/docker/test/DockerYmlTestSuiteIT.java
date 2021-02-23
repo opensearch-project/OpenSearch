@@ -36,8 +36,8 @@ import java.nio.file.Path;
 
 public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    private static final String USER = "x_pack_rest_user";
-    private static final String PASS = "x-pack-test-password";
+    private static final String USER = "rest_user";
+    private static final String PASS = "test-password";
     private static final String KEYSTORE_PASS = "testnode";
 
     public DockerYmlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
