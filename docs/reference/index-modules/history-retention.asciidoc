@@ -54,7 +54,7 @@ they can be explicitly enabled or disabled at index creation time. If soft
 deletes are disabled then peer recoveries can still sometimes take place by
 copying just the missing operations from the translog
 <<index-modules-translog-retention,as long as those operations are retained
-there>>. {ccr-cap} will not function if soft deletes are disabled.
+there>>.
 
 [discrete]
 === History retention settings
