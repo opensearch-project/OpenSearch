@@ -83,15 +83,9 @@ The API returns the following response:
 [source,txt]
 --------------------------------------------------
 node    host      ip        attr     value
-...
 node-0 127.0.0.1 127.0.0.1 testattr test
-...
 --------------------------------------------------
-// TESTRESPONSE[s/\.\.\.\n$/\n(.+ xpack\\.installed true\n)?\n/]
-// TESTRESPONSE[s/\.\.\.\n/(.+ ml\\..+\n)*/ non_json]
-// If xpack is not installed then neither ... with match anything
-// If xpack is installed then the first ... contains ml attributes
-// and the second contains xpack.installed=true
+// TESTRESPONSE[non_json]
 
 The `node`, `host`, and `ip` columns provide basic information about each node.
 The `attr` and `value` columns return custom node attributes, one per line.
@@ -114,13 +108,6 @@ The API returns the following response:
 [source,txt]
 --------------------------------------------------
 name    pid   attr     value
-...
 node-0 19566 testattr test
-...
 --------------------------------------------------
-// TESTRESPONSE[s/19566/\\d*/]
-// TESTRESPONSE[s/\.\.\.\n$/\n(.+ xpack\\.installed true\n)?\n/]
-// TESTRESPONSE[s/\.\.\.\n/(.+ ml\\..+\n)*/ non_json]
-// If xpack is not installed then neither ... with match anything
-// If xpack is installed then the first ... contains ml attributes
-// and the second contains xpack.installed=true
+// TESTRESPONSE[s/19566/\\d*/ non_json]
