@@ -207,8 +207,7 @@ This example uses the following variables:
 `<VERB>`:: The appropriate HTTP method or verb. For example, `GET`, `POST`,
 `PUT`, `HEAD`, or `DELETE`.
 `<PROTOCOL>`:: Either `http` or `https`. Use the latter if you have an HTTPS
-proxy in front of {es} or you use {es} {security-features} to encrypt HTTP
-communications.
+proxy in front of {es}.
 `<HOST>`:: The hostname of any node in your {es} cluster. Alternatively, use
 +localhost+ for a node on your local machine.
 `<PORT>`:: The port running the {es} HTTP service, which defaults to `9200`.
@@ -217,11 +216,6 @@ communications.
 `<QUERY_STRING>`:: Any optional query-string parameters. For example, `?pretty`
 will _pretty-print_  the JSON response to make it easier to read.
 `<BODY>`:: A JSON-encoded request body (if necessary).
-
-If the {es} {security-features} are enabled, you must also provide a valid user
-name (and password) that has authority to run the API. For example, use the
-`-u` or `--u` cURL command parameter. For details about which security
-privileges are required to run each API, see <<rest-apis>>.
 
 {es} responds to each API request with an HTTP status code like `200 OK`. With
 the exception of `HEAD` requests, it also returns a JSON-encoded response body. 

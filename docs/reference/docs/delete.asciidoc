@@ -11,13 +11,6 @@ Removes a JSON document from the specified index.
 
 `DELETE /<index>/_doc/<_id>`
 
-[[docs-delete-api-prereqs]]
-==== {api-prereq-title}
-
-* If the {es} {security-features} are enabled, you must have the `delete` or
-`write` <<privileges-list-indices,index privilege>> for the target index or
-index alias.
-
 [[docs-delete-api-desc]]
 ==== {api-description-title}
 
