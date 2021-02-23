@@ -1,11 +1,11 @@
 Contributing to RENAMEME
 =============================
 
-RENAMEME is a community project that is built and maintained by people just like you.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
+RENAMEME is a community project that is built and maintained by people just like **you**.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
 
-Please note:  RENAMEME is a fork of [Elasticsearch](https://github.com/elastic/elasticsearch) in a pre-alpha state.  We are still in the process of renaming and removing any non-Apache 2.0 licensed code.  If you do find references to Elasticsearch (outside of attributions and copyrights!) please let us know RENAMEME issue link.   
+**Please note:**  RENAMEME is a fork of [Elasticsearch](https://github.com/elastic/elasticsearch) in a pre-alpha state.  We are still in the process of renaming and removing any non-Apache 2.0 licensed code.  If you do find references to Elasticsearch (outside of attributions and copyrights!) please let us know RENAMEME issue link.   
 
-Table of Contents:
+## Table of Contents:
 - [First Principles](#first-principles)
 - [Ways to Contribute](#ways-to-contribute)
 - [Developer Certificate of Origin](#developer-certificate-of-origin)
@@ -14,11 +14,10 @@ Table of Contents:
 
 ## First Principles
 
-1. When in doubt, open an issue
-* For almost any type of contribution, the first step is going to be to open an issue REANAMEME issue link.  Even if you think you already know what the solution is, writing down a description of the problem you're trying to solve will help everyone get context when they review your pull request.  If it's truly a trivial change (e.g. spelling error), you can skip this step -- but as the subject says, when it doubt, open an issue.
+1. **When in doubt, open an issue** - For almost any type of contribution, the first step is opening an issue REANAMEME issue link.  Even if you think you already know what the solution is, writing down a description of the problem you're trying to solve will help everyone get context when they review your pull request.  If it's truly a trivial change (e.g. spelling error), you can skip this step -- but as the subject says, when it doubt, open an issue.
 
-2. Only submit your own work
-* Please make sure that any code or documentation you submit is your work or you have the rights to submit it.  As part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll use your contribution.  There's more information about the DCO in [DCO section]((#developer-certificate-of-origin).   In particular, do not submit code that is under the SSPL license, and do not copy code from any Elastic code trees.
+2. **Only submit your own work** - Please make sure that any code or documentation you submit is your work or you have the rights to submit it.  As part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll 
+use your contribution.  There's more information about this topic the [DCO section](#developer-certificate-of-origin).  
 
 ## Ways to Contribute
 
@@ -26,11 +25,12 @@ Table of Contents:
 
 Ugh!  Bugs!
 
-A bug is when  software behaves in a way that you didn't expect and the developer didn't intend.  To help us understand what's going on, we first want to make sure you're working from the latest version.  Please make sure you're testing against the [latest version](Add REANAMEME Link).
+A bug is when software behaves in a way that you didn't expect and the developer didn't intend.  To help us understand what's going on, we first want to make sure you're working from the latest version.  Please make sure you're testing against the [latest version](http://RENAMEME-link.org)
 
-Once you've confirmed that the bug still exists in the version, you'll want to check to make sure it's not something we already know about.  You can see all of our open issues here (RENAMEME link).
 
-If you've upgraded to the latest version and you can't find it our open issues list, then you'll need to tell us how to reproduce it.  To make the behavior as clear as possible, please provided your steps as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
+Once you've confirmed that the bug still exists in the version, you'll want to check to make sure it's not something we already know about on the [open issues GitHub page](http://RENAMEME-link.org).
+
+If you've upgraded to the latest version and you can't find it in our open issues list, then you'll need to tell us how to reproduce it.  To make the behavior as clear as possible, please provided your steps as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
 
 ```sh
 # delete the index
@@ -63,11 +63,11 @@ Once you've open as issue, check out our [Developer Guide](./DEVELOPER_GUIDE.md)
 
 ## Developer Certificate of Origin
 
-RENAMEME is an open source product licensed under the Apache 2.0 license (see either [the Apache site] (https://www.apache.org/licenses/LICENSE-2.0) or the [LICENSE.txt file](./LICENSE.txt)).  The Apache 2.0 license allows you to freely use, modify, distribute and sell your own products that include Apache 2.0 licensed software. 
+RENAMEME is an open source product licensed under the Apache 2.0 license (see either [the Apache site](https://www.apache.org/licenses/LICENSE-2.0) or the [LICENSE.txt file](./LICENSE.txt)).  The Apache 2.0 license allows you to freely use, modify, distribute and sell your own products that include Apache 2.0 licensed software.
 
 In an effort to ensure that RENAMEME is kept truly open source, we want to make sure all incoming contributions are correctly attributed and licensed. A Developer Certificate of Origin (DCO) is a lightweight mechanism to do that.
 
-The DCO is a declaration attached to every contribution made by every developer. In the commit message of the contribution, the developer simply adds a Signed-off-by statement and thereby agrees to the DCO, which you can find below or at http://developercertificate.org/.
+The DCO is a declaration attached to every contribution made by every developer. In the commit message of the contribution, the developer simply adds a `Signed-off-by` statement and thereby agrees to the DCO, which you can find below or at [DeveloperCertificate.org](http://developercertificate.org/).
 
 ```
 Developer's Certificate of Origin 1.1
@@ -97,20 +97,20 @@ By making a contribution to this project, I certify that:
     consistent with this project or the open source license(s)
     involved.
  ```
-We require that every contribution to RENAMEME is signed with a Developer Certificate of Origin (DCO).  Additionally, please use your name real name.  We cannot accept anonymous contributors nor those utilizing pseudonyms.
+We require that every contribution to RENAMEME is signed with a Developer Certificate of Origin.  Additionally, please use your real name.  We cannot accept anonymous contributors nor those utilizing pseudonyms.
  
 Each commit must include a DCO which looks like this
 
 ```
 Signed-off-by: Jane Smith <jane.smith@email.com>
 ```
-You may type this line on your own when writing your commit messages.  However, if your user.name and user.email are set in your git configs, you can use -s or – – signoff to add the Signed-off-by line to the end of the commit message.
+You may type this line on your own when writing your commit messages.  However, if your user.name and user.email are set in your git configs, you can use `-s` or `– – signoff` to add the `Signed-off-by` line to the end of the commit message.
 
 ## Review Process
 
-We deeply appreciate everyone who takes the time to make a contribution.  We will review all contributions as quickly as possible.  As a reminder, opening an issue and discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatable with our architectual direction. 
+We deeply appreciate everyone who takes the time to make a contribution.  We will review all contributions as quickly as possible.  As a reminder, opening an issue and discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatible with the architectural direction. 
 
-During the PR process, expect that there will be some back and forth.  Please try to respond to comments in a timely fashion, and if you don't wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionally, if you stop responding we may close the PR as abandonded.  In either case, if you feel this was done in error, please add a comment on the PR.   
+During the PR process, expect that there will be some back-and-forth.  Please try to respond to comments in a timely fashion, and if you don't wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionally, if you stop responding we may close the PR as abandoned.  In either case, if you feel this was done in error, please add a comment on the PR.   
 
 If we accept the PR, we will merge your change and usually take care of backporting it to appropriate branches ourselves.
 
