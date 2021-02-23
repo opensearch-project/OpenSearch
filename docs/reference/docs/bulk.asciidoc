@@ -26,13 +26,6 @@ POST _bulk
 
 `POST /<target>/_bulk`
 
-[[docs-bulk-api-prereqs]]
-==== {api-prereq-title}
-
-* If the {es} {security-features} are enabled, you must have the following
-<<privileges-list-indices,index privileges>> for the target data stream, index,
-or index alias:
-
 ** To use the `create` action, you must have the `create_doc`, `create`,
 `index`, or `write` index privilege. Data streams support only the `create`
 action.
