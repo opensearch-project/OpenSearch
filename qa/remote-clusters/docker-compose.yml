@@ -34,7 +34,7 @@ services:
     entrypoint: /docker-test-entrypoint.sh
     healthcheck:
       start_period: 15s
-      test: ["CMD", "curl", "-f", "-u", "x_pack_rest_user:x-pack-test-password", "-k", "https://localhost:9200"]
+      test: ["CMD", "curl", "-f", "-u", "rest_user:test-password", "-k", "https://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5
@@ -71,7 +71,7 @@ services:
     entrypoint: /docker-test-entrypoint.sh
     healthcheck:
       start_period: 15s
-      test: ["CMD", "curl", "-f", "-u", "x_pack_rest_user:x-pack-test-password", "-k", "https://localhost:9200"]
+      test: ["CMD", "curl", "-f", "-u", "rest_user:test-password", "-k", "https://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5
