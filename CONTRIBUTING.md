@@ -3,7 +3,7 @@ Contributing to RENAMEME
 
 RENAMEME is a community project that is built and maintained by people just like **you**.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
 
-**Please note:**  RENAMEME is a fork of [Elasticsearch](https://github.com/elastic/elasticsearch) in a pre-alpha state.  We are still in the process of renaming and removing any non-Apache 2.0 licensed code.  If you do find references to Elasticsearch (outside of attributions and copyrights!) please let us know RENAMEME issue link.   
+**Please note:**  RENAMEME is a fork of [Elasticsearch 7.10.2](https://github.com/elastic/elasticsearch), and is currently in a pre-alpha state.  We are still in the process of renaming and removing any non-Apache 2.0 licensed code.  If you do find references to Elasticsearch (outside of attributions and copyrights!) please let us know RENAMEME issue link.   
 
 ## Table of Contents:
 - [First Principles](#first-principles)
