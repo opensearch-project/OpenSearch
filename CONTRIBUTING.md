@@ -63,7 +63,7 @@ Once you've open as issue, check out our [Developer Guide](./DEVELOPER_GUIDE.md)
 
 ## Developer Certificate of Origin
 
-RENAMEME is an open source product licensed under the Apache 2.0 license (see either [the Apache site](https://www.apache.org/licenses/LICENSE-2.0) or the [LICENSE.txt file](./LICENSE.txt)).  The Apache 2.0 license allows you to freely use, modify, distribute and sell your own products that include Apache 2.0 licensed software.
+RENAMEME is an open source product released under the Apache 2.0 license (see either [the Apache site](https://www.apache.org/licenses/LICENSE-2.0) or the [LICENSE.txt file](./LICENSE.txt)).  The Apache 2.0 license allows you to freely use, modify, distribute and sell your own products that include Apache 2.0 licensed software.
 
 In an effort to ensure that RENAMEME is kept truly open source, we want to make sure all incoming contributions are correctly attributed and licensed. A Developer Certificate of Origin (DCO) is a lightweight mechanism to do that.
 
