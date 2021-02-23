@@ -1055,7 +1055,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return Collections.emptyList();
     }
 
-    private void cleanupStaleIndices(GroupedActionListener<DeleteResult> listener, BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete) {
+    private void cleanupStaleIndices(GroupedActionListener<DeleteResult> listener,
+                                     BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete) {
         final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
             for (DeleteResult result : deleteResults) {
@@ -1079,7 +1080,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void executeOneStaleIndexDelete(GroupedActionListener<DeleteResult> listener, BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete) throws InterruptedException {
+    private void executeOneStaleIndexDelete(GroupedActionListener<DeleteResult> listener,
+                                            BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete)
+        throws InterruptedException {
         Map.Entry<String, BlobContainer> indexEntry = staleIndicesToDelete.poll(0L, TimeUnit.MILLISECONDS);
         if (indexEntry != null) {
             final String indexSnId = indexEntry.getKey();
@@ -1095,7 +1098,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             "but failed to clean up their index folders", metadata.name(), indexSnId), e);
                 } catch (Exception e) {
                     assert false : e;
-                    logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale index [{}]", metadata.name(), indexSnId), e);
+                    logger.warn(() ->
+                        new ParameterizedMessage("[{}] Exception during cleanup of stale index [{}]", metadata.name(), indexSnId), e);
                 }
 
                 executeOneStaleIndexDelete(listener, staleIndicesToDelete);
