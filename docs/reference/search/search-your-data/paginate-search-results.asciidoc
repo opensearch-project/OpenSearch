@@ -125,13 +125,13 @@ POST /_search/scroll                                                            
     for another `1m`.
 <3> The `scroll_id` parameter
 
-The `size` parameter allows you to configure the maximum number of hits to be 
-returned with each batch of results.  Each call to the `scroll` API returns the 
-next batch of results until there are no more results left to return, ie the 
+The `size` parameter allows you to configure the maximum number of hits to be
+returned with each batch of results.  Each call to the `scroll` API returns the
+next batch of results until there are no more results left to return, ie the
 `hits` array is empty.
 
-IMPORTANT: The initial search request and each subsequent scroll request each 
-return a `_scroll_id`. While the `_scroll_id` may change between requests, it doesn’t 
+IMPORTANT: The initial search request and each subsequent scroll request each
+return a `_scroll_id`. While the `_scroll_id` may change between requests, it doesn’t
 always change — in any case, only the most recently received `_scroll_id` should be used.
 
 NOTE: If the request specifies aggregations, only the initial search response

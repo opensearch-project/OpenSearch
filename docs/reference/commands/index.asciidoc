@@ -4,7 +4,7 @@
 [partintro]
 --
 
-{es} provides the following tools for configuring security and performing other
+{es} provides the following tools for configuring security and performing other 
 tasks from the command line:
 
 * <<elasticsearch-keystore>>

@@ -122,7 +122,7 @@ See the {ref}/indices-forcemerge.html[force merge API].
 
 [[glossary-hidden-index]] hidden index ::
 // tag::hidden-index-def[]
-An index that is excluded by default when you access indices using a wildcard expression.
+An index that is excluded by default when you access indices using a wildcard expression. 
 You can specify the `expand_wildcards` parameter to include hidden indices.
 Note that hidden indices _are_ included if the wildcard expression starts with a dot, for example `.watcher-history*`.
 // end::hidden-index-def[]
@@ -392,8 +392,8 @@ from an ID.
 
 [[glossary-system-index]] system index ::
 // tag::system-index-def[]
-An index that contains configuration information or other data used internally by the system,
-such as the `.security` index.
+An index that contains configuration information or other data used internally by the system, 
+such as the `.security` index. 
 The name of a system index is always prefixed with a dot.
 You should not directly access or modify system indices.
 // end::system-index-def[]

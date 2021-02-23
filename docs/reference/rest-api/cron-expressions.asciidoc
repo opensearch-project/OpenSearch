@@ -8,7 +8,7 @@ A cron expression is a string of the following form:
     <seconds> <minutes> <hours> <day_of_month> <month> <day_of_week> [year]
 ------------------------------
 
-{es} uses the cron parser from the https://quartz-scheduler.org[Quartz Job Scheduler].
+{es} uses the cron parser from the https://quartz-scheduler.org[Quartz Job Scheduler]. 
 For more information about writing Quartz cron expressions, see the
 http://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.html[Quartz CronTrigger Tutorial].
 
@@ -18,34 +18,34 @@ All schedule times are in coordinated universal time (UTC); other timezones are 
 [[cron-elements]]
 ==== Cron expression elements
 
-All elements are required except for `year`.
+All elements are required except for `year`. 
 See <<cron-special-characters>> for information about the allowed special characters.
 
 `<seconds>`::
 (Required)
 Valid values: `0`-`59` and the special characters `,` `-` `*` `/`
 
-`<minutes>`::
+`<minutes>`:: 
 (Required)
 Valid values: `0`-`59` and the special characters `,` `-` `*` `/`
 
-`<hours>`::
+`<hours>`:: 
 (Required)
 Valid values: `0`-`23` and the special characters `,` `-` `*` `/`
 
-`<day_of_month>`::
+`<day_of_month>`:: 
 (Required)
 Valid values: `1`-`31` and the special characters `,` `-` `*` `/` `?` `L` `W`
 
-`<month>`::
+`<month>`::  
 (Required)
 Valid values: `1`-`12`, `JAN`-`DEC`, `jan`-`dec`, and the special characters `,` `-` `*` `/`
 
-`<day_of_week>`::
+`<day_of_week>`:: 
 (Required)
 Valid values: `1`-`7`, `SUN`-`SAT`, `sun`-`sat`,  and the special characters `,` `-` `*` `/` `?` `L` `#`
 
-`<year>`::
+`<year>`:: 
 (Optional)
 Valid values: `1970`-`2099` and the special characters `,` `-` `*` `/`
 
@@ -56,14 +56,14 @@ Valid values: `1970`-`2099` and the special characters `,` `-` `*` `/`
 Selects every possible value for a field. For
 example, `*` in the `hours` field means "every hour".
 
-`?`::
+`?`::                
 No specific value. Use when you don't care what the value
 is. For example, if you want the schedule to trigger on a
 particular day of the month, but don't care what day of
 the week that happens to be, you can specify `?` in the
 `day_of_week` field.
 
-`-`::
+`-`::                 
 A range of values (inclusive). Use to separate a minimum
 and maximum value. For example, if you want the schedule
 to trigger every hour between 9:00 a.m. and 5:00 p.m., you

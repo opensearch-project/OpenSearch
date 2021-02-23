@@ -40,9 +40,9 @@ fields, ingest pipelines or full-text indexing will see lower gains.
 
 {es} 7.10 depends on Apache Lucene 8.7, which introduces higher compression of
 stored fields, the part of the index that notably stores the
-{ref}/mapping-source-field.html[`_source`]. On the various data sets that we
-benchmark against, we noticed space reductions between 0% and 10%. This change
-especially helps on data sets that have lots of redundant data across documents,
+{ref}/mapping-source-field.html[`_source`]. On the various data sets that we 
+benchmark against, we noticed space reductions between 0% and 10%. This change 
+especially helps on data sets that have lots of redundant data across documents, 
 which is typically the case of the documents that are produced by our
 Observability solutions, which repeat metadata about the host that produced the
 data on every document.
@@ -56,12 +56,12 @@ Elasticsearch offers the ability to configure the
 [[auc-roc-eval-class]]
 === AUC ROC evaluation metrics for classification analysis
 
-{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[Area under the curve of receiver operating characteristic (AUC ROC)]
-is an evaluation metric that has been available for {oldetection} since 7.3 and
-now is available for {classification} analysis. AUC ROC represents the
-performance of the {classification} process at different predicted probability
-thresholds. The true positive rate for a specific class is compared against the
-rate of all the other classes combined at the different threshold levels to
+{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[Area under the curve of receiver operating characteristic (AUC ROC)] 
+is an evaluation metric that has been available for {oldetection} since 7.3 and 
+now is available for {classification} analysis. AUC ROC represents the 
+performance of the {classification} process at different predicted probability 
+thresholds. The true positive rate for a specific class is compared against the 
+rate of all the other classes combined at the different threshold levels to 
 create the curve.
 
 [discrete]
