@@ -133,7 +133,6 @@ The cluster state includes:
 * Index templates
 * Legacy index templates
 * Ingest pipelines
-* {ilm-init} lifecycle policies
 --
 +
 IMPORTANT: By default, the entire restore operation will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<restore-snapshot-api-partial,`partial`>> to `true`.

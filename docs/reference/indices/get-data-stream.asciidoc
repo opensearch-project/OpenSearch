@@ -135,18 +135,6 @@ Name of the index template used to create the data stream's backing indices.
 +
 The template's index pattern must match the name of this data stream. See
 <<create-a-data-stream-template>>.
-
-`ilm_policy`::
-(string)
-Name of the current {ilm-init} lifecycle policy in the stream's matching index
-template. This lifecycle policy is set in the `index.lifecycle.name` setting.
-+
-If the template does not include a lifecycle policy, this property is not
-included in the response.
-+
-NOTE: A data stream's backing indices may be assigned different lifecycle
-policies. To retrieve the lifecycle policy for individual backing indices,
-use the <<indices-get-settings,get index settings API>>.
 ====
 
 [[get-data-stream-api-example]]
