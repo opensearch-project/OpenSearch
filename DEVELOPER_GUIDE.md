@@ -52,7 +52,7 @@ dozen extra jars.
 
 ## Project Tools
 
-JDK 14 is required to build RENAMEME. You must have a JDK 14 installation
+JDK 14 is required to build RENAMEME. You must have a JDK 14 installed
 with the environment variable `JAVA_HOME` referencing the path to Java home for
 your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since RENNAMEME supports JDK 8, the build supports compiling with
@@ -84,13 +84,15 @@ specifically these lines tell you that RENAMEME is ready:
     [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
 
 But to be honest its typically easier to wait until the console stops scrolling
-and then run `curl` in another window like this:
+and then run `curl` in another window like this to check if RENAMEME instance is running:
 
 RENAMEME this needs to be replaced:
 
     curl -u elastic:password localhost:9200
 
-## Importing the project into IntelliJ IDEA
+## Get project source cod
+
+###Importing the project into IntelliJ IDEA
 
 RENAMEME builds using Java 14. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
@@ -105,6 +107,9 @@ You can import the RENAMAME project into IntelliJ IDEA via:
  - Select **File > Open**
  - In the subsequent dialog navigate to the root `build.gradle` file
  - In the subsequent dialog select **Open as Project**
+
+###Git clone RENAMAME repo:
+ git clone https://github.com/opendistro-for-elasticsearch/RENAMEME
 
 ## Java Language Formatting Guidelines
 
@@ -187,7 +192,7 @@ by running Gradle with `-Dspotless.paddedcell`.
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 
-## Creating A Distribution
+## Creating A Distribution/Make a RENAMEME build
 
 Run all build commands from within the root directory:
 
@@ -302,18 +307,29 @@ Once your changes and tests are ready to submit for review:
 
 1. Test your changes
 
-    Run the test suite to make sure that nothing is broken. See the
-[TESTING](TESTING.asciidoc) file for help running tests.
+    Run the test suite to make sure that local tests passes, add unit tests for all the new code paths introduced by your change,
+    nothing is broken by your change. See the [TESTING](TESTING.asciidoc) file for help running tests. 100% Test UT coverage is required.
 
 2. Rebase your changes
 
 Update your local repository with the most recent code from the main RENAMEME repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
 
-3. Submit a pull request
+3. Please provide detailed description on your change.
+
+   What is your change?
+   What features are enabled in your change if any?
+   What is fixed in your change if any?
+
+4. Submit a pull request
 
     Push your local changes to your forked copy of the repository and [submit a pull request](https://help.github.com/articles/using-pull-requests). In the pull request, choose a title which sums up the changes that you have made, and in the body provide more details about what your changes do. Also mention the number of the issue where discussion has taken place, eg "Closes #123".
 
 Unless your change is trivial, there will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into RENAMEME.
+
+5. Code review and approval
+
+   Invite domain expert to review your code.
+
 
 Please adhere to the general guideline that you should never force push
 to a publicly shared branch. Once you have opened your pull request, you
@@ -329,17 +345,19 @@ via GitHub](https://github.com/blog/2141-squash-your-commits).
 
 ### Reviewing and accepting your contribution
 
-We deeply appreciate everyone who takes the time to make a contribution.  We will will review all contributions as quickly as possible, but there are a few things you can do to help us with the process:
+We deeply appreciate everyone who takes the time to make a contribution.  We will review all contributions as quickly as possible, but there are a few things you can do to help us with the process:
 
-First and foremost, opening an issue and discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatable with our architectual direction. 
+First and foremost, opening an issue and discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatable with our architectual direction.
 
-Additionally:  
-1) Make sure you've run `./gradlew check` before submitting.  The better tested your change is, the higher our confidence will be in it. 
-2) Make sure your change includes the tests that correspond with your changes, and is formatted well. 
-3) Smaller changes are easier to digest than large ones. 
-4) Given the limits of the team, we will reject PRs that are simple refactorings or "tidying up".  So make sure you're clear about what problem your PR is solving.
+Additionally:
+1) Plesae make sure you've run `./gradlew check` before submitting.  The better tested your change is, the higher our confidence will be in it.
+2) Please Make sure your change includes the tests that correspond with your changes, and is formatted well.
+3) Please make sure local tests pass, add unit tests for all the new code paths introduced by your change.
+4) Please write both unit tests and integration test for your change
+5) Smaller changes are easier to digest than large ones.
+6) Given the limits of the team, we will reject PRs that are simple refactorings or "tidying up".  So make sure you're clear about what problem your PR is solving.
 
-During the PR process, expect that they'll be some back and forth.  Please try to respond to comments in a timely fashion, and if you dont wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionall, if you stop responding, we may close the PR as abandonded.  In either case, if you feel this was done in error, please add a comment on the PR.   
+During the PR process, expect that they'll be some back and forth.  Please try to respond to comments in a timely fashion, and if you dont wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionall, if you stop responding, we may close the PR as abandonded.  In either case, if you feel this was done in error, please add a comment on the PR.
 
 If we accept the PR, we will merge your change and usually take care of backporting it to appropriate branches ourselves.
 
