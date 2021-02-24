@@ -71,9 +71,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             total = in.readLong();
             free = in.readLong();
             available = in.readLong();
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-                in.readOptionalBoolean();
-            }
         }
 
         @Override
@@ -84,9 +81,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(total);
             out.writeLong(free);
             out.writeLong(available);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-                out.writeOptionalBoolean(null);
-            }
         }
 
         public String getPath() {

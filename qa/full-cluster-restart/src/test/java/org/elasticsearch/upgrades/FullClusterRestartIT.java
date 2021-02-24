@@ -86,7 +86,6 @@ import static org.hamcrest.Matchers.startsWith;
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
-    private final boolean supportsLenientBooleans = getOldClusterVersion().before(Version.V_6_0_0_alpha1);
 
     private String index;
     private String type;
@@ -159,7 +158,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                             .field("int", randomInt(100))
                             .field("float", randomFloat())
                             // be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
-                            .field("bool", i > 0 && supportsLenientBooleans ? randomLenientBoolean() : randomBoolean())
+                            .field("bool", i > 0 && randomBoolean())
                             .field("field.with.dots", randomAlphaOfLength(10))
                             .field("binary", Base64.getEncoder().encodeToString(randomByteArray))
                             .endObject()

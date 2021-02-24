@@ -110,10 +110,6 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
         public StoreStatus(StreamInput in) throws IOException {
             node = new DiscoveryNode(in);
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-                // legacy version
-                in.readLong();
-            }
             allocationId = in.readOptionalString();
             allocationStatus = AllocationStatus.readFrom(in);
             if (in.readBoolean()) {
@@ -164,10 +160,6 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-                // legacy version
-                out.writeLong(-1L);
-            }
             out.writeOptionalString(allocationId);
             allocationStatus.writeTo(out);
             if (storeException != null) {

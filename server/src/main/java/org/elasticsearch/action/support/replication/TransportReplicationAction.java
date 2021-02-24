@@ -1218,11 +1218,8 @@ public abstract class TransportReplicationAction<
 
         public ConcreteReplicaRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
             super(requestReader, in);
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                globalCheckpoint = in.readZLong();
-            } else {
-                globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            }
+            globalCheckpoint = in.readZLong();
+
             if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
                 maxSeqNoOfUpdatesOrDeletes = in.readZLong();
             } else {
@@ -1242,9 +1239,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                out.writeZLong(globalCheckpoint);
-            }
+            out.writeZLong(globalCheckpoint);
             if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
                 out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
             }

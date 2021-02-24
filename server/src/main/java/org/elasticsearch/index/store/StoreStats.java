@@ -48,9 +48,6 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     public StoreStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-            in.readVLong(); // throttleTimeInNanos
-        }
         if (in.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
             reservedSize = in.readZLong();
         } else {
@@ -108,9 +105,6 @@ public class StoreStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-            out.writeVLong(0L); // throttleTimeInNanos
-        }
         if (out.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
             out.writeZLong(reservedSize);
         }

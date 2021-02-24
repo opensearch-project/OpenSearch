@@ -1101,12 +1101,6 @@ public class MetadataCreateIndexService {
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
         IndexMetadata.selectSplitShard(0, sourceMetadata, IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
-        if (sourceMetadata.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-            // ensure we have a single type since this would make the splitting code considerably more complex
-            // and a 5.x index would not be splittable unless it has been shrunk before so rather opt out of the complexity
-            // since in 5.x we don't have a setting to artificially set the number of routing shards
-            throw new IllegalStateException("source index created version is too old to apply a split operation");
-        }
     }
 
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {

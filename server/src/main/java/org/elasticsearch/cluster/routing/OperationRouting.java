@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -231,15 +230,13 @@ public class OperationRouting {
         }
         // if not, then use it as the index
         int routingHash = Murmur3HashFunction.hash(preference);
-        if (nodes.getMinNodeVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            // The AllocationService lists shards in a fixed order based on nodes
-            // so earlier versions of this class would have a tendency to
-            // select the same node across different shardIds.
-            // Better overall balancing can be achieved if each shardId opts
-            // for a different element in the list by also incorporating the
-            // shard ID into the hash of the user-supplied preference key.
-            routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-        }
+        // The AllocationService lists shards in a fixed order based on nodes
+        // so earlier versions of this class would have a tendency to
+        // select the same node across different shardIds.
+        // Better overall balancing can be achieved if each shardId opts
+        // for a different element in the list by also incorporating the
+        // shard ID into the hash of the user-supplied preference key.
+        routingHash = 31 * routingHash + indexShard.shardId.hashCode();
         if (awarenessAttributes.isEmpty()) {
             return indexShard.activeInitializingShardsIt(routingHash);
         } else {
