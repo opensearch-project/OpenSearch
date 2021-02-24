@@ -12,12 +12,6 @@ Returns a list of plugins running on each node of a cluster.
 
 `GET /_cat/plugins`
 
-[[cat-plugins-api-prereqs]]
-==== {api-prereq-title}
-
-* If the {es} {security-features} are enabled, you must have the `monitor` or
-`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
-
 [[cat-plugins-api-query-params]]
 ==== {api-query-parms-title}
 

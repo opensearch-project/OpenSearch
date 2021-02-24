@@ -49,11 +49,7 @@ configuration files.
 ====
 
 * Transient settings are not considered for backup.
-* {es} {security-features} store configuration data such as role definitions and
-API keys inside a dedicate special index. This "system" data,
-complements the <<secure-settings, security settings>> configuration and should
-be <<backup-security-index-configuration, backed up as well>>.
-* Other {stack} components, like Kibana and {ml-cap}, store their configuration
+* Other {stack} components, like Kibana, store their configuration
 data inside other dedicated indices. From the {es} perspective these are just data
 so you can use the regular <<backup-cluster-data, data backup>> process.
 

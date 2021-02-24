@@ -103,13 +103,6 @@ PUT /_data_stream/my-data-stream
 // TEST[s/my-data-stream/my-data-stream-alt/]
 
 [discrete]
-[[secure-a-data-stream]]
-=== Secure the data stream
-
-To control access to the data stream and its
-data, use <<data-stream-privileges,{es}'s {security-features}>>.
-
-[discrete]
 [[get-info-about-a-data-stream]]
 === Get information about a data stream
 
