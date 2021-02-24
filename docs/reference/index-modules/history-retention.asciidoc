@@ -28,12 +28,13 @@ replay in future.
 {es} keeps track of the operations it expects to need to replay in future using
 a mechanism called _shard history retention leases_. Each shard copy that might
 need operations to be replayed must first create a shard history retention lease
-for itself. For example, this shard copy might be a replica of a shard. Each 
-retention lease keeps track of the sequence number of the first operation that the 
-corresponding shard copy has not received. As the shard copy receives new operations, 
-it increases the sequence number contained in its retention lease to indicate that 
-it will not need to replay those operations in future. {es} discards soft-deleted 
-operations once they are not being held by any retention lease.
+for itself. For example, this shard copy might be a replica of a shard. 
+Each retention lease
+keeps track of the sequence number of the first operation that the corresponding
+shard copy has not received. As the shard copy receives new operations, it
+increases the sequence number contained in its retention lease to indicate that
+it will not need to replay those operations in future. {es} discards
+soft-deleted operations once they are not being held by any retention lease.
 
 If a shard copy fails then it stops updating its shard history retention lease,
 which means that {es} will preserve all new operations so they can be replayed
