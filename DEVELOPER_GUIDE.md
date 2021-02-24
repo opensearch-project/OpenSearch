@@ -311,7 +311,7 @@ Once your changes and tests are ready to submit for review:
 1. Test your changes
 
     Run the test suite to make sure that local tests passes, add unit tests for all the new code paths introduced by your change,
-    nothing is broken by your change. See the [TESTING](TESTING.asciidoc) file for help running tests. 100% Test UT coverage is required.
+    make sure nothing is broken by your change. See the [TESTING](TESTING.asciidoc) file for help running tests. 100% Test UT coverage is required.
 
 2. Rebase your changes
 
