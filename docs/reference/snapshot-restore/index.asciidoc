@@ -34,10 +34,6 @@ However, you can choose to restore only the cluster state or specific data
 streams or indices from a snapshot.
 // end::restore-intro[]
 
-You can use
-<<getting-started-snapshot-lifecycle-management, {slm}>>
-to automatically take and manage snapshots.
-
 // tag::backup-warning[]
 WARNING: You cannot back up an {es} cluster by simply copying
 the data directories of all of its nodes. {es} may be making changes to
