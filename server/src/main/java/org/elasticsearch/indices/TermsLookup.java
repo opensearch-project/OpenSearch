@@ -85,14 +85,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         }
         id = in.readString();
         path = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            index = in.readString();
-        } else {
-            index = in.readOptionalString();
-            if (index == null) {
-                throw new IllegalStateException("index must not be null in a terms lookup");
-            }
-        }
+        index = in.readString();
         routing = in.readOptionalString();
     }
 
@@ -110,11 +103,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         }
         out.writeString(id);
         out.writeString(path);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeString(index);
-        } else {
-            out.writeOptionalString(index);
-        }
+        out.writeString(index);
         out.writeOptionalString(routing);
     }
 

@@ -1185,11 +1185,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));
         Map<String, Object> expectedTemplate = new HashMap<>();
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_0_0_beta1)) {
-            expectedTemplate.put("template", "evil_*");
-        } else {
-            expectedTemplate.put("index_patterns", singletonList("evil_*"));
-        }
+        expectedTemplate.put("index_patterns", singletonList("evil_*"));
         expectedTemplate.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
         // We don't have the type in the response starting with 7.0, but we won't have it on old cluster after upgrade
         // either so look at the response to figure out the correct assertions

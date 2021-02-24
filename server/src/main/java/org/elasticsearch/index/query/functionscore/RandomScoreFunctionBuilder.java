@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,9 +54,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         if (in.readBoolean()) {
             seed = in.readInt();
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            field = in.readOptionalString();
-        }
+        field = in.readOptionalString();
     }
 
     @Override
@@ -68,9 +65,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeOptionalString(field);
-        }
+        out.writeOptionalString(field);
     }
 
     @Override

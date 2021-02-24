@@ -254,11 +254,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             name = in.readOptionalString();
         }
-        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-            documentType = in.readString();
-        } else {
-            documentType = in.readOptionalString();
-        }
+
+        documentType = in.readOptionalString();
         indexedDocumentIndex = in.readOptionalString();
         indexedDocumentType = in.readOptionalString();
         indexedDocumentId = in.readOptionalString();
@@ -301,11 +298,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalString(name);
         }
-        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
-            out.writeString(documentType);
-        } else {
-            out.writeOptionalString(documentType);
-        }
+        out.writeString(documentType);
+
         out.writeOptionalString(indexedDocumentIndex);
         out.writeOptionalString(indexedDocumentType);
         out.writeOptionalString(indexedDocumentId);

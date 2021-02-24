@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ESTestCase {
 
-    public void testVersionComparison() throws Exception {
+    public void testVersionComparison() {
         assertThat(V_6_3_0.before(V_7_0_0), is(true));
         assertThat(V_6_3_0.before(V_6_3_0), is(false));
         assertThat(V_7_0_0.before(V_6_3_0), is(false));
@@ -98,15 +98,6 @@ public class VersionTests extends ESTestCase {
         } else {
             assertEquals(version1, Version.max(version1, version));
         }
-    }
-
-    public void testMinimumIndexCompatibilityVersion() {
-        assertEquals(Version.fromId(5000099), Version.V_6_0_0_beta1.minimumIndexCompatibilityVersion());
-        assertEquals(Version.fromId(2000099), Version.fromId(5000099).minimumIndexCompatibilityVersion());
-        assertEquals(Version.fromId(2000099),
-                Version.fromId(5010000).minimumIndexCompatibilityVersion());
-        assertEquals(Version.fromId(2000099),
-                Version.fromId(5000001).minimumIndexCompatibilityVersion());
     }
 
     public void testVersionConstantPresent() {
@@ -161,7 +152,7 @@ public class VersionTests extends ESTestCase {
 
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetadata.SETTING_INDEX_UUID
-        final Version version = Version.V_6_0_0_beta1;
+        final Version version = Version.CURRENT;
         assertEquals(version, Version.indexCreated(
             Settings.builder()
                 .put(IndexMetadata.SETTING_INDEX_UUID, "foo")
