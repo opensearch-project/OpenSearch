@@ -2,6 +2,29 @@
 
 So you want to contribute code to RENAMEME?  Excellent!  We're glad you're here.  Here's what you need to do:
 
+## Get project source code
+
+### RENAMEE Repo : https://github.com/opendistro-for-elasticsearch/RENAMEME
+
+###Importing the project into IntelliJ IDEA directly
+
+RENAMEME builds using Java 14. When importing into IntelliJ you will need
+to define an appropriate SDK. The convention is that **this SDK should be named
+"14"** so that the project import will detect it automatically. For more details
+on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
+SDK definitions are global, so you can add the JDK from any project, or after
+project import. Importing with a missing JDK will still work, IntelliJ will
+simply report a problem and will refuse to build until resolved.
+
+You can import the RENAMAME project into IntelliJ IDEA via:
+
+ - Select **File > Open**
+ - In the subsequent dialog navigate to the root `build.gradle` file
+ - In the subsequent dialog select **Open as Project**
+
+###Git clone RENAMAME repo:
+ git clone https://github.com/opendistro-for-elasticsearch/RENAMEME
+
 
 ## Project layout
 
@@ -90,26 +113,6 @@ RENAMEME this needs to be replaced:
 
     curl -u elastic:password localhost:9200
 
-## Get project source cod
-
-###Importing the project into IntelliJ IDEA
-
-RENAMEME builds using Java 14. When importing into IntelliJ you will need
-to define an appropriate SDK. The convention is that **this SDK should be named
-"14"** so that the project import will detect it automatically. For more details
-on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
-SDK definitions are global, so you can add the JDK from any project, or after
-project import. Importing with a missing JDK will still work, IntelliJ will
-simply report a problem and will refuse to build until resolved.
-
-You can import the RENAMAME project into IntelliJ IDEA via:
-
- - Select **File > Open**
- - In the subsequent dialog navigate to the root `build.gradle` file
- - In the subsequent dialog select **Open as Project**
-
-###Git clone RENAMAME repo:
- git clone https://github.com/opendistro-for-elasticsearch/RENAMEME
 
 ## Java Language Formatting Guidelines
 
