@@ -108,7 +108,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
+        result.output.count("Unpacking elasticsearch-oss-${version}-linux-x86_64.tar.gz " +
                 "using SymbolicLinkPreservingUntarTransform.") == 1
     }
 

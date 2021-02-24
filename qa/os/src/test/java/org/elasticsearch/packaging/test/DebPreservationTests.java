@@ -32,10 +32,8 @@ import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
-import static org.elasticsearch.packaging.util.Packages.packageStatus;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeTrue;
 
 public class DebPreservationTests extends PackagingTestCase {
@@ -67,43 +65,14 @@ public class DebPreservationTests extends PackagingTestCase {
             installation.config(Paths.get("jvm.options.d", "heap.options"))
         );
 
-        if (distribution().isDefault()) {
-            assertPathsExist(
-                installation.config,
-                installation.config("role_mapping.yml"),
-                installation.config("roles.yml"),
-                installation.config("users"),
-                installation.config("users_roles")
-            );
-        }
-
         // keystore was removed
 
         assertPathsDoNotExist(installation.config("elasticsearch.keystore"), installation.config(".elasticsearch.keystore.initial_md5sum"));
-
-        // doc files were removed
-
-        assertPathsDoNotExist(
-            Paths.get("/usr/share/doc/" + distribution().flavor.name),
-            Paths.get("/usr/share/doc/" + distribution().flavor.name + "/copyright")
-        );
 
         // sysvinit service file was not removed
         assertThat(SYSVINIT_SCRIPT, fileExists());
 
         // defaults file was not removed
         assertThat(installation.envFile, fileExists());
-    }
-
-    public void test30Purge() throws Exception {
-        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
-
-        sh.run("dpkg --purge " + distribution().flavor.name);
-
-        assertRemoved(distribution());
-
-        assertPathsDoNotExist(installation.config, installation.envFile, SYSVINIT_SCRIPT);
-
-        assertThat(packageStatus(distribution()).exitCode, is(1));
     }
 }
