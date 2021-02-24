@@ -3,16 +3,18 @@ Contributing to elasticsearch
 
 Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
 
-If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
-make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
-
 Bug reports
 -----------
 
-If you think you have found a bug in Elasticsearch, first make sure that you are testing against the [latest version of Elasticsearch](https://www.elastic.co/downloads/elasticsearch) - your issue may already have been fixed. If not, search our [issues list](https://github.com/elastic/elasticsearch/issues) on GitHub in case a similar issue has already been opened.
+When filing an issue or report bug, please check existing open, or recently closed, your issue may already have been fixed or reported by someone else. If not,
 
-It is very helpful if you can prepare a reproduction of the bug. In other words, provide a small test case which we can run to confirm your bug. It makes it easier to find the problem and to fix it. Test cases should be provided as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
+Please try to include as much information as you can. Details like these are incredibly useful:
 
+. A reproducible test case or series of steps
+. The version of our code being used
+. Any modifications you've made relevant to the bug
+. Anything unusual about your environment or deployment
+. for example:
 ```sh
 # delete the index
 curl -XDELETE localhost:9200/test
@@ -32,7 +34,7 @@ Feature requests
 ----------------
 
 If you find yourself wishing for a feature that doesn't exist in Elasticsearch, you are probably not alone. There are bound to be others out there with similar needs. Many of the features that Elasticsearch has today have been added because our users saw the need.
-Open an issue on our [issues list](https://github.com/elastic/elasticsearch/issues) on GitHub which describes the feature you would like to see, why you need it, and how it should work.
+Open an issue on our [issues list](https://github.com/opendistro-for-elasticsearch/search/issues) on GitHub which describes the feature you would like to see, why you need it, and how it should work.
 
 
 ## Sign your work
@@ -87,7 +89,7 @@ We add the `help wanted` label to existing Github issues for which community
 contributions are particularly welcome, and we use the `good first issue` label
 to mark issues that we think will be suitable for new contributors.
 
-The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar. Details for individual projects can be found below.
+The process for contributing to any of the [Elastic repositories](https://github.com/opendistro-for-elasticsearch/search) is similar. Details for individual projects can be found below.
 
 ### Fork and clone the repository
 
@@ -105,16 +107,12 @@ Once your changes and tests are ready to submit for review:
     Run the test suite to make sure that nothing is broken. See the
 [TESTING](TESTING.asciidoc) file for help running tests.
 
-2. Sign the Contributor License Agreement
-
-    Please make sure you have signed our [Contributor License Agreement](https://www.elastic.co/contributor-agreement/). We are not asking you to assign copyright to us, but to give us the right to distribute your code without restriction. We ask this of all contributors in order to assure our users of the origin and continuing existence of the code. You only need to sign the CLA once.
-
-3. Rebase your changes
+2. Rebase your changes
 
     Update your local repository with the most recent code from the main Elasticsearch repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
 
 
-4. Submit a pull request
+3. Submit a pull request
 
     Push your local changes to your forked copy of the repository and [submit a pull request](https://help.github.com/articles/using-pull-requests). In the pull request, choose a title which sums up the changes that you have made, and in the body provide more details about what your changes do. Also mention the number of the issue where discussion has taken place, eg "Closes #123".
 
@@ -134,7 +132,7 @@ via GitHub](https://github.com/blog/2141-squash-your-commits).
 Contributing to the Elasticsearch codebase
 ------------------------------------------
 
-**Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
+**Repository:** [https://github.com/opendistro-for-elasticsearch/search](https://github.com/opendistro-for-elasticsearch/search)
 
 JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
@@ -145,7 +143,7 @@ pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
+and `JAVA11_HOME`, `JAVA12_HOME`， and `JAVA14_HOME` available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
