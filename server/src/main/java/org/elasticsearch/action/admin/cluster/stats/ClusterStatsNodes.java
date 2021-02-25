@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -668,14 +667,13 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     static class PackagingTypes implements ToXContentFragment {
 
-        private final Map<Tuple<String, String>, AtomicInteger> packagingTypes;
+        private final Map<String, AtomicInteger> packagingTypes;
 
         PackagingTypes(final List<NodeInfo> nodeInfos) {
-            final Map<Tuple<String, String>, AtomicInteger> packagingTypes = new HashMap<>();
+            final Map<String, AtomicInteger> packagingTypes = new HashMap<>();
             for (final NodeInfo nodeInfo : nodeInfos) {
-                final String flavor = nodeInfo.getBuild().flavor().displayName();
                 final String type = nodeInfo.getBuild().type().displayName();
-                packagingTypes.computeIfAbsent(Tuple.tuple(flavor, type), k -> new AtomicInteger()).incrementAndGet();
+                packagingTypes.computeIfAbsent(type, k -> new AtomicInteger()).incrementAndGet();
             }
             this.packagingTypes = Collections.unmodifiableMap(packagingTypes);
         }
@@ -684,11 +682,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startArray("packaging_types");
             {
-                for (final Map.Entry<Tuple<String, String>, AtomicInteger> entry : packagingTypes.entrySet()) {
+                for (final Map.Entry<String, AtomicInteger> entry : packagingTypes.entrySet()) {
                     builder.startObject();
                     {
-                        builder.field("flavor", entry.getKey().v1());
-                        builder.field("type", entry.getKey().v2());
+                        builder.field("type", entry.getKey());
                         builder.field("count", entry.getValue().get());
                     }
                     builder.endObject();

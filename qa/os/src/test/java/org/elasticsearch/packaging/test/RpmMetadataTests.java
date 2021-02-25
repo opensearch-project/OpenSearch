@@ -48,12 +48,5 @@ public class RpmMetadataTests extends PackagingTestCase {
         TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(deps.stdout).find());
 
         final Shell.Result conflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(distribution()));
-
-        String oppositePackageName = "elasticsearch";
-        if (distribution().isDefault()) {
-            oppositePackageName += "-oss";
-        }
-
-        TestCase.assertTrue(Pattern.compile("(?m)^" + oppositePackageName + "\\s*$").matcher(conflicts.stdout).find());
     }
 }
