@@ -123,8 +123,8 @@ high-performance geo and numerical queries.
 
 You can access all of these search capabilities using {es}'s
 comprehensive JSON-style query language (<<query-dsl, Query DSL>>). You can also
-construct <<sql-overview, SQL-style queries>> to search and aggregate data
-natively inside {es}, and JDBC and ODBC drivers enable a broad range of
+construct SQL-style queries to search and aggregate data inside {es} through plugins 
+contributed by the community, and JDBC and ODBC drivers enable a broad range of
 third-party applications to interact with {es} via SQL.
 
 [discrete]
@@ -158,22 +158,6 @@ context of a particular search, you’re not just displaying a count of all
 size 70 needles, you’re displaying a count of the size 70 needles
 that match your users' search criteria--for example, all size 70 _non-stick
 embroidery_ needles.
-
-[discrete]
-[[more-features]]
-===== But wait, there’s more
-
-Want to automate the analysis of your time series data? You can use
-{ml-docs}/ml-overview.html[machine learning] features to create accurate
-baselines of normal behavior in your data and identify anomalous patterns. With
-machine learning, you can detect:
-
-* Anomalies related to temporal deviations in values, counts, or frequencies
-* Statistical rarity
-* Unusual behaviors for a member of a population
-
-And the best part? You can do this without having to specify algorithms, models,
-or other data science-related configurations.
 
 [[scalability]]
 === Scalability and resilience: clusters, nodes, and shards
@@ -230,30 +214,6 @@ As a starting point:
   proportional to the available heap space. As a general rule, the number of
   shards per GB of heap space should be less than 20.
 
-The best way to determine the optimal configuration for your use case is
-through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[
-testing with your own data and queries].
-
-[discrete]
-[[disaster-ccr]]
-==== In case of disaster
-
-For performance reasons, the nodes within a cluster need to be on the same
-network. Balancing shards in a cluster across nodes in different data centers
-simply takes too long. But high-availability architectures demand that you avoid
-putting all of your eggs in one basket. In the event of a major outage in one
-location, servers in another location need to be able to take over. Seamlessly.
-The answer? {ccr-cap} (CCR).
-
-CCR provides a way to automatically synchronize indices from your primary cluster
-to a secondary remote cluster that can serve as a hot backup. If the primary
-cluster fails, the secondary cluster can take over. You can also use CCR to
-create secondary clusters to serve read requests in geo-proximity to your users.
-
-{ccr-cap} is active-passive. The index on the primary cluster is
-the active leader index and handles all write requests. Indices replicated to
-secondary clusters are read-only followers.
-
 [discrete]
 [[admin]]
 ==== Care and feeding
@@ -261,6 +221,4 @@ secondary clusters are read-only followers.
 As with any enterprise system, you need tools to secure, manage, and
 monitor your {es} clusters. Security, monitoring, and administrative features
 that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
-as a control center for managing a cluster. Features like <<xpack-rollup,
-data rollups>> and <<index-lifecycle-management, index lifecycle management>>
-help you intelligently manage your data over time.
+as a control center for managing a cluster.
