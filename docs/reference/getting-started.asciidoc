@@ -23,10 +23,6 @@ with the rest of the stack, you might want to jump to the
 {stack-gs}/get-started-elastic-stack.html[Elastic Stack
 Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
 {beats}, and {ls}.
-
-TIP: The fastest way to get started with {es} is to
-{ess-trial}[start a free 14-day
-trial of {ess}] in the cloud.
 --
 
 [[getting-started-install]]
