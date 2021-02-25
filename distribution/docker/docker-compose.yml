@@ -20,14 +20,12 @@ services:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
        - ./build/logs/default-1:/usr/share/elasticsearch/logs
-       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:
       - "9200"
     ulimits:
       memlock:
         soft: -1
         hard: -1
-    entrypoint: /docker-test-entrypoint.sh
   elasticsearch-default-2:
     image: elasticsearch:test
     environment:
@@ -47,14 +45,12 @@ services:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
        - ./build/logs/default-2:/usr/share/elasticsearch/logs
-       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:
       - "9200"
     ulimits:
       memlock:
         soft: -1
         hard: -1
-    entrypoint: /docker-test-entrypoint.sh
   elasticsearch-oss-1:
     image: elasticsearch:test
     environment:
