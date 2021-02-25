@@ -34,6 +34,44 @@ Feature requests
 If you find yourself wishing for a feature that doesn't exist in Elasticsearch, you are probably not alone. There are bound to be others out there with similar needs. Many of the features that Elasticsearch has today have been added because our users saw the need.
 Open an issue on our [issues list](https://github.com/elastic/elasticsearch/issues) on GitHub which describes the feature you would like to see, why you need it, and how it should work.
 
+
+## Sign your work
+The sign-off is a simple line at the end of each commit, which certifies that you wrote it or otherwise have the right to pass it on as an open-source patch. if you can certify the below
+```
+By making a contribution to this project, I certify that:
+(a) The contribution was created in whole or in part by me and I
+have the right to submit it under the open source license
+indicated in the file; or
+(b) The contribution is based upon previous work that, to the best
+of my knowledge, is covered under an appropriate open source
+license and I have the right under that license to submit that
+work with modifications, whether created in whole or in part
+by me, under the same open source license (unless I am
+permitted to submit under a different license), as indicated
+in the file; or
+(c) The contribution was provided directly to me by some other
+person who certified (a), (b) or (c) and I have not modified
+it.
+(d) I understand and agree that this project and the contribution
+are public and that a record of the contribution (including all
+personal information I submit with it, including my sign-off) is
+maintained indefinitely and may be redistributed consistent with
+this project or the open source license(s) involved.
+```
+then you just add a line to every git commit message:
+```
+Signed-off-by: Bob Sanders <bob.sanders@email.com>
+```
+You can sign off your work easily by adding the configuration in github
+```
+git config user.name "Bob Sanders"
+git config user.email "bob.sanders@email.com"
+```
+Then, you could sign off commits automatically by adding `-s` or `-=signoff` parameter to your usual git commits commands. e.g.
+```
+git commit -s -m "my first commit"
+```
+
 Contributing code and documentation changes
 -------------------------------------------
 

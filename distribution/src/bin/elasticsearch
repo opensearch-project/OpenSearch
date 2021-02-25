@@ -62,7 +62,6 @@ if [[ $DAEMONIZE = false ]]; then
     $ES_JAVA_OPTS \
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
-    -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
@@ -75,7 +74,6 @@ else
     $ES_JAVA_OPTS \
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
-    -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \

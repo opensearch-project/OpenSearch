@@ -68,7 +68,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
     }
 
     public void testProxyModeConnectionWorks() throws IOException {
-        String cluster2RemoteClusterSeed = "elasticsearch-" + getDistribution() + "-2:9300";
+        String cluster2RemoteClusterSeed = "elasticsearch-oss-2:9300";
         logger.info("Configuring remote cluster [{}]", cluster2RemoteClusterSeed);
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder()
             .put("cluster.remote.cluster2.mode", "proxy")
@@ -85,7 +85,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
     }
 
     public void testSniffModeConnectionFails() throws IOException {
-        String cluster2RemoteClusterSeed = "elasticsearch-" + getDistribution() + "-2:9300";
+        String cluster2RemoteClusterSeed = "elasticsearch-oss-2:9300";
         logger.info("Configuring remote cluster [{}]", cluster2RemoteClusterSeed);
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder()
             .put("cluster.remote.cluster2alt.mode", "sniff")
