@@ -32,26 +32,8 @@ trial of {ess}] in the cloud.
 [[getting-started-install]]
 == Get {es} up and running
 
-To take {es} for a test drive, you can create a 
-{ess-trial}[hosted deployment]  on 
-the {ess} or set up a multi-node {es} cluster on your own
+To take {es} for a test drive, you can set up a multi-node {es} cluster on your own
 Linux, macOS, or Windows machine.
-
-[discrete]
-[[run-elasticsearch-hosted]]
-=== Run {es} on Elastic Cloud
-
-When you create a deployment on the {es} Service, the service provisions
-a three-node {es} cluster along with Kibana and APM.
-
-To create a deployment:
-
-. Sign up for a {ess-trial}[free trial] 
-and verify your email address.
-. Set a password for your account.
-. Click **Create Deployment**.
-
-Once you've created a deployment, you're ready to <<getting-started-index>>.
 
 [discrete]
 [[run-elasticsearch-local]]
