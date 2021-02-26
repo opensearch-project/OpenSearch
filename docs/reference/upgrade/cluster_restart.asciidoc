@@ -40,10 +40,6 @@ include::shut-down-node.asciidoc[]
 . *Upgrade all nodes.*
 +
 --
-include::remove-xpack.asciidoc[]
---
-+
---
 include::upgrade-node.asciidoc[]
 --
 +
