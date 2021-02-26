@@ -6,9 +6,8 @@
 
 Copies documents from a _source_ to a _destination_.
 
-The source and destination can be any pre-existing index, index alias, or
-<<data-streams,data stream>>. However, the source and destination must be
-different. For example, you cannot reindex a data stream into itself.
+The source and destination can be any pre-existing index or index alias. 
+However, the source and destination must be different.
 
 [IMPORTANT]
 =================================================
@@ -75,9 +74,6 @@ POST _reindex
 in the `reindex.remote.whitelist` setting of `elasticsearch.yml`. See
 <<reindex-from-remote>>.
 
-* Automatic data stream creation requires a matching index template with data
-stream enabled. See <<set-up-a-data-stream>>.
-
 [[docs-reindex-api-desc]]
 ==== {api-description-title}
 
@@ -103,11 +99,6 @@ in the source.
 Setting `op_type` to `create` causes `_reindex` to only create missing
 documents in the destination. All existing documents will cause a version
 conflict.
-
-IMPORTANT: Because data streams are <<data-streams-append-only,append-only>>,
-any reindex request to a destination data stream must have an `op_type`
-of`create`. A reindex can only add new documents to a destination data stream.
-It cannot update existing documents in a destination data stream.
 
 By default, version conflicts abort the `_reindex` process.
 To continue reindexing if there are conflicts, set the `"conflicts"` request body parameter to `proceed`.
@@ -309,8 +300,7 @@ which results in a sensible `total` like this one:
 Setting `slices` to `auto` will let Elasticsearch choose the number of slices to
 use. This setting will use one slice per shard, up to a certain limit. If there
 are multiple sources, it will choose the number of
-slices based on the index or <<data-streams,backing index>> with the smallest
-number of shards.
+slices based on the index with the smallest number of shards.
 
 Adding `slices` to `_reindex` just automates the manual process used in the
 section above, creating sub-requests which means it has some quirks:
@@ -486,7 +476,7 @@ Defaults to `abort`.
 
 `source`::
 `index`:::
-(Required, string) The name of the data stream, index, or index alias you are copying _from_.
+(Required, string) The name of the index or index alias you are copying _from_.
 Also accepts a comma-separated list to reindex from multiple sources.
 
 `max_docs`:::
@@ -535,7 +525,7 @@ Defaults to `true`.
 
 `dest`::
 `index`:::
-(Required, string) The name of the data stream, index, or index alias you are copying _to_.
+(Required, string) The name of the index or index alias you are copying _to_.
 
 `version_type`:::
 (Optional, enum) The versioning to use for the indexing operation.
@@ -545,9 +535,6 @@ See <<index-version-types>> for more information.
 `op_type`:::
 (Optional, enum) Set to create to only index documents that do not already exist (put if absent).
 Valid values: `index`, `create`. Defaults to `index`.
-+
-IMPORTANT: To reindex to a data stream destination, this argument must be
-`create`.
 
 `type`:::
 (Optional, string)
