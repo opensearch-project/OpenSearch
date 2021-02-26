@@ -2,11 +2,6 @@
 == Installing Elasticsearch
 
 [discrete]
-=== Hosted Elasticsearch
-
-You can run Elasticsearch on your own hardware, or use hosted Elasticsearch Service.
-
-[discrete]
 === Installing Elasticsearch Yourself
 
 Elasticsearch is provided in the following package formats:
