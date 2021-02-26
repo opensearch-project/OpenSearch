@@ -22,9 +22,9 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-/* List of files that have snippets that will not work ... */
+/* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-// File path from content root
+//  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
 ]
 
 restResources {
@@ -80,7 +80,7 @@ buildRestTests.docs = fileTree(projectDir) {
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests
-
+  exclude 'reference/data-streams'
   if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
     // We don't install/support this plugin in FIPS 140
     exclude 'plugins/ingest-attachment.asciidoc'
