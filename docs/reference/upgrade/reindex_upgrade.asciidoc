@@ -10,8 +10,8 @@ Any index created in 6.x is compatible with 7.x and does not require a reindex.
 
 
 This restriction also applies to the internal indices that are used by
-{kib}. Therefore, before you can use {kib} in {version}, you must ensure 
-the internal indices have a compatible index structure.
+{kib} features. Therefore, before you can use {kib} features in {version}, 
+you must ensure the internal indices have a compatible index structure.
 
 You have two options for reindexing old indices:
 
