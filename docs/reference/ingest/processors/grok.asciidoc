@@ -358,10 +358,7 @@ settings:
 [[grok-debugging]]
 ==== Grok debugging
 
-It is advised to use the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] to debug grok patterns. From there you can test one or more
-patterns in the UI against sample data. Under the covers it uses the same engine as ingest node processor.
-
-Additionally, it is recommended to enable debug logging for Grok so that any additional messages may also be seen in the Elasticsearch
+It is recommended to enable debug logging for Grok so that any additional messages may also be seen in the Elasticsearch
 server log.
 
 [source,js]
