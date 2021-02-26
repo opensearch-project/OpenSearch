@@ -3,6 +3,14 @@ pipeline {
 
 
     stages {
+        stage('DCO Check') {
+            when { branch pattern: "PR-\\d+", comparator: "REGEXP"}
+            steps {
+                sh (
+                  script: './dev-tools/signoff-check.sh remotes/origin/' + CHANGE_TARGET + ' ' + GIT_COMMIT,
+                )
+            }
+        }
         stage('Build') {
             steps {
                 echo 'Building..'

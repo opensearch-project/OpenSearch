@@ -22,7 +22,7 @@ for commitId in $commits; do
     signoffStringCount=$(echo $commitMessage | grep -c Signed-off-by)
     if [ $signoffStringCount -eq 0 ]; then
       echo !!! Commit "$commitId" is missing signoff, amend this commit with the --signoff flag
-      let "missingSignoff++"
+      missingSignoff=1
     fi
 done
 
