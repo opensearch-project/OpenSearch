@@ -22,9 +22,9 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-/* List of files that have snippets that will not work until platinum tests can occur ... */
+/* List of files that have snippets that will not work ... */
 buildRestTests.expectedUnconvertedCandidates = [
-//  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
+// File path from content root
 ]
 
 restResources {
