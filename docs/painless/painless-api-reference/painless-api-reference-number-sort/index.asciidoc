@@ -16,16 +16,5 @@ The following classes are available grouped by their respective packages. Click 
 
 * <<painless-api-reference-number-sort-String, String>>
 
-==== org.elasticsearch.xpack.sql.expression.literal.geo
-<<painless-api-reference-number-sort-org-elasticsearch-xpack-sql-expression-literal-geo, Expand details for org.elasticsearch.xpack.sql.expression.literal.geo>>
-
-* <<painless-api-reference-number-sort-GeoShape, GeoShape>>
-
-==== org.elasticsearch.xpack.sql.expression.literal.interval
-<<painless-api-reference-number-sort-org-elasticsearch-xpack-sql-expression-literal-interval, Expand details for org.elasticsearch.xpack.sql.expression.literal.interval>>
-
-* <<painless-api-reference-number-sort-IntervalDayTime, IntervalDayTime>>
-* <<painless-api-reference-number-sort-IntervalYearMonth, IntervalYearMonth>>
-
 include::packages.asciidoc[]
 
