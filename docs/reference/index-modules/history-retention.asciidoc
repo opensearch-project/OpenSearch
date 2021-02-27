@@ -59,6 +59,6 @@ there>>. {ccr-cap} will not function if soft deletes are disabled.
 [discrete]
 === History retention settings
 
-include::{es-ref-dir}/index-modules.asciidoc[tag=ccr-index-soft-deletes-tag]
+include::{es-ref-dir}/index-modules.asciidoc[tag=index-soft-deletes-tag]
 
-include::{es-ref-dir}/index-modules.asciidoc[tag=ccr-index-soft-deletes-retention-tag]
+include::{es-ref-dir}/index-modules.asciidoc[tag=index-soft-deletes-retention-tag]
