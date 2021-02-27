@@ -4,7 +4,7 @@
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+Version {version} of the Elastic Stack has not yet been released.
 
 endif::[]
 
