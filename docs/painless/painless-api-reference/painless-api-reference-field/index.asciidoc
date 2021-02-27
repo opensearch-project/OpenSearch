@@ -7,12 +7,6 @@ The following specialized API is available in the Field context.
 
 * See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
 
-==== Static Methods
-The following methods are directly callable without a class/instance qualifier. Note parameters denoted by a (*) are treated as read-only values.
-
-* List domainSplit(String)
-* List domainSplit(String, Map)
-
 ==== Classes By Package
 The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
 
