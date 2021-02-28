@@ -22,7 +22,7 @@ The parent-level breaker can be configured with the following settings:
 
 [[indices-breaker-total-limit]]
 // tag::indices-breaker-total-limit-tag[]
-`indices.breaker.total.limit` {ess-icon}::
+`indices.breaker.total.limit`::
     (<<dynamic-cluster-setting,Dynamic>>)
     Starting limit for overall parent breaker. Defaults to 70% of JVM heap if
     `indices.breaker.total.use_real_memory` is `false`. If `indices.breaker.total.use_real_memory`
@@ -39,14 +39,14 @@ operation and returns an error.
 
 [[fielddata-circuit-breaker-limit]]
 // tag::fielddata-circuit-breaker-limit-tag[]
-`indices.breaker.fielddata.limit` {ess-icon}::
+`indices.breaker.fielddata.limit`::
     (<<dynamic-cluster-setting,Dynamic>>)
     Limit for fielddata breaker. Defaults to 40% of JVM heap.
 // end::fielddata-circuit-breaker-limit-tag[]
 
 [[fielddata-circuit-breaker-overhead]]
 // tag::fielddata-circuit-breaker-overhead-tag[]
-`indices.breaker.fielddata.overhead` {ess-icon}::
+`indices.breaker.fielddata.overhead`::
     (<<dynamic-cluster-setting,Dynamic>>)
     A constant that all field data estimations are multiplied with to determine a
     final estimation. Defaults to `1.03`.
@@ -62,14 +62,14 @@ request) from exceeding a certain amount of memory.
 
 [[request-breaker-limit]]
 // tag::request-breaker-limit-tag[]
-`indices.breaker.request.limit` {ess-icon}::
+`indices.breaker.request.limit`::
     (<<dynamic-cluster-setting,Dynamic>>)
     Limit for request breaker, defaults to 60% of JVM heap.
 // end::request-breaker-limit-tag[]
 
 [[request-breaker-overhead]]
 // tag::request-breaker-overhead-tag[]
-`indices.breaker.request.overhead` {ess-icon}::
+`indices.breaker.request.overhead`::
     (<<dynamic-cluster-setting,Dynamic>>)
     A constant that all request estimations are multiplied with to determine a
     final estimation. Defaults to `1`.
