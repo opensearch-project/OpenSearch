@@ -153,8 +153,7 @@ you should balance your client requests across both of the non-tiebreaker
 nodes. You can do this by specifying the address of both nodes
 when configuring your client to connect to your cluster. Alternatively, you can
 use a resilient load balancer to balance client requests across the appropriate
-nodes in your cluster. The {ess-trial}[Elastic Cloud] service
-provides such a load balancer.
+nodes in your cluster.
 
 A two-node cluster with an additional tiebreaker node is the smallest possible
 cluster that is suitable for production deployments.
@@ -177,8 +176,7 @@ remaining two nodes form a healthy cluster. Ideally, you should balance your
 client requests across all three nodes. You can do this by specifying the
 address of multiple nodes when configuring your client to connect to your
 cluster. Alternatively you can use a resilient load balancer to balance client
-requests across your cluster. The {ess-trial}[Elastic Cloud]
-service provides such a load balancer.
+requests across your cluster.
 
 [[high-availability-cluster-design-three-plus-nodes]]
 ==== Clusters with more than three nodes
@@ -221,8 +219,7 @@ The cluster will be resilient to the loss of any node as long as:
   of these nodes are not voting-only master-eligible nodes.
 - Clients are configured to send their requests to more than one node or are
   configured to use a load balancer that balances the requests across an
-  appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such
-  a load balancer.
+  appropriate set of nodes.
 
 [[high-availability-cluster-design-large-clusters]]
 === Resilience in larger clusters
@@ -351,5 +348,4 @@ The cluster will be resilient to the loss of any zone as long as:
   across at least three zones.
 - Clients are configured to send their requests to nodes in more than one zone
   or are configured to use a load balancer that balances the requests across an
-  appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such
-  a load balancer.
+  appropriate set of nodes.
