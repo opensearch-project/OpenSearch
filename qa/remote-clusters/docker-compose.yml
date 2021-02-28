@@ -1,12 +1,12 @@
 # Only used for testing the docker images
 version: '3.7'
 services:
-  elasticsearch-default-1:
-    image: elasticsearch:test
+  elasticsearch-oss-1:
+    image: elasticsearch-oss:test
     environment:
-       - node.name=elasticsearch-default-1
-       - cluster.initial_master_nodes=elasticsearch-default-1
-       - cluster.name=elasticsearch-default-1
+       - node.name=elasticsearch-oss-1
+       - cluster.initial_master_nodes=elasticsearch-oss-1
+       - cluster.name=elasticsearch-oss-1
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -17,10 +17,8 @@ services:
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/repo:/tmp/es-repo
-       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
-       - ./build/logs/default-1:/usr/share/elasticsearch/logs
-       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
+       - ./build/oss-repo:/tmp/es-repo
+       - ./build/logs/oss-1:/usr/share/elasticsearch/logs
     ports:
       - "9200"
       - "9300"
@@ -31,19 +29,18 @@ services:
       nofile:
         soft: 65536
         hard: 65536
-    entrypoint: /docker-test-entrypoint.sh
     healthcheck:
       start_period: 15s
-      test: ["CMD", "curl", "-f", "-u", "rest_user:test-password", "-k", "https://localhost:9200"]
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5
-  elasticsearch-default-2:
-    image: elasticsearch:test
+  elasticsearch-oss-2:
+    image: elasticsearch-oss:test
     environment:
-       - node.name=elasticsearch-default-2
-       - cluster.initial_master_nodes=elasticsearch-default-2
-       - cluster.name=elasticsearch-default-2
+       - node.name=elasticsearch-oss-2
+       - cluster.initial_master_nodes=elasticsearch-oss-2
+       - cluster.name=elasticsearch-oss-2
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -54,10 +51,8 @@ services:
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/repo:/tmp/es-repo
-       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
-       - ./build/logs/default-2:/usr/share/elasticsearch/logs
-       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
+       - ./build/oss-repo:/tmp/es-repo
+       - ./build/logs/oss-2:/usr/share/elasticsearch/logs
     ports:
       - "9200"
       - "9300"
@@ -65,13 +60,9 @@ services:
       memlock:
         soft: -1
         hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
-    entrypoint: /docker-test-entrypoint.sh
     healthcheck:
       start_period: 15s
-      test: ["CMD", "curl", "-f", "-u", "rest_user:test-password", "-k", "https://localhost:9200"]
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5
@@ -80,4 +71,4 @@ services:
     ports:
       - "9600"
     volumes:
-      - ./haproxy-default.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./haproxy-oss.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro

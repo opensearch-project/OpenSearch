@@ -19,26 +19,17 @@
 package org.elasticsearch.docker.test;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
-
-    private static final String USER = "rest_user";
-    private static final String PASS = "test-password";
-    private static final String KEYSTORE_PASS = "testnode";
 
     public DockerYmlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -84,18 +75,6 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     static Path keyStore;
-
-    @BeforeClass
-    public static void getKeyStore() {
-        try {
-            keyStore = PathUtils.get(DockerYmlTestSuiteIT.class.getResource("/testnode.jks").toURI());
-        } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
-        }
-        if (Files.exists(keyStore) == false) {
-            throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
-        }
-    }
 
     @AfterClass
     public static void clearKeyStore() {

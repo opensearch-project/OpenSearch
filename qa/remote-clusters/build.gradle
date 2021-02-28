@@ -42,17 +42,16 @@ elasticsearch_distributions {
 
 preProcessFixture {
   dependsOn elasticsearch_distributions.docker
-  doLast {
+}
+
+tasks.named("composeUp").configure {
+  doFirst {
     // tests expect to have an empty repo
     project.delete(
-      "${buildDir}/repo",
       "${buildDir}/oss-repo"
     )
     createAndSetWritable(
-      "${buildDir}/repo",
       "${buildDir}/oss-repo",
-      "${buildDir}/logs/default-1",
-      "${buildDir}/logs/default-2",
       "${buildDir}/logs/oss-1",
       "${buildDir}/logs/oss-2"
     )
@@ -61,7 +60,7 @@ preProcessFixture {
 
 dockerCompose {
   tcpPortsToIgnoreWhenWaiting = [9600, 9601]
-  useComposeFiles = ['docker-compose-oss.yml']
+  useComposeFiles = ['docker-compose.yml']
 }
 
 def createAndSetWritable(Object... locations) {
