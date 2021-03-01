@@ -4,7 +4,7 @@
 <titleabbrev>Restore snapshot</titleabbrev>
 ++++
 
-Restores a <<snapshot-restore,snapshot>> of a cluster or specified data streams and indices.
+Restores a <<snapshot-restore,snapshot>> of a cluster or specified indices.
 
 ////
 [source,console]
@@ -64,10 +64,7 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 [[restore-snapshot-api-desc]]
 ==== {api-description-title}
 
-Use the restore snapshot API to restore a snapshot of a cluster, including all data streams and indices in the snapshot. If you do not want to restore the entire snapshot, you can select specific data streams or indices to restore.
-
-NOTE: You cannot restore a data stream if a stream with the same name already
-exists.
+Use the restore snapshot API to restore a snapshot of a cluster, including all indices in the snapshot. If you do not want to restore the entire snapshot, you can select specific indices to restore.
 
 You can run the restore operation on a cluster that contains an elected
 <<master-node,master node>> and has data nodes with enough capacity to accommodate the snapshot
@@ -75,13 +72,6 @@ you are restoring. Existing indices can only be restored if they are
 <<indices-close,closed>> and have the same number of shards as the indices in
 the snapshot. The restore operation automatically opens restored indices if
 they were closed and creates new indices if they do not exist in the cluster.
-
-If a data stream is restored, its backing indices are also restored.
-Alternatively, you can restore individual backing indices without restoring an
-entire data stream. If you restore individual backing indices, they are not
-automatically added to any existing data stream. For example, if only the
-`.ds-logs-00003` backing index is restored from a snapshot, it is not
-automatically added to the existing `logs` data stream.
 
 include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=index-settings-data-stream-warning]
 
@@ -102,9 +92,9 @@ Name of the snapshot to restore.
 
 `ignore_unavailable`::
 (Optional, Boolean)
-If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
+If `false`, the request returns an error for any index that is missing or closed. Defaults to `false`.
 +
-If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
+If `true`, the request ignores indices in `indices` that are missing or closed.
 
 `ignore_index_settings`::
 (Optional, string)
@@ -143,20 +133,17 @@ IMPORTANT: By default, the entire restore operation will fail if one or more ind
 (Optional, string)
 A comma-separated list of settings to add or change in all restored indices. Use this parameter to override index settings when restoring snapshots.
 +
-For data streams, these index settings are applied to the restored backing
-indices.
-+
 For more information regarding all the different index-level settings
 that you can specify, see
 <<index-modules,index modules>>.
 
 `indices`::
 (Optional, string)
-A comma-separated list of data streams and indices to restore from the snapshot.
+A comma-separated list of indices to restore from the snapshot.
 <<multi-index,Multi-index syntax>> is supported.
 +
-By default, a restore operation includes all data streams and indices in the snapshot. If this
-argument is provided, the restore operation only includes the specified data streams and indices.
+By default, a restore operation includes all indices in the snapshot. If this
+argument is provided, the restore operation only includes the specified indices.
 
 [[restore-snapshot-api-partial]]
 `partial`::
@@ -169,13 +156,13 @@ will be restored. All missing shards will be recreated as empty.
 [[restore-snapshot-api-rename-pattern]]
 `rename_pattern`::
 (Optional, string)
-Defines a rename pattern to apply to restored data streams and indices. Data streams and indices matching the rename pattern will be renamed according to
+Defines a rename pattern to apply to restored indices. Indices matching the rename pattern will be renamed according to
 <<restore-snapshot-api-rename-replacement,`rename_replacement`>>.
 +
 The rename pattern is applied as defined by the regular expression that
 supports referencing the original text, according to the https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[`appendReplacement`] logic.
 +
-The request will fail if two or more data streams or indices will be renamed into the same name.
+The request will fail if two or more indices will be renamed into the same name.
 +
 include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=rename-restored-data-stream-tag]
 
