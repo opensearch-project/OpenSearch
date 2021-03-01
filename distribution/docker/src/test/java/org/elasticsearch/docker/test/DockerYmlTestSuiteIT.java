@@ -23,11 +23,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.file.Path;
 
 public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -72,13 +70,6 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
         health.addParameter("wait_for_nodes", "2");
         health.addParameter("wait_for_status", "yellow");
         client().performRequest(health);
-    }
-
-    static Path keyStore;
-
-    @AfterClass
-    public static void clearKeyStore() {
-        keyStore = null;
     }
 
     @Override
