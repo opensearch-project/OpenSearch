@@ -20,7 +20,7 @@ missingSignoff=0
 for commitId in $commits; do
     commitMessage=$(git rev-list --format=%B --max-count=1 $commitId)
     signoffStringCount=$(echo $commitMessage | grep -c Signed-off-by)
-    if [ $signoffStringCount -ne 0 ]; then
+    if [ $signoffStringCount -eq 0 ]; then
       echo !!! Commit "$commitId" is missing signoff, amend this commit with the --signoff flag
       let "missingSignoff++"
     fi
