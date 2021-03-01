@@ -139,7 +139,7 @@ If you're slicing manually or otherwise tuning automatic slicing, keep in mind
 that:
 
 * Query performance is most efficient when the number of `slices` is equal to
-the number of shards in the index or backing index. If that number is large (for example,
+the number of shards in the index. If that number is large (for example,
 500), choose a lower number as too many `slices` hurts performance. Setting
 `slices` higher than the number of shards generally does not improve efficiency
 and adds overhead.
@@ -545,7 +545,7 @@ Which results in a sensible `total` like this one:
 Setting `slices` to `auto` will let {es} choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If
 there are multiple source data streams or indices, it will choose the number of slices based
-on the index or backing index with the smallest number of shards.
+on the index with the smallest number of shards.
 
 Adding `slices` to `_delete_by_query` just automates the manual process used in
 the section above, creating sub-requests which means it has some quirks:
