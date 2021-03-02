@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 
-public class ClusterBlockException extends ElasticsearchException {
+public class ClusterBlockException extends OpenSearchException {
     private final Set<ClusterBlock> blocks;
 
     public ClusterBlockException(Set<ClusterBlock> globalLevelBlocks) {

@@ -26,7 +26,7 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -173,10 +173,10 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             }
                             if (xContentType == null) {
                                 try {
-                                    throw new ElasticsearchException(
+                                    throw new OpenSearchException(
                                         "Response didn't include Content-Type: " + bodyMessage(response.getEntity()));
                                 } catch (IOException e) {
-                                    ElasticsearchException ee = new ElasticsearchException("Error extracting body from response");
+                                    OpenSearchException ee = new OpenSearchException("Error extracting body from response");
                                     ee.addSuppressed(e);
                                     throw ee;
                                 }
@@ -188,11 +188,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             } catch (XContentParseException e) {
                                 /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it
                                  * is totally wrong and we're probably not talking to Elasticsearch. */
-                                throw new ElasticsearchException(
+                                throw new OpenSearchException(
                                     "Error parsing the response, remote is likely not an Elasticsearch instance", e);
                             }
                         } catch (IOException e) {
-                            throw new ElasticsearchException(
+                            throw new OpenSearchException(
                                 "Error deserializing response, remote is likely not an Elasticsearch instance", e);
                         }
                         listener.onResponse(parsedResponse);

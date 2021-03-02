@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.lease;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 
 import java.io.Closeable;
 
 /**
- * Specialization of {@link AutoCloseable} that may only throw an {@link ElasticsearchException}.
+ * Specialization of {@link AutoCloseable} that may only throw an {@link OpenSearchException}.
  */
 public interface Releasable extends Closeable {
 

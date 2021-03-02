@@ -22,7 +22,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -84,7 +84,7 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
                 Response response = client.performRequest(request);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (Exception e) {
-                throw new ElasticsearchException(e);
+                throw new OpenSearchException(e);
             }
         }
     }
@@ -106,7 +106,7 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
                 Response response = client.performRequest(request);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (IOException e) {
-                throw new ElasticsearchException(e);
+                throw new OpenSearchException(e);
             }
         }
     }

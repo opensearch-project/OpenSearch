@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -123,7 +123,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         builder.startObject("failures");
         for (String key : failures.keySet()) {
             builder.startObject(key);
-            ElasticsearchException.generateFailureXContent(builder, params, failures.get(key), true);
+            OpenSearchException.generateFailureXContent(builder, params, failures.get(key), true);
             builder.endObject();
         }
         builder.endObject();
@@ -146,7 +146,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
-            Tuple<String, ElasticsearchException> tuple = new Tuple<>(n, ElasticsearchException.failureFromXContent(p));
+            Tuple<String, OpenSearchException> tuple = new Tuple<>(n, OpenSearchException.failureFromXContent(p));
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
             return tuple;
         }, FAILURES_FIELD);

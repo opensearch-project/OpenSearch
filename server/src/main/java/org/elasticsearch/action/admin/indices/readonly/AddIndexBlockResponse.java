@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.readonly;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
@@ -148,7 +148,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
                 if (hasFailures()) {
                     if (exception != null) {
                         builder.startObject("exception");
-                        ElasticsearchException.generateFailureXContent(builder, params, exception, true);
+                        OpenSearchException.generateFailureXContent(builder, params, exception, true);
                         builder.endObject();
                     } else {
                         builder.startArray("failed_shards");

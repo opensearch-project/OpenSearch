@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.settings.Settings;
@@ -222,11 +222,11 @@ public class RetryableActionTests extends ESTestCase {
         assertTrue(taskQueue.hasDeferredTasks());
         taskQueue.advanceTime();
 
-        retryableAction.cancel(new ElasticsearchException("Cancelled"));
+        retryableAction.cancel(new OpenSearchException("Cancelled"));
         taskQueue.runAllRunnableTasks();
 
         // A second run will not occur because it is cancelled
         assertEquals(1, executedCount.get());
-        expectThrows(ElasticsearchException.class, future::actionGet);
+        expectThrows(OpenSearchException.class, future::actionGet);
     }
 }

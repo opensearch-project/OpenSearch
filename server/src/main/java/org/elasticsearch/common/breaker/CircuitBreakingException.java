@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.breaker;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * Exception thrown when the circuit breaker trips
  */
-public class CircuitBreakingException extends ElasticsearchException {
+public class CircuitBreakingException extends OpenSearchException {
 
     private final long bytesWanted;
     private final long byteLimit;

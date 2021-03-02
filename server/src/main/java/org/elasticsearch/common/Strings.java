@@ -20,7 +20,7 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -815,7 +815,7 @@ public class Strings {
                 builder.endObject();
                 return toString(builder);
             } catch (IOException e2) {
-                throw new ElasticsearchException("cannot generate error message for deserialization", e);
+                throw new OpenSearchException("cannot generate error message for deserialization", e);
             }
         }
     }
@@ -879,7 +879,7 @@ public class Strings {
             return sb.toString();
         }
     }
-    
+
     public static String toLowercaseAscii(String in) {
         StringBuilder out = new StringBuilder();
         Iterator<Integer> iter = in.codePoints().iterator();
@@ -892,5 +892,5 @@ public class Strings {
             }
         }
         return out.toString();
-    }    
+    }
 }

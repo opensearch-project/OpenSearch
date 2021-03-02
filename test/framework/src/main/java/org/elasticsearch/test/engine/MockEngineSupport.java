@@ -25,7 +25,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -159,7 +159,7 @@ public final class MockEngineSupport {
                 return (DirectoryReader) nonRandom.newInstance(reader);
             }
         } catch (Exception e) {
-            throw new ElasticsearchException("Can not wrap reader", e);
+            throw new OpenSearchException("Can not wrap reader", e);
         }
         return reader;
     }

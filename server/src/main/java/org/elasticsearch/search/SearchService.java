@@ -24,7 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -448,7 +448,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // execution exception can happen while loading the cache, strip it
             if (e instanceof ExecutionException) {
                 e = (e.getCause() == null || e.getCause() instanceof Exception) ?
-                    (Exception) e.getCause() : new ElasticsearchException(e.getCause());
+                    (Exception) e.getCause() : new OpenSearchException(e.getCause());
             }
             logger.trace("Query phase failed", e);
             processFailure(readerContext, e);
@@ -643,7 +643,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.scroll() != null) {
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
-                    throw new ElasticsearchException(
+                    throw new OpenSearchException(
                         "Trying to create too many scroll contexts. Must be less than or equal to: [" +
                             maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
                             + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");

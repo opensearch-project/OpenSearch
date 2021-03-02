@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -58,14 +58,14 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
     protected CancelTasksResponseTests.ByNodeCancelTasksResponse createServerTestInstance(XContentType xContentType) {
         List<org.elasticsearch.tasks.TaskInfo> tasks = new ArrayList<>();
         List<TaskOperationFailure> taskFailures = new ArrayList<>();
-        List<ElasticsearchException> nodeFailures = new ArrayList<>();
+        List<OpenSearchException> nodeFailures = new ArrayList<>();
 
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
             taskFailures.add(new TaskOperationFailure(randomAlphaOfLength(4), (long) i,
                 new RuntimeException(randomAlphaOfLength(4))));
         }
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
-            nodeFailures.add(new ElasticsearchException(new RuntimeException(randomAlphaOfLength(10))));
+            nodeFailures.add(new OpenSearchException(new RuntimeException(randomAlphaOfLength(10))));
         }
 
         for (int i = 0; i < 4; i++) {
@@ -120,7 +120,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
         }
 
         //checking failures
-        List<ElasticsearchException> serverNodeFailures = serverTestInstance.getNodeFailures();
+        List<OpenSearchException> serverNodeFailures = serverTestInstance.getNodeFailures();
         List<org.elasticsearch.client.tasks.ElasticsearchException> cNodeFailures = clientInstance.getNodeFailures();
         List<String> sExceptionsMessages = serverNodeFailures.stream().map(x ->
             org.elasticsearch.client.tasks.ElasticsearchException.buildMessage(
@@ -192,7 +192,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
         ByNodeCancelTasksResponse(
             List<TaskInfo> tasks,
             List<TaskOperationFailure> taskFailures,
-            List<? extends ElasticsearchException> nodeFailures) {
+            List<? extends OpenSearchException> nodeFailures) {
             super(tasks, taskFailures, nodeFailures);
         }
 

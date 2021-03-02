@@ -21,7 +21,7 @@ package org.elasticsearch.action.explain;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -146,7 +146,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation);
             }
         } catch (IOException e) {
-            throw new ElasticsearchException("Could not explain", e);
+            throw new OpenSearchException("Could not explain", e);
         } finally {
             Releasables.close(result, context);
         }

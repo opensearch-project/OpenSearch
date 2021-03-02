@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
@@ -69,16 +69,16 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     private final Exception failure;
     private final Tuple<String, Boolean> conditionalWithResult;
 
-    private static final ConstructingObjectParser<ElasticsearchException, Void> IGNORED_ERROR_PARSER =
+    private static final ConstructingObjectParser<OpenSearchException, Void> IGNORED_ERROR_PARSER =
         new ConstructingObjectParser<>(
             "ignored_error_parser",
             true,
-            a -> (ElasticsearchException)a[0]
+            a -> (OpenSearchException)a[0]
         );
     static {
         IGNORED_ERROR_PARSER.declareObject(
             constructorArg(),
-            (p, c) -> ElasticsearchException.fromXContent(p),
+            (p, c) -> OpenSearchException.fromXContent(p),
             new ParseField("error")
         );
     }
@@ -111,9 +111,9 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
                 IngestDocument document = a[4] == null ? null : ((WriteableIngestDocument)a[4]).getIngestDocument();
                 Exception failure = null;
                 if (a[5] != null) {
-                    failure = (ElasticsearchException)a[5];
+                    failure = (OpenSearchException)a[5];
                 } else if (a[6] != null) {
-                    failure = (ElasticsearchException)a[6];
+                    failure = (OpenSearchException)a[6];
                 }
 
                 return new SimulateProcessorResult(type, processorTag, description, document, failure, conditionalWithResult);
@@ -140,7 +140,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         );
         PARSER.declareObject(
             optionalConstructorArg(),
-            (p, c) -> ElasticsearchException.fromXContent(p),
+            (p, c) -> OpenSearchException.fromXContent(p),
             new ParseField("error")
         );
     }
@@ -267,10 +267,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
         if (failure != null && ingestDocument != null) {
             builder.startObject(IGNORED_ERROR_FIELD);
-            ElasticsearchException.generateFailureXContent(builder, params, failure, true);
+            OpenSearchException.generateFailureXContent(builder, params, failure, true);
             builder.endObject();
         } else if (failure != null) {
-            ElasticsearchException.generateFailureXContent(builder, params, failure, true);
+            OpenSearchException.generateFailureXContent(builder, params, failure, true);
         }
 
         if (ingestDocument != null) {

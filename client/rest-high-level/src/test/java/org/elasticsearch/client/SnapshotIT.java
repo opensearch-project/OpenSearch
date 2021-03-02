@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -105,7 +105,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     public void testSnapshotGetRepositoriesNonExistent() {
         String repository = "doesnotexist";
         GetRepositoriesRequest request = new GetRepositoriesRequest(new String[]{repository});
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(request,
+        OpenSearchException exception = expectThrows(OpenSearchException.class, () -> execute(request,
             highLevelClient().snapshot()::getRepository, highLevelClient().snapshot()::getRepositoryAsync));
 
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));

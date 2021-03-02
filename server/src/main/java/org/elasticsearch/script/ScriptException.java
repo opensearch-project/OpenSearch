@@ -1,6 +1,6 @@
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,7 +48,7 @@ import java.util.Objects;
  * </ul>
  */
 @SuppressWarnings("serial")
-public class ScriptException extends ElasticsearchException {
+public class ScriptException extends OpenSearchException {
     private final List<String> scriptStack;
     private final String script;
     private final String lang;

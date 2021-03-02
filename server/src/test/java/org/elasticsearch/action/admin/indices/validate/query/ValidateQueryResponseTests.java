@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -63,7 +63,7 @@ public class ValidateQueryResponseTests extends AbstractBroadcastResponseTestCas
         }
         for (int i=0; i<failedShards; i++) {
             QueryExplanation queryExplanation = QueryExplanationTests.createRandomQueryExplanation(false);
-            ElasticsearchException exc = new ElasticsearchException("some_error_" + randomInt());
+            OpenSearchException exc = new OpenSearchException("some_error_" + randomInt());
             shardFailures.add(
                 new DefaultShardOperationFailedException(
                     queryExplanation.getIndex(), queryExplanation.getShard(),

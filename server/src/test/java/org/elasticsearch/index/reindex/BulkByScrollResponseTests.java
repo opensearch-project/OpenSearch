@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
@@ -78,7 +78,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             shardId = randomInt();
             nodeId = usually() ? randomAlphaOfLength(5) : null;
         }
-        ElasticsearchException exception = randomFrom(new ResourceNotFoundException("bar"), new ElasticsearchException("foo"),
+        OpenSearchException exception = randomFrom(new ResourceNotFoundException("bar"), new OpenSearchException("foo"),
             new NoNodeAvailableException("baz"));
         return singletonList(new ScrollableHitSource.SearchFailure(exception, index, shardId, nodeId));
     }

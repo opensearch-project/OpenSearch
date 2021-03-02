@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -347,7 +347,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
             fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source"
                     + "context which the sub-aggregation can inherit");
 
-        } catch (ElasticsearchException e) {
+        } catch (OpenSearchException e) {
             assertThat(e.getMessage(), is("all shards failed"));
         }
     }

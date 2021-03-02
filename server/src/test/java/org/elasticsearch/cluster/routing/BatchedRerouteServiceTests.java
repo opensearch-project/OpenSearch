@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -185,7 +185,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
         final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
             if (rarely()) {
-                throw new ElasticsearchException("simulated");
+                throw new OpenSearchException("simulated");
             }
             return randomBoolean() ? s : ClusterState.builder(s).build();
         });
@@ -198,12 +198,12 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     r -> {
                         countDownLatch.countDown();
                         if (rarely()) {
-                            throw new ElasticsearchException("failure during notification");
+                            throw new OpenSearchException("failure during notification");
                         }
                     }, e -> {
                         countDownLatch.countDown();
                         if (randomBoolean()) {
-                            throw new ElasticsearchException("failure during failure notification", e);
+                            throw new OpenSearchException("failure during failure notification", e);
                         }
                     }));
             if (rarely()) {

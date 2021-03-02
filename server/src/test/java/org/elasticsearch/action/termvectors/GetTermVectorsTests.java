@@ -33,7 +33,7 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -226,7 +226,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
                         break;
                     }
                     default: {
-                        throw new ElasticsearchException("unsupported encoding type");
+                        throw new OpenSearchException("unsupported encoding type");
                     }
                 }
             }
@@ -290,7 +290,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
                         break;
                     }
                     default: {
-                        throw new ElasticsearchException("unsupported encoding type");
+                        throw new OpenSearchException("unsupported encoding type");
                     }
                 }
             } else {
