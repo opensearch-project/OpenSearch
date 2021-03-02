@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Debug Elasticsearch" type="Remote">
+  <configuration default="false" name="Debug OpenSearch" type="Remote">
     <option name="USE_SOCKET_TRANSPORT" value="true" />
     <option name="SERVER_MODE" value="true" />
     <option name="SHMEM_ADDRESS" />
@@ -9,4 +9,3 @@
     <method v="2" />
   </configuration>
 </component>
-
