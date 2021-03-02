@@ -32,7 +32,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.RangeType;
+import org.opensearch.index.mapper.RangeType;
 
 import java.io.IOException;
 import java.util.Objects;
