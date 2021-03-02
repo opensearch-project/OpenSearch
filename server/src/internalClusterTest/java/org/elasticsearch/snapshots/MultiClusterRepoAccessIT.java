@@ -16,21 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.NodeConfigurationSource;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.env.Environment;
+import org.opensearch.repositories.RepositoryException;
+import org.opensearch.snapshots.mockstore.MockRepository;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.MockHttpTransport;
+import org.opensearch.test.NodeConfigurationSource;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,7 +39,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 
 public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {

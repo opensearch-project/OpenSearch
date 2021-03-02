@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.search.functionscore;
+package org.opensearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.query.functionscore.DecayFunction;
-import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchType;
+import org.opensearch.common.Priority;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.query.functionscore.DecayFunction;
+import org.opensearch.index.query.functionscore.DecayFunctionBuilder;
+import org.opensearch.index.query.functionscore.DecayFunctionParser;
+import org.opensearch.index.query.functionscore.ScoreFunctionParser;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.SearchHits;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,12 +44,12 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.opensearch.client.Requests.indexRequest;
+import static org.opensearch.client.Requests.searchRequest;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)

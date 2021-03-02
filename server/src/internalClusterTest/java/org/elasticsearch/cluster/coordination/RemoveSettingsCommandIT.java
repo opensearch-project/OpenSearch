@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.cli.MockTerminal;
+import org.opensearch.cli.UserException;
+import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.env.TestEnvironment;
+import org.opensearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;

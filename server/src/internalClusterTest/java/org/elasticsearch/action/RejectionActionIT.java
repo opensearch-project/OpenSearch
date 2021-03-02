@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.opensearch.action;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchType;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;

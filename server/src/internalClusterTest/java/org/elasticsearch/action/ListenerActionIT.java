@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.opensearch.action;
 
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.client.Client;
+import org.opensearch.client.Requests;
+import org.opensearch.client.transport.TransportClient;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;

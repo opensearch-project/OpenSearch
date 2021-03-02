@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.persistent;
+package org.opensearch.persistent;
 
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.UUIDs;
+import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
+import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;

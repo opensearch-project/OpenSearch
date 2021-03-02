@@ -16,39 +16,39 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoryData;
+import org.opensearch.snapshots.mockstore.MockRepository;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
-import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoryShardId;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
+import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.RepositoryShardId;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.nio.file.Path;
 

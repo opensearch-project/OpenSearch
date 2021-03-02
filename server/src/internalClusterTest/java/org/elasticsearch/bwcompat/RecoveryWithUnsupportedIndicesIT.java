@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.bwcompat;
+package org.opensearch.bwcompat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,12 +28,12 @@ import java.util.List;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.CorruptStateException;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.gateway.CorruptStateException;
+import org.opensearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 

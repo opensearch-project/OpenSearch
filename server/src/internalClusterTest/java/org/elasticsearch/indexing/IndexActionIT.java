@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indexing;
+package org.opensearch.indexing;
 
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.indices.InvalidIndexNameException;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.node;
+package org.opensearch.cluster.node;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.Collection;
@@ -32,8 +32,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.test.NodeRoles.addRoles;
-import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.opensearch.test.NodeRoles.addRoles;
+import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;

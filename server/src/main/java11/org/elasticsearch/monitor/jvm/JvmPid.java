@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.jvm;
+package org.opensearch.monitor.jvm;
 
 class JvmPid {
 

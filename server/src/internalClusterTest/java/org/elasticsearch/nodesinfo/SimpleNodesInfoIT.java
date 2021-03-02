@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.nodesinfo;
+package org.opensearch.nodesinfo;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.monitor.os.OsInfo;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.monitor.os.OsInfo;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
 
 import java.util.List;
 
-import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.INDICES;
-import static org.elasticsearch.client.Requests.nodesInfoRequest;
+import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.INDICES;
+import static org.opensearch.client.Requests.nodesInfoRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;

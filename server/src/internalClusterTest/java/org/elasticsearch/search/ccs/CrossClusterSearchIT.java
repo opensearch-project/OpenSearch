@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.search.ccs;
+package org.opensearch.search.ccs;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.test.AbstractMultiClustersTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -41,7 +41,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 

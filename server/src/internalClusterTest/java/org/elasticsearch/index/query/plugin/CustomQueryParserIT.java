@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.plugin;
+package org.opensearch.index.query.plugin;
 
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class CustomQueryParserIT extends ESIntegTestCase {
     @Override

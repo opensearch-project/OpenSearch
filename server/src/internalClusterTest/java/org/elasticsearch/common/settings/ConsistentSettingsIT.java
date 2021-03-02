@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.common.settings;
+package org.opensearch.common.settings;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Setting.AffixSetting;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting.AffixSetting;
+import org.opensearch.env.Environment;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

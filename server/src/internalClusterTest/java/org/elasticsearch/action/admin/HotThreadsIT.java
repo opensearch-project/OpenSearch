@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin;
+package org.opensearch.action.admin;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
+import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
+import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.Map;
@@ -32,10 +32,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -142,7 +142,7 @@ public class HotThreadsIT extends ESIntegTestCase {
         NodesHotThreadsResponse response = builder.execute().get();
 
         final Matcher<String> containsCachedTimeThreadRunMethod
-            = containsString("org.elasticsearch.threadpool.ThreadPool$CachedTimeThread.run");
+            = containsString("org.opensearch.threadpool.ThreadPool$CachedTimeThread.run");
 
         int totSizeAll = 0;
         for (NodeHotThreads node : response.getNodesMap().values()) {

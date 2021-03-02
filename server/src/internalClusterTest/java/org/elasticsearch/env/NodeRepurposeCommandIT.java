@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.env;
+package org.opensearch.env;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.NodeRoles;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.NodeRoles;
 import org.hamcrest.Matcher;
 
 import java.util.Arrays;

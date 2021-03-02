@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.common.settings;
+package org.opensearch.common.settings;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.SniffConnectionStrategy;
 import org.junit.After;
 
 import java.util.Arrays;

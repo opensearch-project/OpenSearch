@@ -17,32 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.opensearch.discovery;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.JoinHelper;
-import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.MembershipAction;
-import org.elasticsearch.discovery.zen.PublishClusterStateAction;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.JoinHelper;
+import org.opensearch.cluster.coordination.PublicationTransportHandler;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.zen.MembershipAction;
+import org.opensearch.discovery.zen.PublishClusterStateAction;
+import org.opensearch.discovery.zen.ZenDiscovery;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.disruption.ServiceDisruptionScheme;
+import org.opensearch.test.disruption.SlowClusterStateProcessing;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportService;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**

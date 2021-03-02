@@ -16,29 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices;
+package org.opensearch.indices;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.InternalEngine;
+import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.plugins.EnginePlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {

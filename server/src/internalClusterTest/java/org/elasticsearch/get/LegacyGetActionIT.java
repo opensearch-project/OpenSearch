@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.get;
+package org.opensearch.get;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.Version;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.get.GetResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.get.GetActionIT.indexOrAlias;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.get.GetActionIT.indexOrAlias;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LegacyGetActionIT extends ESIntegTestCase {
