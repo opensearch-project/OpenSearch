@@ -20,7 +20,7 @@
 package org.apache.lucene.queries;
 
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.Queries;
 
 /**
  * Extended version of {@link CommonTermsQuery} that allows to pass in a
