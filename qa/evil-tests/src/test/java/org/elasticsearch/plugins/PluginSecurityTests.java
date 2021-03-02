@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.opensearch.plugins;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.file.Path;
 import java.util.Set;

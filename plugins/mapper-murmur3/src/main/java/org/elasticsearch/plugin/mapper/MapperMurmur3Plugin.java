@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper;
+package org.opensearch.plugin.mapper;
 
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.murmur3.Murmur3FieldMapper;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.murmur3.Murmur3FieldMapper;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.Collections;
 import java.util.Map;

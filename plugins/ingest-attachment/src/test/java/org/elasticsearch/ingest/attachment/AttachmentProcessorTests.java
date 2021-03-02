@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.attachment;
+package org.opensearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.ElasticsearchParseException;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
+import org.opensearch.ingest.RandomDocumentPicks;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.InputStream;
@@ -37,7 +37,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -221,7 +221,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testParseAsBytesArray() throws Exception {
-        String path = "/org/elasticsearch/ingest/attachment/test/sample-files/text-in-english.txt";
+        String path = "/org.opensearch.ingest/attachment/test/sample-files/text-in-english.txt";
         byte[] bytes;
         try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
             bytes = IOUtils.toByteArray(is);
@@ -336,7 +336,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     private Object getAsBinaryOrBase64(String filename) throws Exception {
-        String path = "/org/elasticsearch/ingest/attachment/test/sample-files/" + filename;
+        String path = "/org.opensearch.ingest/attachment/test/sample-files/" + filename;
         try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
             byte bytes[] = IOUtils.toByteArray(is);
             // behave like CBOR from time to time

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce;
+package org.opensearch.discovery.gce;
 
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.LowLevelHttpRequest;
@@ -28,9 +28,9 @@ import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.common.io.Streams;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,7 +81,7 @@ public class GceMockUtils {
 
         URL resource = GceMockUtils.class.getResource(mockFileName);
         if (resource == null) {
-            throw new IOException("can't read [" + url + "] in src/test/resources/org/elasticsearch/discovery/gce");
+            throw new IOException("can't read [" + url + "] in src/test/resources/org.opensearch.discovery/gce");
         }
         try (InputStream is = FileSystemUtils.openFileURLStream(resource)) {
             final StringBuilder sb = new StringBuilder();

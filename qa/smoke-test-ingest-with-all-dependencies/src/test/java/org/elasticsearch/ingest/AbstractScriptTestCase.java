@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.opensearch.ingest;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.script.mustache.MustacheScriptEngine;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptEngine;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
+import org.opensearch.script.TemplateScript;
+import org.opensearch.script.mustache.MustacheScriptEngine;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
+import static org.opensearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
 public abstract class AbstractScriptTestCase extends ESTestCase {
 

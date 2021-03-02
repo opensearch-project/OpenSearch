@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
@@ -34,27 +34,27 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.nio.BytesChannelContext;
-import org.elasticsearch.nio.ChannelFactory;
-import org.elasticsearch.nio.Config;
-import org.elasticsearch.nio.EventHandler;
-import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioChannelHandler;
-import org.elasticsearch.nio.NioSelector;
-import org.elasticsearch.nio.NioSelectorGroup;
-import org.elasticsearch.nio.NioServerSocketChannel;
-import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.WriteOperation;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.nio.BytesChannelContext;
+import org.opensearch.nio.ChannelFactory;
+import org.opensearch.nio.Config;
+import org.opensearch.nio.EventHandler;
+import org.opensearch.nio.FlushOperation;
+import org.opensearch.nio.InboundChannelBuffer;
+import org.opensearch.nio.NioChannelHandler;
+import org.opensearch.nio.NioSelector;
+import org.opensearch.nio.NioSelectorGroup;
+import org.opensearch.nio.NioServerSocketChannel;
+import org.opensearch.nio.NioSocketChannel;
+import org.opensearch.nio.SocketChannelContext;
+import org.opensearch.nio.WriteOperation;
+import org.opensearch.tasks.Task;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -72,7 +72,7 @@ import java.util.function.Consumer;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.junit.Assert.fail;
 
 /**

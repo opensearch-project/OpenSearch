@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.opensearch.repositories.azure;
 
 import com.microsoft.azure.storage.AccessCondition;
 import com.microsoft.azure.storage.LocationMode;
@@ -38,21 +38,21 @@ import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.repositories.azure.AzureRepository.Repository;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.repositories.azure.AzureRepository.Repository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -384,7 +384,7 @@ public class AzureBlobStore implements BlobStore {
         private final AtomicLong putBlockListOperations = new AtomicLong();
 
         private Map<String, Long> toMap() {
-            return org.elasticsearch.common.collect.Map.of("GetBlob", getOperations.get(),
+            return org.opensearch.common.collect.Map.of("GetBlob", getOperations.get(),
                 "ListBlobs", listOperations.get(),
                 "GetBlobProperties", headOperations.get(),
                 "PutBlob", putOperations.get(),

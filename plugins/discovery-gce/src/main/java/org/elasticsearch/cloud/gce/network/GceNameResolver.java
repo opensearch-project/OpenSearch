@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.gce.network;
+package org.opensearch.cloud.gce.network;
 
-import org.elasticsearch.cloud.gce.GceMetadataService;
-import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
+import org.opensearch.cloud.gce.GceMetadataService;
+import org.opensearch.cloud.gce.util.Access;
+import org.opensearch.common.Strings;
+import org.opensearch.common.network.NetworkService.CustomNameResolver;
 
 import java.io.IOException;
 import java.net.InetAddress;

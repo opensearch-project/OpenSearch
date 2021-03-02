@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.util;
+package org.opensearch.packaging.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.common.CheckedRunnable;
+import org.opensearch.common.CheckedRunnable;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,13 +39,13 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
-import static org.elasticsearch.packaging.util.FileMatcher.p644;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileMatcher.p755;
-import static org.elasticsearch.packaging.util.FileMatcher.p770;
-import static org.elasticsearch.packaging.util.FileMatcher.p775;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.opensearch.packaging.util.FileMatcher.p644;
+import static org.opensearch.packaging.util.FileMatcher.p660;
+import static org.opensearch.packaging.util.FileMatcher.p755;
+import static org.opensearch.packaging.util.FileMatcher.p770;
+import static org.opensearch.packaging.util.FileMatcher.p775;
+import static org.opensearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -235,7 +235,7 @@ public class Docker {
 
                 psOutput = dockerShell.run("ps -ww ax").stdout;
 
-                if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
+                if (psOutput.contains("org.opensearch.bootstrap.Elasticsearch")) {
                     isElasticsearchRunning = true;
                     break;
                 }

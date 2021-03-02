@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.analysis.ukrainian;
+package org.opensearch.plugin.analysis.ukrainian;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.UkrainianAnalyzerProvider;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.analysis.AnalyzerProvider;
+import org.opensearch.index.analysis.UkrainianAnalyzerProvider;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.Map;
 

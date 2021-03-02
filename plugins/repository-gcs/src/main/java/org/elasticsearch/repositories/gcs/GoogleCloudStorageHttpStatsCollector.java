@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.gcs;
+package org.opensearch.repositories.gcs;
 
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
-import org.elasticsearch.common.collect.List;
+import org.opensearch.common.collect.List;
 
 import java.util.Locale;
 import java.util.function.Consumer;

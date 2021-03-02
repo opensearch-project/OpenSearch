@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.nio.NioHttpServerTransport;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.nio.NioHttpServerTransport;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Transport;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.settings.Setting.intSetting;
+import static org.opensearch.common.settings.Setting.intSetting;
 
 public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 

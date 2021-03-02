@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.example.resthandler;
+package org.opensearch.example.resthandler;
 
-import org.elasticsearch.test.fixture.AbstractHttpFixture;
+import org.opensearch.test.fixture.AbstractHttpFixture;
 
 import java.io.IOException;
 import java.util.Objects;

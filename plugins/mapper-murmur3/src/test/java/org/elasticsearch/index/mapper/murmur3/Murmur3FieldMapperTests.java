@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.murmur3;
+package org.opensearch.index.mapper.murmur3;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestCase;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.plugin.mapper.MapperMurmur3Plugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MapperTestCase;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.plugin.mapper.MapperMurmur3Plugin;
+import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,7 +42,7 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new MapperMurmur3Plugin());
+        return org.opensearch.common.collect.List.of(new MapperMurmur3Plugin());
     }
 
     @Override

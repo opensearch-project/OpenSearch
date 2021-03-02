@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
-import org.elasticsearch.SpecialPermission;
+import org.opensearch.SpecialPermission;
 
 import java.io.IOException;
 import java.net.SocketPermission;

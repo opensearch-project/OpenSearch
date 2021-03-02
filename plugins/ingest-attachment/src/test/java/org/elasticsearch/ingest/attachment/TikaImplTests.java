@@ -1,4 +1,4 @@
-package org.elasticsearch.ingest.attachment;
+package org.opensearch.ingest.attachment;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -19,12 +19,12 @@ package org.elasticsearch.ingest.attachment;
  * under the License.
  */
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class TikaImplTests extends ESTestCase {
 
   public void testTikaLoads() throws Exception {
-    Class.forName("org.elasticsearch.ingest.attachment.TikaImpl");
+    Class.forName("org.opensearch.ingest.attachment.TikaImpl");
   }
 
 }

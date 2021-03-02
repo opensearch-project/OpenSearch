@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.gce;
+package org.opensearch.cloud.gce;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.inject.AbstractModule;
+import org.opensearch.common.settings.Settings;
 
 public class GceModule extends AbstractModule {
     // pkg private so tests can override with mock

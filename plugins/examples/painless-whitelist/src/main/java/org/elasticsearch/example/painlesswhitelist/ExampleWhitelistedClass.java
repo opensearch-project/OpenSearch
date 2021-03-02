@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.example.painlesswhitelist;
+package org.opensearch.example.painlesswhitelist;
 
 /**
  * An example of a class to be whitelisted for use by painless scripts

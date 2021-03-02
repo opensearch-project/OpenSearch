@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
 import com.amazonaws.util.EC2MetadataUtils;
 import com.amazonaws.util.json.Jackson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.SeedHostsProvider;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.SpecialPermission;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.SeedHostsProvider;
+import org.opensearch.node.Node;
+import org.opensearch.plugins.DiscoveryPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.ReloadablePlugin;
+import org.opensearch.transport.TransportService;
 
 import java.io.BufferedReader;
 import java.io.IOException;

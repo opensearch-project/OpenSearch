@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.classic.management;
+package org.opensearch.cloud.azure.classic.management;
 
 import com.microsoft.windowsazure.core.utils.KeyStoreType;
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
-import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider.Deployment;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.discovery.azure.classic.AzureSeedHostsProvider;
+import org.opensearch.discovery.azure.classic.AzureSeedHostsProvider.Deployment;
 
 import java.net.URI;
 import java.net.URISyntaxException;

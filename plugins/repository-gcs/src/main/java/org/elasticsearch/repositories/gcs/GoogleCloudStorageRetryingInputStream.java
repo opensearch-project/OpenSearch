@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.gcs;
+package org.opensearch.repositories.gcs;
 
 import com.google.api.client.http.HttpResponse;
 import com.google.api.services.storage.Storage.Objects.Get;
@@ -29,9 +29,9 @@ import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.SpecialPermission;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.core.internal.io.IOUtils;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -47,7 +47,7 @@ import java.util.stream.Stream;
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
  * This should be handled by the SDK but it isn't today. This should be revisited in the future (e.g. before removing
- * the {@link org.elasticsearch.Version#V_7_0_0} version constant) and removed if the SDK handles retries itself in the future.
+ * the {@link org.opensearch.Version#V_7_0_0} version constant) and removed if the SDK handles retries itself in the future.
  */
 class GoogleCloudStorageRetryingInputStream extends InputStream {
 

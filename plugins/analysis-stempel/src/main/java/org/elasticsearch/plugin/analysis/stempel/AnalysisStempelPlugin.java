@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.analysis.stempel;
+package org.opensearch.plugin.analysis.stempel;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.pl.PolishAnalyzerProvider;
-import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
-import org.elasticsearch.index.analysis.pl.PolishStopTokenFilterFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.analysis.AnalyzerProvider;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.pl.PolishAnalyzerProvider;
+import org.opensearch.index.analysis.pl.PolishStemTokenFilterFactory;
+import org.opensearch.index.analysis.pl.PolishStopTokenFilterFactory;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.gcs;
+package org.opensearch.repositories.gcs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.Setting.Property;
-import static org.elasticsearch.common.settings.Setting.boolSetting;
-import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
-import static org.elasticsearch.common.settings.Setting.simpleString;
+import static org.opensearch.common.settings.Setting.Property;
+import static org.opensearch.common.settings.Setting.boolSetting;
+import static org.opensearch.common.settings.Setting.byteSizeSetting;
+import static org.opensearch.common.settings.Setting.simpleString;
 
 class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRepository.class);
@@ -98,7 +98,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.elasticsearch.common.collect.Map.of("base_path", BASE_PATH.get(metadata.settings()),
+        return org.opensearch.common.collect.Map.of("base_path", BASE_PATH.get(metadata.settings()),
             "bucket", getSetting(BUCKET, metadata));
     }
 

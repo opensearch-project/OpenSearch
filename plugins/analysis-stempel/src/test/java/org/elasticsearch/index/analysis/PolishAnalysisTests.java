@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.pl.PolishAnalyzer;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
-import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.Index;
+import org.opensearch.index.analysis.pl.PolishStemTokenFilterFactory;
+import org.opensearch.plugin.analysis.stempel.AnalysisStempelPlugin;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;

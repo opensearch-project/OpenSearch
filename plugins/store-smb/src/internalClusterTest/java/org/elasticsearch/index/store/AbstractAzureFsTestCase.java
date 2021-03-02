@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.opensearch.index.store;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.plugin.store.smb.SMBStorePlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.plugin.store.smb.SMBStorePlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;

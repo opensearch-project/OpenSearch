@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.attachment;
+package org.opensearch.ingest.attachment;
 
 import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ElasticsearchParseException;
+import org.opensearch.common.Strings;
+import org.opensearch.ingest.AbstractProcessor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -37,12 +37,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
-import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
-import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
-import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
-import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.opensearch.ingest.ConfigurationUtils.readBooleanProperty;
+import static org.opensearch.ingest.ConfigurationUtils.readIntProperty;
+import static org.opensearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.opensearch.ingest.ConfigurationUtils.readOptionalStringProperty;
+import static org.opensearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
 

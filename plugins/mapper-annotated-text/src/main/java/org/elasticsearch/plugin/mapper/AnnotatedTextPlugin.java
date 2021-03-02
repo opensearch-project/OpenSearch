@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper;
+package org.opensearch.plugin.mapper;
 
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.fetch.subphase.highlight.AnnotatedTextHighlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.fetch.subphase.highlight.AnnotatedTextHighlighter;
+import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 
 import java.util.Collections;
 import java.util.Map;

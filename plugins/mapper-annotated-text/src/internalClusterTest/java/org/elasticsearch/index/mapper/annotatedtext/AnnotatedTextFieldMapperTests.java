@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.annotatedtext;
+package org.opensearch.index.mapper.annotatedtext;
 
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -34,26 +34,26 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.StandardTokenizerFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.plugin.mapper.AnnotatedTextPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.CharFilterFactory;
+import org.opensearch.index.analysis.CustomAnalyzer;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.analysis.StandardTokenizerFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperTestCase;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.plugin.mapper.AnnotatedTextPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.util.Arrays;

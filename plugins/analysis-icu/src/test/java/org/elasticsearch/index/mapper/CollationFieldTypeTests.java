@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.ibm.icu.text.Collator;
@@ -27,10 +27,10 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper.CollationFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.index.mapper.ICUCollationKeywordFieldMapper.CollationFieldType;
+import org.opensearch.index.mapper.MappedFieldType.Relation;
 
 import java.io.IOException;
 import java.util.ArrayList;

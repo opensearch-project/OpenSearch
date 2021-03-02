@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.example.rescore;
+package org.opensearch.example.rescore;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.search.rescore.RescoreContext;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.search.rescore.RescoreContext;
+import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.function.Supplier;

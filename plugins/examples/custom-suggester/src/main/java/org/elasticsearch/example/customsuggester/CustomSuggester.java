@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.example.customsuggester;
+package org.opensearch.example.customsuggester;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.Suggester;
+import org.opensearch.common.text.Text;
+import org.opensearch.search.suggest.Suggest;
+import org.opensearch.search.suggest.Suggester;
 
 import java.io.IOException;
 import java.util.Locale;

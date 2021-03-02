@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch.subphase.highlight;
+package org.opensearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
-import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
+import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
+import org.opensearch.search.fetch.FetchSubPhase.HitContext;
+import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;

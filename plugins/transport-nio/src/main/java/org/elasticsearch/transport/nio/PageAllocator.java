@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.opensearch.transport.nio;
 
-import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.nio.Page;
+import org.opensearch.common.recycler.Recycler;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.nio.Page;
 
 import java.nio.ByteBuffer;
 import java.util.function.IntFunction;

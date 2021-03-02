@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.analysis.smartcn;
+package org.opensearch.plugin.analysis.smartcn;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.SmartChineseAnalyzerProvider;
-import org.elasticsearch.index.analysis.SmartChineseNoOpTokenFilterFactory;
-import org.elasticsearch.index.analysis.SmartChineseStopTokenFilterFactory;
-import org.elasticsearch.index.analysis.SmartChineseTokenizerTokenizerFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.analysis.AnalyzerProvider;
+import org.opensearch.index.analysis.SmartChineseAnalyzerProvider;
+import org.opensearch.index.analysis.SmartChineseNoOpTokenFilterFactory;
+import org.opensearch.index.analysis.SmartChineseStopTokenFilterFactory;
+import org.opensearch.index.analysis.SmartChineseTokenizerTokenizerFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.HashMap;
 import java.util.Map;

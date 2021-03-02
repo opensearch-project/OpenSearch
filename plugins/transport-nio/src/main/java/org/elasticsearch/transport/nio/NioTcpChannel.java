@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.opensearch.transport.nio;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.transport.TcpChannel;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.nio.NioSocketChannel;
+import org.opensearch.transport.TcpChannel;
 
 import java.nio.channels.SocketChannel;
 

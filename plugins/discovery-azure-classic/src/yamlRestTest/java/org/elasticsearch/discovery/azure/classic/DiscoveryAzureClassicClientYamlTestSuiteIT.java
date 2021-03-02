@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.azure.classic;
+package org.opensearch.discovery.azure.classic;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 public class DiscoveryAzureClassicClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 

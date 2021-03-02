@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.hdfs;
+package org.opensearch.repositories.hdfs;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,8 +34,8 @@ import javax.security.auth.PrivateCredentialPermission;
 import javax.security.auth.kerberos.ServicePermission;
 
 import org.apache.hadoop.security.UserGroupInformation;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.env.Environment;
+import org.opensearch.SpecialPermission;
+import org.opensearch.env.Environment;
 
 /**
  * Oversees all the security specific logic for the HDFS Repository plugin.

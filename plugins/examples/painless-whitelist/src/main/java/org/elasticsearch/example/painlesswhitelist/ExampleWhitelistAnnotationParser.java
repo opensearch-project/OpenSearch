@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.example.painlesswhitelist;
+package org.opensearch.example.painlesswhitelist;
 
-import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
+import org.opensearch.painless.spi.annotation.WhitelistAnnotationParser;
 
 import java.util.Map;
 

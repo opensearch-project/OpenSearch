@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis.phonetic;
+package org.opensearch.index.analysis.phonetic;
 
 /**
  * Ge&auml;nderter Algorithmus aus der Matching Toolbox von Rainer Schnell

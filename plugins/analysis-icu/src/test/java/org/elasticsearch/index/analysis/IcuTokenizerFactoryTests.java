@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizer;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.index.Index;
+import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -92,7 +92,7 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
         Files.copy(keywords, config.resolve("KeywordTokenizer.rbbi"));
         Files.copy(latin, config.resolve("Latin-dont-break-on-hyphens.rbbi"));
 
-        String json = "/org/elasticsearch/index/analysis/icu_analysis.json";
+        String json = "/org.opensearch.index/analysis/icu_analysis.json";
 
         Settings settings = Settings.builder()
             .loadFromStream(json, IcuTokenizerFactoryTests.class.getResourceAsStream(json), false)

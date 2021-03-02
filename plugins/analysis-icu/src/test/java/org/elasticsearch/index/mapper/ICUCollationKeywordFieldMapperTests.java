@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
@@ -26,11 +26,11 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.common.Strings;
+import org.opensearch.common.collect.List;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,7 +56,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity");
+        return org.opensearch.common.collect.Set.of("analyzer", "similarity");
     }
 
     @Override

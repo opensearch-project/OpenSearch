@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce;
+package org.opensearch.discovery.gce;
 
 import com.google.api.client.http.HttpTransport;
-import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.cloud.gce.GceInstancesServiceImpl;
+import org.opensearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;

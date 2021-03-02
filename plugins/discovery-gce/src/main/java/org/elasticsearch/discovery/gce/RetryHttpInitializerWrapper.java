@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce;
+package org.opensearch.discovery.gce;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -31,8 +31,8 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
-import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.cloud.gce.util.Access;
+import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;

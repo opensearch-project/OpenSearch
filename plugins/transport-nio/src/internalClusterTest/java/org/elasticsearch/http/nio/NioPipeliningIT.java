@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
 import io.netty.handler.codec.http.FullHttpResponse;
-import org.elasticsearch.NioIntegTestCase;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.opensearch.NioIntegTestCase;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.http.HttpServerTransport;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
 
 import java.util.Collection;
 import java.util.Locale;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
@@ -30,9 +30,9 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.LazyInitializable;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.util.LazyInitializable;
 
 import java.util.concurrent.atomic.AtomicReference;
 

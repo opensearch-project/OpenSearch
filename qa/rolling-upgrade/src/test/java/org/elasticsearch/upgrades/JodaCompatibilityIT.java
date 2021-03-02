@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.upgrades;
+package org.opensearch.upgrades;
 
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Node;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.Version;
+import org.opensearch.client.Node;
+import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
+import org.opensearch.client.Response;
+import org.opensearch.client.WarningsHandler;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.search.DocValueFormat;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 
 /**
  * This is test is meant to verify that when upgrading from 6.x version to 7.7 or newer it is able to parse date fields with joda pattern.
@@ -54,7 +54,7 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  * When upgrading from 7.0-7.6 to 7.7 there is no way to tell if a pattern was created in 6.x as this flag cannot be added.
  * Hence a skip assume section in init()
  *
- * @see org.elasticsearch.search.DocValueFormat.DateTime
+ * @see org.opensearch.search.DocValueFormat.DateTime
  */
 public class JodaCompatibilityIT extends AbstractRollingTestCase {
 

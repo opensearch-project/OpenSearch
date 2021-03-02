@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.opensearch.index.store;
 
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 
 
 public class SmbMMapFsTests extends AbstractAzureFsTestCase {

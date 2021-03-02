@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
 import com.amazonaws.http.HttpMethodName;
 import com.amazonaws.services.ec2.model.Instance;
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.discovery.SeedHostsProvider;
-import org.elasticsearch.discovery.SeedHostsResolver;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.opensearch.Version;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.Streams;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.discovery.SeedHostsProvider;
+import org.opensearch.discovery.SeedHostsResolver;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.nio.MockNioTransport;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.azure;
+package org.opensearch.repositories.azure;
 
 import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.RetryExponentialRetry;
@@ -26,14 +26,14 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.azure.AzureHttpHandler;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

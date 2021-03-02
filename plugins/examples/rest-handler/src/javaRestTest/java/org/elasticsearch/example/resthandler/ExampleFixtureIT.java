@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.example.resthandler;
+package org.opensearch.example.resthandler;
 
-import org.elasticsearch.mocksocket.MockSocket;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.mocksocket.MockSocket;
+import org.opensearch.test.ESTestCase;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;

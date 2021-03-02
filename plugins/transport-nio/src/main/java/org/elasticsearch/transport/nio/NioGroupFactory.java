@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.nio.ChannelFactory;
-import org.elasticsearch.nio.EventHandler;
-import org.elasticsearch.nio.NioGroup;
-import org.elasticsearch.nio.NioSelectorGroup;
-import org.elasticsearch.nio.NioServerSocketChannel;
-import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.transport.TcpTransport;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.http.HttpServerTransport;
+import org.opensearch.nio.ChannelFactory;
+import org.opensearch.nio.EventHandler;
+import org.opensearch.nio.NioGroup;
+import org.opensearch.nio.NioSelectorGroup;
+import org.opensearch.nio.NioServerSocketChannel;
+import org.opensearch.nio.NioSocketChannel;
+import org.opensearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,7 +38,7 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
  * Creates and returns {@link NioSelectorGroup} instances. It will return a shared group for

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce;
+package org.opensearch.discovery.gce;
 
 import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
@@ -27,17 +27,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.cloud.gce.GceInstancesService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.SeedHostsProvider;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.cloud.gce.GceInstancesService;
+import org.opensearch.common.Strings;
+import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.discovery.SeedHostsProvider;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;

@@ -1,4 +1,4 @@
-package org.elasticsearch.ingest.attachment;
+package org.opensearch.ingest.attachment;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -26,12 +26,12 @@ import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.bootstrap.FilePermissionUtils;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.SpecialPermission;
+import org.opensearch.bootstrap.FilePermissionUtils;
+import org.opensearch.bootstrap.JarHell;
+import org.opensearch.bootstrap.JavaVersion;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

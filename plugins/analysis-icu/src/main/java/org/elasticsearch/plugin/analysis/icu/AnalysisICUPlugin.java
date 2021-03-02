@@ -17,30 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.analysis.icu;
+package org.opensearch.plugin.analysis.icu;
 
 import static java.util.Collections.singletonMap;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.IcuAnalyzerProvider;
-import org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory;
-import org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory;
-import org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory;
-import org.elasticsearch.index.analysis.IcuNormalizerTokenFilterFactory;
-import org.elasticsearch.index.analysis.IcuTokenizerFactory;
-import org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.index.analysis.AnalyzerProvider;
+import org.opensearch.index.analysis.CharFilterFactory;
+import org.opensearch.index.analysis.IcuAnalyzerProvider;
+import org.opensearch.index.analysis.IcuCollationTokenFilterFactory;
+import org.opensearch.index.analysis.IcuFoldingTokenFilterFactory;
+import org.opensearch.index.analysis.IcuNormalizerCharFilterFactory;
+import org.opensearch.index.analysis.IcuNormalizerTokenFilterFactory;
+import org.opensearch.index.analysis.IcuTokenizerFactory;
+import org.opensearch.index.analysis.IcuTransformTokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.index.mapper.ICUCollationKeywordFieldMapper;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.DocValueFormat;
 
 import java.util.Collections;
 import java.util.HashMap;

@@ -17,31 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.nio.BytesChannelContext;
-import org.elasticsearch.nio.ChannelFactory;
-import org.elasticsearch.nio.Config;
-import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioGroup;
-import org.elasticsearch.nio.NioSelector;
-import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.nio.BytesChannelContext;
+import org.opensearch.nio.ChannelFactory;
+import org.opensearch.nio.Config;
+import org.opensearch.nio.InboundChannelBuffer;
+import org.opensearch.nio.NioGroup;
+import org.opensearch.nio.NioSelector;
+import org.opensearch.nio.NioSocketChannel;
+import org.opensearch.nio.ServerChannelContext;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -51,7 +51,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public class NioTransport extends TcpTransport {
 

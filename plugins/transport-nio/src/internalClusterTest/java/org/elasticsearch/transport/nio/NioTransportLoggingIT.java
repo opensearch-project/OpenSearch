@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.NioIntegTestCase;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportLogger;
+import org.opensearch.NioIntegTestCase;
+import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
+import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.TransportLogger;
 
 import java.io.IOException;
 
@@ -53,7 +53,7 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
         super.tearDown();
     }
 
-    @TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
+    @TestLogging(value = "org.opensearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
     public void testLoggingHandler() {
         final String writePattern =
                 ".*\\[length: \\d+" +
@@ -84,7 +84,7 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
         appender.assertAllExpectationsMatched();
     }
 
-    @TestLogging(value = "org.elasticsearch.transport.TcpTransport:DEBUG", reason = "to ensure we log connection events on DEBUG level")
+    @TestLogging(value = "org.opensearch.transport.TcpTransport:DEBUG", reason = "to ensure we log connection events on DEBUG level")
     public void testConnectionLogging() throws IOException {
         appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation("open connection log",
                 TcpTransport.class.getCanonicalName(), Level.DEBUG,

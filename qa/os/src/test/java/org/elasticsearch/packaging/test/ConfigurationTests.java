@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Platforms;
+import org.opensearch.packaging.util.FileUtils;
+import org.opensearch.packaging.util.Platforms;
 import org.junit.Before;
 
-import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
+import static org.opensearch.packaging.util.FileUtils.append;
+import static org.opensearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
 

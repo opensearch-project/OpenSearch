@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.attachment;
+package org.opensearch.ingest.attachment;
 
 import java.util.Collections;
 import java.util.Map;
 
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.ingest.Processor;
+import org.opensearch.plugins.IngestPlugin;
+import org.opensearch.plugins.Plugin;
 
 public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
 

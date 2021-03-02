@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.store.smb;
+package org.opensearch.plugin.store.smb;
 
-import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsDirectoryFactory;
-import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsDirectoryFactory;
-import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.store.smbmmapfs.SmbMmapFsDirectoryFactory;
+import org.opensearch.index.store.smbsimplefs.SmbSimpleFsDirectoryFactory;
+import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.Collections;
 import java.util.HashMap;

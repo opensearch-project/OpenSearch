@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.annotatedtext;
+package org.opensearch.index.mapper.annotatedtext;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.FieldTypeTestCase;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.Mapper;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.http.HttpPipelinedResponse;
-import org.elasticsearch.http.HttpPipeliningAggregator;
-import org.elasticsearch.http.HttpRequest;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.http.HttpPipelinedRequest;
+import org.opensearch.http.HttpPipelinedResponse;
+import org.opensearch.http.HttpPipeliningAggregator;
+import org.opensearch.http.HttpRequest;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.List;

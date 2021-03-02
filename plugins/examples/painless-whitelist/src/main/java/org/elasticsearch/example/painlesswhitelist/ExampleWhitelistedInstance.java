@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.example.painlesswhitelist;
+package org.opensearch.example.painlesswhitelist;
 
 public class ExampleWhitelistedInstance {
     private final int value;

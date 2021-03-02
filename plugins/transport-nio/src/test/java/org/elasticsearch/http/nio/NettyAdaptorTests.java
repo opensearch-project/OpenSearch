@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -26,8 +26,8 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
-import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.nio.FlushOperation;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

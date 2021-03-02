@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce;
+package org.opensearch.discovery.gce;
 
 import com.google.api.client.googleapis.testing.auth.oauth2.MockGoogleCredential;
 import com.google.api.client.http.GenericUrl;
@@ -34,8 +34,8 @@ import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import com.google.api.client.testing.util.MockSleeper;
 import com.google.api.services.compute.Compute;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

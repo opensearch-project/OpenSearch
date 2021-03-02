@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
 import com.amazonaws.http.HttpMethodName;
 import com.amazonaws.services.ec2.model.Instance;
@@ -27,18 +27,18 @@ import com.amazonaws.services.ec2.model.Tag;
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.opensearch.Version;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.Streams;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.nio.MockNioTransport;
 
 import java.io.IOException;
 import java.net.InetAddress;

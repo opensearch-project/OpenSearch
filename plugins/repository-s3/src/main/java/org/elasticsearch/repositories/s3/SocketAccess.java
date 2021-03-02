@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.opensearch.repositories.s3;
 
-import org.elasticsearch.SpecialPermission;
+import org.opensearch.SpecialPermission;
 
 import java.io.IOException;
 import java.net.SocketPermission;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis.phonetic;
+package org.opensearch.index.analysis.phonetic;
 
 import java.util.ArrayList;
 import java.util.Arrays;

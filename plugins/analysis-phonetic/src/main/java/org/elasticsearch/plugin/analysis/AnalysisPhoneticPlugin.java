@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.analysis;
+package org.opensearch.plugin.analysis;
 
-import org.elasticsearch.index.analysis.PhoneticTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.analysis.PhoneticTokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.Map;
 

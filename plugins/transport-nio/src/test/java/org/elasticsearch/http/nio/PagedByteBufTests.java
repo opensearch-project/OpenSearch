@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
-import org.elasticsearch.nio.Page;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.nio.Page;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;

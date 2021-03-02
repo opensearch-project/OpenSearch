@@ -16,22 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Tag;
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.mocksocket.MockHttpServer;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.mocksocket.MockHttpServer;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -90,7 +90,7 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
 
     /**
      * Generates a XML response that describe the EC2 instances
-     * TODO: org.elasticsearch.discovery.ec2.AmazonEC2Fixture uses pretty much the same code. We should dry up that test fixture.
+     * TODO: org.opensearch.discovery.ec2.AmazonEC2Fixture uses pretty much the same code. We should dry up that test fixture.
      */
     static byte[] generateDescribeInstancesResponse(List<Instance> instances) {
         final XMLOutputFactory xmlOutputFactory = XMLOutputFactory.newFactory();

@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.analysis.kuromoji;
+package org.opensearch.plugin.analysis.kuromoji;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.JapaneseStopTokenFilterFactory;
-import org.elasticsearch.index.analysis.KuromojiAnalyzerProvider;
-import org.elasticsearch.index.analysis.KuromojiBaseFormFilterFactory;
-import org.elasticsearch.index.analysis.KuromojiIterationMarkCharFilterFactory;
-import org.elasticsearch.index.analysis.KuromojiKatakanaStemmerFactory;
-import org.elasticsearch.index.analysis.KuromojiNumberFilterFactory;
-import org.elasticsearch.index.analysis.KuromojiPartOfSpeechFilterFactory;
-import org.elasticsearch.index.analysis.KuromojiReadingFormFilterFactory;
-import org.elasticsearch.index.analysis.KuromojiTokenizerFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.analysis.AnalyzerProvider;
+import org.opensearch.index.analysis.CharFilterFactory;
+import org.opensearch.index.analysis.JapaneseStopTokenFilterFactory;
+import org.opensearch.index.analysis.KuromojiAnalyzerProvider;
+import org.opensearch.index.analysis.KuromojiBaseFormFilterFactory;
+import org.opensearch.index.analysis.KuromojiIterationMarkCharFilterFactory;
+import org.opensearch.index.analysis.KuromojiKatakanaStemmerFactory;
+import org.opensearch.index.analysis.KuromojiNumberFilterFactory;
+import org.opensearch.index.analysis.KuromojiPartOfSpeechFilterFactory;
+import org.opensearch.index.analysis.KuromojiReadingFormFilterFactory;
+import org.opensearch.index.analysis.KuromojiTokenizerFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.HashMap;
 import java.util.Map;

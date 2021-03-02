@@ -1,4 +1,4 @@
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 /* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more

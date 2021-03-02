@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.gcs;
+package org.opensearch.repositories.gcs;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.SecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 
 import java.util.Base64;
 import java.util.Collection;
