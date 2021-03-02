@@ -20,13 +20,13 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class GetStoredScriptRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetStoredScriptRequest,
         GetStoredScriptResponse, GetStoredScriptRequestBuilder> {
 
 
-    public GetStoredScriptRequestBuilder(ElasticsearchClient client, GetStoredScriptAction action) {
+    public GetStoredScriptRequestBuilder(OpenSearchClient client, GetStoredScriptAction action) {
         super(client, action, new GetStoredScriptRequest());
     }
 

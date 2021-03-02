@@ -20,7 +20,7 @@ package org.elasticsearch.action.support.tasks;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 
@@ -33,7 +33,7 @@ public class TasksRequestBuilder<
             RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>
         > extends ActionRequestBuilder<Request, Response> {
 
-    protected TasksRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected TasksRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 
@@ -65,7 +65,7 @@ public class TasksRequestBuilder<
     }
 
     /**
-     * Match all children of the provided task. 
+     * Match all children of the provided task.
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setParentTaskId(TaskId taskId) {

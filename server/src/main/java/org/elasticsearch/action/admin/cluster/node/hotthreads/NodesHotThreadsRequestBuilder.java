@@ -20,13 +20,13 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 public class NodesHotThreadsRequestBuilder
         extends NodesOperationRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
 
-    public NodesHotThreadsRequestBuilder(ElasticsearchClient client, NodesHotThreadsAction action) {
+    public NodesHotThreadsRequestBuilder(OpenSearchClient client, NodesHotThreadsAction action) {
         super(client, action, new NodesHotThreadsRequest());
     }
 

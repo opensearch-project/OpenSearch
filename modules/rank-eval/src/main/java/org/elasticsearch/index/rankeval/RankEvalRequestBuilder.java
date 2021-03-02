@@ -21,12 +21,12 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest, RankEvalResponse> {
 
-    public RankEvalRequestBuilder(ElasticsearchClient client, ActionType<RankEvalResponse> action,
-            RankEvalRequest request) {
+    public RankEvalRequestBuilder(OpenSearchClient client, ActionType<RankEvalResponse> action,
+                                  RankEvalRequest request) {
         super(client, action, request);
     }
 

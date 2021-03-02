@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 
@@ -28,7 +28,7 @@ import org.elasticsearch.tasks.TaskId;
  * Builder for the request to retrieve the list of tasks running on the specified nodes
  */
 public class GetTaskRequestBuilder extends ActionRequestBuilder<GetTaskRequest, GetTaskResponse> {
-    public GetTaskRequestBuilder(ElasticsearchClient client, GetTaskAction action) {
+    public GetTaskRequestBuilder(OpenSearchClient client, GetTaskAction action) {
         super(client, action, new GetTaskRequest());
     }
 

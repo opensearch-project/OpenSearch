@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 /**
  * Builder for verify repository request
@@ -31,14 +31,14 @@ public class VerifyRepositoryRequestBuilder
     /**
      * Constructs unregister repository request builder
      */
-    public VerifyRepositoryRequestBuilder(ElasticsearchClient client, VerifyRepositoryAction action) {
+    public VerifyRepositoryRequestBuilder(OpenSearchClient client, VerifyRepositoryAction action) {
         super(client, action, new VerifyRepositoryRequest());
     }
 
     /**
      * Constructs unregister repository request builder with specified repository name
      */
-    public VerifyRepositoryRequestBuilder(ElasticsearchClient client, VerifyRepositoryAction action, String name) {
+    public VerifyRepositoryRequestBuilder(OpenSearchClient client, VerifyRepositoryAction action, String name) {
         super(client, action, new VerifyRepositoryRequest(name));
     }
 
