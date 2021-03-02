@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.common;
+package org.opensearch.common;
 
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.opensearch.common.Rounding;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
