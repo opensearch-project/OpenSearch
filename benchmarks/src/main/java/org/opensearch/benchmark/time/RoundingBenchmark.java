@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.benchmark.time;
+package org.opensearch.benchmark.time;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.rounding.DateTimeUnit;

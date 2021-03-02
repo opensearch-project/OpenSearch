@@ -307,8 +307,11 @@ public abstract class Rounding implements Writeable {
 
     /**
      * Prepare rounding using java time classes. Package private for testing.
+     * (Changed to public as per the renaming issue: https://github.com/opendistro-for-elasticsearch/search/issues/160)
+     * TODO: revert to package private when the package name for this class
+     * is renamed to opensearch.
      */
-    abstract Prepared prepareJavaTime();
+    public abstract Prepared prepareJavaTime();
 
     /**
      * Rounds the given value.
@@ -562,7 +565,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        TimeUnitPreparedRounding prepareJavaTime() {
+        public TimeUnitPreparedRounding prepareJavaTime() {
             if (unitRoundsToMidnight) {
                 return new JavaTimeToMidnightRounding();
             }
@@ -939,7 +942,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        Prepared prepareJavaTime() {
+        public Prepared prepareJavaTime() {
             return new JavaTimeRounding();
         }
 
@@ -1238,7 +1241,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        Prepared prepareJavaTime() {
+        public Prepared prepareJavaTime() {
             return wrapPreparedRounding(delegate.prepareJavaTime());
         }
 

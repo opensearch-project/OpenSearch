@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.benchmark.time;
+package org.opensearch.benchmark.time;
 
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -40,14 +40,18 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
 @SuppressWarnings("unused") // invoked by benchmarking framework
-public class DateFormatterFromBenchmark {
+public class DateFormatterBenchmark {
 
-    private final TemporalAccessor accessor = DateFormatter.forPattern("epoch_millis").parse("1234567890");
+    private final DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date||epoch_millis");
+    private final DateFormatter jodaFormatter = Joda.forPattern("year_month_day||ordinal_date||epoch_millis");
 
     @Benchmark
-    public TemporalAccessor benchmarkFrom() {
-        // benchmark an accessor that does not contain a timezone
-        // this used to throw an exception earlier and thus was very very slow
-        return DateFormatters.from(accessor);
+    public TemporalAccessor parseJavaDate() {
+        return javaFormatter.parse("1234567890");
+    }
+
+    @Benchmark
+    public TemporalAccessor parseJodaDate() {
+        return jodaFormatter.parse("1234567890");
     }
 }

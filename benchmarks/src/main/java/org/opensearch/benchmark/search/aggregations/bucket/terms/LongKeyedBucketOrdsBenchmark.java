@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.benchmark.search.aggregations.bucket.terms;
+package org.opensearch.benchmark.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;

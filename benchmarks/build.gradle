@@ -24,7 +24,7 @@ apply plugin: 'application'
 mainClassName = 'org.openjdk.jmh.Main'
 
 assemble.enabled = false
-archivesBaseName = 'elasticsearch-benchmarks'
+archivesBaseName = 'opensearch-benchmarks'
 
 test.enabled = false
 

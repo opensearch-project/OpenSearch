@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.common;
+package org.opensearch.common;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.benchmark.search.aggregations.bucket.terms;
+package org.opensearch.benchmark.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
