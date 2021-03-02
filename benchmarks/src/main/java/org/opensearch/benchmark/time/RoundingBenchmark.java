@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.benchmark.time;
+package org.opensearch.benchmark.time;
 
-import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.rounding.DateTimeUnit;
-import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.Rounding;
+import org.opensearch.common.rounding.DateTimeUnit;
+import org.opensearch.common.time.DateUtils;
+import org.opensearch.common.unit.TimeValue;
 import org.joda.time.DateTimeZone;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -37,10 +37,10 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.Rounding.DateTimeUnit.DAY_OF_MONTH;
-import static org.elasticsearch.common.Rounding.DateTimeUnit.MONTH_OF_YEAR;
-import static org.elasticsearch.common.Rounding.DateTimeUnit.QUARTER_OF_YEAR;
-import static org.elasticsearch.common.Rounding.DateTimeUnit.YEAR_OF_CENTURY;
+import static org.opensearch.common.Rounding.DateTimeUnit.DAY_OF_MONTH;
+import static org.opensearch.common.Rounding.DateTimeUnit.MONTH_OF_YEAR;
+import static org.opensearch.common.Rounding.DateTimeUnit.QUARTER_OF_YEAR;
+import static org.opensearch.common.Rounding.DateTimeUnit.YEAR_OF_CENTURY;
 
 @Fork(3)
 @Warmup(iterations = 10)
@@ -56,7 +56,7 @@ public class RoundingBenchmark {
 
     private long timestamp = 1548879021354L;
 
-    private final org.elasticsearch.common.rounding.Rounding jodaRounding = org.elasticsearch.common.rounding.Rounding.builder(
+    private final org.opensearch.common.rounding.Rounding jodaRounding = org.opensearch.common.rounding.Rounding.builder(
         DateTimeUnit.HOUR_OF_DAY
     ).timeZone(timeZone).build();
     private final Rounding javaRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(zoneId).build();
@@ -71,7 +71,7 @@ public class RoundingBenchmark {
         return javaRounding.round(timestamp);
     }
 
-    private final org.elasticsearch.common.rounding.Rounding jodaDayOfMonthRounding = org.elasticsearch.common.rounding.Rounding.builder(
+    private final org.opensearch.common.rounding.Rounding jodaDayOfMonthRounding = org.opensearch.common.rounding.Rounding.builder(
         DateTimeUnit.DAY_OF_MONTH
     ).timeZone(timeZone).build();
     private final Rounding javaDayOfMonthRounding = Rounding.builder(DAY_OF_MONTH).timeZone(zoneId).build();
@@ -86,7 +86,7 @@ public class RoundingBenchmark {
         return javaDayOfMonthRounding.round(timestamp);
     }
 
-    private final org.elasticsearch.common.rounding.Rounding timeIntervalRoundingJoda = org.elasticsearch.common.rounding.Rounding.builder(
+    private final org.opensearch.common.rounding.Rounding timeIntervalRoundingJoda = org.opensearch.common.rounding.Rounding.builder(
         TimeValue.timeValueMinutes(60)
     ).timeZone(timeZone).build();
     private final Rounding timeIntervalRoundingJava = Rounding.builder(TimeValue.timeValueMinutes(60)).timeZone(zoneId).build();
@@ -101,7 +101,7 @@ public class RoundingBenchmark {
         return timeIntervalRoundingJoda.round(timestamp);
     }
 
-    private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcDayOfMonthJoda = org.elasticsearch.common.rounding.Rounding
+    private final org.opensearch.common.rounding.Rounding timeUnitRoundingUtcDayOfMonthJoda = org.opensearch.common.rounding.Rounding
         .builder(DateTimeUnit.DAY_OF_MONTH)
         .timeZone(DateTimeZone.UTC)
         .build();
@@ -117,8 +117,8 @@ public class RoundingBenchmark {
         return timeUnitRoundingUtcDayOfMonthJoda.round(timestamp);
     }
 
-    private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcQuarterOfYearJoda =
-        org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.QUARTER).timeZone(DateTimeZone.UTC).build();
+    private final org.opensearch.common.rounding.Rounding timeUnitRoundingUtcQuarterOfYearJoda =
+        org.opensearch.common.rounding.Rounding.builder(DateTimeUnit.QUARTER).timeZone(DateTimeZone.UTC).build();
     private final Rounding timeUnitRoundingUtcQuarterOfYearJava = Rounding.builder(QUARTER_OF_YEAR).timeZone(ZoneOffset.UTC).build();
 
     @Benchmark
@@ -131,7 +131,7 @@ public class RoundingBenchmark {
         return timeUnitRoundingUtcQuarterOfYearJoda.round(timestamp);
     }
 
-    private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcMonthOfYearJoda = org.elasticsearch.common.rounding.Rounding
+    private final org.opensearch.common.rounding.Rounding timeUnitRoundingUtcMonthOfYearJoda = org.opensearch.common.rounding.Rounding
         .builder(DateTimeUnit.MONTH_OF_YEAR)
         .timeZone(DateTimeZone.UTC)
         .build();
@@ -147,8 +147,8 @@ public class RoundingBenchmark {
         return timeUnitRoundingUtcMonthOfYearJoda.round(timestamp);
     }
 
-    private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcYearOfCenturyJoda =
-        org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(DateTimeZone.UTC).build();
+    private final org.opensearch.common.rounding.Rounding timeUnitRoundingUtcYearOfCenturyJoda =
+        org.opensearch.common.rounding.Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(DateTimeZone.UTC).build();
     private final Rounding timeUnitRoundingUtcYearOfCenturyJava = Rounding.builder(YEAR_OF_CENTURY).timeZone(ZoneOffset.UTC).build();
 
     @Benchmark

@@ -1,12 +1,11 @@
-# Elasticsearch Microbenchmark Suite
+# OpenSearch Microbenchmark Suite
 
-This directory contains the microbenchmark suite of Elasticsearch. It relies on [JMH](http://openjdk.java.net/projects/code-tools/jmh/).
+This directory contains the microbenchmark suite of OpenSearch. It relies on [JMH](http://openjdk.java.net/projects/code-tools/jmh/).
 
 ## Purpose
 
-We do not want to microbenchmark everything but the kitchen sink and should typically rely on our
-[macrobenchmarks](https://elasticsearch-benchmarks.elastic.co/app/kibana#/dashboard/Nightly-Benchmark-Overview) with
-[Rally](http://github.com/elastic/rally). Microbenchmarks are intended to spot performance regressions in performance-critical components.
+Microbenchmarks are intended to spot performance regressions in performance-critical components.
+
 The microbenchmark suite is also handy for ad-hoc microbenchmarks but please remove them again before merging your PR.
 
 ## Getting Started
