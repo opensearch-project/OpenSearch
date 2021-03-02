@@ -33,7 +33,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
-import org.opensearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.Arrays;
