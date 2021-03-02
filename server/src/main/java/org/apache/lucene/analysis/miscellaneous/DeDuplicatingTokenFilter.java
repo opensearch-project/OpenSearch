@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.hash.MurmurHash3;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,14 +34,14 @@ import java.util.ArrayList;
  * have a minimum length - 6 is a good heuristic as it avoids filtering common
  * idioms/phrases but detects longer sections that are typical of cut+paste
  * copies of text.
- *
+ * 
  * <p>
  * Internally each token is hashed/moduloed into a single byte (so 256 possible
  * values for each token) and then recorded in a trie of seen byte sequences
  * using a {@link DuplicateByteSequenceSpotter}. This trie is passed into the
  * TokenFilter constructor so a single object can be reused across multiple
  * documents.
- *
+ * 
  * <p>
  * The emitDuplicates setting controls if duplicate tokens are filtered from
  * results or are output (the {@link DuplicateSequenceAttribute} attribute can
@@ -57,7 +57,7 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
     }
 
     /**
-     *
+     * 
      * @param in
      *            The input token stream
      * @param byteStreamDuplicateSpotter
@@ -110,9 +110,9 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
         }
 
         public void loadAllTokens() throws IOException {
-            // TODO consider changing this implementation to emit tokens as-we-go
-            // rather than buffering all. However this array is perhaps not the
-            // bulk of memory usage (in practice the dupSequenceSpotter requires
+            // TODO consider changing this implementation to emit tokens as-we-go 
+            // rather than buffering all. However this array is perhaps not the 
+            // bulk of memory usage (in practice the dupSequenceSpotter requires 
             // ~5x the original content size in its internal tree ).
             allTokens = new ArrayList<State>(256);
 

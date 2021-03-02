@@ -19,7 +19,7 @@
 
 package org.apache.lucene.index;
 
-import org.opensearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.ArrayList;
