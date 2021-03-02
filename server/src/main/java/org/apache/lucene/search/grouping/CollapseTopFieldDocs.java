@@ -26,7 +26,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;
