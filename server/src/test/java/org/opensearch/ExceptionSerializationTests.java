@@ -695,7 +695,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(18, org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException.class);
         ids.put(19, org.opensearch.ResourceNotFoundException.class);
         ids.put(20, org.opensearch.transport.ActionTransportException.class);
-        ids.put(21, org.opensearch.ElasticsearchGenerationException.class);
+        ids.put(21, org.opensearch.OpenSearchGenerationException.class);
         ids.put(22, null); // was CreateFailedEngineException
         ids.put(23, org.opensearch.index.shard.IndexShardStartedException.class);
         ids.put(24, org.opensearch.search.SearchContextMissingException.class);
@@ -709,7 +709,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(32, org.opensearch.indices.InvalidIndexNameException.class);
         ids.put(33, org.opensearch.indices.IndexPrimaryShardNotAllocatedException.class);
         ids.put(34, org.opensearch.transport.TransportException.class);
-        ids.put(35, org.opensearch.ElasticsearchParseException.class);
+        ids.put(35, org.opensearch.OpenearchParseException.class);
         ids.put(36, org.opensearch.search.SearchException.class);
         ids.put(37, org.opensearch.index.mapper.MapperException.class);
         ids.put(38, org.opensearch.indices.InvalidTypeNameException.class);
@@ -789,7 +789,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(115, org.opensearch.index.translog.TranslogException.class);
         ids.put(116, org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException.class);
         ids.put(117, ReplicationOperation.RetryOnPrimaryException.class);
-        ids.put(118, org.opensearch.ElasticsearchTimeoutException.class);
+        ids.put(118, org.opensearch.OpenSearchTimeoutException.class);
         ids.put(119, org.opensearch.search.query.QueryPhaseExecutionException.class);
         ids.put(120, org.opensearch.repositories.RepositoryVerificationException.class);
         ids.put(121, org.opensearch.search.aggregations.InvalidAggregationPathException.class);
@@ -816,7 +816,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.opensearch.script.ScriptException.class);
         ids.put(144, org.opensearch.cluster.NotMasterException.class);
-        ids.put(145, org.opensearch.ElasticsearchStatusException.class);
+        ids.put(145, org.opensearch.OpenSearchStatusException.class);
         ids.put(146, org.opensearch.tasks.TaskCancelledException.class);
         ids.put(147, org.opensearch.env.ShardLockObtainFailedException.class);
         ids.put(148, null);
@@ -884,9 +884,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         }
     }
 
-    public void testElasticsearchRemoteException() throws IOException {
-        ElasticsearchStatusException ex = new ElasticsearchStatusException("something", RestStatus.TOO_MANY_REQUESTS);
-        ElasticsearchStatusException e = serialize(ex);
+    public void testOpenSearchRemoteException() throws IOException {
+        OpenSearchStatusException ex = new OpenSearchStatusException("something", RestStatus.TOO_MANY_REQUESTS);
+        OpenSearchStatusException e = serialize(ex);
         assertEquals(ex.status(), e.status());
         assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
     }

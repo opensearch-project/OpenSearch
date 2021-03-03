@@ -44,7 +44,7 @@ public class BuildTests extends ESTestCase {
 
     /** Asking for the jar metadata should not throw exception in tests, no matter how configured */
     public void testJarMetadata() throws IOException {
-        URL url = Build.getElasticsearchCodeSourceLocation();
+        URL url = Build.getOpenSearchCodeSourceLocation();
         // throws exception if does not exist, or we cannot access it
         try (InputStream ignored = FileSystemUtils.openFileURLStream(url)) {}
         // these should never be null
