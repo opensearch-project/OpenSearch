@@ -130,7 +130,7 @@ public class InternalEngine extends Engine {
     private volatile long lastDeleteVersionPruneTimeMSec;
 
     private final Translog translog;
-    private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
+    private final OpenSearchConcurrentMergeScheduler mergeScheduler;
 
     private final IndexWriter indexWriter;
 
@@ -2396,7 +2396,7 @@ public class InternalEngine extends Engine {
         return indexWriter.getConfig();
     }
 
-    private final class EngineMergeScheduler extends ElasticsearchConcurrentMergeScheduler {
+    private final class EngineMergeScheduler extends OpenSearchConcurrentMergeScheduler {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
