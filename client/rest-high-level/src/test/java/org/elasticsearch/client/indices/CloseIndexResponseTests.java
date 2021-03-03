@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.AbstractResponseTestCase;
@@ -215,7 +215,7 @@ public class CloseIndexResponseTests extends
         Exception exception = randomFrom(new IndexNotFoundException(indexName),
             new ActionNotFoundTransportException("test"),
             new IOException("boom", new NullPointerException()),
-            new ElasticsearchStatusException("something", RestStatus.TOO_MANY_REQUESTS));
+            new OpenSearchStatusException("something", RestStatus.TOO_MANY_REQUESTS));
         return new org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure(indexName, shard, exception, nodeId);
     }
 }

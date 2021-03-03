@@ -26,8 +26,8 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchException;;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
@@ -230,7 +230,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
      * not have a constant for the status code so in that case we just use 500 instead. We also extract make sure to include the response
      * body in the message so the user can figure out *why* the remote Elasticsearch service threw the error back to us.
      */
-    static ElasticsearchStatusException wrapExceptionToPreserveStatus(int statusCode, @Nullable HttpEntity entity, Exception cause) {
+    static OpenSearchStatusException wrapExceptionToPreserveStatus(int statusCode, @Nullable HttpEntity entity, Exception cause) {
         RestStatus status = RestStatus.fromCode(statusCode);
         String messagePrefix = "";
         if (status == null) {
@@ -238,9 +238,9 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             status = RestStatus.INTERNAL_SERVER_ERROR;
         }
         try {
-            return new ElasticsearchStatusException(messagePrefix + bodyMessage(entity), status, cause);
+            return new OpenSearchStatusException(messagePrefix + bodyMessage(entity), status, cause);
         } catch (IOException ioe) {
-            ElasticsearchStatusException e = new ElasticsearchStatusException(messagePrefix + "Failed to extract body.", status, cause);
+            OpenSearchStatusException e = new OpenSearchStatusException(messagePrefix + "Failed to extract body.", status, cause);
             e.addSuppressed(ioe);
             return e;
         }

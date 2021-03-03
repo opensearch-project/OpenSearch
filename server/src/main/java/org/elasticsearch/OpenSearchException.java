@@ -993,7 +993,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UNKNOWN_VERSION_ADDED),
         NOT_MASTER_EXCEPTION(org.elasticsearch.cluster.NotMasterException.class, org.elasticsearch.cluster.NotMasterException::new, 144,
             UNKNOWN_VERSION_ADDED),
-        STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145,
+        STATUS_EXCEPTION(org.elasticsearch.OpenSearchStatusException.class, org.elasticsearch.OpenSearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
         TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
             org.elasticsearch.tasks.TaskCancelledException::new, 146, UNKNOWN_VERSION_ADDED),

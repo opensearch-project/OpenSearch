@@ -37,7 +37,7 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
@@ -381,7 +381,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
         // Successfully get the status without a body
         RestStatus status = randomFrom(RestStatus.values());
-        ElasticsearchStatusException wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(status.getStatus(), null, cause);
+        OpenSearchStatusException wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(status.getStatus(), null, cause);
         assertEquals(status, wrapped.status());
         assertEquals(cause, wrapped.getCause());
         assertEquals("No error body.", wrapped.getMessage());
