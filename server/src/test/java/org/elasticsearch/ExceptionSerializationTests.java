@@ -816,7 +816,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
         ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
-        ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
+        ids.put(145, OpenSearchStatusException.class);
         ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
         ids.put(148, null);
@@ -885,8 +885,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testElasticsearchRemoteException() throws IOException {
-        ElasticsearchStatusException ex = new ElasticsearchStatusException("something", RestStatus.TOO_MANY_REQUESTS);
-        ElasticsearchStatusException e = serialize(ex);
+        OpenSearchStatusException ex = new OpenSearchStatusException("something", RestStatus.TOO_MANY_REQUESTS);
+        OpenSearchStatusException e = serialize(ex);
         assertEquals(ex.status(), e.status());
         assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
     }
