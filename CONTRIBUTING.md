@@ -4,7 +4,7 @@ Contributing to RENAMEME
 RENAMEME is a community project that is built and maintained by people just like **you**.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started. 
 
 ## Table of Contents:
-- [First Principles](#first-principles)
+- [First Things First](#first-principles)
 - [Ways to Contribute](#ways-to-contribute)
 - [Developer Certificate of Origin](#developer-certificate-of-origin)
 - [Review Process](#review-process)
