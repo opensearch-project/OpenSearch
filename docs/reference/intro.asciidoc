@@ -123,8 +123,8 @@ high-performance geo and numerical queries.
 
 You can access all of these search capabilities using {es}'s
 comprehensive JSON-style query language (<<query-dsl, Query DSL>>). You can also
-construct SQL-style queries to search and aggregate data inside {es} through plugins 
-contributed by the community, and JDBC and ODBC drivers enable a broad range of
+construct SQL-style queries to search and aggregate data
+inside {es} through plugins, and JDBC and ODBC drivers enable a broad range of
 third-party applications to interact with {es} via SQL.
 
 [discrete]
