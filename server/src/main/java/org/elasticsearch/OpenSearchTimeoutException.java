@@ -28,7 +28,7 @@ import java.io.IOException;
  *
  *
  */
-public class OpenSearchTimeoutException extends ElasticsearchException {
+public class OpenSearchTimeoutException extends OpenSearchException {
     public OpenSearchTimeoutException(StreamInput in) throws IOException {
         super(in);
     }

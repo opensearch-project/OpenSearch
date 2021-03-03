@@ -21,7 +21,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -136,7 +136,7 @@ public class ScriptedMetricAggContexts {
             try {
                 return scorer.score();
             } catch (IOException e) {
-                throw new ElasticsearchException("Couldn't look up score", e);
+                throw new OpenSearchException("Couldn't look up score", e);
             }
         }
 

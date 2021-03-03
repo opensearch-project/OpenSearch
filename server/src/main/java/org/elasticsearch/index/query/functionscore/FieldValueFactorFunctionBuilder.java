@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -148,7 +148,7 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
         IndexNumericFieldData fieldData = null;
         if (fieldType == null) {
             if(missing == null) {
-                throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]. No 'missing' value defined.");
+                throw new OpenSearchException("Unable to find a field mapper for field [" + field + "]. No 'missing' value defined.");
             }
         } else {
             fieldData = context.getForField(fieldType);

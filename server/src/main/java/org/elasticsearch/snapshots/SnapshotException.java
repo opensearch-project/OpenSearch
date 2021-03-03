@@ -19,7 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * Generic snapshot exception
  */
-public class SnapshotException extends ElasticsearchException {
+public class SnapshotException extends OpenSearchException {
 
     @Nullable
     private final String repositoryName;

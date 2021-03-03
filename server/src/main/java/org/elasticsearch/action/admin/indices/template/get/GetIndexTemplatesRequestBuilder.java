@@ -19,18 +19,18 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
         GetIndexTemplatesRequest,
         GetIndexTemplatesResponse,
         GetIndexTemplatesRequestBuilder> {
 
-    public GetIndexTemplatesRequestBuilder(ElasticsearchClient client, GetIndexTemplatesAction action) {
+    public GetIndexTemplatesRequestBuilder(OpenSearchClient client, GetIndexTemplatesAction action) {
         super(client, action, new GetIndexTemplatesRequest());
     }
 
-    public GetIndexTemplatesRequestBuilder(ElasticsearchClient client, GetIndexTemplatesAction action, String... names) {
+    public GetIndexTemplatesRequestBuilder(OpenSearchClient client, GetIndexTemplatesAction action, String... names) {
         super(client, action, new GetIndexTemplatesRequest(names));
     }
 }

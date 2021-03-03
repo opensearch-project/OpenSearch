@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.test.ESTestCase;
@@ -99,7 +99,7 @@ public class AdapterActionFutureTests extends ESTestCase {
         checkUnwrap(new RemoteTransportException("test", new Exception()),
             UncategorizedExecutionException.class, RemoteTransportException.class);
         checkUnwrap(new Exception(), UncategorizedExecutionException.class, Exception.class);
-        checkUnwrap(new ElasticsearchException("test", new Exception()), ElasticsearchException.class, ElasticsearchException.class);
+        checkUnwrap(new OpenSearchException("test", new Exception()), OpenSearchException.class, OpenSearchException.class);
     }
 
     private void checkUnwrap(Exception exception, Class<? extends Exception> actionGetException,

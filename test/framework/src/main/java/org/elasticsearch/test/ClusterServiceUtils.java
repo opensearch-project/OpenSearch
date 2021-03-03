@@ -19,7 +19,7 @@
 package org.elasticsearch.test;
 
 import org.apache.logging.log4j.core.util.Throwables;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -93,7 +93,7 @@ public class ClusterServiceUtils {
                 Throwables.rethrow(exception.get());
             }
         } catch (InterruptedException e) {
-            throw new ElasticsearchException("unexpected exception", e);
+            throw new OpenSearchException("unexpected exception", e);
         }
     }
 
@@ -119,7 +119,7 @@ public class ClusterServiceUtils {
         try {
             latch.await();
         } catch (InterruptedException e) {
-            throw new ElasticsearchException("unexpected interruption", e);
+            throw new OpenSearchException("unexpected interruption", e);
         }
     }
 

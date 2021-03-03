@@ -25,7 +25,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
@@ -724,7 +724,7 @@ public class Node implements Closeable {
 
             success = true;
         } catch (IOException ex) {
-            throw new ElasticsearchException("failed to bind service", ex);
+            throw new OpenSearchException("failed to bind service", ex);
         } finally {
             if (!success) {
                 IOUtils.closeWhileHandlingException(resourcesToClose);

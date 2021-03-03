@@ -28,7 +28,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -1082,14 +1082,14 @@ public abstract class StreamOutput extends OutputStream {
                 writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());
                 writeCause = false;
             } else {
-                final ElasticsearchException ex;
-                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
-                    ex = (ElasticsearchException) throwable;
+                final OpenSearchException ex;
+                if (throwable instanceof OpenSearchException && OpenSearchException.isRegistered(throwable.getClass(), version)) {
+                    ex = (OpenSearchException) throwable;
                 } else {
                     ex = new NotSerializableExceptionWrapper(throwable);
                 }
                 writeVInt(0);
-                writeVInt(ElasticsearchException.getId(ex.getClass()));
+                writeVInt(OpenSearchException.getId(ex.getClass()));
                 ex.writeTo(this);
                 return;
             }
@@ -1099,7 +1099,7 @@ public abstract class StreamOutput extends OutputStream {
             if (writeCause) {
                 writeException(rootException, throwable.getCause(), nestedLevel + 1);
             }
-            ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
+            OpenSearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
         }
     }
 

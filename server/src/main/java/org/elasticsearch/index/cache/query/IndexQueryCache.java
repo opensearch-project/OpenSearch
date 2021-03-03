@@ -21,7 +21,7 @@ package org.elasticsearch.index.cache.query;
 
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -40,7 +40,7 @@ public class IndexQueryCache extends AbstractIndexComponent implements QueryCach
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() throws OpenSearchException {
         clear("close");
     }
 

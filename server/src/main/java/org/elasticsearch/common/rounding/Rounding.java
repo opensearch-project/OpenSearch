@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.rounding;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -417,7 +417,7 @@ public abstract class Rounding implements Writeable {
                     rounding = new TimeIntervalRounding(in);
                     break;
                 default:
-                    throw new ElasticsearchException("unknown rounding id [" + id + "]");
+                    throw new OpenSearchException("unknown rounding id [" + id + "]");
             }
             return rounding;
         }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticsearchCorruptionException;
+import org.elasticsearch.OpenSearchCorruptionException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -140,7 +140,7 @@ public class BlobStoreFormatTests extends ESTestCase {
         try {
             checksumFormat.read(blobContainer, "test-path", xContentRegistry());
             fail("Should have failed due to corruption");
-        } catch (ElasticsearchCorruptionException ex) {
+        } catch (OpenSearchCorruptionException ex) {
             assertThat(ex.getMessage(), containsString("test-path"));
         } catch (EOFException ex) {
             // This can happen if corrupt the byte length

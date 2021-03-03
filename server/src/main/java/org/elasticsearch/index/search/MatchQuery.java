@@ -44,7 +44,7 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -102,7 +102,7 @@ public class MatchQuery {
                     return type;
                 }
             }
-            throw new ElasticsearchException("unknown serialized type [" + ord + "]");
+            throw new OpenSearchException("unknown serialized type [" + ord + "]");
         }
 
         @Override
@@ -131,7 +131,7 @@ public class MatchQuery {
                     return zeroTermsQuery;
                 }
             }
-            throw new ElasticsearchException("unknown serialized type [" + ord + "]");
+            throw new OpenSearchException("unknown serialized type [" + ord + "]");
         }
 
         @Override

@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.action.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -164,7 +164,7 @@ public class ShardStateAction {
                                 " to [{}] for shard entry [{}]", actionName, masterNode, request), exp);
                             listener.onFailure(exp instanceof RemoteTransportException ?
                                 (Exception) (exp.getCause() instanceof Exception ? exp.getCause() :
-                                    new ElasticsearchException(exp.getCause())) : exp);
+                                    new OpenSearchException(exp.getCause())) : exp);
                         }
                     }
                 });
@@ -708,7 +708,7 @@ public class ShardStateAction {
         }
     }
 
-    public static class NoLongerPrimaryShardException extends ElasticsearchException {
+    public static class NoLongerPrimaryShardException extends OpenSearchException {
 
         public NoLongerPrimaryShardException(ShardId shardId, String msg) {
             super(msg);
