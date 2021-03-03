@@ -14,8 +14,8 @@ RENAMEME is a community project that is built and maintained by people just like
 
 1. **When in doubt, open an issue** - For almost any type of contribution, the first step is opening an issue REANAMEME issue link.  Even if you think you already know what the solution is, writing down a description of the problem you're trying to solve will help everyone get context when they review your pull request.  If it's truly a trivial change (e.g. spelling error), you can skip this step -- but as the subject says, when it doubt, open an issue.
 
-2. **Only submit your own work**  (or work you have sufficient rights to submit) - Please make sure that any code or documentation you submit is your work or you have the rights to submit it.  We respect the intellectual property rights of others, and as part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll 
-use your contribution.  There's more information about this topic the [DCO section](#developer-certificate-of-origin).  
+2. **Only submit your own work**  (or work you have sufficient rights to submit) - Please make sure that any code or documentation you submit is your work or you have the rights to submit.  We respect the intellectual property rights of others, and as part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll 
+use your contribution.  There's more information about this topic in the [DCO section](#developer-certificate-of-origin).  
 
 ## Ways to Contribute
 
@@ -25,12 +25,12 @@ use your contribution.  There's more information about this topic the [DCO secti
 
 Ugh!  Bugs!
 
-A bug is when software behaves in a way that you didn't expect and the developer didn't intend.  To help us understand what's going on, we first want to make sure you're working from the latest version.  Please make sure you're testing against the [latest version](http://RENAMEME-link.org)
+A bug is when software behaves in a way that you didn't expect and the developer didn't intend.  To help us understand what's going on, we first want to make sure you're working from the latest version.  Please make sure you're testing against the [latest version](http://RENAMEME-link.org).
 
 
 Once you've confirmed that the bug still exists in the version, you'll want to check to make sure it's not something we already know about on the [open issues GitHub page](http://RENAMEME-link.org).
 
-If you've upgraded to the latest version and you can't find it in our open issues list, then you'll need to tell us how to reproduce it.  To make the behavior as clear as possible, please provided your steps as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
+If you've upgraded to the latest version and you can't find it in our open issues list, then you'll need to tell us how to reproduce it.  To make the behavior as clear as possible, please provided your steps as `curl` commands which we can copy and paste into a terminal to run it locally, for example: 
 
 ```sh
 # delete the index
@@ -41,7 +41,7 @@ curl -x PUT localhost:9200/test/test/1 -d '{
  "title": "test document"
 }'
 
-# this should return XXXX but instead returns YYY
+# this should return XXXX but instead returns YYYY
 curl ....
 ```
 
@@ -49,7 +49,7 @@ Provide as much information as you can. You may think that the problem lies with
 
 ### Feature Requests
 
-If you've thought of a way that RENAMEME could be better, we want to hear about it.  We track feature requests using Github, so please feel free to open an issue  RENAMEME issue link which describes the feature you would like to see, why you need it, and how it should work.
+If you've thought of a way that RENAMEME could be better, we want to hear about it.  We track feature requests using GitHub, so please feel free to open an issue  RENAMEME issue link which describes the feature you would like to see, why you need it, and how it should work.
 
 ### Documentation Changes
 
@@ -57,13 +57,13 @@ If you've thought of a way that RENAMEME could be better, we want to hear about 
 
 ### Contributing Code
 
-As with other types of contributions, the first step is to **open an issue on github**.  Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem.  It also lets us all work together to find the right approach before you spend a bunch of time on a PR.  So again, when in doubt, open an issue RENAMEME issue link
+As with other types of contributions, the first step is to **open an issue on GitHub**.  Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem.  It also lets us all work together to find the right approach before you spend a bunch of time on a PR.  So again, when in doubt, open an issue RENAMEME issue link
 
 Once you've opened an issue, check out our [Developer Guide](./DEVELOPER_GUIDE.md) for instructions on how to get started. 
 
 ## Developer Certificate of Origin
 
-RENAMEME is an open source product released under the Apache 2.0 license (see either [the Apache site](https://www.apache.org/licenses/LICENSE-2.0) or the [LICENSE.txt file](./LICENSE.txt)).  The Apache 2.0 license allows you to freely use, modify, distribute and sell your own products that include Apache 2.0 licensed software.
+RENAMEME is an open source product released under the Apache 2.0 license (see either [the Apache site](https://www.apache.org/licenses/LICENSE-2.0) or the [LICENSE.txt file](./LICENSE.txt)).  The Apache 2.0 license allows you to freely use, modify, distribute, and sell your own products that include Apache 2.0 licensed software.
 
 We respect intellectual property rights of others and we want to make sure all incoming contributions are correctly attributed and licensed. A Developer Certificate of Origin (DCO) is a lightweight mechanism to do that.
 
@@ -97,7 +97,7 @@ By making a contribution to this project, I certify that:
     consistent with this project or the open source license(s)
     involved.
  ```
-We require that every contribution to RENAMEME is signed with a Developer Certificate of Origin.  Additionally, please use your real name.  We cannot accept anonymous contributors nor those utilizing pseudonyms.
+We require that every contribution to RENAMEME is signed with a Developer Certificate of Origin.  Additionally, please use your real name.  We do not accept anonymous contributors nor those utilizing pseudonyms.
  
 Each commit must include a DCO which looks like this
 
