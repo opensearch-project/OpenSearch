@@ -159,9 +159,10 @@ public class ExceptionsHelperTests extends ESTestCase {
         for (ShardOperationFailedException shardOperationFailedException : groupBy) {
             assertThat(shardOperationFailedException.index(), nullValue());
             assertThat(shardOperationFailedException.getCause(), instanceOf(OpenSearchException.class));
-            OpenSearchException opensearchException = (OpenSearchException) shardOperationFailedException.getCause();
-            assertThat(opensearchException.getMessage(), equalTo(expectedErrors[i]));
-            assertThat(opensearchException.getIndex().getName(), equalTo(expectedIndices[i++]));
+
+            OpenSearchException openSearchException = (OpenSearchException) shardOperationFailedException.getCause();
+            assertThat(openSearchException.getMessage(), equalTo(expectedErrors[i]));
+            assertThat(openSearchException.getIndex().getName(), equalTo(expectedIndices[i++]));
         }
     }
 

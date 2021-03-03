@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
@@ -1342,7 +1342,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw new ElasticsearchException(EXCEPTION_MESSAGE);
+            throw new OpenSearchException(EXCEPTION_MESSAGE);
         }
 
         @Override
@@ -1365,7 +1365,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader1.submitUpdateTask("broken-task",
                 cs -> ClusterState.builder(cs).putCustom("broken", new BrokenCustom()).build(),
                 (source, e) -> {
-                    assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+                    assertThat(e.getCause(), instanceOf(OpenSearchException.class));
                     assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
                     failed.set(true);
                 });

@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import joptsimple.OptionSet;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -74,7 +74,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.master setting");
         Boolean master = DiscoveryNode.isMasterNode(settings);
         if (master == false) {
-            throw new ElasticsearchException(NOT_MASTER_NODE_MSG);
+            throw new OpenSearchException(NOT_MASTER_NODE_MSG);
         }
 
         return true;
@@ -93,7 +93,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         if (coordinationMetadata == null ||
             coordinationMetadata.getLastCommittedConfiguration() == null ||
             coordinationMetadata.getLastCommittedConfiguration().isEmpty()) {
-            throw new ElasticsearchException(EMPTY_LAST_COMMITTED_VOTING_CONFIG_MSG);
+            throw new OpenSearchException(EMPTY_LAST_COMMITTED_VOTING_CONFIG_MSG);
         }
         terminal.println(String.format(Locale.ROOT, CLUSTER_STATE_TERM_VERSION_MSG_FORMAT, coordinationMetadata.term(),
             metadata.version()));

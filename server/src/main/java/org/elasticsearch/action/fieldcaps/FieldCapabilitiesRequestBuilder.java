@@ -20,11 +20,11 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
 public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
-    public FieldCapabilitiesRequestBuilder(ElasticsearchClient client,
+    public FieldCapabilitiesRequestBuilder(OpenSearchClient client,
                                            FieldCapabilitiesAction action,
                                            String... indices) {
         super(client, action, new FieldCapabilitiesRequest().indices(indices));

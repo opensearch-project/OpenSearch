@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
@@ -90,7 +90,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p);
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
-                Exception e = ElasticsearchException.failureFromXContent(p);
+                Exception e = OpenSearchException.failureFromXContent(p);
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
                 return e;
             }, new ParseField("exception"));

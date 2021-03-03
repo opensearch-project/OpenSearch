@@ -22,7 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -184,7 +184,7 @@ public final class AnalysisRegistry implements Closeable {
                         try {
                             return provider.get(environment, key).get();
                         } catch (IOException ex) {
-                            throw new ElasticsearchException("failed to load analyzer for name " + key, ex);
+                            throw new OpenSearchException("failed to load analyzer for name " + key, ex);
                         }}
             );
         } else if ("standard_html_strip".equals(analyzer)) {

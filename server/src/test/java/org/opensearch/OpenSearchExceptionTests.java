@@ -495,6 +495,7 @@ public class OpenSearchExceptionTests extends ESTestCase {
         assertEquals(parsed.getMessage(), "OpenSearch exception [type=exception, reason=foo]");
 
         OpenSearchException cause = (OpenSearchException) parsed.getCause();
+
         assertEquals(cause.getMessage(), "OpenSearch exception [type=exception, reason=bar]");
 
         cause = (OpenSearchException) cause.getCause();

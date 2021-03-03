@@ -29,7 +29,7 @@ import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -43,18 +43,18 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
         implements WriteRequestBuilder<BulkRequestBuilder> {
 
     /**
-     * @deprecated use {@link #BulkRequestBuilder(ElasticsearchClient, BulkAction, String)} instead
+     * @deprecated use {@link #BulkRequestBuilder(OpenSearchClient, BulkAction, String)} instead
      */
     @Deprecated
-    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action, @Nullable String globalIndex, @Nullable String globalType) {
+    public BulkRequestBuilder(OpenSearchClient client, BulkAction action, @Nullable String globalIndex, @Nullable String globalType) {
         super(client, action, new BulkRequest(globalIndex, globalType));
     }
 
-    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action, @Nullable String globalIndex) {
+    public BulkRequestBuilder(OpenSearchClient client, BulkAction action, @Nullable String globalIndex) {
         super(client, action, new BulkRequest(globalIndex));
     }
 
-    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action) {
+    public BulkRequestBuilder(OpenSearchClient client, BulkAction action) {
         super(client, action, new BulkRequest());
     }
 
@@ -121,7 +121,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * Adds a framed data in binary format
      * @deprecated use {@link #add(byte[], int, int, String, XContentType)} instead
      */
-    @Deprecated 
+    @Deprecated
     public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType,
                                   XContentType xContentType) throws Exception {
         request.add(data, from, length, defaultIndex, defaultType, xContentType);
@@ -135,7 +135,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
                                   XContentType xContentType) throws Exception {
         request.add(data, from, length, defaultIndex, MapperService.SINGLE_MAPPING_NAME, xContentType);
         return this;
-    }    
+    }
 
     /**
      * Sets the number of shard copies that must be active before proceeding with the write.

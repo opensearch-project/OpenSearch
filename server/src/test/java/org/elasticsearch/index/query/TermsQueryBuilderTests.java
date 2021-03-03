@@ -26,7 +26,7 @@ import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
@@ -216,7 +216,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             builder.endObject();
             json = Strings.toString(builder);
         } catch (IOException ex) {
-            throw new ElasticsearchException("boom", ex);
+            throw new OpenSearchException("boom", ex);
         }
         return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, 1, 0, true,
             new BytesArray(json), null, null));

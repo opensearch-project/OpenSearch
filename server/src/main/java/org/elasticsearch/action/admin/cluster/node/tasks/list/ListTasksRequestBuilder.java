@@ -20,14 +20,14 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 /**
  * Builder for the request to retrieve the list of tasks running on the specified nodes
  */
 public class ListTasksRequestBuilder extends TasksRequestBuilder<ListTasksRequest, ListTasksResponse, ListTasksRequestBuilder> {
 
-    public ListTasksRequestBuilder(ElasticsearchClient client, ListTasksAction action) {
+    public ListTasksRequestBuilder(OpenSearchClient client, ListTasksAction action) {
         super(client, action, new ListTasksRequest());
     }
 

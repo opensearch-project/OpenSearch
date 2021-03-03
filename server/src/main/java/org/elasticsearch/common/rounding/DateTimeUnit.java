@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.rounding;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
@@ -66,7 +66,7 @@ public enum DateTimeUnit {
             case 6: return HOUR_OF_DAY;
             case 7: return MINUTES_OF_HOUR;
             case 8: return SECOND_OF_MINUTE;
-            default: throw new ElasticsearchException("Unknown date time unit id [" + id + "]");
+            default: throw new OpenSearchException("Unknown date time unit id [" + id + "]");
         }
     }
 }

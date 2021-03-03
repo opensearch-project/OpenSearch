@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<PendingClusterTasksRequest,
         PendingClusterTasksResponse, PendingClusterTasksRequestBuilder> {
 
-    public PendingClusterTasksRequestBuilder(ElasticsearchClient client, PendingClusterTasksAction action) {
+    public PendingClusterTasksRequestBuilder(OpenSearchClient client, PendingClusterTasksAction action) {
         super(client, action, new PendingClusterTasksRequest());
     }
 }

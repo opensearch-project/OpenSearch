@@ -31,7 +31,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -512,7 +512,7 @@ public final class NodeEnvironment  implements Closeable {
      *
      * @param lock the shards lock
      * @throws IOException if an IOException occurs
-     * @throws ElasticsearchException if the write.lock is not acquirable
+     * @throws OpenSearchException if the write.lock is not acquirable
      */
     public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
         final ShardId shardId = lock.getShardId();

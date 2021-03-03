@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -88,7 +88,7 @@ public class CompoundProcessorTests extends ESTestCase {
         assertThat(compoundProcessor.getOnFailureProcessors().isEmpty(), is(true));
         Exception[] holder = new Exception[1];
         compoundProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
-        assertThat(((ElasticsearchException) holder[0]).getRootCause().getMessage(), equalTo("error"));
+        assertThat(((OpenSearchException) holder[0]).getRootCause().getMessage(), equalTo("error"));
         assertThat(processor.getInvokedCounter(), equalTo(1));
         assertStats(compoundProcessor, 1, 1, 0);
 

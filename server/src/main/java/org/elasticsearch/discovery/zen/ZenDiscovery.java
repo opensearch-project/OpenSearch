@@ -22,7 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -339,7 +339,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
             synchronized (stateMutex) {
                 pendingStatesQueue.failAllStatesAndClear(
-                    new ElasticsearchException("failed to publish cluster state"));
+                    new OpenSearchException("failed to publish cluster state"));
 
                 rejoin("zen-disco-failed-to-publish");
             }
@@ -621,7 +621,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         synchronized (stateMutex) {
             if (localNodeMaster() == false && masterNode.equals(committedState.get().nodes().getMasterNode())) {
                 // flush any pending cluster states from old master, so it will not be set as master again
-                pendingStatesQueue.failAllStatesAndClear(new ElasticsearchException("master left [{}]", reason));
+                pendingStatesQueue.failAllStatesAndClear(new OpenSearchException("master left [{}]", reason));
                 rejoin("master left (reason = " + reason + ")");
             }
         }

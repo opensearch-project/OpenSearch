@@ -21,27 +21,27 @@ package org.elasticsearch;
 import java.io.IOException;
 
 /**
- * This exception is thrown when Elasticsearch detects
+ * This exception is thrown when OpenSearch detects
  * an inconsistency in one of it's persistent files.
  */
-public class ElasticsearchCorruptionException extends IOException {
+public class OpenSearchCorruptionException extends IOException {
 
     /**
-     * Creates a new {@link ElasticsearchCorruptionException}
+     * Creates a new {@link OpenSearchCorruptionException}
      * @param message the exception message.
      */
-    public ElasticsearchCorruptionException(String message) {
+    public OpenSearchCorruptionException(String message) {
         super(message);
     }
 
     /**
-     * Creates a new {@link ElasticsearchCorruptionException} with the given exceptions stacktrace.
+     * Creates a new {@link OpenSearchCorruptionException} with the given exceptions stacktrace.
      * This constructor copies the stacktrace as well as the message from the given
      * {@code Throwable} into this exception.
      *
      * @param ex the exception cause
      */
-    public ElasticsearchCorruptionException(Throwable ex) {
+    public OpenSearchCorruptionException(Throwable ex) {
         super(ex);
     }
 }

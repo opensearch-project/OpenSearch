@@ -23,7 +23,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -295,7 +295,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             toXContent(builder, EMPTY_PARAMS);
             return Strings.toString(builder);
         } catch (Exception e) {
-            throw new ElasticsearchException("Failed to build xcontent.", e);
+            throw new OpenSearchException("Failed to build xcontent.", e);
         }
     }
 }
