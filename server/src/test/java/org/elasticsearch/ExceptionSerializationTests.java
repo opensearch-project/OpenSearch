@@ -678,7 +678,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(1, org.elasticsearch.search.dfs.DfsPhaseExecutionException.class);
         ids.put(2, org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException.class);
         ids.put(3, org.elasticsearch.discovery.MasterNotDiscoveredException.class);
-        ids.put(4, OpenSearchSecurityException.class);
+        ids.put(4, org.elasticsearch.OpenSearchSecurityException.class);
         ids.put(5, org.elasticsearch.index.snapshots.IndexShardRestoreException.class);
         ids.put(6, org.elasticsearch.indices.IndexClosedException.class);
         ids.put(7, org.elasticsearch.http.BindHttpException.class);
