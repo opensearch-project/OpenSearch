@@ -26,7 +26,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
@@ -881,7 +881,7 @@ public class Node implements Closeable {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
-                    throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+                    throw new OpenSearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
             }
         }
