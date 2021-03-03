@@ -19,14 +19,14 @@
 
 package org.opensearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings.Builder;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

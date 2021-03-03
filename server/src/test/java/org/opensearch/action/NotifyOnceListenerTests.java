@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicReference;
 

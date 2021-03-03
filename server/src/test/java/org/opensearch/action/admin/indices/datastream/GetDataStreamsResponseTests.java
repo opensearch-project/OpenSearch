@@ -18,11 +18,11 @@
  */
 package org.opensearch.action.admin.indices.datastream;
 
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Response;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.DataStreamTests;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.datastream.GetDataStreamAction.Response;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.DataStreamTests;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -18,10 +18,10 @@
  */
 package org.opensearch.action.support;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

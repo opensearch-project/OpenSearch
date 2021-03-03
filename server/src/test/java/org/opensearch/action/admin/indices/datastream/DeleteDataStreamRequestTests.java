@@ -18,26 +18,26 @@
  */
 package org.opensearch.action.admin.indices.datastream;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction.Request;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction.Request;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
+import org.opensearch.common.Strings;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.Index;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInProgressException;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

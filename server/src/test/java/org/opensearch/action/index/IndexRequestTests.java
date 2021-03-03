@@ -18,21 +18,21 @@
  */
 package org.opensearch.action.index;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;

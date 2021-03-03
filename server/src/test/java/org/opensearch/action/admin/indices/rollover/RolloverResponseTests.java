@@ -19,13 +19,13 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

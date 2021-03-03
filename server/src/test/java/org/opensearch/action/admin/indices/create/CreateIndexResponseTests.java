@@ -19,11 +19,11 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 

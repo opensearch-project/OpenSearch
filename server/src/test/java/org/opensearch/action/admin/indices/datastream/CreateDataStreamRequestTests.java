@@ -18,10 +18,10 @@
  */
 package org.opensearch.action.admin.indices.datastream;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction.Request;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction.Request;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

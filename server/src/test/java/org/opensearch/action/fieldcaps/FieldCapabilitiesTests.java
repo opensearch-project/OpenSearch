@@ -19,9 +19,9 @@
 
 package org.opensearch.action.fieldcaps;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

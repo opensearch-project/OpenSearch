@@ -18,12 +18,12 @@
  */
 package org.opensearch.action.support;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transports;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Transports;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

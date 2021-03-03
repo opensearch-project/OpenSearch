@@ -19,10 +19,10 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.Randomness;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.OptionalMatchers;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.common.Randomness;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.hamcrest.OptionalMatchers;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;

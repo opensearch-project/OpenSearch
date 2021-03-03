@@ -19,19 +19,19 @@
 
 package org.opensearch.action.bulk;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.TransportShardBulkActionTests.FakeDeleteResult;
-import org.elasticsearch.action.bulk.TransportShardBulkActionTests.FakeIndexResult;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.bulk.TransportShardBulkActionTests.FakeDeleteResult;
+import org.opensearch.action.bulk.TransportShardBulkActionTests.FakeIndexResult;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 

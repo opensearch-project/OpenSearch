@@ -19,17 +19,17 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.index.query.IdsQueryBuilder;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;

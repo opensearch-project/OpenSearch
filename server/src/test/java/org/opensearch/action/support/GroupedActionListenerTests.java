@@ -18,8 +18,8 @@
  */
 package org.opensearch.action.support;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.ActionListener;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

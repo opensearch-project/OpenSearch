@@ -19,14 +19,14 @@
 
 package org.opensearch.action.ingest;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.StringJoiner;

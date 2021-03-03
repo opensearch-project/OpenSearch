@@ -19,17 +19,17 @@
 
 package org.opensearch.action.main;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Build;
+import org.opensearch.Version;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Date;

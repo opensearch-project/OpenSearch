@@ -19,11 +19,11 @@
 
 package org.opensearch.action.get;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.VersionType;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

@@ -21,17 +21,17 @@ package org.opensearch.action.admin.indices.flush;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse.ShardCounts;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
-import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.indices.flush.SyncedFlushResponse.ShardCounts;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.flush.ShardsSyncedFlushResult;
+import org.opensearch.indices.flush.SyncedFlushService;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -19,24 +19,24 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.TimestampParsingException;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.InvalidIndexTemplateException;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.TimestampParsingException;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContent;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.InvalidIndexTemplateException;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

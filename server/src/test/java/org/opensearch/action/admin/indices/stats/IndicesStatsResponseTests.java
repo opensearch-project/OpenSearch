@@ -19,16 +19,16 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

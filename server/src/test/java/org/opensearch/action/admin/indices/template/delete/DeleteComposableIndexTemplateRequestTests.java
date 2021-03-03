@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.indices.template.delete;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 

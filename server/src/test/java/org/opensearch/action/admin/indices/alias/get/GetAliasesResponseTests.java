@@ -19,11 +19,11 @@
 
 package org.opensearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.AliasMetadata.Builder;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.HashSet;

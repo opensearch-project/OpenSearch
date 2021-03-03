@@ -19,10 +19,10 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Collections;
 

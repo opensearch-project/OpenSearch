@@ -19,25 +19,25 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.transport.CapturingTransport;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.replication.ClusterStateCreationUtils;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.settings.SettingsModule;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.index.Index;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.transport.CapturingTransport;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 

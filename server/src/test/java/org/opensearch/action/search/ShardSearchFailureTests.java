@@ -19,18 +19,18 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 

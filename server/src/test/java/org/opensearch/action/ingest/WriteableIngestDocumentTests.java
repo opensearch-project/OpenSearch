@@ -19,18 +19,18 @@
 
 package org.opensearch.action.ingest;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.RandomObjects;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.ingest.RandomDocumentPicks;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.Collections;

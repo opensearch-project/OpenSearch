@@ -19,14 +19,14 @@
 
 package org.opensearch.action.admin.indices.segments;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.engine.Segment;
+import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.indices.IndexClosedException;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.util.Collection;

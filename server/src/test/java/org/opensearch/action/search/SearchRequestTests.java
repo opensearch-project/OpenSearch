@@ -19,22 +19,22 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.AbstractSearchTestCase;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.AbstractSearchTestCase;
+import org.opensearch.search.Scroll;
+import org.opensearch.search.builder.PointInTimeBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.rescore.QueryRescorerBuilder;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

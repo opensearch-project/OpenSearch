@@ -19,14 +19,14 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.OriginalIndicesTests;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.OriginalIndicesTests;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.routing.GroupShardsIteratorTests;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;

@@ -19,15 +19,15 @@
 
 package org.opensearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotInfoTests;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotInfoTests;
+import org.opensearch.snapshots.SnapshotShardFailure;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

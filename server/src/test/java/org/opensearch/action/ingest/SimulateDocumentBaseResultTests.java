@@ -19,11 +19,11 @@
 
 package org.opensearch.action.ingest;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.StringJoiner;

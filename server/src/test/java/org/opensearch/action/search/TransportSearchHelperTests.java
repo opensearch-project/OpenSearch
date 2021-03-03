@@ -18,15 +18,15 @@
  */
 package org.opensearch.action.search;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 
 import static org.hamcrest.Matchers.equalTo;
 

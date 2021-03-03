@@ -18,8 +18,8 @@
  */
 package org.opensearch.action.get;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;

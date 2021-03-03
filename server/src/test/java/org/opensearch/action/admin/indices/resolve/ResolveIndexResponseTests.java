@@ -19,15 +19,15 @@
 
 package org.opensearch.action.admin.indices.resolve;
 
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Response;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.Response;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

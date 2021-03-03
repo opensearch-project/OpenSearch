@@ -19,11 +19,11 @@
 
 package org.opensearch.action.admin.indices.datastream;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.List;

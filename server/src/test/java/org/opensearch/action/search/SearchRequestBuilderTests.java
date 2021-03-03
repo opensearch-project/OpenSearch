@@ -19,13 +19,13 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.MockTransportClient;
+import org.opensearch.client.Client;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.transport.MockTransportClient;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 

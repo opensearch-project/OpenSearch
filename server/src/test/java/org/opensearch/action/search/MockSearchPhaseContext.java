@@ -20,17 +20,17 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.Version;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.transport.Transport;
 import org.junit.Assert;
 
 import java.util.ArrayList;

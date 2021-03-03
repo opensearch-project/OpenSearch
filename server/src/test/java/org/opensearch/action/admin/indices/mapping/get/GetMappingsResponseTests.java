@@ -20,16 +20,16 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContent.Params;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

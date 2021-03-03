@@ -19,20 +19,20 @@
 
 package org.opensearch.action.ingest;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.CompoundProcessor;
-import org.elasticsearch.ingest.DropProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestProcessorException;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.ActionListener;
+import org.opensearch.index.VersionType;
+import org.opensearch.ingest.AbstractProcessor;
+import org.opensearch.ingest.CompoundProcessor;
+import org.opensearch.ingest.DropProcessor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestProcessorException;
+import org.opensearch.ingest.Pipeline;
+import org.opensearch.ingest.Processor;
+import org.opensearch.ingest.RandomDocumentPicks;
+import org.opensearch.ingest.TestProcessor;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 

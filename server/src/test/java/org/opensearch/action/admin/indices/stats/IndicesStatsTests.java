@@ -19,19 +19,19 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;

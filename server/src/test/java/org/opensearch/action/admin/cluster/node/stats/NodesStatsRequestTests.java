@@ -19,10 +19,10 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.test.ESTestCase;
 
 import java.util.HashSet;
 import java.util.Set;

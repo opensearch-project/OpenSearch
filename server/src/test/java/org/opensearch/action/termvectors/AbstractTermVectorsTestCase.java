@@ -47,10 +47,10 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

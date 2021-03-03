@@ -19,13 +19,13 @@ package org.opensearch.action.admin.cluster.snapshots.status;
  * under the License.
  */
 
-import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

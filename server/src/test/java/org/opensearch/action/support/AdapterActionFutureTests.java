@@ -19,11 +19,11 @@
 
 package org.opensearch.action.support;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.transport.RemoteTransportException;
 
 import java.util.Objects;
 import java.util.concurrent.BrokenBarrierException;

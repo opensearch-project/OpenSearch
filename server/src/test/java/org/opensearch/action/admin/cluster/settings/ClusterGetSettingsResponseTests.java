@@ -19,9 +19,9 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.function.Predicate;

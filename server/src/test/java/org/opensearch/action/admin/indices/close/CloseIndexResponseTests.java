@@ -19,24 +19,24 @@
 
 package org.opensearch.action.admin.indices.close;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.transport.ActionNotFoundTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;

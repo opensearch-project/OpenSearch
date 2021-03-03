@@ -21,13 +21,13 @@ package org.opensearch.action.admin.indices.segments;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.engine.Segment;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Collections;
 

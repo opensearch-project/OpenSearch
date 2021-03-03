@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.action.ActionListener;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 

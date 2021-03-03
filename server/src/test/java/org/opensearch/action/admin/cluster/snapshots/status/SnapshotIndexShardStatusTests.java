@@ -22,12 +22,12 @@ package org.opensearch.action.admin.cluster.snapshots.status;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.AbstractXContentTestCase;
 
 public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<SnapshotIndexShardStatus> {
 

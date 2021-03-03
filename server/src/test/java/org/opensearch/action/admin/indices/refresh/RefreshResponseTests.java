@@ -19,9 +19,9 @@
 
 package org.opensearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractBroadcastResponseTestCase;
 
 import java.util.List;
 

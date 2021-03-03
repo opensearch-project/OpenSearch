@@ -19,11 +19,11 @@
 
 package org.opensearch.action.fieldcaps;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

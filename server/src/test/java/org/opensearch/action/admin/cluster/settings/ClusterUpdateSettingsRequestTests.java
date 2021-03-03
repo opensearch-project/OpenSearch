@@ -19,13 +19,13 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.XContentTestUtils;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentParseException;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.Collections;

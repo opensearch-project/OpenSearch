@@ -21,8 +21,8 @@ package org.opensearch.action.admin.cluster.snapshots.status;
 
 import java.io.IOException;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractXContentTestCase;
 
 public class SnapshotShardsStatsTests extends AbstractXContentTestCase<SnapshotShardsStats> {
 

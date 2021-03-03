@@ -19,11 +19,11 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

@@ -19,15 +19,15 @@
 
 package org.opensearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.RandomObjects;
+import org.opensearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.ArrayList;

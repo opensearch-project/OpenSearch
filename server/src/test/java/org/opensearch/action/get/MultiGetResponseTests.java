@@ -18,13 +18,13 @@
  */
 package org.opensearch.action.get;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.get.GetResult;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

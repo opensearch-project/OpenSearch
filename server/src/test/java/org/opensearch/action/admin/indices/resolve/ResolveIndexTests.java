@@ -19,24 +19,24 @@
 
 package org.opensearch.action.admin.indices.resolve;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Request;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.TransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.Request;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.TransportAction;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.metadata.IndexAbstractionResolver;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.test.ESTestCase;
 
 import java.time.Clock;
 import java.time.Duration;

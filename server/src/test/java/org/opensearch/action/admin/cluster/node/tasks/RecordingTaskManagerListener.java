@@ -19,11 +19,11 @@
 
 package org.opensearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.tasks.MockTaskManagerListener;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskInfo;
+import org.opensearch.test.tasks.MockTaskManagerListener;
 
 import java.util.ArrayList;
 import java.util.Collections;

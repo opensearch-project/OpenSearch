@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class ForceMergeRequestTests extends ESTestCase {
 

@@ -19,10 +19,10 @@
 
 package org.opensearch.action.admin.indices.resolve;
 
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Request;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.Request;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 public class ResolveIndexRequestTests extends AbstractWireSerializingTestCase<Request> {
 

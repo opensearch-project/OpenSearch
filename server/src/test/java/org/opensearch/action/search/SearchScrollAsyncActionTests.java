@@ -18,21 +18,21 @@
  */
 package org.opensearch.action.search;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.Scroll;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.internal.InternalScrollSearchRequest;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.Arrays;

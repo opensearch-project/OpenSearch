@@ -19,16 +19,16 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.action.DocWriteResponse.Result;
-import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.DocWriteResponse.Result;
+import org.opensearch.action.support.replication.ReplicationResponse.ShardInfo;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

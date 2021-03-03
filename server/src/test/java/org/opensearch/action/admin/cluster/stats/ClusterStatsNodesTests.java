@@ -19,14 +19,14 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.node.info.NodeInfo;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodeStatsTests;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;

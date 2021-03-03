@@ -19,15 +19,15 @@
 
 package org.opensearch.action.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.ingest.CompoundProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.ElasticsearchParseException;
+import org.opensearch.index.VersionType;
+import org.opensearch.ingest.CompoundProcessor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestService;
+import org.opensearch.ingest.Pipeline;
+import org.opensearch.ingest.Processor;
+import org.opensearch.ingest.TestProcessor;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;

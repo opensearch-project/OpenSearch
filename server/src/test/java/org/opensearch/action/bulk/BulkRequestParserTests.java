@@ -19,11 +19,11 @@
 
 package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.rest.action.document.RestBulkAction;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

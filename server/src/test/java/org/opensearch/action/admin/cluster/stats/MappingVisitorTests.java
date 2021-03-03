@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;

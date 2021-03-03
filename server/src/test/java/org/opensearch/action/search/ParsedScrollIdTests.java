@@ -19,8 +19,8 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.test.ESTestCase;
 
 public class ParsedScrollIdTests extends ESTestCase {
     public void testHasLocalIndices() {

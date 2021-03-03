@@ -19,10 +19,10 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Before;
 

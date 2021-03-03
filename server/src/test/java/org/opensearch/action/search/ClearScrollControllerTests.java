@@ -18,22 +18,22 @@
  */
 package org.opensearch.action.search;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportResponse;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.transport.NodeNotConnectedException;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Arrays;

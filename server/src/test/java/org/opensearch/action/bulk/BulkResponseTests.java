@@ -19,19 +19,19 @@
 
 package org.opensearch.action.bulk;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteResponseTests;
-import org.elasticsearch.action.index.IndexResponseTests;
-import org.elasticsearch.action.update.UpdateResponseTests;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.delete.DeleteResponseTests;
+import org.opensearch.action.index.IndexResponseTests;
+import org.opensearch.action.update.UpdateResponseTests;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

@@ -19,10 +19,10 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;

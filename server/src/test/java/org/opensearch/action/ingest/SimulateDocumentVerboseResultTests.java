@@ -18,8 +18,8 @@
  */
 package org.opensearch.action.ingest;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -19,12 +19,12 @@
 
 package org.opensearch.action.admin.cluster.shards;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 
 public class ClusterSearchShardsRequestTests extends ESTestCase {
 

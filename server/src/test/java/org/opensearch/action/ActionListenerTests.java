@@ -18,9 +18,9 @@
  */
 package org.opensearch.action;
 
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

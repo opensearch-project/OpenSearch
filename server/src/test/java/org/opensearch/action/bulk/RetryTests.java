@@ -18,17 +18,17 @@
  */
 package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest.OpType;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.DocWriteRequest.OpType;
+import org.opensearch.action.delete.DeleteResponse;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
 

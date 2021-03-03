@@ -19,11 +19,11 @@
 
 package org.opensearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractBroadcastResponseTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

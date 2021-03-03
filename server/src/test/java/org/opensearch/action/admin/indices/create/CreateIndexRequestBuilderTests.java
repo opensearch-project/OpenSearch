@@ -19,13 +19,13 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
+import org.opensearch.ElasticsearchParseException;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
 

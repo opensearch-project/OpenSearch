@@ -19,10 +19,10 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

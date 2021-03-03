@@ -19,10 +19,10 @@
 
 package org.opensearch.action.admin.indices.dangling.list;
 
-import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.AggregatedDanglingIndexInfo;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.indices.dangling.DanglingIndexInfo;
+import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.AggregatedDanglingIndexInfo;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -24,9 +24,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.test.AbstractXContentTestCase;
 
 
 public class SnapshotIndexStatusTests extends AbstractXContentTestCase<SnapshotIndexStatus> {

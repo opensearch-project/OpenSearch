@@ -19,15 +19,15 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.Version;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings.Builder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.List;

@@ -19,15 +19,15 @@
 
 package org.opensearch.action.support.replication;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.RetryableAction;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.threadpool.TestThreadPool;
 
 import java.util.Collections;
 

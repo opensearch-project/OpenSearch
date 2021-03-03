@@ -19,25 +19,25 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.index.Index;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.Collections;

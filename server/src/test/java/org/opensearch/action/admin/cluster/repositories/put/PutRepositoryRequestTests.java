@@ -18,13 +18,13 @@
  */
 package org.opensearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;

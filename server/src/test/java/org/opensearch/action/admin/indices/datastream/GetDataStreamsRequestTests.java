@@ -18,17 +18,17 @@
  */
 package org.opensearch.action.admin.indices.datastream;
 
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Request;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.datastream.GetDataStreamAction.Request;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
 

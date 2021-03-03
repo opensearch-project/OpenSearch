@@ -18,15 +18,15 @@
  */
 package org.opensearch.action.admin.indices.template.put;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

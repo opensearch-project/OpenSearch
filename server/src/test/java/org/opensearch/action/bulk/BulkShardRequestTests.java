@@ -19,9 +19,9 @@
 
 package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ESTestCase;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 

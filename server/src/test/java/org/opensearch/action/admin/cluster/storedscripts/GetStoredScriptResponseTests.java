@@ -17,12 +17,12 @@ package org.opensearch.action.admin.cluster.storedscripts;/*
  * under the License.
  */
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.StoredScriptSource;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.script.Script;
+import org.opensearch.script.StoredScriptSource;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

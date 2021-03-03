@@ -18,18 +18,18 @@
  */
 package org.opensearch.action.explain;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.search.SearchModule;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

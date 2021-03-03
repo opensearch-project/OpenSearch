@@ -18,12 +18,12 @@
  */
 package org.opensearch.action.search;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.function.Predicate;
