@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ElasticsearchExceptionTests extends ESTestCase {
+public class OpenSearchExceptionTests extends ESTestCase {
 
     public void testStatus() {
         ElasticsearchException exception = new ElasticsearchException("test");
