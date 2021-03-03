@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.ops.search;
+package org.opensearch.client.benchmark.ops.search;
 
-import org.elasticsearch.client.benchmark.BenchmarkTask;
-import org.elasticsearch.client.benchmark.metrics.Sample;
-import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
+import org.opensearch.client.benchmark.BenchmarkTask;
+import org.opensearch.client.benchmark.metrics.Sample;
+import org.opensearch.client.benchmark.metrics.SampleRecorder;
 
 import java.util.concurrent.TimeUnit;
 

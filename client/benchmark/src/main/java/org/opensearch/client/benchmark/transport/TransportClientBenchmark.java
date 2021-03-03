@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.transport;
+package org.opensearch.client.benchmark.transport;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -24,9 +24,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.benchmark.AbstractBenchmark;
-import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
-import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
+import org.opensearch.client.benchmark.AbstractBenchmark;
+import org.opensearch.client.benchmark.ops.bulk.BulkRequestExecutor;
+import org.opensearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;

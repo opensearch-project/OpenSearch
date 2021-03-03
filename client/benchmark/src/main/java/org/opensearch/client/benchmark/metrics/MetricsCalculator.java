@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.metrics;
+package org.opensearch.client.benchmark.metrics;
 
 import org.apache.commons.math3.stat.StatUtils;
 
