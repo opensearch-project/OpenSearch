@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
@@ -28,9 +28,9 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
 
     protected final ActionType<Response> action;
     protected final Request request;
-    protected final ElasticsearchClient client;
+    protected final OpenSearchClient client;
 
-    protected ActionRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected ActionRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         Objects.requireNonNull(action, "action must not be null");
         this.action = action;
         this.request = request;
