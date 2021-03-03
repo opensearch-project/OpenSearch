@@ -20,12 +20,12 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.OpenSearchWrapperException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class IndexCreationException extends ElasticsearchException implements ElasticsearchWrapperException {
+public class IndexCreationException extends ElasticsearchException implements OpenSearchWrapperException {
 
     public IndexCreationException(String index, Throwable cause) {
         super("failed to create index [{}]", cause, index);

@@ -232,7 +232,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     /**
      * Unwraps the actual cause from the exception for cases when the exception is a
-     * {@link ElasticsearchWrapperException}.
+     * {@link OpenSearchWrapperException}.
      *
      * @see ExceptionsHelper#unwrapCause(Throwable)
      */

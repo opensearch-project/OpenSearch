@@ -84,7 +84,7 @@ public final class ExceptionsHelper {
     public static Throwable unwrapCause(Throwable t) {
         int counter = 0;
         Throwable result = t;
-        while (result instanceof ElasticsearchWrapperException) {
+        while (result instanceof OpenSearchWrapperException) {
             if (result.getCause() == null) {
                 return result;
             }
