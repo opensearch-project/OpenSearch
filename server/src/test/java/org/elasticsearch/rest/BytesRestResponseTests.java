@@ -19,11 +19,8 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.*;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -259,13 +256,13 @@ public class BytesRestResponseTests extends ESTestCase {
                 break;
             case 5:
                 status = randomFrom(RestStatus.values());
-                original = new ElasticsearchStatusException("ElasticsearchStatusException with random status", status);
+                original = new OpenSearchStatusException("OpenSearchStatusException with random status", status);
                 if (detailed) {
                     addHeadersOrMetadata = randomBoolean();
                     type = "status_exception";
-                    reason = "ElasticsearchStatusException with random status";
+                    reason = "OpenSearchStatusException with random status";
                 } else {
-                    reason = "ElasticsearchStatusException[ElasticsearchStatusException with random status]";
+                    reason = "OpenSearchStatusException[OpenSearchStatusException with random status]";
                 }
                 break;
             default:
@@ -273,7 +270,7 @@ public class BytesRestResponseTests extends ESTestCase {
         }
 
         String message = "Elasticsearch exception [type=" + type + ", reason=" + reason + "]";
-        ElasticsearchStatusException expected = new ElasticsearchStatusException(message, status, cause);
+        OpenSearchStatusException expected = new OpenSearchStatusException(message, status, cause);
 
         if (addHeadersOrMetadata) {
             ElasticsearchException originalException = ((ElasticsearchException) original);

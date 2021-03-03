@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * Generic security exception
  */
-public class ElasticsearchSecurityException extends ElasticsearchStatusException {
+public class ElasticsearchSecurityException extends OpenSearchStatusException {
     /**
      * Build the exception with a specific status and cause.
      */
