@@ -134,9 +134,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         final Set<Class<?>> notRegistered = new HashSet<>();
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();
-        final String path = "/org/elasticsearch";
+        final String path = "/org/opensearch";
         final Path startPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
-                .resolve("org").resolve("elasticsearch");
+                .resolve("org").resolve("opensearch");
         final Set<? extends Class<?>> ignore = Sets.newHashSet(
                 CancellableThreadsTests.CustomException.class,
                 org.opensearch.rest.BytesRestResponseTests.WithHeadersException.class,
