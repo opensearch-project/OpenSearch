@@ -121,7 +121,7 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
         assertEquals(parsed.shardId(), 1);
         assertEquals(parsed.index(), "test");
         assertEquals(parsed.status(), RestStatus.INTERNAL_SERVER_ERROR);
-        assertEquals(parsed.getCause().getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+        assertEquals(parsed.getCause().getMessage(), "OpenSearch exception [type=exception, reason=foo]");
     }
 
     public void testSerialization() throws Exception {

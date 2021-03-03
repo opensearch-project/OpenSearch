@@ -90,14 +90,14 @@ public class ShardSearchFailureTests extends ESTestCase {
 
         /*
          * we cannot compare the cause, because it will be wrapped in an outer
-         * ElasticSearchException best effort: try to check that the original
+         * OpenSearchException best effort: try to check that the original
          * message appears somewhere in the rendered xContent
          */
         String originalMsg = response.getCause().getMessage();
-        assertEquals(parsed.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]");
+        assertEquals(parsed.getCause().getMessage(), "OpenSearch exception [type=parsing_exception, reason=" + originalMsg + "]");
         String nestedMsg = response.getCause().getCause().getMessage();
         assertEquals(parsed.getCause().getCause().getMessage(),
-                "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+                "OpenSearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
     }
 
     public void testToXContent() throws IOException {

@@ -41,7 +41,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.ESTestCase;
 import org.opensearch.test.XContentTestUtils;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -187,7 +187,7 @@ public class RolloverRequestTests extends ESTestCase {
         assertEquals(rolloverRequest.getConditions(), parsedRolloverRequest.getConditions());
 
         BytesReference finalBytes = toShuffledXContent(parsedRolloverRequest, xContentType, EMPTY_PARAMS, humanReadable);
-        ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+        OpenSearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
     public void testUnknownFields() throws IOException {

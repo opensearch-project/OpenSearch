@@ -19,7 +19,7 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.ElasticsearchTimeoutException;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.settings.Settings;
@@ -62,7 +62,7 @@ public class ListenerTimeoutsTests extends ESTestCase {
         wrapped.onFailure(new IOException("incorrect exception"));
 
         assertFalse(success.get());
-        assertThat(exception.get(), instanceOf(ElasticsearchTimeoutException.class));
+        assertThat(exception.get(), instanceOf(OpenSearchTimeoutException.class));
     }
 
     public void testFinishNormallyBeforeTimeout() {

@@ -61,7 +61,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
@@ -275,7 +275,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[]{}, new String[]{})
             .index("doesn't_exist").alias("doesn't_exist"),
                 new String[]{"doesnt_exist"}, true, true, true)
-            .expectedException(org.elasticsearch.index.IndexNotFoundException.class));
+            .expectedException(org.opensearch.index.IndexNotFoundException.class));
 
         refresh();
 

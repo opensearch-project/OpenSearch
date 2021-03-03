@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.ESTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -105,7 +105,7 @@ public class ResizeRequestTests extends ESTestCase {
         assertEquals(resizeRequest.getTargetIndexRequest().settings(), parsedResizeRequest.getTargetIndexRequest().settings());
 
         BytesReference finalBytes = toShuffledXContent(parsedResizeRequest, xContentType, EMPTY_PARAMS, humanReadable);
-        ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+        OpenSearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
     private static ResizeRequest createTestItem() {

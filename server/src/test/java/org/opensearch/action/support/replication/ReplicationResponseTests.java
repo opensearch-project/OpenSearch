@@ -39,7 +39,7 @@ import java.util.Locale;
 
 import static org.opensearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class ReplicationResponseTests extends ESTestCase {
 

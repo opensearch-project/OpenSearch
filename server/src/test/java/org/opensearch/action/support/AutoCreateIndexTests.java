@@ -197,7 +197,7 @@ public class AutoCreateIndexTests extends ESTestCase {
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AutoCreateIndex autoCreateIndex = new AutoCreateIndex(settings, clusterSettings,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            new SystemIndices(org.elasticsearch.common.collect.Map.of()));
+            new SystemIndices(org.opensearch.common.collect.Map.of()));
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
         Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), !value).build();
@@ -216,13 +216,13 @@ public class AutoCreateIndexTests extends ESTestCase {
         for (String index : indices) {
             metadata.put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
         }
-        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        return ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata).build();
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of("plugin",
-            org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))));
+        SystemIndices systemIndices = new SystemIndices(org.opensearch.common.collect.Map.of("plugin",
+            org.opensearch.common.collect.List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))));
         return new AutoCreateIndex(settings, new ClusterSettings(settings,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), systemIndices);
     }

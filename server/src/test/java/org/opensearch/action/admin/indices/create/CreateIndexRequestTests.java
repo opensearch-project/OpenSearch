@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import org.opensearch.ElasticsearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
@@ -36,7 +36,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.ESTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
 import java.util.Map;
@@ -82,7 +82,7 @@ public class CreateIndexRequestTests extends ESTestCase {
                 + "}";
 
         CreateIndexRequest request = new CreateIndexRequest();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class,
                 () -> {request.source(createIndex, XContentType.JSON);});
         assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
@@ -194,7 +194,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         assertEquals(createIndexRequest.settings(), parsedCreateIndexRequest.settings());
 
         BytesReference finalBytes = toShuffledXContent(parsedCreateIndexRequest, xContentType, EMPTY_PARAMS, humanReadable);
-        ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+        OpenSearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
     public void testSettingsType() throws IOException {
@@ -202,7 +202,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         builder.startObject().startArray("settings").endArray().endObject();
 
         CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
         assertThat(e.getMessage(), equalTo("key [settings] must be an object"));
     }
 

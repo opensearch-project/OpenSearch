@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for {@link NodeInfo}. Serialization and deserialization tested in
- * {@link org.elasticsearch.nodesinfo.NodeInfoStreamingTests}.
+ * {@link org.opensearch.nodesinfo.NodeInfoStreamingTests}.
  */
 public class NodeInfoTests extends ESTestCase {
 

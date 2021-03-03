@@ -1047,7 +1047,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     }
 
     /**
-     * test throwing a {@link org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException}
+     * test throwing a {@link org.opensearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException}
      * causes a retry
      */
     public void testRetryOnReplica() throws Exception {

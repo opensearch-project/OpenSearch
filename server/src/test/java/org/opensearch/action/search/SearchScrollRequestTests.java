@@ -39,7 +39,7 @@ import org.opensearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SearchScrollRequestTests extends ESTestCase {

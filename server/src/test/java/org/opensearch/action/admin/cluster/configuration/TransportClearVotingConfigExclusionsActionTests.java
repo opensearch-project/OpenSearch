@@ -19,7 +19,7 @@
 package org.opensearch.action.admin.cluster.configuration;
 
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.ElasticsearchTimeoutException;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
@@ -149,7 +149,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
                 containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
         final Throwable rootCause = responseHolder.get().getRootCause();
-        assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
+        assertThat(rootCause, instanceOf(OpenSearchTimeoutException.class));
         assertThat(rootCause.getMessage(),
             startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. ["));
     }

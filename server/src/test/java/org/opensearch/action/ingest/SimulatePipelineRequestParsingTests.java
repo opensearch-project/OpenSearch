@@ -19,7 +19,7 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.ElasticsearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.index.VersionType;
 import org.opensearch.ingest.CompoundProcessor;
 import org.opensearch.ingest.IngestDocument;
@@ -293,7 +293,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         docs.add(new HashMap<>());
         requestContent.put(Fields.DOCS, docs);
         requestContent.put(Fields.PIPELINE, pipelineConfig);
-        Exception e3 = expectThrows(ElasticsearchParseException.class,
+        Exception e3 = expectThrows(OpenSearchParseException.class,
             () -> SimulatePipelineRequest.parse(requestContent, false, ingestService));
         assertThat(e3.getMessage(), containsString("required property is missing"));
     }

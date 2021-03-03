@@ -202,11 +202,11 @@ public class SettingsUpdaterTests extends ESTestCase {
         final ClusterState clusterState =
                 ClusterState.builder(new ClusterName("foo")).metadata(Metadata.builder().persistentSettings(settings).build()).build();
 
-        final Settings toApplyDebug = Settings.builder().put("logger.org.elasticsearch", "debug").build();
+        final Settings toApplyDebug = Settings.builder().put("logger.org.opensearch", "debug").build();
         final ClusterState afterDebug = settingsUpdater.updateSettings(clusterState, toApplyDebug, Settings.EMPTY, logger);
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
 
-        final Settings toApplyUnset = Settings.builder().putNull("logger.org.elasticsearch").build();
+        final Settings toApplyUnset = Settings.builder().putNull("logger.org.opensearch").build();
         final ClusterState afterUnset = settingsUpdater.updateSettings(afterDebug, toApplyUnset, Settings.EMPTY, logger);
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
 
