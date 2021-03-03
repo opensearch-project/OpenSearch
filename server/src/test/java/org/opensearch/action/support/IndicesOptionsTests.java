@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

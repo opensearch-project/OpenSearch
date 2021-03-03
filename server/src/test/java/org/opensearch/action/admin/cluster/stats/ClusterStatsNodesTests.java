@@ -38,7 +38,7 @@ import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStatsNodesTests extends ESTestCase {

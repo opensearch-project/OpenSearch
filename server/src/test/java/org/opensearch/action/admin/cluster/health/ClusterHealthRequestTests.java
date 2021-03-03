@@ -30,8 +30,8 @@ import org.opensearch.test.ESTestCase;
 
 import java.util.Locale;
 
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.opensearch.test.VersionUtils.getPreviousVersion;
+import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class ClusterHealthRequestTests extends ESTestCase {

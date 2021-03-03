@@ -45,8 +45,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.collect.Tuple.tuple;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.opensearch.common.collect.Tuple.tuple;
+import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 

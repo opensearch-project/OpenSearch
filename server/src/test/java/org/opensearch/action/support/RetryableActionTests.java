@@ -30,7 +30,7 @@ import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RetryableActionTests extends ESTestCase {

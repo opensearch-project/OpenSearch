@@ -31,7 +31,7 @@ import org.opensearch.test.ESTestCase;
 
 import java.util.Collections;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class IndicesSegmentResponseTests extends ESTestCase {
 

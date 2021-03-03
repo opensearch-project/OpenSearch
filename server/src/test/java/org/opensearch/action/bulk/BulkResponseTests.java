@@ -35,11 +35,11 @@ import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
-import static org.elasticsearch.action.bulk.BulkItemResponseTests.assertBulkItemResponse;
-import static org.elasticsearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.ElasticsearchExceptionTests.randomExceptions;
+import static org.opensearch.action.bulk.BulkItemResponseTests.assertBulkItemResponse;
+import static org.opensearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class BulkResponseTests extends ESTestCase {
 

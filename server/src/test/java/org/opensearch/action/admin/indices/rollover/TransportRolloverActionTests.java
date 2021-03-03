@@ -80,7 +80,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
+import static org.opensearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;

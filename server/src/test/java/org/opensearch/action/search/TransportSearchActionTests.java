@@ -94,8 +94,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
+import static org.opensearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;

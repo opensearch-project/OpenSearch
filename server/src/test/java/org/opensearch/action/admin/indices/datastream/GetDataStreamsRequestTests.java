@@ -32,7 +32,7 @@ import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
 
-import static org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamRequestTests.getClusterStateWithDataStreams;
+import static org.opensearch.action.admin.indices.datastream.DeleteDataStreamRequestTests.getClusterStateWithDataStreams;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

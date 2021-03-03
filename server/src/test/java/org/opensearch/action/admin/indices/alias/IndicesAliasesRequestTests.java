@@ -28,7 +28,7 @@ import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.opensearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndicesAliasesRequestTests extends ESTestCase {

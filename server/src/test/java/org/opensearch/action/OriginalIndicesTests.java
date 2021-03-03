@@ -27,7 +27,7 @@ import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class OriginalIndicesTests extends ESTestCase {

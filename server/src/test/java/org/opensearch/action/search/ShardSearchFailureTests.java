@@ -34,8 +34,8 @@ import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 
 public class ShardSearchFailureTests extends ESTestCase {
 

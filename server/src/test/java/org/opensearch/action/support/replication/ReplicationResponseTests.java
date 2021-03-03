@@ -37,9 +37,9 @@ import org.opensearch.test.RandomObjects;
 import java.io.IOException;
 import java.util.Locale;
 
-import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.ElasticsearchExceptionTests.assertDeepEquals;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class ReplicationResponseTests extends ESTestCase {
 

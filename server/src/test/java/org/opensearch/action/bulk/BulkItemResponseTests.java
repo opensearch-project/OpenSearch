@@ -37,8 +37,8 @@ import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
-import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
+import static org.opensearch.ElasticsearchExceptionTests.assertDeepEquals;
+import static org.opensearch.ElasticsearchExceptionTests.randomExceptions;
 import static org.hamcrest.Matchers.containsString;
 
 public class BulkItemResponseTests extends ESTestCase {

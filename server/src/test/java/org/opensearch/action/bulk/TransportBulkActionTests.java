@@ -68,9 +68,9 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.opensearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
+import static org.opensearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

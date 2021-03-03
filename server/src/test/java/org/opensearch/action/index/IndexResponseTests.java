@@ -35,9 +35,9 @@ import org.opensearch.test.RandomObjects;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.support.replication.ReplicationResponseTests.assertShardInfo;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.action.support.replication.ReplicationResponseTests.assertShardInfo;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 
 public class IndexResponseTests extends ESTestCase {
 

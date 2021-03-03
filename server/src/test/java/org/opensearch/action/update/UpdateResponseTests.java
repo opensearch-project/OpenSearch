@@ -43,13 +43,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
-import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
-import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.action.DocWriteResponse.Result.DELETED;
+import static org.opensearch.action.DocWriteResponse.Result.NOT_FOUND;
+import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class UpdateResponseTests extends ESTestCase {
 

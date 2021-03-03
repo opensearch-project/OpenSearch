@@ -35,14 +35,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.index.get.GetResultTests.copyGetResult;
-import static org.elasticsearch.index.get.GetResultTests.mutateGetResult;
-import static org.elasticsearch.index.get.GetResultTests.randomGetResult;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.index.get.GetResultTests.copyGetResult;
+import static org.opensearch.index.get.GetResultTests.mutateGetResult;
+import static org.opensearch.index.get.GetResultTests.randomGetResult;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class GetResponseTests extends ESTestCase {
 

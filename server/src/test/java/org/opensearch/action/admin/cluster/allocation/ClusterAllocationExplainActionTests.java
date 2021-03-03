@@ -42,7 +42,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Locale;
 
-import static org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction.findShardToExplain;
+import static org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction.findShardToExplain;
 
 /**
  * Tests for the {@link TransportClusterAllocationExplainAction} class.

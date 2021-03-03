@@ -36,9 +36,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
-import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomMap;
-import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomRouting;
+import static org.opensearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.opensearch.index.alias.RandomAliasActionsGenerator.randomMap;
+import static org.opensearch.index.alias.RandomAliasActionsGenerator.randomRouting;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;

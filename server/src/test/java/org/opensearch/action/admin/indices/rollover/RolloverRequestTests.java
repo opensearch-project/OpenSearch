@@ -51,7 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverRequestTests extends ESTestCase {
