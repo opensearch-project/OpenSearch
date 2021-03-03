@@ -559,7 +559,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                 new IllegalArgumentException("alalaal"),
                 new NullPointerException("boom"),
                 new EOFException("dadada"),
-                new ElasticsearchSecurityException("nono!"),
+                new OpenSearchSecurityException("nono!"),
                 new NumberFormatException("not a number"),
                 new CorruptIndexException("baaaam booom", "this is my resource"),
                 new IndexFormatTooNewException("tooo new", 1, 2, 3),
@@ -647,8 +647,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testElasticsearchSecurityException() throws IOException {
-        ElasticsearchSecurityException ex = new ElasticsearchSecurityException("user [{}] is not allowed", RestStatus.UNAUTHORIZED, "foo");
-        ElasticsearchSecurityException e = serialize(ex);
+        OpenSearchSecurityException ex = new OpenSearchSecurityException("user [{}] is not allowed", RestStatus.UNAUTHORIZED, "foo");
+        OpenSearchSecurityException e = serialize(ex);
         assertEquals(ex.status(), e.status());
         assertEquals(RestStatus.UNAUTHORIZED, e.status());
     }
@@ -678,7 +678,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(1, org.elasticsearch.search.dfs.DfsPhaseExecutionException.class);
         ids.put(2, org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException.class);
         ids.put(3, org.elasticsearch.discovery.MasterNotDiscoveredException.class);
-        ids.put(4, org.elasticsearch.ElasticsearchSecurityException.class);
+        ids.put(4, org.elasticsearch.OpenSearchSecurityException.class);
         ids.put(5, org.elasticsearch.index.snapshots.IndexShardRestoreException.class);
         ids.put(6, org.elasticsearch.indices.IndexClosedException.class);
         ids.put(7, org.elasticsearch.http.BindHttpException.class);

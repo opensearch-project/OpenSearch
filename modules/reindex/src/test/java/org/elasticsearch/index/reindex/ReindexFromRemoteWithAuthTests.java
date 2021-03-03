@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.OpenSearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -208,13 +208,13 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             }
             String auth = context.getHeader(AUTHORIZATION_HEADER);
             if (auth == null) {
-                ElasticsearchSecurityException e = new ElasticsearchSecurityException("Authentication required",
+                OpenSearchSecurityException e = new OpenSearchSecurityException("Authentication required",
                         RestStatus.UNAUTHORIZED);
                 e.addHeader("WWW-Authenticate", "Basic realm=auth-realm");
                 throw e;
             }
             if (false == REQUIRED_AUTH.equals(auth)) {
-                throw new ElasticsearchSecurityException("Bad Authorization", RestStatus.FORBIDDEN);
+                throw new OpenSearchSecurityException("Bad Authorization", RestStatus.FORBIDDEN);
             }
             chain.proceed(task, action, request, listener);
         }
