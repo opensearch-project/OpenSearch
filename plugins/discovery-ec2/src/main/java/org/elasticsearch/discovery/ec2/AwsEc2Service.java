@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.unit.TimeValue;
 
 import java.io.Closeable;
 import java.util.ArrayList;

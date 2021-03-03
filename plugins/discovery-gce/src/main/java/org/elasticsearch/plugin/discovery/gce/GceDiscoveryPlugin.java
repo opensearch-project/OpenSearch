@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.discovery.gce;
+package org.opensearch.plugin.discovery.gce;
 
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cloud.gce.GceInstancesService;
-import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
-import org.elasticsearch.cloud.gce.GceMetadataService;
-import org.elasticsearch.cloud.gce.network.GceNameResolver;
-import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.SeedHostsProvider;
-import org.elasticsearch.discovery.gce.GceSeedHostsProvider;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.cloud.gce.GceInstancesService;
+import org.opensearch.cloud.gce.GceInstancesServiceImpl;
+import org.opensearch.cloud.gce.GceMetadataService;
+import org.opensearch.cloud.gce.network.GceNameResolver;
+import org.opensearch.cloud.gce.util.Access;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.discovery.SeedHostsProvider;
+import org.opensearch.discovery.gce.GceSeedHostsProvider;
+import org.opensearch.plugins.DiscoveryPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;

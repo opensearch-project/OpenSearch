@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.hdfs;
+package org.opensearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.hadoop.conf.Configuration;
@@ -25,11 +25,11 @@ import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.test.ESTestCase;
 
 import javax.security.auth.Subject;
 
@@ -43,9 +43,9 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 
-import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
-import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.readBlobFully;
-import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.writeBlob;
+import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.readBlobFully;
+import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.writeBlob;
 
 @ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
 public class HdfsBlobStoreContainerTests extends ESTestCase {

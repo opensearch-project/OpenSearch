@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
@@ -32,12 +32,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.SingleObjectCache;
-import org.elasticsearch.discovery.SeedHostsProvider;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.SingleObjectCache;
+import org.opensearch.discovery.SeedHostsProvider;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -46,11 +46,11 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.disjoint;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_DNS;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_IP;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_DNS;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_IP;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
+import static org.opensearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_DNS;
+import static org.opensearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_IP;
+import static org.opensearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_DNS;
+import static org.opensearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_IP;
+import static org.opensearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
 
 class AwsEc2SeedHostsProvider implements SeedHostsProvider {
 

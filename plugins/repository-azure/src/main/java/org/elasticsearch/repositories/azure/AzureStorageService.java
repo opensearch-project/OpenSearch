@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.opensearch.repositories.azure;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.Constants;
@@ -27,12 +27,12 @@ import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.blob.BlobRequestOptions;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.net.URI;
 import java.net.URISyntaxException;

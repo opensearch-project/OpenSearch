@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.ja.JapaneseTokenizerFactory;
-import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
-import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
+import org.opensearch.indices.analysis.AnalysisFactoryTestCase;
+import org.opensearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
 
 import java.util.HashMap;
 import java.util.Map;

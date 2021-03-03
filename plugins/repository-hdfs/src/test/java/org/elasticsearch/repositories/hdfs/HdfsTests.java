@@ -16,24 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.hdfs;
+package org.opensearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
-import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.bootstrap.JavaVersion;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
+import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 

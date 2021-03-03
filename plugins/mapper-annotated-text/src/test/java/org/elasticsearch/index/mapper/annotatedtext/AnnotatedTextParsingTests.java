@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.annotatedtext;
+package org.opensearch.index.mapper.annotatedtext;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.ElasticsearchParseException;
+import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
+import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
+import org.opensearch.test.ESTestCase;
 
 import java.util.List;
 

@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.smbsimplefs;
+package org.opensearch.index.store.smbsimplefs;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.FsDirectoryFactory;
-import org.elasticsearch.index.store.SmbDirectoryWrapper;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.SmbDirectoryWrapper;
 
 import java.io.IOException;
 import java.nio.file.Path;

@@ -17,35 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.http.AbstractHttpServerTransport;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.nio.BytesChannelContext;
-import org.elasticsearch.nio.ChannelFactory;
-import org.elasticsearch.nio.Config;
-import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioGroup;
-import org.elasticsearch.nio.NioSelector;
-import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.nio.NioGroupFactory;
-import org.elasticsearch.transport.nio.PageAllocator;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.http.AbstractHttpServerTransport;
+import org.opensearch.http.HttpChannel;
+import org.opensearch.http.HttpServerChannel;
+import org.opensearch.nio.BytesChannelContext;
+import org.opensearch.nio.ChannelFactory;
+import org.opensearch.nio.Config;
+import org.opensearch.nio.InboundChannelBuffer;
+import org.opensearch.nio.NioGroup;
+import org.opensearch.nio.NioSelector;
+import org.opensearch.nio.NioSocketChannel;
+import org.opensearch.nio.ServerChannelContext;
+import org.opensearch.nio.SocketChannelContext;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.nio.NioGroupFactory;
+import org.opensearch.transport.nio.PageAllocator;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -53,18 +53,18 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_COUNT;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_INTERVAL;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_COUNT;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_INTERVAL;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
+import static org.opensearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
     private static final Logger logger = LogManager.getLogger(NioHttpServerTransport.class);

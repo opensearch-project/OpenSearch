@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.s3;
+package org.opensearch.repositories.s3;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.blobstore.BlobMetadata;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.SecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.Collection;
 import java.util.Map;

@@ -1,4 +1,4 @@
-package org.elasticsearch.ingest.attachment;
+package org.opensearch.ingest.attachment;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -22,8 +22,8 @@ package org.elasticsearch.ingest.attachment;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -38,7 +38,7 @@ import java.nio.file.Path;
 public class TikaDocTests extends ESTestCase {
 
     /** some test files from tika test suite, zipped up */
-    static final String TIKA_FILES = "/org/elasticsearch/ingest/attachment/test/tika-files/";
+    static final String TIKA_FILES = "/org.opensearch.ingest/attachment/test/tika-files/";
 
     public void testFiles() throws Exception {
         Path tmp = createTempDir();

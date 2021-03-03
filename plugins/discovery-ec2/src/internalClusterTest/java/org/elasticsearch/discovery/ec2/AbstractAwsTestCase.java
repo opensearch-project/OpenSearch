@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.env.Environment;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ThirdParty;
 
 import java.io.IOException;
 import java.util.Arrays;

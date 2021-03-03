@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.opensearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
@@ -34,11 +34,11 @@ import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;

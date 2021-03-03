@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.hdfs;
+package org.opensearch.repositories.hdfs;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
@@ -29,18 +29,18 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.SpecialPermission;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

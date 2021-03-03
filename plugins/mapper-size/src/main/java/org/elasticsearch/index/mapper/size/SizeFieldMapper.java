@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.size;
+package org.opensearch.index.mapper.size;
 
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.opensearch.common.Explicit;
+import org.opensearch.index.mapper.FieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
+import org.opensearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.Collections;

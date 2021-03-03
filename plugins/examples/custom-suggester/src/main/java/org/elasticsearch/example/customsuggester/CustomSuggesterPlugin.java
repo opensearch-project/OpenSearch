@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.example.customsuggester;
+package org.opensearch.example.customsuggester;
 
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
 
 import java.util.Collections;
 import java.util.List;

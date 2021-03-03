@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.http.FullHttpRequest;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 
 import java.util.List;
 

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.opensearch.repositories.s3;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.Streams;
+import org.opensearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

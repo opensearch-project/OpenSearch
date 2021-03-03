@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
-import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
-import org.elasticsearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin;
+import org.opensearch.indices.analysis.AnalysisFactoryTestCase;
+import org.opensearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin;
 
 import java.util.HashMap;
 import java.util.Map;

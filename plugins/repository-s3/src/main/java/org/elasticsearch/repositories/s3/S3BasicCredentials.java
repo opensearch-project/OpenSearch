@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.s3;
+package org.opensearch.repositories.s3;
 
 import com.amazonaws.auth.AWSCredentials;
 

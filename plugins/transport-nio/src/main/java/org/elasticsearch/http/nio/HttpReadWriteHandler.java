@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.ByteToMessageDecoder;
@@ -26,17 +26,17 @@ import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.http.HttpPipelinedResponse;
-import org.elasticsearch.http.HttpReadTimeoutException;
-import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioChannelHandler;
-import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.TaskScheduler;
-import org.elasticsearch.nio.WriteOperation;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.http.HttpHandlingSettings;
+import org.opensearch.http.HttpPipelinedRequest;
+import org.opensearch.http.HttpPipelinedResponse;
+import org.opensearch.http.HttpReadTimeoutException;
+import org.opensearch.nio.FlushOperation;
+import org.opensearch.nio.InboundChannelBuffer;
+import org.opensearch.nio.NioChannelHandler;
+import org.opensearch.nio.SocketChannelContext;
+import org.opensearch.nio.TaskScheduler;
+import org.opensearch.nio.WriteOperation;
 
 import java.io.IOException;
 import java.util.ArrayList;

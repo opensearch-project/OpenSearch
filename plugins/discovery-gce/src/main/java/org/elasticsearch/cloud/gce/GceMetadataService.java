@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.gce;
+package org.opensearch.cloud.gce;
 
 import java.io.IOException;
 import java.net.URI;
@@ -32,10 +32,10 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.cloud.gce.util.Access;
+import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 
 public class GceMetadataService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(GceMetadataService.class);

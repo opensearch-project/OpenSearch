@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.opensearch.transport.nio;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.nio.NioServerSocketChannel;
-import org.elasticsearch.transport.TcpServerChannel;
+import org.opensearch.action.ActionListener;
+import org.opensearch.nio.NioServerSocketChannel;
+import org.opensearch.transport.TcpServerChannel;
 
 import java.nio.channels.ServerSocketChannel;
 

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.example.customsigheuristic;
+package org.opensearch.example.customsigheuristic;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 

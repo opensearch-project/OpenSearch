@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.Tokenizer;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
-import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
-import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.env.TestEnvironment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.pl.PolishStemTokenFilterFactory;
+import org.opensearch.indices.analysis.AnalysisFactoryTestCase;
+import org.opensearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 
 import java.io.IOException;
 import java.util.HashMap;

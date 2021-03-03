@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -25,13 +25,13 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.index.Index;
+import org.opensearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -210,7 +210,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         Files.createDirectory(config);
         Files.copy(empty_dict, config.resolve("empty_user_dict.txt"));
         Files.copy(dict, config.resolve("user_dict.txt"));
-        String json = "/org/elasticsearch/index/analysis/kuromoji_analysis.json";
+        String json = "/org.opensearch.index/analysis/kuromoji_analysis.json";
 
         Settings settings = Settings.builder()
             .loadFromStream(json, KuromojiAnalysisTests.class.getResourceAsStream(json), false)

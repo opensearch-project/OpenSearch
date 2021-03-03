@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.uk.UkrainianMorfologikAnalyzer;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.Index;
+import org.opensearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;

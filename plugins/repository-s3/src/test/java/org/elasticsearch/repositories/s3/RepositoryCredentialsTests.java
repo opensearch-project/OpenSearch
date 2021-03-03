@@ -17,31 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.opensearch.repositories.s3;
 
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.AbstractRestChannel;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginsService;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.AbstractRestChannel;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -50,9 +50,9 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.repositories.s3.S3ClientSettings.ACCESS_KEY_SETTING;
-import static org.elasticsearch.repositories.s3.S3ClientSettings.SECRET_KEY_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.repositories.s3.S3ClientSettings.ACCESS_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.SECRET_KEY_SETTING;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.opensearch.repositories.azure;
 
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.core.Base64;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.settings.SettingsModule;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -40,7 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.repositories.azure.AzureStorageService.blobNameFromUri;
+import static org.opensearch.repositories.azure.AzureStorageService.blobNameFromUri;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;

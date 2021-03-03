@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.gcs;
+package org.opensearch.repositories.gcs;
 
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.gcs;
+package org.opensearch.repositories.gcs;
 
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.CheckedRunnable;
+import org.opensearch.SpecialPermission;
+import org.opensearch.common.CheckedRunnable;
 
 import java.io.IOException;
 import java.net.SocketPermission;

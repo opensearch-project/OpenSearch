@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cloud.gce;
+package org.opensearch.cloud.gce;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
-import org.elasticsearch.test.fixture.AbstractHttpFixture;
+import org.opensearch.common.Strings;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.path.PathTrie;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.rest.RestUtils;
+import org.opensearch.test.fixture.AbstractHttpFixture;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,7 +43,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * {@link GCEFixture} is a fixture that emulates a GCE service.

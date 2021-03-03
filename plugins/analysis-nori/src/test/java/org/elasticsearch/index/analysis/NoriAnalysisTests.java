@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ko.KoreanAnalyzer;
 import org.apache.lucene.analysis.ko.KoreanTokenizer;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugin.analysis.nori.AnalysisNoriPlugin;
-import org.elasticsearch.test.ESTestCase.TestAnalysis;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.plugin.analysis.nori.AnalysisNoriPlugin;
+import org.opensearch.test.ESTestCase.TestAnalysis;
+import org.opensearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;

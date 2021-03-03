@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
@@ -27,8 +27,8 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpResponse;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.common.Booleans;
+import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.util.List;
 

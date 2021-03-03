@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.example.painlesswhitelist;
+package org.opensearch.example.painlesswhitelist;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 public class PainlessWhitelistClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 

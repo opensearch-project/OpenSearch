@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.opensearch.repositories.s3;
 
 import com.amazonaws.util.json.Jackson;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.Repository;
+import org.opensearch.SpecialPermission;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.ReloadablePlugin;
+import org.opensearch.plugins.RepositoryPlugin;
+import org.opensearch.repositories.Repository;
 
 import java.io.IOException;
 import java.security.AccessController;

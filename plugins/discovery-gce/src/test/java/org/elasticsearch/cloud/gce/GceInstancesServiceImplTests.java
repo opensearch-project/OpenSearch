@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cloud.gce;
+package org.opensearch.cloud.gce;
 
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.LowLevelHttpRequest;
@@ -25,8 +25,8 @@ import com.google.api.client.json.Json;
 import com.google.api.client.testing.http.MockHttpTransport;
 import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 

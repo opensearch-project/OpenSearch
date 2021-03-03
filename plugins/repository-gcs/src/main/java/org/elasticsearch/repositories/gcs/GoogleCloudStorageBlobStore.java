@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.gcs;
+package org.opensearch.repositories.gcs;
 
 import com.google.api.gax.paging.Page;
 import com.google.cloud.BatchResult;
@@ -32,18 +32,18 @@ import com.google.cloud.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.io.Streams;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -272,7 +272,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.
                  */
-                org.elasticsearch.core.internal.io.Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
+                org.opensearch.core.internal.io.Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
 
                     @SuppressForbidden(reason = "channel is based on a socket")
                     @Override

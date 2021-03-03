@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.hdfs;
+package org.opensearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;

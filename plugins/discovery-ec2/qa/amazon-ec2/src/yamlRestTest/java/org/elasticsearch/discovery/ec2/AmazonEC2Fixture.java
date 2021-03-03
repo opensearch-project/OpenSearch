@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
 import com.amazonaws.util.DateUtils;
 import org.apache.http.NameValuePair;
@@ -24,10 +24,10 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.utils.URLEncodedUtils;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.fixture.AbstractHttpFixture;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.test.fixture.AbstractHttpFixture;
 
 import javax.xml.XMLConstants;
 import javax.xml.stream.XMLOutputFactory;

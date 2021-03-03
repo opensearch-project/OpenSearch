@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch.subphase.highlight;
+package org.opensearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -43,11 +43,11 @@ import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.Strings;
+import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
+import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
+import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
+import org.opensearch.test.ESTestCase;
 
 import java.net.URLEncoder;
 import java.text.BreakIterator;

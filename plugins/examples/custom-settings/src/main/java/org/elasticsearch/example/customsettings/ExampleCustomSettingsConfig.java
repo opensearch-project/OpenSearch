@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.example.customsettings;
+package org.opensearch.example.customsettings;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.common.settings.SecureString;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
 
 import java.io.IOException;
 import java.nio.file.Path;

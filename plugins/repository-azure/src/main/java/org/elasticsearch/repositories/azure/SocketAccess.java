@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.opensearch.repositories.azure;
 
 import com.microsoft.azure.storage.StorageException;
 import org.apache.logging.log4j.core.util.Throwables;
-import org.elasticsearch.SpecialPermission;
+import org.opensearch.SpecialPermission;
 
 import java.io.IOException;
 import java.net.SocketPermission;

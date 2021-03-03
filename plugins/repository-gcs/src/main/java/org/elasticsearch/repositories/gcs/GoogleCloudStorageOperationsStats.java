@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.gcs;
+package org.opensearch.repositories.gcs;
 
 import java.util.HashMap;
 import java.util.Map;

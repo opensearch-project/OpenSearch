@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.opensearch.repositories.azure;
 
 import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;

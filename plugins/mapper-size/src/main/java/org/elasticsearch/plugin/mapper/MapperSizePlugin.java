@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper;
+package org.opensearch.plugin.mapper;
 
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.size.SizeFieldMapper;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.size.SizeFieldMapper;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.Collections;
 import java.util.Map;

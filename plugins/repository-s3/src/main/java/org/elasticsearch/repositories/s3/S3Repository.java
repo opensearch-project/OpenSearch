@@ -17,39 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.opensearch.repositories.s3;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.common.settings.SecureString;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.threadpool.Scheduler;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Map;
@@ -163,12 +163,12 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Artificial delay to introduce after a snapshot finalization or delete has finished so long as the repository is still using the
      * backwards compatible snapshot format from before
-     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link org.elasticsearch.Version#V_7_6_0}).
+     * {@link org.opensearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link org.opensearch.Version#V_7_6_0}).
      * This delay is necessary so that the eventually consistent nature of AWS S3 does not randomly result in repository corruption when
      * doing repository operations in rapid succession on a repository in the old metadata format.
      * This setting should not be adjusted in production when working with an AWS S3 backed repository. Doing so risks the repository
      * becoming silently corrupted. To get rid of this waiting period, either create a new S3 repository or remove all snapshots older than
-     * {@link org.elasticsearch.Version#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
+     * {@link org.opensearch.Version#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
      * format and disable the cooldown period.
      */
     static final Setting<TimeValue> COOLDOWN_PERIOD = Setting.timeSetting(
@@ -272,7 +272,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.elasticsearch.common.collect.Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()),
+        return org.opensearch.common.collect.Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()),
             "bucket", BUCKET_SETTING.get(metadata.settings()));
     }
 

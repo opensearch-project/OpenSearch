@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
@@ -26,14 +26,14 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.common.settings.SecureString;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.Locale;
 

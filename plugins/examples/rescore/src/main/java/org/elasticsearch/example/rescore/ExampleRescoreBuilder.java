@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.example.rescore;
+package org.opensearch.example.rescore;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.rescore.RescoreContext;
-import org.elasticsearch.search.rescore.Rescorer;
-import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.fielddata.LeafFieldData;
+import org.opensearch.index.fielddata.LeafNumericFieldData;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.query.QueryRewriteContext;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.rescore.RescoreContext;
+import org.opensearch.search.rescore.Rescorer;
+import org.opensearch.search.rescore.RescorerBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,8 +47,8 @@ import java.util.Iterator;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Example rescorer that multiplies the score of the hit by some factor and doesn't resort them.

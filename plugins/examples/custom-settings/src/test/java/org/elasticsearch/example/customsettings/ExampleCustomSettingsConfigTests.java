@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.example.customsettings;
+package org.opensearch.example.customsettings;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESTestCase;
 
-import static org.elasticsearch.example.customsettings.ExampleCustomSettingsConfig.VALIDATED_SETTING;
+import static org.opensearch.example.customsettings.ExampleCustomSettingsConfig.VALIDATED_SETTING;
 
 /**
  * {@link ExampleCustomSettingsConfigTests} is a unit test class for {@link ExampleCustomSettingsConfig}.

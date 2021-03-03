@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.opensearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
@@ -32,10 +32,10 @@ import com.amazonaws.services.s3.internal.Constants;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.Strings;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.util.Map;

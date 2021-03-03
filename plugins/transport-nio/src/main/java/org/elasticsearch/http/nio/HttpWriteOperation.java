@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.http.nio;
 
-import org.elasticsearch.http.HttpPipelinedResponse;
-import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.WriteOperation;
+import org.opensearch.http.HttpPipelinedResponse;
+import org.opensearch.nio.SocketChannelContext;
+import org.opensearch.nio.WriteOperation;
 
 import java.util.function.BiConsumer;
 

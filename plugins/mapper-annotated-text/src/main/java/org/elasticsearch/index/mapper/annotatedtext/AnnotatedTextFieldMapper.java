@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.annotatedtext;
+package org.opensearch.index.mapper.annotatedtext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
@@ -31,18 +31,18 @@ import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TextParams;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.opensearch.ElasticsearchParseException;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.mapper.FieldMapper;
+import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
+import org.opensearch.index.mapper.ParseContext;
+import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.mapper.TextParams;
+import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.io.Reader;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.ec2;
+package org.opensearch.discovery.ec2;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
@@ -25,10 +25,10 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

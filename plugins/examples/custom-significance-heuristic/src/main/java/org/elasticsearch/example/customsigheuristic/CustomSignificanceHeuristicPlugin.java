@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.example.customsigheuristic;
+package org.opensearch.example.customsigheuristic;
 
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.util.List;
 

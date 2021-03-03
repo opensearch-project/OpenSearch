@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.Caverphone1;
@@ -35,14 +35,14 @@ import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
 import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
 import org.apache.lucene.analysis.phonetic.DoubleMetaphoneFilter;
 import org.apache.lucene.analysis.phonetic.PhoneticFilter;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
-import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
-import org.elasticsearch.index.analysis.phonetic.Nysiis;
+import org.opensearch.Version;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.phonetic.HaasePhonetik;
+import org.opensearch.index.analysis.phonetic.KoelnerPhonetik;
+import org.opensearch.index.analysis.phonetic.Nysiis;
 
 import java.util.HashSet;
 import java.util.List;

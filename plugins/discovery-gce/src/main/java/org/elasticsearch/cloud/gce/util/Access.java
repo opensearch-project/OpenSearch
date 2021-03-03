@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.gce.util;
+package org.opensearch.cloud.gce.util;
 
-import org.elasticsearch.SpecialPermission;
+import org.opensearch.SpecialPermission;
 
 import java.io.IOException;
 import java.net.SocketPermission;

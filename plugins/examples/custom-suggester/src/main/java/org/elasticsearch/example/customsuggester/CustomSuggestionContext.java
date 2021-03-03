@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.example.customsuggester;
+package org.opensearch.example.customsuggester;
 
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Map;
 

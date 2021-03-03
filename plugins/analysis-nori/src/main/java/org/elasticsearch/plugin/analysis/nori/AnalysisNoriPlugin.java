@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.analysis.nori;
+package org.opensearch.plugin.analysis.nori;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.NoriAnalyzerProvider;
-import org.elasticsearch.index.analysis.NoriNumberFilterFactory;
-import org.elasticsearch.index.analysis.NoriPartOfSpeechStopFilterFactory;
-import org.elasticsearch.index.analysis.NoriReadingFormFilterFactory;
-import org.elasticsearch.index.analysis.NoriTokenizerFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.analysis.AnalyzerProvider;
+import org.opensearch.index.analysis.NoriAnalyzerProvider;
+import org.opensearch.index.analysis.NoriNumberFilterFactory;
+import org.opensearch.index.analysis.NoriPartOfSpeechStopFilterFactory;
+import org.opensearch.index.analysis.NoriReadingFormFilterFactory;
+import org.opensearch.index.analysis.NoriTokenizerFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.HashMap;
 import java.util.Map;

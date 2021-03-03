@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.gcs;
+package org.opensearch.repositories.gcs;
 
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.ESTestCase;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -40,14 +40,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
+import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
+import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
+import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
+import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
+import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
+import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
+import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
+import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
 
 public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
 
