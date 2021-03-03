@@ -31,10 +31,10 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.text.BreakIterator;

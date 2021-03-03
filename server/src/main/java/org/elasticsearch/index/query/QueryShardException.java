@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * Exception that is thrown when creating lucene queries on the shard
  */
-public class QueryShardException extends ElasticsearchException {
+public class QueryShardException extends OpenSearchException {
 
     public QueryShardException(QueryShardContext context, String msg, Object... args) {
         this(context, msg, null, args);

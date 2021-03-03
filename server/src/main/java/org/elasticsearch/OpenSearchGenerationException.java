@@ -28,7 +28,7 @@ import java.io.IOException;
  *
  *
  */
-public class OpenSearchGenerationException extends ElasticsearchException {
+public class OpenSearchGenerationException extends OpenSearchException {
 
     public OpenSearchGenerationException(String msg) {
         super(msg);

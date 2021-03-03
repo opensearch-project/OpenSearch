@@ -19,7 +19,7 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -114,16 +114,16 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         assertOnTaskFailures(newInstance.getTaskFailures(), expectedInstance.getTaskFailures());
     }
 
-    protected static void assertOnNodeFailures(List<ElasticsearchException> nodeFailures,
-                                               List<ElasticsearchException> expectedFailures) {
+    protected static void assertOnNodeFailures(List<OpenSearchException> nodeFailures,
+                                               List<OpenSearchException> expectedFailures) {
         assertThat(nodeFailures.size(), equalTo(expectedFailures.size()));
         for (int i = 0; i < nodeFailures.size(); i++) {
-            ElasticsearchException newException = nodeFailures.get(i);
-            ElasticsearchException expectedException = expectedFailures.get(i);
+            OpenSearchException newException = nodeFailures.get(i);
+            OpenSearchException expectedException = expectedFailures.get(i);
             assertThat(newException.getMetadata("es.node_id").get(0), equalTo(((FailedNodeException)expectedException).nodeId()));
             assertThat(newException.getMessage(), equalTo("Elasticsearch exception [type=failed_node_exception, reason=error message]"));
-            assertThat(newException.getCause(), instanceOf(ElasticsearchException.class));
-            ElasticsearchException cause = (ElasticsearchException) newException.getCause();
+            assertThat(newException.getCause(), instanceOf(OpenSearchException.class));
+            OpenSearchException cause = (OpenSearchException) newException.getCause();
             assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=connect_exception, reason=null]"));
         }
     }
@@ -137,8 +137,8 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
             assertThat(newFailure.getNodeId(), equalTo(expectedFailure.getNodeId()));
             assertThat(newFailure.getTaskId(), equalTo(expectedFailure.getTaskId()));
             assertThat(newFailure.getStatus(), equalTo(expectedFailure.getStatus()));
-            assertThat(newFailure.getCause(), instanceOf(ElasticsearchException.class));
-            ElasticsearchException cause = (ElasticsearchException) newFailure.getCause();
+            assertThat(newFailure.getCause(), instanceOf(OpenSearchException.class));
+            OpenSearchException cause = (OpenSearchException) newFailure.getCause();
             assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=illegal_state_exception, reason=null]"));
         }
     }

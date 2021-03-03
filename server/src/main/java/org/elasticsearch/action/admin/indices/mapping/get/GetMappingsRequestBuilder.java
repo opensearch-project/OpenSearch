@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class GetMappingsRequestBuilder
         extends ClusterInfoRequestBuilder<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {
 
-    public GetMappingsRequestBuilder(ElasticsearchClient client, GetMappingsAction action, String... indices) {
+    public GetMappingsRequestBuilder(OpenSearchClient client, GetMappingsAction action, String... indices) {
         super(client, action, new GetMappingsRequest().indices(indices));
     }
 }

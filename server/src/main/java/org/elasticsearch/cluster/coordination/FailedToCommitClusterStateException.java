@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -27,7 +26,7 @@ import java.io.IOException;
 /**
  * Thrown when failing to publish a cluster state. See {@link ClusterStatePublisher} for more details.
  */
-public class FailedToCommitClusterStateException extends ElasticsearchException {
+public class FailedToCommitClusterStateException extends OpenSearchException {
 
     public FailedToCommitClusterStateException(StreamInput in) throws IOException {
         super(in);

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.client;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -63,7 +63,7 @@ public class NoOpClient extends AbstractClient {
         try {
             ThreadPool.terminate(threadPool(), 10, TimeUnit.SECONDS);
         } catch (Exception e) {
-            throw new ElasticsearchException(e.getMessage(), e);
+            throw new OpenSearchException(e.getMessage(), e);
         }
     }
 }

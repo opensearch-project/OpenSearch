@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -139,7 +139,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(),
                                     rolloverRequest.getCreateIndexRequest(), metConditions, false, false);
                                 if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
-                                    throw new ElasticsearchException("Concurrent modification of alias [{}] during rollover",
+                                    throw new OpenSearchException("Concurrent modification of alias [{}] during rollover",
                                         rolloverRequest.getRolloverTarget());
                                 }
                                 return rolloverResult.clusterState;

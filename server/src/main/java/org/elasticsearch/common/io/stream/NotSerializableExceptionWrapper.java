@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 
@@ -32,21 +32,21 @@ import java.io.IOException;
  * the throwable it was created with instead of it's own. The stacktrace has no indication
  * of where this exception was created.
  */
-public final class NotSerializableExceptionWrapper extends ElasticsearchException {
+public final class NotSerializableExceptionWrapper extends OpenSearchException {
 
     private final String name;
     private final RestStatus status;
 
     public NotSerializableExceptionWrapper(Throwable other) {
-        super(ElasticsearchException.getExceptionName(other) + ": " + other.getMessage(), other.getCause());
-        this.name = ElasticsearchException.getExceptionName(other);
+        super(OpenSearchException.getExceptionName(other) + ": " + other.getMessage(), other.getCause());
+        this.name = OpenSearchException.getExceptionName(other);
         this.status = ExceptionsHelper.status(other);
         setStackTrace(other.getStackTrace());
         for (Throwable otherSuppressed : other.getSuppressed()) {
             addSuppressed(otherSuppressed);
         }
-        if (other instanceof ElasticsearchException) {
-            ElasticsearchException ex = (ElasticsearchException) other;
+        if (other instanceof OpenSearchException) {
+            OpenSearchException ex = (OpenSearchException) other;
             for (String key : ex.getHeaderKeys()) {
                 this.addHeader(key, ex.getHeader(key));
             }

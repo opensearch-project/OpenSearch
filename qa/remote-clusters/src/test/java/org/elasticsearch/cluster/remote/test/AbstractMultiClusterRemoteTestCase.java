@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.remote.test;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
@@ -109,7 +109,7 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         try {
             keyStore = PathUtils.get(AbstractMultiClusterRemoteTestCase.class.getResource("/testnode.jks").toURI());
         } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
+            throw new OpenSearchException("exception while reading the store", e);
         }
         if (Files.exists(keyStore) == false) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -246,7 +246,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist");
                 client.indices().delete(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -851,7 +851,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 OpenIndexRequest request = new OpenIndexRequest("does_not_exist");
                 client.indices().open(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.BAD_REQUEST) {
                     // <1>
                 }
@@ -920,7 +920,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 RefreshRequest request = new RefreshRequest("does_not_exist");
                 client.indices().refresh(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -997,7 +997,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 FlushRequest request = new FlushRequest("does_not_exist");
                 client.indices().flush(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -1085,7 +1085,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 SyncedFlushRequest request = new SyncedFlushRequest("does_not_exist");
                 client.indices().flushSynced(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -1355,7 +1355,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 ForceMergeRequest request = new ForceMergeRequest("does_not_exist");
                 client.indices().forcemerge(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -1440,7 +1440,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 ClearIndicesCacheRequest request = new ClearIndicesCacheRequest("does_not_exist");
                 client.indices().clearCache(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -2009,7 +2009,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::get-alias-response-error
             RestStatus status = response.status(); // <1>
-            ElasticsearchException exception = response.getException(); // <2>
+            OpenSearchException exception = response.getException(); // <2>
             String error = response.getError(); // <3>
             // end::get-alias-response-error
 

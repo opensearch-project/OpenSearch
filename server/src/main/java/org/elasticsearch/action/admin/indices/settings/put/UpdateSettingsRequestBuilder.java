@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -34,7 +34,7 @@ import java.util.Map;
 public class UpdateSettingsRequestBuilder
         extends AcknowledgedRequestBuilder<UpdateSettingsRequest, AcknowledgedResponse, UpdateSettingsRequestBuilder> {
 
-    public UpdateSettingsRequestBuilder(ElasticsearchClient client, UpdateSettingsAction action, String... indices) {
+    public UpdateSettingsRequestBuilder(OpenSearchClient client, UpdateSettingsAction action, String... indices) {
         super(client, action, new UpdateSettingsRequest(indices));
     }
 

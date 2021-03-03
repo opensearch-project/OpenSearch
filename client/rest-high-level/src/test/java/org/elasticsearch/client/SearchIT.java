@@ -21,7 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -725,8 +725,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> execute(scrollRequest,
                     highLevelClient()::scroll, highLevelClient()::scrollAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertThat(exception.getRootCause(), instanceOf(ElasticsearchException.class));
-            ElasticsearchException rootCause = (ElasticsearchException) exception.getRootCause();
+            assertThat(exception.getRootCause(), instanceOf(OpenSearchException.class));
+            OpenSearchException rootCause = (OpenSearchException) exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("No search context found for"));
         }
     }
@@ -1149,7 +1149,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         {
             ExplainRequest explainRequest = new ExplainRequest("non_existent_index", "1");
             explainRequest.query(QueryBuilders.matchQuery("field", "value"));
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync));
             assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(exception.getIndex().getName(), equalTo("non_existent_index"));
@@ -1298,7 +1298,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             .indices("non-existent")
             .fields("rating");
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        OpenSearchException exception = expectThrows(OpenSearchException.class,
             () -> execute(request, highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }

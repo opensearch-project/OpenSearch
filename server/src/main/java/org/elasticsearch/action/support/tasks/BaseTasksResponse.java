@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.tasks;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -48,9 +48,9 @@ public class BaseTasksResponse extends ActionResponse {
     protected static final String NODE_FAILURES = "node_failures";
 
     private List<TaskOperationFailure> taskFailures;
-    private List<ElasticsearchException> nodeFailures;
+    private List<OpenSearchException> nodeFailures;
 
-    public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures) {
+    public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends OpenSearchException> nodeFailures) {
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(taskFailures));
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(nodeFailures));
     }
@@ -78,7 +78,7 @@ public class BaseTasksResponse extends ActionResponse {
             exp.writeTo(out);
         }
         out.writeVInt(nodeFailures.size());
-        for (ElasticsearchException exp : nodeFailures) {
+        for (OpenSearchException exp : nodeFailures) {
             exp.writeTo(out);
         }
     }
@@ -93,7 +93,7 @@ public class BaseTasksResponse extends ActionResponse {
     /**
      * The list of node failures exception.
      */
-    public List<ElasticsearchException> getNodeFailures() {
+    public List<OpenSearchException> getNodeFailures() {
         return nodeFailures;
     }
 
@@ -103,7 +103,7 @@ public class BaseTasksResponse extends ActionResponse {
     public void rethrowFailures(String operationName) {
         rethrowAndSuppress(Stream.concat(
                     getNodeFailures().stream(),
-                    getTaskFailures().stream().map(f -> new ElasticsearchException(
+                    getTaskFailures().stream().map(f -> new OpenSearchException(
                             "{} of [{}] failed", f.getCause(), operationName, new TaskId(f.getNodeId(), f.getTaskId()))))
                 .collect(toList()));
     }
@@ -121,7 +121,7 @@ public class BaseTasksResponse extends ActionResponse {
 
         if (getNodeFailures() != null && getNodeFailures().size() > 0) {
             builder.startArray(NODE_FAILURES);
-            for (ElasticsearchException ex : getNodeFailures()) {
+            for (OpenSearchException ex : getNodeFailures()) {
                 builder.startObject();
                 ex.toXContent(builder, params);
                 builder.endObject();

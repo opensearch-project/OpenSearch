@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -48,7 +48,7 @@ public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
                 builder.append((char) ch);
             }
         } catch (IOException e) {
-            throw new ElasticsearchException(e);
+            throw new OpenSearchException(e);
         }
 
         return builder.toString();

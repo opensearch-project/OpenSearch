@@ -22,7 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -372,7 +372,7 @@ public class MasterFaultDetection extends FaultDetection {
                     @Override
                     public void onFailure(String source, @Nullable Exception e) {
                         if (e == null) {
-                            e = new ElasticsearchException("unknown error while processing ping");
+                            e = new OpenSearchException("unknown error while processing ping");
                         }
                         try {
                             channel.sendResponse(e);

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
@@ -162,7 +162,7 @@ public class IngestClientIT extends ESIntegTestCase {
             BulkItemResponse itemResponse = response.getItems()[i];
             if (i % 2 == 0) {
                 BulkItemResponse.Failure failure = itemResponse.getFailure();
-                ElasticsearchException compoundProcessorException = (ElasticsearchException) failure.getCause();
+                OpenSearchException compoundProcessorException = (OpenSearchException) failure.getCause();
                 assertThat(compoundProcessorException.getRootCause().getMessage(), equalTo("test processor failed"));
             } else {
                 IndexResponse indexResponse = itemResponse.getResponse();

@@ -21,12 +21,12 @@ package org.elasticsearch.action.admin.cluster.node.usage;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class NodesUsageRequestBuilder
         extends NodesOperationRequestBuilder<NodesUsageRequest, NodesUsageResponse, NodesUsageRequestBuilder> {
 
-    public NodesUsageRequestBuilder(ElasticsearchClient client, ActionType<NodesUsageResponse> action) {
+    public NodesUsageRequestBuilder(OpenSearchClient client, ActionType<NodesUsageResponse> action) {
         super(client, action, new NodesUsageRequest());
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.Strings;
@@ -76,7 +77,7 @@ public class AllocationCommands implements ToXContentFragment {
     /**
      * Executes all wrapped commands on a given {@link RoutingAllocation}
      * @param allocation {@link RoutingAllocation} to apply this command to
-     * @throws org.elasticsearch.ElasticsearchException if something happens during execution
+     * @throws OpenSearchException if something happens during execution
      */
     public RoutingExplanations execute(RoutingAllocation allocation, boolean explain) {
         RoutingExplanations explanations = new RoutingExplanations();

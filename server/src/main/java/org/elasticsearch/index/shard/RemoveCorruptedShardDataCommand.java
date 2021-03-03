@@ -31,7 +31,7 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
@@ -134,7 +134,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             final Path shardParentParent = shardParent.getParent();
             final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
             if (Files.exists(indexPath) == false || Files.isDirectory(indexPath) == false) {
-                throw new ElasticsearchException("index directory [" + indexPath + "], must exist and be a directory");
+                throw new OpenSearchException("index directory [" + indexPath + "], must exist and be a directory");
             }
 
             final String shardIdFileName = path.getFileName().toString();
@@ -153,7 +153,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                     .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName)).findFirst()
                     .orElse(null);
             } else {
-                throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
+                throw new OpenSearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
                     + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]");
             }
         } else {
@@ -164,7 +164,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         }
 
         if (indexMetadata == null) {
-            throw new ElasticsearchException("Unable to find index in cluster state");
+            throw new OpenSearchException("Unable to find index in cluster state");
         }
 
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
@@ -185,7 +185,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 }
             }
         }
-        throw new ElasticsearchException("Unable to resolve shard path for index [" + indexMetadata.getIndex().getName() +
+        throw new OpenSearchException("Unable to resolve shard path for index [" + indexMetadata.getIndex().getName() +
             "] and shard id [" + shardId + "]");
     }
 
@@ -234,7 +234,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         terminal.println(msg);
         String text = terminal.readText("Confirm [y/N] ");
         if (text.equalsIgnoreCase("y") == false) {
-            throw new ElasticsearchException("aborted by user");
+            throw new OpenSearchException("aborted by user");
         }
     }
 
@@ -260,7 +260,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             final Path translogPath = shardPath.resolveTranslog();
             final Path nodePath = getNodePath(shardPath);
             if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {
-                throw new ElasticsearchException("translog directory [" + translogPath + "], must exist and be a directory");
+                throw new OpenSearchException("translog directory [" + translogPath + "], must exist and be a directory");
             }
 
             final PrintWriter writer = terminal.getWriter();
@@ -323,7 +323,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                     final CleanStatus translogStatus = translogCleanStatus.v1();
 
                     if (indexStatus == CleanStatus.CLEAN && translogStatus == CleanStatus.CLEAN) {
-                        throw new ElasticsearchException("Shard does not seem to be corrupted at " + shardPath.getDataPath()
+                        throw new OpenSearchException("Shard does not seem to be corrupted at " + shardPath.getDataPath()
                             + " (pass --" + TRUNCATE_CLEAN_TRANSLOG_FLAG + " to truncate the translog anyway)");
                     }
 
@@ -336,7 +336,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
                         printRerouteCommand(shardPath, terminal, false);
 
-                        throw new ElasticsearchException("Index is unrecoverable");
+                        throw new OpenSearchException("Index is unrecoverable");
                     }
 
 
@@ -364,7 +364,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 } catch (LockObtainFailedException lofe) {
                     final String msg = "Failed to lock shard's directory at [" + indexPath + "], is Elasticsearch still running?";
                     terminal.println(msg);
-                    throw new ElasticsearchException(msg);
+                    throw new OpenSearchException(msg);
                 }
 
                 final CleanStatus indexStatus = indexCleanStatus.v1();
@@ -385,7 +385,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         try {
             directory = FSDirectory.open(indexPath, NativeFSLockFactory.INSTANCE);
         } catch (Throwable t) {
-            throw new ElasticsearchException("ERROR: could not open directory \"" + indexPath + "\"; exiting");
+            throw new OpenSearchException("ERROR: could not open directory \"" + indexPath + "\"; exiting");
         }
         return directory;
     }
@@ -430,7 +430,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             ShardStateMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry, shardStatePath);
 
         if (shardStateMetadata == null) {
-            throw new ElasticsearchException("No shard state meta data at " + shardStatePath);
+            throw new OpenSearchException("No shard state meta data at " + shardStatePath);
         }
 
         final AllocationId newAllocationId = AllocationId.newInitializing();
@@ -455,7 +455,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePath);
 
         if (nodeMetadata == null) {
-            throw new ElasticsearchException("No node meta data at " + nodePath);
+            throw new OpenSearchException("No node meta data at " + nodePath);
         }
 
         final String nodeId = nodeMetadata.nodeId();
@@ -477,7 +477,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         final Path nodePath = shardPath.getDataPath().getParent().getParent().getParent();
         if (Files.exists(nodePath) == false ||
             Files.exists(nodePath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME)) == false) {
-            throw new ElasticsearchException("Unable to resolve node path for " + shardPath);
+            throw new OpenSearchException("Unable to resolve node path for " + shardPath);
         }
         return nodePath;
     }

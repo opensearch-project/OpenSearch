@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest.OpType;
@@ -79,7 +79,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
             builder.startObject(ERROR);
-            ElasticsearchException.generateThrowableXContent(builder, params, failure.getCause());
+            OpenSearchException.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();
         }
         builder.endObject();
@@ -128,7 +128,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         }
 
         RestStatus status = null;
-        ElasticsearchException exception = null;
+        OpenSearchException exception = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -136,7 +136,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
             if (ERROR.equals(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
-                    exception = ElasticsearchException.fromXContent(parser);
+                    exception = OpenSearchException.fromXContent(parser);
                 }
             } else if (STATUS.equals(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -193,7 +193,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             PARSER.declareString(constructorArg(), new ParseField(INDEX_FIELD));
             PARSER.declareString(constructorArg(), new ParseField(TYPE_FIELD));
             PARSER.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
-            PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(CAUSE_FIELD));
+            PARSER.declareObject(constructorArg(), (p, c) -> OpenSearchException.fromXContent(p), new ParseField(CAUSE_FIELD));
             PARSER.declareInt(constructorArg(), new ParseField(STATUS_FIELD));
         }
 
@@ -341,7 +341,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 builder.field(ID_FIELD, id);
             }
             builder.startObject(CAUSE_FIELD);
-            ElasticsearchException.generateThrowableXContent(builder, params, cause);
+            OpenSearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
             builder.field(STATUS_FIELD, status.getStatus());
             return builder;

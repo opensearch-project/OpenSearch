@@ -21,7 +21,7 @@ package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.VersionType;
 
@@ -31,11 +31,11 @@ import org.elasticsearch.index.VersionType;
 public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder>
         implements WriteRequestBuilder<DeleteRequestBuilder> {
 
-    public DeleteRequestBuilder(ElasticsearchClient client, DeleteAction action) {
+    public DeleteRequestBuilder(OpenSearchClient client, DeleteAction action) {
         super(client, action, new DeleteRequest());
     }
 
-    public DeleteRequestBuilder(ElasticsearchClient client, DeleteAction action, @Nullable String index) {
+    public DeleteRequestBuilder(OpenSearchClient client, DeleteAction action, @Nullable String index) {
         super(client, action, new DeleteRequest(index));
     }
 

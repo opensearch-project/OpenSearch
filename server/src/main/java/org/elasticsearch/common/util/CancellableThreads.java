@@ -20,7 +20,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -174,7 +174,7 @@ public class CancellableThreads {
         void run() throws IOException, InterruptedException;
     }
 
-    public static class ExecutionCancelledException extends ElasticsearchException {
+    public static class ExecutionCancelledException extends OpenSearchException {
 
         public ExecutionCancelledException(String msg) {
             super(msg);

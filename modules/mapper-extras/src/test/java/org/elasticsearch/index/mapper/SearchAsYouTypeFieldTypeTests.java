@@ -27,7 +27,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
@@ -105,7 +105,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         assertThat(fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC),
             equalTo(new PrefixQuery(new Term(NAME, longTerm))));
 
-        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+        OpenSearchException ee = expectThrows(OpenSearchException.class,
                 () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
                 "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());

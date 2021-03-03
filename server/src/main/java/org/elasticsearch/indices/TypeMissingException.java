@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
@@ -27,7 +27,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class TypeMissingException extends ElasticsearchException {
+public class TypeMissingException extends OpenSearchException {
 
     public TypeMissingException(Index index, String... types) {
         super("type" + Arrays.toString(types) + " missing");
