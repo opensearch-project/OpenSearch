@@ -149,12 +149,12 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
+                final Policy opensearchPolicy = new OpenSearchPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
                         // implements union
-                        return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
+                        return opensearchPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
                 });
                 System.setSecurityManager(SecureSM.createTestSecureSM());

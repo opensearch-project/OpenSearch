@@ -30,8 +30,8 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.NodeValidationException;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.node.NodeValidationException;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -43,7 +43,7 @@ import java.util.Locale;
 /**
  * This class starts elasticsearch.
  */
-class Elasticsearch extends EnvironmentAwareCommand {
+class OpenSearch extends EnvironmentAwareCommand {
 
     private final OptionSpecBuilder versionOption;
     private final OptionSpecBuilder daemonizeOption;
@@ -51,12 +51,12 @@ class Elasticsearch extends EnvironmentAwareCommand {
     private final OptionSpecBuilder quietOption;
 
     // visible for testing
-    Elasticsearch() {
-        super("Starts Elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
+    OpenSearch() {
+        super("Starts OpenSearch", () -> {}); // we configure logging later so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"),
-            "Prints Elasticsearch version information and exits");
+            "Prints OpenSearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
-            "Starts Elasticsearch in the background")
+            "Starts OpenSearch in the background")
             .availableUnless(versionOption);
         pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"),
             "Creates a pid file in the specified path on start")
@@ -88,7 +88,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
         });
         LogConfigurator.registerErrorListener();
-        final Elasticsearch elasticsearch = new Elasticsearch();
+        final OpenSearch elasticsearch = new OpenSearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
             final String basePath = System.getProperty("es.logs.base_path");
@@ -96,7 +96,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
             // suggesting that the user look in the log file.
             if (basePath != null) {
                 Terminal.DEFAULT.errorPrintln(
-                    "ERROR: Elasticsearch did not exit normally - check the logs at "
+                    "ERROR: OpenSearch did not exit normally - check the logs at "
                         + basePath
                         + System.getProperty("file.separator")
                         + System.getProperty("es.logs.cluster_name") + ".log"
@@ -122,7 +122,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
     }
 
-    static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
+    static int main(final String[] args, final OpenSearch elasticsearch, final Terminal terminal) throws Exception {
         return elasticsearch.main(args, terminal);
     }
 

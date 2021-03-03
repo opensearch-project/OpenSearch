@@ -51,7 +51,7 @@ class JNANatives {
     // otherwise they are only inherited for new threads (ES app threads)
     static boolean LOCAL_SYSTEM_CALL_FILTER_ALL = false;
     // set to the maximum number of threads that can be created for
-    // the user ID that owns the running Elasticsearch process
+    // the user ID that owns the running OpenSearch process
     static long MAX_NUMBER_OF_THREADS = -1;
 
     static long MAX_SIZE_VIRTUAL_MEMORY = Long.MIN_VALUE;
