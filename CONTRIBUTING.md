@@ -1,9 +1,7 @@
 Contributing to RENAMEME
 =============================
 
-RENAMEME is a community project that is built and maintained by people just like **you**.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
-
-**Please note:**  RENAMEME is a fork of [Elasticsearch 7.10.2](https://github.com/elastic/elasticsearch), and is currently in a pre-alpha state.  We are still in the process of renaming and removing any non-Apache 2.0 licensed code.  If you do find references to Elasticsearch (outside of attributions and copyrights!) please let us know RENAMEME issue link.   
+RENAMEME is a community project that is built and maintained by people just like **you**.  We're glad you're interested in helping out.  There are several different ways you can do it, but before we talk about that, let's talk about how to get started. 
 
 ## Table of Contents:
 - [First Principles](#first-principles)
@@ -12,14 +10,16 @@ RENAMEME is a community project that is built and maintained by people just like
 - [Review Process](#review-process)
 
 
-## First Principles
+## First Things First
 
 1. **When in doubt, open an issue** - For almost any type of contribution, the first step is opening an issue REANAMEME issue link.  Even if you think you already know what the solution is, writing down a description of the problem you're trying to solve will help everyone get context when they review your pull request.  If it's truly a trivial change (e.g. spelling error), you can skip this step -- but as the subject says, when it doubt, open an issue.
 
-2. **Only submit your own work** - Please make sure that any code or documentation you submit is your work or you have the rights to submit it.  As part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll 
+2. **Only submit your own work**  (or work you have sufficient rights to submit) - Please make sure that any code or documentation you submit is your work or you have the rights to submit it.  We respect the intellectual property rights of others, and as part of contributing, we'll ask you to sign your contribution with a "Developer Certificate of Origin" (DCO) that states you have the rights to submit this work and you understand we'll 
 use your contribution.  There's more information about this topic the [DCO section](#developer-certificate-of-origin).  
 
 ## Ways to Contribute
+
+**Please note:**  RENAMEME is a fork of [Elasticsearch 7.10.2](https://github.com/elastic/elasticsearch), and is currently in a pre-alpha state.  We are still in the process of renaming and forking.  If you do find references to Elasticsearch (outside of attributions and copyrights!) please let us know RENAMEME issue link.  
 
 ### Bug Reports
 
@@ -59,13 +59,13 @@ If you've thought of a way that RENAMEME could be better, we want to hear about 
 
 As with other types of contributions, the first step is to **open an issue on github**.  Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem.  It also lets us all work together to find the right approach before you spend a bunch of time on a PR.  So again, when in doubt, open an issue RENAMEME issue link
 
-Once you've open as issue, check out our [Developer Guide](./DEVELOPER_GUIDE.md) for instructions on how to get started. 
+Once you've opened an issue, check out our [Developer Guide](./DEVELOPER_GUIDE.md) for instructions on how to get started. 
 
 ## Developer Certificate of Origin
 
 RENAMEME is an open source product released under the Apache 2.0 license (see either [the Apache site](https://www.apache.org/licenses/LICENSE-2.0) or the [LICENSE.txt file](./LICENSE.txt)).  The Apache 2.0 license allows you to freely use, modify, distribute and sell your own products that include Apache 2.0 licensed software.
 
-In an effort to ensure that RENAMEME is kept truly open source, we want to make sure all incoming contributions are correctly attributed and licensed. A Developer Certificate of Origin (DCO) is a lightweight mechanism to do that.
+We respect intellectual property rights of others and we want to make sure all incoming contributions are correctly attributed and licensed. A Developer Certificate of Origin (DCO) is a lightweight mechanism to do that.
 
 The DCO is a declaration attached to every contribution made by every developer. In the commit message of the contribution, the developer simply adds a `Signed-off-by` statement and thereby agrees to the DCO, which you can find below or at [DeveloperCertificate.org](http://developercertificate.org/).
 
