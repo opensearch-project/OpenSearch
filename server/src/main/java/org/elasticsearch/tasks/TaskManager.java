@@ -26,9 +26,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -433,7 +433,7 @@ public class TaskManager implements ClusterStateApplier {
                 throw new OpenSearchException("Interrupted waiting for completion of [{}]", e, task);
             }
         }
-        throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", task);
+        throw new OpenSearchTimeoutException("Timed out waiting for completion of [{}]", task);
     }
 
     private static class CancellableTaskHolder {

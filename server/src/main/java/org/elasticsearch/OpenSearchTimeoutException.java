@@ -28,20 +28,20 @@ import java.io.IOException;
  *
  *
  */
-public class ElasticsearchTimeoutException extends OpenSearchException {
-    public ElasticsearchTimeoutException(StreamInput in) throws IOException {
+public class OpenSearchTimeoutException extends OpenSearchException {
+    public OpenSearchTimeoutException(StreamInput in) throws IOException {
         super(in);
     }
 
-    public ElasticsearchTimeoutException(Throwable cause) {
+    public OpenSearchTimeoutException(Throwable cause) {
         super(cause);
     }
 
-    public ElasticsearchTimeoutException(String message, Object... args) {
+    public OpenSearchTimeoutException(String message, Object... args) {
         super(message, args);
     }
 
-    public ElasticsearchTimeoutException(String message, Throwable cause, Object... args) {
+    public OpenSearchTimeoutException(String message, Throwable cause, Object... args) {
         super(message, cause, args);
     }
 }

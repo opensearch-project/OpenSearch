@@ -789,7 +789,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(115, org.elasticsearch.index.translog.TranslogException.class);
         ids.put(116, org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class);
         ids.put(117, ReplicationOperation.RetryOnPrimaryException.class);
-        ids.put(118, org.elasticsearch.ElasticsearchTimeoutException.class);
+        ids.put(118, org.elasticsearch.OpenSearchTimeoutException.class);
         ids.put(119, org.elasticsearch.search.query.QueryPhaseExecutionException.class);
         ids.put(120, org.elasticsearch.repositories.RepositoryVerificationException.class);
         ids.put(121, org.elasticsearch.search.aggregations.InvalidAggregationPathException.class);
