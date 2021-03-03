@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support;
+package org.opensearch.action.support;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.unit.TimeValue;

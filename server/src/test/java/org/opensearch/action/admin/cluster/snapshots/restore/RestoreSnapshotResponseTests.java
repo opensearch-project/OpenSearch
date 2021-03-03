@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.snapshots.restore;
+package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.snapshots.RestoreInfo;

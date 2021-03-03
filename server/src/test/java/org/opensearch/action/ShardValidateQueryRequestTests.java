@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action;
+package org.opensearch.action;
 
 import org.elasticsearch.action.admin.indices.validate.query.ShardValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;

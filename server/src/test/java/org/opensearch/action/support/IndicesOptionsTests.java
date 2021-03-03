@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support;
+package org.opensearch.action.support;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions.Option;

@@ -18,7 +18,7 @@
  */
 
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionType;

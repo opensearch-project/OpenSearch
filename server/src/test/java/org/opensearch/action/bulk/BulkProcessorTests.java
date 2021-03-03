@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -306,7 +306,7 @@ public class BulkProcessorTests extends ESTestCase {
                 "Successful Bulks: " + successCount.get() + "\n" +
                 "Failed Bulks: " + failureCount.get() + "\n" +
                 "Total Documents: " + docCount.get() + "\n" +
-                "Max Documents: " + maxDocuments + "\n" +   
+                "Max Documents: " + maxDocuments + "\n" +
                 "Max Batch Size: " + maxBatchSize + "\n" +
                 "Concurrent Clients: " + concurrentClients + "\n" +
                 "Concurrent Bulk Requests: " + concurrentBulkRequests + "\n"

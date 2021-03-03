@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.validate.query;
+package org.opensearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESSingleNodeTestCase;

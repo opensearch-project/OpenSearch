@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.termvectors;
+package org.opensearch.action.termvectors;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

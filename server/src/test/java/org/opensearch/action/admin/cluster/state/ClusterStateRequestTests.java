@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.state;
+package org.opensearch.action.admin.cluster.state;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;

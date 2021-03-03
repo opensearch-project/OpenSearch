@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.datastream;
+package org.opensearch.action.admin.indices.datastream;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;

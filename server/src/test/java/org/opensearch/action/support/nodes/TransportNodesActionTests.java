@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.nodes;
+package org.opensearch.action.support.nodes;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;

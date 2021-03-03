@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+package org.opensearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Version;

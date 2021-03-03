@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.get;
+package org.opensearch.action.admin.indices.get;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponseTests;

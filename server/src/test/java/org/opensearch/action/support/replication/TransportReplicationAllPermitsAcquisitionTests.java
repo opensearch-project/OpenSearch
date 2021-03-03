@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.support.replication;
+package org.opensearch.action.support.replication;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;

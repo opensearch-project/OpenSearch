@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.single.instance;
+package org.opensearch.action.support.single.instance;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;

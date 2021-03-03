@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.datastream;
+package org.opensearch.action.admin.indices.datastream;
 
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Response;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.create;
+package org.opensearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
@@ -60,11 +60,11 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
      */
     public void testSetSource() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
-        
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, 
+
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
                 () -> {builder.setSource("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);});
         assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
-        
+
         builder.setSource("{\"settings\" : {\""+KEY+"\" : \""+VALUE+"\"}}", XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 

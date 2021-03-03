@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.index;
+package org.opensearch.action.index;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

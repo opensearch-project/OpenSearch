@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.template.get;
+package org.opensearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;

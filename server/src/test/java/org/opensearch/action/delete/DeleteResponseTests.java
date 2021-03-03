@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete;
+package org.opensearch.action.delete;
 
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.resync;
+package org.opensearch.action.resync;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;

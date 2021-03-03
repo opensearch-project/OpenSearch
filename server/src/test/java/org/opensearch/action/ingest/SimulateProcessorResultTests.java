@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.ingest;
+package org.opensearch.action.ingest;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;

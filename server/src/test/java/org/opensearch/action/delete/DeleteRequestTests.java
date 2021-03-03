@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.delete;
+package org.opensearch.action.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
@@ -50,6 +50,6 @@ public class DeleteRequestTests extends ESTestCase {
 
             assertThat(validate, not(nullValue()));
             assertThat(validate.validationErrors(), hasItems("id is missing"));
-        }        
+        }
     }
 }

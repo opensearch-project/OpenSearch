@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.resolve;
+package org.opensearch.action.admin.indices.resolve;
 
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Request;
 import org.elasticsearch.action.support.IndicesOptions;

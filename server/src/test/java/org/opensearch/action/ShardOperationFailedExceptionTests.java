@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.opensearch.action;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;

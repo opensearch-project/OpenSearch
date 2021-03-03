@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.settings.get;
+package org.opensearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;

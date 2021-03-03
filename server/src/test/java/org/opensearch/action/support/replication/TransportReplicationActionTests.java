@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.replication;
+package org.opensearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.OpenSearchException;

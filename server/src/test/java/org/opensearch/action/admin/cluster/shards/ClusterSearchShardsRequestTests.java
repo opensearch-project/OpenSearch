@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.shards;
+package org.opensearch.action.admin.cluster.shards;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.alias.get;
+package org.opensearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;

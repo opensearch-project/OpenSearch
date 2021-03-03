@@ -1,4 +1,4 @@
-package org.elasticsearch.action.admin.cluster.storedscripts;/*
+package org.opensearch.action.admin.cluster.storedscripts;/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright

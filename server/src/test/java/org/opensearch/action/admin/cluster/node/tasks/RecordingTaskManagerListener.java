@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.tasks;
+package org.opensearch.action.admin.cluster.node.tasks;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;

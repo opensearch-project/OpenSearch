@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.master;
+package org.opensearch.action.support.master;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;

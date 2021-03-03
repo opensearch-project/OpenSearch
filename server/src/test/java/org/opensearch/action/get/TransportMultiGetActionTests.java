@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.get;
+package org.opensearch.action.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

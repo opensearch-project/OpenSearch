@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.replication;
+package org.opensearch.action.support.replication;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;

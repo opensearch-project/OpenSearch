@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.cluster.reroute;
+package org.opensearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.snapshots.status;
+package org.opensearch.action.admin.cluster.snapshots.status;
 
 import java.io.IOException;
 import java.util.function.Predicate;

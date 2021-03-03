@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.explain;
+package org.opensearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.common.bytes.BytesArray;

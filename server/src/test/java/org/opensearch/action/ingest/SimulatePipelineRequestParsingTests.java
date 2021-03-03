@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.ingest;
+package org.opensearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.VersionType;
@@ -152,7 +152,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             Map<String, Object> expectedDoc = new HashMap<>();
-            List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO, 
+            List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO,
                 IF_PRIMARY_TERM);
             for(IngestDocument.Metadata field : fields) {
                 if (field == VERSION) {

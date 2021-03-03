@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.opensearch.action.admin.cluster.settings;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.Version;

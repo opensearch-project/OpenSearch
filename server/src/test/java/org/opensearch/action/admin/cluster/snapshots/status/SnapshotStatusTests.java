@@ -1,4 +1,4 @@
-package org.elasticsearch.action.admin.cluster.snapshots.status;
+package org.opensearch.action.admin.cluster.snapshots.status;
 
 /*
  * Licensed to Elasticsearch under one or more contributor

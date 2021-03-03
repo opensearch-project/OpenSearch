@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.shards;
+package org.opensearch.action.admin.indices.shards;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;

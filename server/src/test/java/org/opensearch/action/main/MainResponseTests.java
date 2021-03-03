@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.main;
+package org.opensearch.action.main;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;

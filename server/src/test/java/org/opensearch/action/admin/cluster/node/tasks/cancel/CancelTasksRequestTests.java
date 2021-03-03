@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
+package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.index.shard.ShardId;

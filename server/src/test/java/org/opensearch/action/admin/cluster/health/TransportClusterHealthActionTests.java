@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.health;
+package org.opensearch.action.admin.cluster.health;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;

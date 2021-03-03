@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.broadcast.node;
+package org.opensearch.action.support.broadcast.node;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;

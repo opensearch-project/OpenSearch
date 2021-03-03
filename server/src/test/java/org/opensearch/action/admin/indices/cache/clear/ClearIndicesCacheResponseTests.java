@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.cache.clear;
+package org.opensearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.xcontent.XContentParser;
