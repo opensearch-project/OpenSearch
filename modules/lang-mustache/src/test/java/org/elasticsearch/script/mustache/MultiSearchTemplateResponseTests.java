@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
@@ -86,7 +86,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
                 searchTemplateResponse.setResponse(searchResponse);
                 items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
             } else {
-                items[i] = new MultiSearchTemplateResponse.Item(null, new ElasticsearchException("an error"));
+                items[i] = new MultiSearchTemplateResponse.Item(null, new OpenSearchException("an error"));
             }
         }
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
@@ -104,7 +104,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");
-    }    
+    }
 
     @Override
     protected void assertEqualInstances(MultiSearchTemplateResponse expectedInstance, MultiSearchTemplateResponse newInstance) {
@@ -122,7 +122,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             }
         }
     }
-    
+
     /**
      * Test parsing {@link MultiSearchTemplateResponse} with inner failures as they don't support asserting on xcontent equivalence, given
      * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}

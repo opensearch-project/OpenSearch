@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.io.IOException;
  * and this nodes needs to be removed from the cluster
  */
 
-public class NodeHealthCheckFailureException extends ElasticsearchException {
+public class NodeHealthCheckFailureException extends OpenSearchException {
 
     public NodeHealthCheckFailureException(String msg, Object... args) {
         super(msg, args);

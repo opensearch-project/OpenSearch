@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * Thrown by {@link Diff#apply} method
  */
-public class IncompatibleClusterStateVersionException extends ElasticsearchException {
+public class IncompatibleClusterStateVersionException extends OpenSearchException {
     public IncompatibleClusterStateVersionException(String msg) {
         super(msg);
     }

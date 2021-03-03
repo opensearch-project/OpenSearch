@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
@@ -450,7 +450,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             activityType = newActivityType;
             final PlainListenableActionFuture<Void> oldFuture = getAndClearFuture();
             addListener(listener);
-            return () -> oldFuture.onFailure(new ElasticsearchException(cancellationMessage));
+            return () -> oldFuture.onFailure(new OpenSearchException(cancellationMessage));
         }
 
         private void onCompletion(ActivityType completedActivityType, @Nullable Exception e, Runnable oppositeActivity) {

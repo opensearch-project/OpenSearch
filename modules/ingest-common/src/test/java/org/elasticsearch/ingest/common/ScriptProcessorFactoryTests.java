@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.script.IngestScript;
@@ -133,7 +133,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         Map<String, Object> configMap = new HashMap<>();
         configMap.put(randomType, "my_script");
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        OpenSearchException exception = expectThrows(OpenSearchException.class,
             () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
 
         assertThat(exception.getMessage(), is("compile-time exception"));

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
@@ -29,7 +29,7 @@ import java.io.IOException;
  * Thrown on the attempt to execute an action that requires
  * that no snapshot is in progress.
  */
-public class SnapshotInProgressException extends ElasticsearchException {
+public class SnapshotInProgressException extends OpenSearchException {
 
     public SnapshotInProgressException(String msg) {
         super(msg);

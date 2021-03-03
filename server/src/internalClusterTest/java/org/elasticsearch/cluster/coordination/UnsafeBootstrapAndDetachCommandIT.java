@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterState;
@@ -100,7 +100,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
     }
 
     private void expectThrows(ThrowingRunnable runnable, String message) {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, runnable);
+        OpenSearchException ex = expectThrows(OpenSearchException.class, runnable);
         assertThat(ex.getMessage(), containsString(message));
     }
 

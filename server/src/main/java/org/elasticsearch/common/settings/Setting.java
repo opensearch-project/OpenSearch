@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -1518,7 +1518,7 @@ public class Setting<T> implements ToXContentObject {
             builder.endArray();
             return Strings.toString(builder);
         } catch (IOException ex) {
-            throw new ElasticsearchException(ex);
+            throw new OpenSearchException(ex);
         }
     }
 

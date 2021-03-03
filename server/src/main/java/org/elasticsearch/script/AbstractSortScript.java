@@ -20,7 +20,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -94,7 +94,7 @@ abstract class AbstractSortScript implements ScorerAware {
         try {
             return scorer.score();
         } catch (IOException e) {
-            throw new ElasticsearchException("couldn't lookup score", e);
+            throw new OpenSearchException("couldn't lookup score", e);
         }
     }
 

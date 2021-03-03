@@ -19,8 +19,8 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 
@@ -46,8 +46,8 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e.getCause();
+            if (e.getCause() instanceof OpenSearchException) {
+                throw (OpenSearchException) e.getCause();
             } else {
                 throw new TransportException("Failed execution", e);
             }
@@ -59,12 +59,12 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
         try {
             return get(timeout, unit);
         } catch (TimeoutException e) {
-            throw new ElasticsearchTimeoutException(e);
+            throw new OpenSearchTimeoutException(e);
         } catch (InterruptedException e) {
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e.getCause();
+            if (e.getCause() instanceof OpenSearchException) {
+                throw (OpenSearchException) e.getCause();
             } else {
                 throw new TransportException("Failed execution", e);
             }

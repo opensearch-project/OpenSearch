@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class RetentionLeaseInvalidRetainingSeqNoException extends ElasticsearchException {
+public class RetentionLeaseInvalidRetainingSeqNoException extends OpenSearchException {
 
     RetentionLeaseInvalidRetainingSeqNoException(String retentionLeaseId, String source, long retainingSequenceNumber,
                                                  RetentionLease existingRetentionLease) {

@@ -28,7 +28,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.icu.segmentation.DefaultICUTokenizerConfig;
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizer;
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizerConfig;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -100,7 +100,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
                 return config;
             }
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to load ICU rule files", e);
+            throw new OpenSearchException("failed to load ICU rule files", e);
         }
     }
 

@@ -23,7 +23,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -282,21 +282,21 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
     private static void assertSearchConnectFailure() {
         {
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT));
-            ElasticsearchException rootCause = (ElasticsearchException)exception.getRootCause();
+            OpenSearchException rootCause = (OpenSearchException)exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
         {
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT));
-            ElasticsearchException rootCause = (ElasticsearchException)exception.getRootCause();
+            OpenSearchException rootCause = (OpenSearchException)exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
         {
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> restHighLevelClient.search(new SearchRequest("remote1:index").scroll("1m"), RequestOptions.DEFAULT));
-            ElasticsearchException rootCause = (ElasticsearchException)exception.getRootCause();
+            OpenSearchException rootCause = (OpenSearchException)exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
     }

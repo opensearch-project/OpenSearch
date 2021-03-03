@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 
 /**
@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
  */
 public class ClusterRerouteRequestBuilder
         extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
-    public ClusterRerouteRequestBuilder(ElasticsearchClient client, ClusterRerouteAction action) {
+    public ClusterRerouteRequestBuilder(OpenSearchClient client, ClusterRerouteAction action) {
         super(client, action, new ClusterRerouteRequest());
     }
 

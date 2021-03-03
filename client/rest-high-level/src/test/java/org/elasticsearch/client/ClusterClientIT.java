@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
@@ -129,7 +129,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.transientSettings(Settings.builder().put(setting, value).build());
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(clusterUpdateSettingsRequest,
+        OpenSearchException exception = expectThrows(OpenSearchException.class, () -> execute(clusterUpdateSettingsRequest,
                 highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
@@ -387,7 +387,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
             highLevelClient().cluster()::deleteComponentTemplateAsync);
         assertThat(response.isAcknowledged(), equalTo(true));
 
-        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
+        OpenSearchStatusException statusException = expectThrows(OpenSearchStatusException.class,
             () -> execute(getComponentTemplatesRequest,
                 highLevelClient().cluster()::getComponentTemplate, highLevelClient().cluster()::getComponentTemplateAsync));
 

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -37,14 +37,14 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     /**
      * Constructs new restore snapshot request builder
      */
-    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action) {
+    public RestoreSnapshotRequestBuilder(OpenSearchClient client, RestoreSnapshotAction action) {
         super(client, action, new RestoreSnapshotRequest());
     }
 
     /**
      * Constructs new restore snapshot request builder with specified repository and snapshot names
      */
-    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action, String repository, String name) {
+    public RestoreSnapshotRequestBuilder(OpenSearchClient client, RestoreSnapshotAction action, String repository, String name) {
         super(client, action, new RestoreSnapshotRequest(repository, name));
     }
 

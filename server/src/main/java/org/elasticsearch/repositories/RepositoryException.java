@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * Generic repository exception
  */
-public class RepositoryException extends ElasticsearchException {
+public class RepositoryException extends OpenSearchException {
     private final String repository;
 
     public RepositoryException(String repository, String msg) {

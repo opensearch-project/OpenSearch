@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.io.IOException;
  *
  *
  */
-public class DelayRecoveryException extends ElasticsearchException {
+public class DelayRecoveryException extends OpenSearchException {
 
     public DelayRecoveryException(String msg) {
         super(msg);

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -221,7 +221,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
     private static BytesReference toXContent(Exception error) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             builder.startObject();
-            ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
+            OpenSearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
             return BytesReference.bytes(builder);
         }

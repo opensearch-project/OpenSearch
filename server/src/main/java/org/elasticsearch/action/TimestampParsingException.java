@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class TimestampParsingException extends ElasticsearchException {
+public class TimestampParsingException extends OpenSearchException {
 
     private final String timestamp;
 

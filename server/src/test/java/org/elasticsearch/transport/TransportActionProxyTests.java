@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -162,7 +162,7 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceB.connectToNode(nodeC);
         serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
-                throw new ElasticsearchException("greetings from TS_C");
+                throw new OpenSearchException("greetings from TS_C");
             });
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", SimpleTestResponse::new);
 

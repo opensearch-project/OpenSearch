@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -177,7 +177,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             builder.startObject();
             if (item.isFailure()) {
-                ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
+                OpenSearchException.generateFailureXContent(builder, params, item.getFailure(), true);
                 builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
                 item.getResponse().innerToXContent(builder, params);
@@ -197,7 +197,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     private static MultiSearchResponse.Item itemFromXContent(XContentParser parser) throws IOException {
         // This parsing logic is a bit tricky here, because the multi search response itself is tricky:
         // 1) The json objects inside the responses array are either a search response or a serialized exception
-        // 2) Each response json object gets a status field injected that ElasticsearchException.failureFromXContent(...) does not parse,
+        // 2) Each response json object gets a status field injected that OpenSearchException.failureFromXContent(...) does not parse,
         //    but SearchResponse.innerFromXContent(...) parses and then ignores. The status field is not needed to parse
         //    the response item. However in both cases this method does need to parse the 'status' field otherwise the parsing of
         //    the response item in the next json array element will fail due to parsing errors.
@@ -212,7 +212,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                 case FIELD_NAME:
                     fieldName = parser.currentName();
                     if ("error".equals(fieldName)) {
-                        item = new Item(null, ElasticsearchException.failureFromXContent(parser));
+                        item = new Item(null, OpenSearchException.failureFromXContent(parser));
                     } else if ("status".equals(fieldName) == false) {
                         item = new Item(SearchResponse.innerFromXContent(parser), null);
                         break outer;

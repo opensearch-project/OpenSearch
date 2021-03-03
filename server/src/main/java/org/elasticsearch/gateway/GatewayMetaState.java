@@ -24,7 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -184,7 +184,7 @@ public class GatewayMetaState implements Closeable {
 
                 this.persistedState.set(persistedState);
             } catch (IOException e) {
-                throw new ElasticsearchException("failed to load metadata", e);
+                throw new OpenSearchException("failed to load metadata", e);
             }
         } else {
             final long currentTerm = 0L;
@@ -195,7 +195,7 @@ public class GatewayMetaState implements Closeable {
                 try (PersistedClusterStateService.Writer persistenceWriter = persistedClusterStateService.createWriter()) {
                     persistenceWriter.writeFullStateAndCommit(currentTerm, clusterState);
                 } catch (IOException e) {
-                    throw new ElasticsearchException("failed to load metadata", e);
+                    throw new OpenSearchException("failed to load metadata", e);
                 }
                 try {
                     // delete legacy cluster state files

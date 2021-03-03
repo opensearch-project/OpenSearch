@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -114,9 +114,9 @@ public class PipelineProcessorTests extends ESTestCase {
         when(ingestService.getPipeline(outerPipelineId)).thenReturn(outer);
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
         outerConfig.put("name", innerPipelineId);
-        ElasticsearchException[] e = new ElasticsearchException[1];
+        OpenSearchException[] e = new OpenSearchException[1];
         factory.create(Collections.emptyMap(), null, null, outerConfig)
-            .execute(testIngestDocument, (result, e1) -> e[0] = (ElasticsearchException) e1);
+            .execute(testIngestDocument, (result, e1) -> e[0] = (OpenSearchException) e1);
         assertEquals(
             "Cycle detected for pipeline: inner", e[0].getRootCause().getMessage()
         );

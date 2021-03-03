@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -32,7 +32,7 @@ import java.util.Map;
 public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<ClusterUpdateSettingsRequest,
         ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
 
-    public ClusterUpdateSettingsRequestBuilder(ElasticsearchClient client, ClusterUpdateSettingsAction action) {
+    public ClusterUpdateSettingsRequestBuilder(OpenSearchClient client, ClusterUpdateSettingsAction action) {
         super(client, action, new ClusterUpdateSettingsRequest());
     }
 

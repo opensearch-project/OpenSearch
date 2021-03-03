@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -129,7 +129,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
     }
 
     private void expectThrows(ThrowingRunnable runnable, String message) {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, runnable);
+        OpenSearchException ex = expectThrows(OpenSearchException.class, runnable);
         assertThat(ex.getMessage(), containsString(message));
     }
 }

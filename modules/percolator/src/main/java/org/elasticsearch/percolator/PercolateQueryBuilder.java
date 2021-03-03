@@ -42,7 +42,7 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -512,7 +512,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[percolate] queries cannot be executed when '" +
+            throw new OpenSearchException("[percolate] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
@@ -630,7 +630,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             slowSearcher.setQueryCache(null);
             return slowSearcher;
         } catch (IOException e) {
-            throw new ElasticsearchException("Failed to create index for percolator with nested document ", e);
+            throw new OpenSearchException("Failed to create index for percolator with nested document ", e);
         }
     }
 

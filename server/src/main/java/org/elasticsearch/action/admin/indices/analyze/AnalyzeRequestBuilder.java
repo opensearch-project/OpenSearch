@@ -19,18 +19,18 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 import java.util.Map;
 
 public class AnalyzeRequestBuilder
     extends SingleShardOperationRequestBuilder<AnalyzeAction.Request, AnalyzeAction.Response, AnalyzeRequestBuilder> {
 
-    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action) {
+    public AnalyzeRequestBuilder(OpenSearchClient client, AnalyzeAction action) {
         super(client, action, new AnalyzeAction.Request());
     }
 
-    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action, String index, String... text) {
+    public AnalyzeRequestBuilder(OpenSearchClient client, AnalyzeAction action, String index, String... text) {
         super(client, action, new AnalyzeAction.Request(index).text(text));
     }
 

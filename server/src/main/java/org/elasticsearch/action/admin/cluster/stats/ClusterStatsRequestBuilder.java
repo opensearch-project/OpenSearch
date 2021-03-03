@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<ClusterStatsRequest,
         ClusterStatsResponse, ClusterStatsRequestBuilder> {
 
-    public ClusterStatsRequestBuilder(ElasticsearchClient client, ClusterStatsAction action) {
+    public ClusterStatsRequestBuilder(OpenSearchClient client, ClusterStatsAction action) {
         super(client, action, new ClusterStatsRequest());
     }
 }

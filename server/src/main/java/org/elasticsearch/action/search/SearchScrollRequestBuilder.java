@@ -20,7 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
 
@@ -29,11 +29,11 @@ import org.elasticsearch.search.Scroll;
  */
 public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse> {
 
-    public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action) {
+    public SearchScrollRequestBuilder(OpenSearchClient client, SearchScrollAction action) {
         super(client, action, new SearchScrollRequest());
     }
 
-    public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action, String scrollId) {
+    public SearchScrollRequestBuilder(OpenSearchClient client, SearchScrollAction action, String scrollId) {
         super(client, action, new SearchScrollRequest(scrollId));
     }
 

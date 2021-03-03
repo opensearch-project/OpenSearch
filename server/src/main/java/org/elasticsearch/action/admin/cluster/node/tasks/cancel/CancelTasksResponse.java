@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.Strings;
@@ -45,7 +45,7 @@ public class CancelTasksResponse extends ListTasksResponse {
         super(in);
     }
 
-    public CancelTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException>
+    public CancelTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends OpenSearchException>
         nodeFailures) {
         super(tasks, taskFailures, nodeFailures);
     }
