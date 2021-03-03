@@ -27,7 +27,6 @@ import java.io.IOException;
  * Generic security exception
  */
 public class OpenSearchSecurityException extends OpenSearchStatusException {
-
     /**
      * Build the exception with a specific status and cause.
      */
