@@ -406,6 +406,7 @@ If your nodes contain persistent cluster settings that prevent the cluster
 from forming, i.e., can't be removed using the <<cluster-update-settings>> API,
 you can run the following commands to remove one or more cluster settings.
 
+// TODO: Replace the setting 'xpack.monitoring' in the example, as it's not supported
 [source,txt]
 ----
 node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.exporters.my_exporter.host
@@ -440,6 +441,7 @@ If the on-disk cluster state contains custom metadata that prevents the node
 from starting up and loading the cluster state, you can run the following
 commands to remove this custom metadata.
 
+// TODO: Replace the metadata 'snapshot_lifecycle' in the example, as it's not supported
 [source,txt]
 ----
 node$ ./bin/elasticsearch-node remove-customs snapshot_lifecycle
