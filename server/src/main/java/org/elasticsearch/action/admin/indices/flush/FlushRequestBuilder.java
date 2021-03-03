@@ -20,11 +20,11 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushRequest, FlushResponse, FlushRequestBuilder> {
 
-    public FlushRequestBuilder(ElasticsearchClient client, FlushAction action) {
+    public FlushRequestBuilder(OpenSearchClient client, FlushAction action) {
         super(client, action, new FlushRequest());
     }
 

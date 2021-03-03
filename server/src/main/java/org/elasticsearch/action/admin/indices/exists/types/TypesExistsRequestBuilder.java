@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.Strings;
 
 /**
@@ -33,11 +33,11 @@ public class TypesExistsRequestBuilder
     /**
      * @param indices What indices to check for types
      */
-    public TypesExistsRequestBuilder(ElasticsearchClient client, TypesExistsAction action, String... indices) {
+    public TypesExistsRequestBuilder(OpenSearchClient client, TypesExistsAction action, String... indices) {
         super(client, action, new TypesExistsRequest(indices, Strings.EMPTY_ARRAY));
     }
 
-    TypesExistsRequestBuilder(ElasticsearchClient client, TypesExistsAction action) {
+    TypesExistsRequestBuilder(OpenSearchClient client, TypesExistsAction action) {
         super(client, action, new TypesExistsRequest());
     }
 

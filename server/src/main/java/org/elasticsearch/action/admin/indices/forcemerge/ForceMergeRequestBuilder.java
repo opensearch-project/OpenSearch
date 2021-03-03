@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 /**
  * A request to force merge one or more indices. In order to force merge all
@@ -32,7 +32,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class ForceMergeRequestBuilder
         extends BroadcastOperationRequestBuilder<ForceMergeRequest, ForceMergeResponse, ForceMergeRequestBuilder> {
 
-    public ForceMergeRequestBuilder(ElasticsearchClient client, ForceMergeAction action) {
+    public ForceMergeRequestBuilder(OpenSearchClient client, ForceMergeAction action) {
         super(client, action, new ForceMergeRequest());
     }
 

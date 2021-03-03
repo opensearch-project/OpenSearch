@@ -20,11 +20,11 @@
 package org.elasticsearch.action.admin.cluster.remote;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public final class RemoteInfoRequestBuilder extends ActionRequestBuilder<RemoteInfoRequest, RemoteInfoResponse> {
 
-    public RemoteInfoRequestBuilder(ElasticsearchClient client, RemoteInfoAction action) {
+    public RemoteInfoRequestBuilder(OpenSearchClient client, RemoteInfoAction action) {
         super(client, action, new RemoteInfoRequest());
     }
 }
