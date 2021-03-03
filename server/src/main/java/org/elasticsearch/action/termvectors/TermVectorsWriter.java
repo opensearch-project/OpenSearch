@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.termvectors;
+package org.opensearch.action.termvectors;
 
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.PostingsEnum;
@@ -25,10 +25,10 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.action.termvectors.TermVectorsRequest.Flag;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;

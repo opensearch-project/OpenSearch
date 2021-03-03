@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.refresh;
+package org.opensearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * A refresh request making all operations performed since the last refresh available for search. The (near) real-time

@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.forcemerge;
+package org.opensearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.Version;
+import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,8 +37,8 @@ import java.util.Arrays;
  * to force merge down to. Defaults to simply checking if a merge needs
  * to execute, and if so, executes it
  *
- * @see org.elasticsearch.client.Requests#forceMergeRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
+ * @see org.opensearch.client.Requests#forceMergeRequest(String...)
+ * @see org.opensearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
  * @see ForceMergeResponse
  */
 public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
@@ -48,7 +48,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
     }
-    
+
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
@@ -57,7 +57,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     /**
      * Force merge UUID to store in the live commit data of a shard under
-     * {@link org.elasticsearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
+     * {@link org.opensearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
      */
     @Nullable
     private final String forceMergeUUID;

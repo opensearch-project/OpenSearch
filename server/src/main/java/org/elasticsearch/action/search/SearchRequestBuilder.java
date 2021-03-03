@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.rescore.RescorerBuilder;
-import org.elasticsearch.search.slice.SliceBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.script.Script;
+import org.opensearch.search.Scroll;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.PipelineAggregationBuilder;
+import org.opensearch.search.builder.PointInTimeBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.collapse.CollapseBuilder;
+import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.rescore.RescorerBuilder;
+import org.opensearch.search.slice.SliceBuilder;
+import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.suggest.SuggestBuilder;
 
 import java.util.Arrays;
 import java.util.List;
@@ -71,7 +71,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * The search type to execute, defaults to {@link org.elasticsearch.action.search.SearchType#DEFAULT}.
+     * The search type to execute, defaults to {@link org.opensearch.action.search.SearchType#DEFAULT}.
      */
     public SearchRequestBuilder setSearchType(SearchType searchType) {
         request.searchType(searchType);
@@ -168,7 +168,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Constructs a new search source builder with a search query.
      *
-     * @see org.elasticsearch.index.query.QueryBuilders
+     * @see org.opensearch.index.query.QueryBuilders
      */
     public SearchRequestBuilder setQuery(QueryBuilder queryBuilder) {
         sourceBuilder().query(queryBuilder);
@@ -209,7 +209,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with an
+     * Should each {@link org.opensearch.search.SearchHit} be returned with an
      * explanation of the hit (ranking).
      */
     public SearchRequestBuilder setExplain(boolean explain) {
@@ -218,7 +218,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with its
+     * Should each {@link org.opensearch.search.SearchHit} be returned with its
      * version.
      */
     public SearchRequestBuilder setVersion(boolean version) {
@@ -227,7 +227,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
+     * Should each {@link org.opensearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
      */
     public SearchRequestBuilder seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
@@ -370,7 +370,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Adds a generic sort builder.
      *
-     * @see org.elasticsearch.search.sort.SortBuilders
+     * @see org.opensearch.search.sort.SortBuilders
      */
     public SearchRequestBuilder addSort(SortBuilder<?> sort) {
         sourceBuilder().sort(sort);
@@ -457,7 +457,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
+     * {@link #addRescorer(org.opensearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @return this for chaining
@@ -469,7 +469,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
+     * {@link #addRescorer(org.opensearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @param window   rescore window
@@ -555,7 +555,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * If specified, Elasticsearch will execute this search request using reader contexts from that point in time.
+     * If specified, opensearch will execute this search request using reader contexts from that point in time.
      */
     public SearchRequestBuilder setPointInTime(PointInTimeBuilder pointInTimeBuilder) {
         sourceBuilder().pointInTimeBuilder(pointInTimeBuilder);

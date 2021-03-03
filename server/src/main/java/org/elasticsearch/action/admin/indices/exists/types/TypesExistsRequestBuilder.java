@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.exists.types;
+package org.opensearch.action.admin.indices.exists.types;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Strings;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.Strings;
 
 /**
  * A builder for {@link TypesExistsRequest}.

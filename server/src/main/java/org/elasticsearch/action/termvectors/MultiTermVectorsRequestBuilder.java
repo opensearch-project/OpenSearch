@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.termvectors;
+package org.opensearch.action.termvectors;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.Nullable;
 
 public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTermVectorsRequest, MultiTermVectorsResponse> {
 

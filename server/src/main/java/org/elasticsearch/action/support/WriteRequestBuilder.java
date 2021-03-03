@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support;
+package org.opensearch.action.support;
 
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 
 public interface WriteRequestBuilder<B extends WriteRequestBuilder<B>> {
     WriteRequest<?> request();

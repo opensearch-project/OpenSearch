@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.segments;
+package org.opensearch.action.admin.indices.segments;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class IndicesSegmentsAction extends ActionType<IndicesSegmentResponse> {
 

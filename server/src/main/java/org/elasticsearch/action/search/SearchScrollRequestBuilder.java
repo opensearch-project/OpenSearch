@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.Scroll;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.search.Scroll;
 
 /**
  * A search scroll action request builder.

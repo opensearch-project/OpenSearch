@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.repositories.verify;
+package org.opensearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * Builder for verify repository request

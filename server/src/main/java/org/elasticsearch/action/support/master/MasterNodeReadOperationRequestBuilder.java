@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.master;
+package org.opensearch.action.support.master;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * Base request builder for master node read operations that can be executed on the local node as well

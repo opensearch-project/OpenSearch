@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete;
+package org.opensearch.action.delete;
 
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * The response of the delete action.
  *
- * @see org.elasticsearch.action.delete.DeleteRequest
- * @see org.elasticsearch.client.Client#delete(DeleteRequest)
+ * @see org.opensearch.action.delete.DeleteRequest
+ * @see org.opensearch.client.Client#delete(DeleteRequest)
  */
 public class DeleteResponse extends DocWriteResponse {
 

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * A request builder for multiple search requests.

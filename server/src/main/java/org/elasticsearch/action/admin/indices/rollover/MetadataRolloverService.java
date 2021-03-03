@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.rollover;
+package org.opensearch.action.admin.indices.rollover;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.AliasAction;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.metadata.IndexAbstraction;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
+import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,18 +48,18 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
-import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.opensearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
+import static org.opensearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
+import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 
 /**
  * Service responsible for handling rollover requests for write aliases and data streams
  */
 public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
-    private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = org.elasticsearch.common.collect.List.of(ALIAS, DATA_STREAM);
+    private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = org.opensearch.common.collect.List.of(ALIAS, DATA_STREAM);
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;

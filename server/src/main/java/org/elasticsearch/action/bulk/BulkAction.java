@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.TransportRequestOptions;
+import org.opensearch.action.ActionType;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.transport.TransportRequestOptions;
 
 public class BulkAction extends ActionType<BulkResponse> {
 

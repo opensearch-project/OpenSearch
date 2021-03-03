@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.info;
+package org.opensearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.ingest.IngestInfo;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.os.OsInfo;
-import org.elasticsearch.monitor.process.ProcessInfo;
-import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.search.aggregations.support.AggregationInfo;
-import org.elasticsearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.Build;
+import org.opensearch.Version;
+import org.opensearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.http.HttpInfo;
+import org.opensearch.ingest.IngestInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.os.OsInfo;
+import org.opensearch.monitor.process.ProcessInfo;
+import org.opensearch.node.ReportingService;
+import org.opensearch.search.aggregations.support.AggregationInfo;
+import org.opensearch.threadpool.ThreadPoolInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.get;
+package org.opensearch.action.admin.indices.get;
 
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
-import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.admin.indices.get.GetIndexRequest.Feature;
+import org.opensearch.action.support.master.info.ClusterInfoRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class GetIndexRequestBuilder extends ClusterInfoRequestBuilder<GetIndexRequest, GetIndexResponse, GetIndexRequestBuilder> {
 

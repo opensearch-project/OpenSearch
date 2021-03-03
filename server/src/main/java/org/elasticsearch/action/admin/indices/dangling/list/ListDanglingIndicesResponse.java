@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling.list;
+package org.opensearch.action.admin.indices.dangling.list;
 
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.admin.indices.dangling.DanglingIndexInfo;
+import org.opensearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.StatusToXContentObject;
+import org.opensearch.common.xcontent.XContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;

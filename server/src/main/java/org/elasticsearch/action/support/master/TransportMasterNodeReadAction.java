@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.master;
+package org.opensearch.action.support.master;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 /**
  * A base class for read operations that needs to be performed on the master node.

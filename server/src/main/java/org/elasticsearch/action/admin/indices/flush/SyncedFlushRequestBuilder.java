@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.flush;
+package org.opensearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.client.ElasticsearchClient;
 
 public class SyncedFlushRequestBuilder extends ActionRequestBuilder<SyncedFlushRequest, SyncedFlushResponse> {
 

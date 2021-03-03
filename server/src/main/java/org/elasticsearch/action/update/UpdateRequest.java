@@ -17,46 +17,46 @@
  * under the License.
  */
 
-package org.elasticsearch.action.update;
+package org.opensearch.action.update;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.support.single.instance.InstanceShardOperationRequest;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
@@ -592,7 +592,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public UpdateRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
@@ -607,7 +607,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public UpdateRequest setIfPrimaryTerm(long term) {
         if (term < 0) {
@@ -620,7 +620,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * If set, only perform this update request if the document was last modification was assigned this sequence number.
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifSeqNo() {
         return ifSeqNo;
@@ -630,7 +630,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * If set, only perform this update request if the document was last modification was assigned this primary term.
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifPrimaryTerm() {
         return ifPrimaryTerm;
@@ -761,7 +761,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     /**
      * Sets the index request to be used if the document does not exists. Otherwise, a
-     * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
+     * {@link org.opensearch.index.engine.DocumentMissingException} is thrown.
      */
     public UpdateRequest upsert(IndexRequest upsertRequest) {
         this.upsertRequest = upsertRequest;

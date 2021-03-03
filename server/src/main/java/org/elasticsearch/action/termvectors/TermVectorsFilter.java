@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.termvectors;
+package org.opensearch.action.termvectors;
 
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.PostingsEnum;

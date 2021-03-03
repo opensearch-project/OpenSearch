@@ -17,37 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.action.index;
+package org.opensearch.action.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.ElasticsearchGenerationException;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.RoutingMissingException;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.client.Requests;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -55,26 +55,26 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
- * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
+ * created using {@link org.opensearch.client.Requests#indexRequest(String)}.
  *
  * The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
  * {@link #source(byte[], XContentType)} to be set.
  *
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
- * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
- * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
+ * its string form ({@link #source(String, XContentType)}) or using a {@link org.opensearch.common.xcontent.XContentBuilder}
+ * ({@link #source(org.opensearch.common.xcontent.XContentBuilder)}).
  *
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see IndexResponse
- * @see org.elasticsearch.client.Requests#indexRequest(String)
- * @see org.elasticsearch.client.Client#index(IndexRequest)
+ * @see org.opensearch.client.Requests#indexRequest(String)
+ * @see org.opensearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
@@ -455,7 +455,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the document source to index.
      *
-     * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * Note, its preferable to either set it using {@link #source(org.opensearch.common.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[], XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {
@@ -619,7 +619,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public IndexRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
@@ -634,7 +634,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public IndexRequest setIfPrimaryTerm(long term) {
         if (term < 0) {
@@ -647,7 +647,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * If set, only perform this indexing request if the document was last modification was assigned this sequence number.
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifSeqNo() {
         return ifSeqNo;
@@ -657,7 +657,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * If set, only perform this indexing request if the document was last modification was assigned this primary term.
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifPrimaryTerm() {
         return ifPrimaryTerm;

@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.open;
+package org.opensearch.action.admin.indices.open;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.Version;
+import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 

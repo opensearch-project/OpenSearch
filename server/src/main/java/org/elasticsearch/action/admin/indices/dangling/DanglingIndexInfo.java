@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling;
+package org.opensearch.action.admin.indices.dangling;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
- * Contains information about a dangling index, i.e. an index that Elasticsearch has found
+ * Contains information about a dangling index, i.e. an index that opensearch has found
  * on-disk but is not present in the cluster state.
  */
 public class DanglingIndexInfo implements Writeable {

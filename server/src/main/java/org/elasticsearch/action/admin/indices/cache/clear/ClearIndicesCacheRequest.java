@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.cache.clear;
+package org.opensearch.action.admin.indices.cache.clear;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.Version;
+import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.remote;
+package org.opensearch.action.admin.cluster.remote;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public final class RemoteInfoAction extends ActionType<RemoteInfoResponse> {
 

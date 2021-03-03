@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.info;
+package org.opensearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 

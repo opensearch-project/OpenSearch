@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.shards;
+package org.opensearch.action.admin.cluster.shards;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterSearchShardsRequest,
         ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {

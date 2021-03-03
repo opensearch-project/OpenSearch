@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support;
+package org.opensearch.action.support;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 

@@ -20,4 +20,4 @@
 /**
  * Create index action.
  */
-package org.elasticsearch.action.admin.indices.create;
+package org.opensearch.action.admin.indices.create;

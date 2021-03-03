@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 

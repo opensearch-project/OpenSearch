@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.fieldcaps;
+package org.opensearch.action.fieldcaps;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class FieldCapabilitiesAction extends ActionType<FieldCapabilitiesResponse> {
 

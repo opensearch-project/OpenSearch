@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.upgrade.post;
+package org.opensearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 /**
  * A request to upgrade one or more indices. In order to update all indices, pass an empty array or
  * {@code null} for the indices.
- * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#upgrade(UpgradeRequest)
+ * @see org.opensearch.client.Requests#upgradeRequest(String...)
+ * @see org.opensearch.client.IndicesAdminClient#upgrade(UpgradeRequest)
  * @see UpgradeResponse
  */
 public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {
@@ -37,7 +37,7 @@ public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {
     public static final class Defaults {
         public static final boolean UPGRADE_ONLY_ANCIENT_SEGMENTS = false;
     }
-    
+
     private boolean upgradeOnlyAncientSegments = Defaults.UPGRADE_ONLY_ANCIENT_SEGMENTS;
 
     /**

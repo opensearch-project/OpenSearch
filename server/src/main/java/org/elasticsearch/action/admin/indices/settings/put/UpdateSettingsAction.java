@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.settings.put;
+package org.opensearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 public class UpdateSettingsAction extends ActionType<AcknowledgedResponse> {
 

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.reload;
+package org.opensearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.settings.SecureString;
+import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.settings.SecureString;
 
 /**
  * Builder for the reload secure settings nodes request

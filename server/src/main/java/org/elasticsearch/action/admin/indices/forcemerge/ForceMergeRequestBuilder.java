@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.forcemerge;
+package org.opensearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * A request to force merge one or more indices. In order to force merge all

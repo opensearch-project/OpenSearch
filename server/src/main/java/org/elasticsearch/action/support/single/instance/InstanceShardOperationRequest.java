@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.single.instance;
+package org.opensearch.action.support.single.instance;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.ValidateActions;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;

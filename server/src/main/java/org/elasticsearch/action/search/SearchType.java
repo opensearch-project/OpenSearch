@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 /**
  * Search type represent the manner at which the search operation is executed.

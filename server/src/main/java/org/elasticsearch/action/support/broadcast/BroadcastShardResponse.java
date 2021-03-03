@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.broadcast;
+package org.opensearch.action.support.broadcast;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportResponse;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 

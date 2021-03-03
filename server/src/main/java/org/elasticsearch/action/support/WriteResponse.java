@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support;
+package org.opensearch.action.support;
 
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.action.update.UpdateResponse;
+import org.opensearch.index.IndexSettings;
 
 /**
  * Interface implemented by responses for actions that modify the documents in an index like {@link IndexResponse}, {@link UpdateResponse},

@@ -20,4 +20,4 @@
 /**
  * Delete action.
  */
-package org.elasticsearch.action.delete;
+package org.opensearch.action.delete;

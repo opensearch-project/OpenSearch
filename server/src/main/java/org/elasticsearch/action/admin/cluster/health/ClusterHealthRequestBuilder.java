@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.health;
+package org.opensearch.action.admin.cluster.health;
 
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.common.Priority;
+import org.opensearch.common.unit.TimeValue;
 
 public class ClusterHealthRequestBuilder
         extends MasterNodeReadOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {

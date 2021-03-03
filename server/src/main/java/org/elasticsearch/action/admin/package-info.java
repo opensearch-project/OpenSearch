@@ -20,4 +20,4 @@
 /**
  * Administrative Actions.
  */
-package org.elasticsearch.action.admin;
+package org.opensearch.action.admin;

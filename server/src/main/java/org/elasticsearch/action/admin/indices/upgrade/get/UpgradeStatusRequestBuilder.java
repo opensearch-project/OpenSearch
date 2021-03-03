@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.upgrade.get;
+package org.opensearch.action.admin.indices.upgrade.get;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class UpgradeStatusRequestBuilder
         extends BroadcastOperationRequestBuilder<UpgradeStatusRequest, UpgradeStatusResponse, UpgradeStatusRequestBuilder> {

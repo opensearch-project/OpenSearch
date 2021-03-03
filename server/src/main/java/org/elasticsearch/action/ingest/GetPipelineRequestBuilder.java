@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.ingest;
+package org.opensearch.action.ingest;
 
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class GetPipelineRequestBuilder
         extends MasterNodeReadOperationRequestBuilder<GetPipelineRequest, GetPipelineResponse, GetPipelineRequestBuilder> {

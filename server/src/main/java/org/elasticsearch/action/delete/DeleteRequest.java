@@ -17,39 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete;
+package org.opensearch.action.delete;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * A request to delete a document from an index based on its type and id. Best created using
- * {@link org.elasticsearch.client.Requests#deleteRequest(String)}.
+ * {@link org.opensearch.client.Requests#deleteRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)} to
  * be set.
  *
  * @see DeleteResponse
- * @see org.elasticsearch.client.Client#delete(DeleteRequest)
- * @see org.elasticsearch.client.Requests#deleteRequest(String)
+ * @see org.opensearch.client.Client#delete(DeleteRequest)
+ * @see org.opensearch.client.Requests#deleteRequest(String)
  */
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
@@ -157,7 +157,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public String type() {
         if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;                    
+            return MapperService.SINGLE_MAPPING_NAME;
         }
         return type;
     }
@@ -173,12 +173,12 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         this.type = type;
         return this;
     }
-    
+
     /**
      * Set the default type supplied to a bulk
      * request if this individual request's type is null
      * or empty
-     * 
+     *
      * @deprecated Types are in the process of being removed.
      */
     @Deprecated
@@ -188,7 +188,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             type = defaultType;
         }
         return this;
-    }    
+    }
 
     /**
      * The id of the document to delete.
@@ -249,7 +249,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     /**
      * If set, only perform this delete request if the document was last modification was assigned this sequence number.
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifSeqNo() {
         return ifSeqNo;
@@ -259,7 +259,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * If set, only perform this delete request if the document was last modification was assigned this primary term.
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifPrimaryTerm() {
         return ifPrimaryTerm;
@@ -270,7 +270,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public DeleteRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
@@ -285,7 +285,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different primary term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public DeleteRequest setIfPrimaryTerm(long term) {
         if (term < 0) {

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete;
+package org.opensearch.action.delete;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class DeleteAction extends ActionType<DeleteResponse> {
 

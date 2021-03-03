@@ -17,34 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.action.update;
+package org.opensearch.action.update;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.engine.DocumentSourceMissingException;
-import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.UpdateScript;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.client.Requests;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.DocumentMissingException;
+import org.opensearch.index.engine.DocumentSourceMissingException;
+import org.opensearch.index.get.GetResult;
+import org.opensearch.index.mapper.RoutingFieldMapper;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.UpdateScript;
+import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;

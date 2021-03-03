@@ -16,34 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.support.replication;
+package org.opensearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ReplicationGroup;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
+import org.opensearch.Assertions;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.RetryableAction;
+import org.opensearch.action.support.TransportActions;
+import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ReplicationGroup;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.node.NodeClosedException;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;

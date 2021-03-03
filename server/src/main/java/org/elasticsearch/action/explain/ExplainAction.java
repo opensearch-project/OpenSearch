@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.explain;
+package org.opensearch.action.explain;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * Entry point for the explain feature.

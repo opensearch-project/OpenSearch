@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.cluster.node.liveness;
+package org.opensearch.action.admin.cluster.node.liveness;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
 /**
  * Transport level private response for the transport handler registered under
- * {@value org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction#NAME}
+ * {@value org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction#NAME}
  */
 public final class LivenessRequest extends ActionRequest {
     public LivenessRequest() {}

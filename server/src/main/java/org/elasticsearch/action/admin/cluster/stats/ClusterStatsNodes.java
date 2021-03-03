@@ -17,30 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.stats;
+package org.opensearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.monitor.fs.FsInfo;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.os.OsInfo;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.node.info.NodeInfo;
+import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.Strings;
+import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.os.OsInfo;
+import org.opensearch.plugins.PluginInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -247,7 +247,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
         final ObjectIntHashMap<String> prettyNames;
-        final org.elasticsearch.monitor.os.OsStats.Mem mem;
+        final org.opensearch.monitor.os.OsStats.Mem mem;
 
         /**
          * Build the stats from information about each node.
@@ -285,7 +285,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     }
                 }
             }
-            this.mem = new org.elasticsearch.monitor.os.OsStats.Mem(totalMemory, freeMemory);
+            this.mem = new org.opensearch.monitor.os.OsStats.Mem(totalMemory, freeMemory);
         }
 
         public int getAvailableProcessors() {
@@ -296,7 +296,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return allocatedProcessors;
         }
 
-        public org.elasticsearch.monitor.os.OsStats.Mem getMem() {
+        public org.opensearch.monitor.os.OsStats.Mem getMem() {
             return mem;
         }
 
@@ -460,7 +460,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             }
 
             for (NodeStats nodeStats : nodeStatsList) {
-                org.elasticsearch.monitor.jvm.JvmStats js = nodeStats.getJvm();
+                org.opensearch.monitor.jvm.JvmStats js = nodeStats.getJvm();
                 if (js == null) {
                     continue;
                 }
@@ -708,12 +708,12 @@ public class ClusterStatsNodes implements ToXContentFragment {
             for (NodeStats nodeStat : nodeStats) {
                 if (nodeStat.getIngestStats() != null) {
                     for (Map.Entry<String,
-                            List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat.getIngestStats()
+                            List<org.opensearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat.getIngestStats()
                             .getProcessorStats().entrySet()) {
                         pipelineIds.add(processorStats.getKey());
-                        for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
+                        for (org.opensearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
                             stats.compute(stat.getType(), (k, v) -> {
-                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
+                                org.opensearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
                                 if (v == null) {
                                     return new long[] {
                                         nodeIngestStats.getIngestCount(),

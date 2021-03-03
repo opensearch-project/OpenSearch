@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.recovery;
+package org.opensearch.action.admin.indices.recovery;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * Recovery information request builder.

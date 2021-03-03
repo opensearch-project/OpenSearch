@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.stats;
+package org.opensearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Collections;

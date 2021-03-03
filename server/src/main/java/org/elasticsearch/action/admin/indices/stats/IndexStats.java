@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.stats;
+package org.opensearch.action.admin.indices.stats;
 
 import java.util.ArrayList;
 import java.util.HashMap;

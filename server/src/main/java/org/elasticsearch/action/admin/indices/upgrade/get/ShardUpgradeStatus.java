@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.upgrade.get;
+package org.opensearch.action.admin.indices.upgrade.get;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.action.support.broadcast.BroadcastShardResponse;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 

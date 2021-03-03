@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.get;
+package org.opensearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.master.info.ClusterInfoRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class GetMappingsRequestBuilder
         extends ClusterInfoRequestBuilder<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {

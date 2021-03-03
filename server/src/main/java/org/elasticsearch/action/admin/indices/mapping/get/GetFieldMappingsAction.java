@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.get;
+package org.opensearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class GetFieldMappingsAction extends ActionType<GetFieldMappingsResponse> {
 

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.repositories.verify;
+package org.opensearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Verify repository request.

@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContextBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.query.QuerySearchResult;
+import org.opensearch.action.search.SearchPhaseController.TopDocsStats;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.InternalAggregation.ReduceContextBuilder;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.query.QuerySearchResult;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -47,9 +47,9 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
-import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
-import static org.elasticsearch.action.search.SearchPhaseController.setShardIndex;
+import static org.opensearch.action.search.SearchPhaseController.getTopDocsSize;
+import static org.opensearch.action.search.SearchPhaseController.mergeTopDocs;
+import static org.opensearch.action.search.SearchPhaseController.setShardIndex;
 
 /**
  * A {@link ArraySearchPhaseResults} implementation that incrementally reduces aggregation results

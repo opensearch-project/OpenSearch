@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.upgrade.post;
+package org.opensearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.text.ParseException;

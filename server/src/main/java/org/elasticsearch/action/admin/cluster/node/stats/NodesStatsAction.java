@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.stats;
+package org.opensearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class NodesStatsAction extends ActionType<NodesStatsResponse> {
 

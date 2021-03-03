@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.snapshots.status;
+package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.util.ArrayUtils;
+import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.util.ArrayUtils;
 
 /**
  * Snapshots status request builder

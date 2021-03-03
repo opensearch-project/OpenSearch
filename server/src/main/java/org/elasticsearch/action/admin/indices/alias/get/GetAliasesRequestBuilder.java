@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.alias.get;
+package org.opensearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.client.ElasticsearchClient;
 
 public class GetAliasesRequestBuilder extends BaseAliasesRequestBuilder<GetAliasesResponse, GetAliasesRequestBuilder> {
 

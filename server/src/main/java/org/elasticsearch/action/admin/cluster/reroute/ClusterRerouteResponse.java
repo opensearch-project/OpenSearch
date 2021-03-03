@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.reroute;
+package org.opensearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.Version;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.routing.allocation.RoutingExplanations;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 

@@ -20,4 +20,4 @@
 /**
  * Index action.
  */
-package org.elasticsearch.action.index;
+package org.opensearch.action.index;

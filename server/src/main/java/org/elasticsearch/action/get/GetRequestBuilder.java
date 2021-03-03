@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.get;
+package org.opensearch.action.get;
 
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.action.support.single.shard.SingleShardOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.index.VersionType;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A get document action request builder.
@@ -146,7 +146,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     * Sets the versioning type. Defaults to {@link org.opensearch.index.VersionType#INTERNAL}.
      */
     public GetRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);

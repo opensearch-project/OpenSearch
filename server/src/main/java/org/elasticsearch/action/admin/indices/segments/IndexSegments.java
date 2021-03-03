@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.segments;
+package org.opensearch.action.admin.indices.segments;
 
 import java.util.ArrayList;
 import java.util.HashMap;

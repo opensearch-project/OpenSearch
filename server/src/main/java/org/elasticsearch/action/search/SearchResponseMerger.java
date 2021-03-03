@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
@@ -26,22 +26,22 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
-import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
-import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.action.search.SearchPhaseController.TopDocsStats;
+import org.opensearch.action.search.SearchResponse.Clusters;
+import org.opensearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.profile.ProfileShardResult;
+import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.suggest.Suggest;
+import org.opensearch.search.suggest.completion.CompletionSuggestion;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,7 +54,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
+import static org.opensearch.action.search.SearchPhaseController.mergeTopDocs;
 
 /**
  * Merges multiple search responses into one. Used in cross-cluster search when reduction is performed locally on each cluster.

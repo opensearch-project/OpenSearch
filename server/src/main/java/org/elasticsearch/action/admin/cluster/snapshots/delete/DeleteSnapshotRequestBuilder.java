@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.snapshots.delete;
+package org.opensearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * Delete snapshot request builder

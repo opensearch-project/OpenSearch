@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.shrink;
+package org.opensearch.action.admin.indices.shrink;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.settings.Settings;
 
 public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse,
     ResizeRequestBuilder> {

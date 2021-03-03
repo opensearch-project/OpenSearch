@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.rollover;
+package org.opensearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.ToXContentFragment;
 
 import java.util.Objects;
 

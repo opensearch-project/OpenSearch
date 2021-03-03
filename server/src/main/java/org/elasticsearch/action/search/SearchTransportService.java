@@ -17,44 +17,44 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.QueryFetchSearchResult;
-import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
-import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.query.QuerySearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportActionProxy;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionListenerResponseHandler;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchService;
+import org.opensearch.search.dfs.DfsSearchResult;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
+import org.opensearch.search.fetch.ScrollQueryFetchSearchResult;
+import org.opensearch.search.fetch.ShardFetchRequest;
+import org.opensearch.search.fetch.ShardFetchSearchRequest;
+import org.opensearch.search.internal.InternalScrollSearchRequest;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.query.QuerySearchRequest;
+import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.query.ScrollQuerySearchResult;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportActionProxy;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -63,7 +63,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
- * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
+ * An encapsulation of {@link org.opensearch.search.SearchService} operations exposed through
  * transport.
  */
 public class SearchTransportService {

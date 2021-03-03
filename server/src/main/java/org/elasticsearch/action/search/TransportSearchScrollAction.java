@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.tasks.Task;
+import org.opensearch.transport.TransportService;
 
-import static org.elasticsearch.action.search.ParsedScrollId.QUERY_AND_FETCH_TYPE;
-import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
-import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
+import static org.opensearch.action.search.ParsedScrollId.QUERY_AND_FETCH_TYPE;
+import static org.opensearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
+import static org.opensearch.action.search.TransportSearchHelper.parseScrollId;
 
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
 

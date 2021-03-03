@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -84,7 +84,7 @@ public class BulkItemRequest implements Writeable, Accountable {
     }
 
     /**
-     * Abort this request, and store a {@link org.elasticsearch.action.bulk.BulkItemResponse.Failure} response.
+     * Abort this request, and store a {@link org.opensearch.action.bulk.BulkItemResponse.Failure} response.
      *
      * @param index The concrete index that was resolved for this request
      * @param cause The cause of the rejection (may not be null)

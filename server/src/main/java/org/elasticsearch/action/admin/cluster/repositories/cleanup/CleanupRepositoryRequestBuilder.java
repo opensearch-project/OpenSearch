@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.cluster.repositories.cleanup;
+package org.opensearch.action.admin.cluster.repositories.cleanup;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<CleanupRepositoryRequest,
                                                                                        CleanupRepositoryResponse,

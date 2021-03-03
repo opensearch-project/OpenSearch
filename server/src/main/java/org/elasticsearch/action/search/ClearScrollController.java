@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
-import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.StepListener;
+import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.Strings;
+import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
+import static org.opensearch.action.search.TransportSearchHelper.parseScrollId;
 
 public final class ClearScrollController implements Runnable {
     private final DiscoveryNodes nodes;

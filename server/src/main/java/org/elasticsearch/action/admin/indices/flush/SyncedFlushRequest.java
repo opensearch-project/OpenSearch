@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.flush;
+package org.opensearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,10 +29,10 @@ import java.util.Arrays;
  * A synced flush request to sync flush one or more indices. The synced flush process of an index performs a flush
  * and writes the same sync id to primary and all copies.
  *
- * <p>Best created with {@link org.elasticsearch.client.Requests#syncedFlushRequest(String...)}. </p>
+ * <p>Best created with {@link org.opensearch.client.Requests#syncedFlushRequest(String...)}. </p>
  *
- * @see org.elasticsearch.client.Requests#flushRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
+ * @see org.opensearch.client.Requests#flushRequest(String...)
+ * @see org.opensearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
  * @see SyncedFlushResponse
  */
 public class SyncedFlushRequest extends BroadcastRequest<SyncedFlushRequest> {

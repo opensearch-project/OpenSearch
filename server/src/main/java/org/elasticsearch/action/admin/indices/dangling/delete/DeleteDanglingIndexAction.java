@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling.delete;
+package org.opensearch.action.admin.indices.dangling.delete;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * This action causes a dangling index to be considered as deleted by the cluster.

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.upgrade.get;
+package org.opensearch.action.admin.indices.upgrade.get;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.support;
+package org.opensearch.action.support;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.util.concurrent.ThreadContext;
 
 import java.util.function.Supplier;
 
 /**
- * Restores the given {@link org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext}
+ * Restores the given {@link org.opensearch.common.util.concurrent.ThreadContext.StoredContext}
  * once the listener is invoked
  */
 public final class ContextPreservingActionListener<R> implements ActionListener<R> {

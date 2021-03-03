@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.delete;
+package org.opensearch.action.admin.indices.delete;
 
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
 
 /**
  * Cluster state update request that allows to close one or more indices

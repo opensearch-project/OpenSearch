@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.put;
+package org.opensearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 public class PutMappingAction extends ActionType<AcknowledgedResponse> {
 

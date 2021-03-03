@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.ingest;
+package org.opensearch.action.ingest;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentType;
 
 public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<SimulatePipelineRequest, SimulatePipelineResponse> {
 

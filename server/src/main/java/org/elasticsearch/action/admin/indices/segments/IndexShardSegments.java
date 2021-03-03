@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.segments;
+package org.opensearch.action.admin.indices.segments;
 
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 
 import java.util.Arrays;
 import java.util.Iterator;

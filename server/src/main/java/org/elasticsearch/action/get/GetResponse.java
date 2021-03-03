@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.get;
+package org.opensearch.action.get;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.get.GetResult;
+import org.opensearch.ElasticsearchParseException;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.get.GetResult;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -42,7 +42,7 @@ import java.util.Objects;
  * The response of a get action.
  *
  * @see GetRequest
- * @see org.elasticsearch.client.Client#get(GetRequest)
+ * @see org.opensearch.client.Client#get(GetRequest)
  */
 public class GetResponse extends ActionResponse implements Iterable<DocumentField>, ToXContentObject {
 
@@ -182,7 +182,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
      * doesn't know. But before returning the result it will check that enough information were
      * parsed to return a valid {@link GetResponse} instance and throws a {@link ParsingException}
      * otherwise. This is the case when we get a 404 back, which can be parsed as a normal
-     * {@link GetResponse} with found set to false, or as an elasticsearch exception. The caller
+     * {@link GetResponse} with found set to false, or as an opensearch exception. The caller
      * of this method needs a way to figure out whether we got back a valid get response, which
      * can be done by catching ParsingException.
      *

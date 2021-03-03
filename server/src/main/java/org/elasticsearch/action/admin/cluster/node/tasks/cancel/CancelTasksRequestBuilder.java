@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
+package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
-import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.tasks.TasksRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * Builder for the request to cancel tasks running on the specified nodes

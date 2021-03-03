@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.index;
+package org.opensearch.action.index;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class IndexAction extends ActionType<IndexResponse> {
 

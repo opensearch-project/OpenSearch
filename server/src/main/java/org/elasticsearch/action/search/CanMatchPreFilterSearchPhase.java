@@ -16,22 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.search.SearchService.CanMatchResponse;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.MinAndMax;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.search.SearchService.CanMatchResponse;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.transport.Transport;
 
 import java.util.Comparator;
 import java.util.List;

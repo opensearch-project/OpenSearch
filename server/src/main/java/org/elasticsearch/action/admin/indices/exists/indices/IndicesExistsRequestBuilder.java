@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.exists.indices;
+package org.opensearch.action.admin.indices.exists.indices;
 
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class IndicesExistsRequestBuilder
         extends MasterNodeReadOperationRequestBuilder<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.remote;
+package org.opensearch.action.admin.cluster.remote;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public final class RemoteInfoRequestBuilder extends ActionRequestBuilder<RemoteInfoRequest, RemoteInfoResponse> {
 

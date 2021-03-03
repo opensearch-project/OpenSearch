@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.update;
+package org.opensearch.action.update;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class UpdateAction extends ActionType<UpdateResponse> {
 

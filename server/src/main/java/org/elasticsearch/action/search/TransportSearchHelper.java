@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.transport.RemoteClusterAware;
+import org.opensearch.Version;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.internal.InternalScrollSearchRequest;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

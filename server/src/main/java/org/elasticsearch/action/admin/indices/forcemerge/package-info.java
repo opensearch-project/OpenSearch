@@ -20,4 +20,4 @@
 /**
  * Force merge index/indices action.
  */
-package org.elasticsearch.action.admin.indices.forcemerge;
+package org.opensearch.action.admin.indices.forcemerge;

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.allocation;
+package org.opensearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * Builder for requests to explain the allocation of a shard in the cluster

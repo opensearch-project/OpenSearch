@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.info;
+package org.opensearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class NodesInfoAction extends ActionType<NodesInfoResponse> {
 

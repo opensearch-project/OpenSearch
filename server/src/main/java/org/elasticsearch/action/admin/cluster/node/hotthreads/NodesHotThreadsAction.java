@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.hotthreads;
+package org.opensearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class NodesHotThreadsAction extends ActionType<NodesHotThreadsResponse> {
 

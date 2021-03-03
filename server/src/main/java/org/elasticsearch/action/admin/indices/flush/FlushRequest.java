@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.flush;
+package org.opensearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A flush request to flush one or more indices. The flush process of an index basically frees memory from the index
- * by flushing data to the index storage and clearing the internal transaction log. By default, Elasticsearch uses
+ * by flushing data to the index storage and clearing the internal transaction log. By default, OpenSearch uses
  * memory heuristics in order to automatically trigger flush operations as required in order to clear memory.
  * <p>
- * Best created with {@link org.elasticsearch.client.Requests#flushRequest(String...)}.
+ * Best created with {@link org.opensearch.client.Requests#flushRequest(String...)}.
  *
- * @see org.elasticsearch.client.Requests#flushRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#flush(FlushRequest)
+ * @see org.opensearch.client.Requests#flushRequest(String...)
+ * @see org.opensearch.client.IndicesAdminClient#flush(FlushRequest)
  * @see FlushResponse
  */
 public class FlushRequest extends BroadcastRequest<FlushRequest> {

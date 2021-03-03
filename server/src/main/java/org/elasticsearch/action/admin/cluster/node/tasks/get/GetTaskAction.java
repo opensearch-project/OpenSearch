@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.tasks.get;
+package org.opensearch.action.admin.cluster.node.tasks.get;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * ActionType for retrieving a list of currently running tasks

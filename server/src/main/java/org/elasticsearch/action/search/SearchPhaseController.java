@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
@@ -34,30 +34,30 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
-import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.Suggest.Suggestion;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.collect.HppcMaps;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.dfs.DfsSearchResult;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.ProfileShardResult;
+import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.suggest.Suggest;
+import org.opensearch.search.suggest.Suggest.Suggestion;
+import org.opensearch.search.suggest.completion.CompletionSuggestion;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -20,4 +20,4 @@
 /**
  * Put Mapping Action.
  */
-package org.elasticsearch.action.admin.indices.mapping.put;
+package org.opensearch.action.admin.indices.mapping.put;

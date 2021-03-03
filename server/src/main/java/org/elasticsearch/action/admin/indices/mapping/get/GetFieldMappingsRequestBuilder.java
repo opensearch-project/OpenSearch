@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.get;
+package org.opensearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.util.ArrayUtils;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.util.ArrayUtils;
 
 /** A helper class to build {@link GetFieldMappingsRequest} objects */
 public class GetFieldMappingsRequestBuilder

@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.snapshots.delete;
+package org.opensearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Delete snapshot request

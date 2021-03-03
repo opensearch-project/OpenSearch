@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.opensearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 
 import java.util.Map;
 
-import static org.elasticsearch.cluster.ClusterState.builder;
-import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
+import static org.opensearch.cluster.ClusterState.builder;
+import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 
 /**
  * Updates transient and persistent cluster state settings if there are any changes
@@ -60,10 +60,10 @@ final class SettingsUpdater {
         boolean changed = false;
 
         /*
-         * Our cluster state could have unknown or invalid settings that are known and valid in a previous version of Elasticsearch. We can
-         * end up in this situation during a rolling upgrade where the previous version will infect the current version of Elasticsearch
+         * Our cluster state could have unknown or invalid settings that are known and valid in a previous version. We can
+         * end up in this situation during a rolling upgrade where the previous version will infect the current version
          * with settings that the current version either no longer knows about or now considers to have invalid values. When the current
-         * version of Elasticsearch becomes infected with a cluster state containing such settings, we need to skip validating such settings
+         * version becomes infected with a cluster state containing such settings, we need to skip validating such settings
          * and instead archive them. Consequently, for the current transient and persistent settings in the cluster state we do the
          * following:
          *  - split existing settings instance into two with the known and valid settings in one, and the unknown or invalid in another

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.fieldcaps;
+package org.opensearch.action.fieldcaps;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.index.query.QueryBuilder;
 
 public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public FieldCapabilitiesRequestBuilder(ElasticsearchClient client,

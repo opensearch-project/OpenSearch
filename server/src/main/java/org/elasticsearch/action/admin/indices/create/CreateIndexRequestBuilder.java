@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.create;
+package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.util.Map;
 

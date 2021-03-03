@@ -20,4 +20,4 @@
 /**
  * Indices Administrative Actions.
  */
-package org.elasticsearch.action.admin.indices;
+package org.opensearch.action.admin.indices;

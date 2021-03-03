@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.explain;
+package org.opensearch.action.explain;
 
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.action.support.single.shard.SingleShardOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A builder for {@link ExplainRequest}.

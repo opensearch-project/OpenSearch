@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.get;
+package org.opensearch.action.get;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.Nullable;
 
 /**
  * A multi get document action request builder.

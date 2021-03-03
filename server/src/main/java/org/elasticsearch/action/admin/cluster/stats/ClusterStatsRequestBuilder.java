@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.stats;
+package org.opensearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<ClusterStatsRequest,
         ClusterStatsResponse, ClusterStatsRequestBuilder> {

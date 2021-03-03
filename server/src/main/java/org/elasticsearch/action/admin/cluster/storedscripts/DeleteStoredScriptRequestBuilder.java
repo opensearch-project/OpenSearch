@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.storedscripts;
+package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.client.ElasticsearchClient;
 
 public class DeleteStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<DeleteStoredScriptRequest,
     AcknowledgedResponse, DeleteStoredScriptRequestBuilder> {

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.delete;
+package org.opensearch.action.admin.indices.delete;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.client.ElasticsearchClient;
 
 public class DeleteIndexRequestBuilder
         extends AcknowledgedRequestBuilder<DeleteIndexRequest, AcknowledgedResponse, DeleteIndexRequestBuilder> {

@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.action.search.SearchResponse.Clusters;
+import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.util.Collections;
 import java.util.List;

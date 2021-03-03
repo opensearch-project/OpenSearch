@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.validate.query;
+package org.opensearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.internal.AliasFilter;
+import org.opensearch.action.support.broadcast.BroadcastShardRequest;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.util.Objects;

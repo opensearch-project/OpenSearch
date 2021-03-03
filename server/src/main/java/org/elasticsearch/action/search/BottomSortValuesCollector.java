@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchSortValuesAndFormats;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchSortValuesAndFormats;
 
 /**
  * Utility class to keep track of the bottom doc's sort values in a distributed search.

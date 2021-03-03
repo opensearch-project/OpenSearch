@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.replication;
+package org.opensearch.action.support.replication;
 
-import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.ReplicationGroup;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.support.RetryableAction;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.ReplicationGroup;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.resync;
+package org.opensearch.action.resync;
 
-import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.action.support.WriteResponse;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 

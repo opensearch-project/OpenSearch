@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.action.index;
+package org.opensearch.action.index;
 
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.support.WriteRequestBuilder;
+import org.opensearch.action.support.replication.ReplicationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.VersionType;
 
 import java.util.Map;
 
@@ -102,7 +102,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the document source to index.
      * <p>
-     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * Note, its preferable to either set it using {@link #setSource(org.opensearch.common.xcontent.XContentBuilder)}
      * or using the {@link #setSource(byte[], XContentType)}.
      */
     public IndexRequestBuilder setSource(String source, XContentType xContentType) {
@@ -175,7 +175,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Set to {@code true} to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#CREATE}.
+     * Set to {@code true} to force this index to use {@link org.opensearch.action.index.IndexRequest.OpType#CREATE}.
      */
     public IndexRequestBuilder setCreate(boolean create) {
         request.create(create);
@@ -204,7 +204,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public IndexRequestBuilder setIfSeqNo(long seqNo) {
         request.setIfSeqNo(seqNo);
@@ -216,7 +216,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public IndexRequestBuilder setIfPrimaryTerm(long term) {
         request.setIfPrimaryTerm(term);

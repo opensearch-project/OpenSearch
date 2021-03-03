@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.exists.indices;
+package org.opensearch.action.admin.indices.exists.indices;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class IndicesExistsAction extends ActionType<IndicesExistsResponse> {
 

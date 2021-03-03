@@ -1,5 +1,5 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to opensearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
  * ownership. Elasticsearch licenses this file to you under
@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.open;
+package org.opensearch.action.admin.indices.open;
 
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 /**
  * Builder for for open index request

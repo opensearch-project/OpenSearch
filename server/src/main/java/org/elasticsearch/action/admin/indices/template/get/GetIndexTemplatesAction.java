@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.template.get;
+package org.opensearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class GetIndexTemplatesAction extends ActionType<GetIndexTemplatesResponse> {
 

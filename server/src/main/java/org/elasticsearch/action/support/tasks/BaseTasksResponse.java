@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.tasks;
+package org.opensearch.action.support.tasks;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.TaskOperationFailure;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
+import static org.opensearch.ExceptionsHelper.rethrowAndSuppress;
 
 
 /**

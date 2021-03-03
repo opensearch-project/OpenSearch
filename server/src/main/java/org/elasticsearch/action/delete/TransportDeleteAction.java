@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete;
+package org.opensearch.action.delete;
 
-import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.bulk.TransportBulkAction;
+import org.opensearch.action.bulk.TransportSingleItemBulkWriteAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.transport.TransportService;
 
 /**
  * Performs the delete operation.

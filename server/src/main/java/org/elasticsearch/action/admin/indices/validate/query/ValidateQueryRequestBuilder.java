@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.validate.query;
+package org.opensearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.index.query.QueryBuilder;
 
 public class ValidateQueryRequestBuilder
     extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
@@ -41,7 +41,7 @@ public class ValidateQueryRequestBuilder
     /**
      * The query to validate.
      *
-     * @see org.elasticsearch.index.query.QueryBuilders
+     * @see org.opensearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setQuery(QueryBuilder queryBuilder) {
         request.query(queryBuilder);
@@ -51,7 +51,7 @@ public class ValidateQueryRequestBuilder
     /**
      * Indicates if detailed information about the query should be returned.
      *
-     * @see org.elasticsearch.index.query.QueryBuilders
+     * @see org.opensearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setExplain(boolean explain) {
         request.explain(explain);

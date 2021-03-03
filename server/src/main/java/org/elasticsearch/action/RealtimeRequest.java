@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.opensearch.action;
 
 /**
  * Indicates that a request can execute in realtime (reads from the translog).

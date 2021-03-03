@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.validate.query;
+package org.opensearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ValidateQueryAction extends ActionType<ValidateQueryResponse> {
 

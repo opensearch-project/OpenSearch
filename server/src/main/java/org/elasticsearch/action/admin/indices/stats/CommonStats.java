@@ -17,35 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.stats;
+package org.opensearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.cache.request.RequestCacheStats;
-import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.recovery.RecoveryStats;
-import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexingStats;
-import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.index.warmer.WarmerStats;
-import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.cache.query.QueryCacheStats;
+import org.opensearch.index.cache.request.RequestCacheStats;
+import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.fielddata.FieldDataStats;
+import org.opensearch.index.flush.FlushStats;
+import org.opensearch.index.get.GetStats;
+import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.recovery.RecoveryStats;
+import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.search.stats.SearchStats;
+import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexingStats;
+import org.opensearch.index.store.StoreStats;
+import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.index.warmer.WarmerStats;
+import org.opensearch.indices.IndicesQueryCache;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
 import java.util.Arrays;

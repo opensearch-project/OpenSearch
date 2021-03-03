@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.template.get;
+package org.opensearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
 
 public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
         GetIndexTemplatesRequest,

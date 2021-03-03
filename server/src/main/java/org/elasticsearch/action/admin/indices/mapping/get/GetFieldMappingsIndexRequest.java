@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.get;
+package org.opensearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.single.shard.SingleShardRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 

@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.opensearch.action;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 

@@ -17,36 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.replication;
+package org.opensearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.Translog.Location;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteResponse;
+import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexAbstraction;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.Translog.Location;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.SystemIndices;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;

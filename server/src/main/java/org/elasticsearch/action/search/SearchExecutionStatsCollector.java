@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.node.ResponseCollectorService;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.action.ActionListener;
+import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.transport.Transport;
 
 import java.util.Objects;
 import java.util.function.BiFunction;

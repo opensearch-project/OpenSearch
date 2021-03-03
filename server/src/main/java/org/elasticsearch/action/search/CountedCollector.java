@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
 
 /**
  * This is a simple base class to simplify fan out to shards and collect their results. Each results passed to

@@ -17,33 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.upgrade.post;
+package org.opensearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.PrimaryMissingActionException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardsIterator;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.PrimaryMissingActionException;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardsIterator;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.tasks.Task;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -90,7 +90,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
                 // We already have versions for this index - let's see if we need to update them based on the current shard
                 Version version = versionTuple.v1();
                 org.apache.lucene.util.Version luceneVersion = versionTuple.v2();
-                // For the metadata we are interested in the _latest_ Elasticsearch version that was processing the metadata
+                // For the metadata we are interested in the _latest_ version that was processing the metadata
                 // Since we rewrite the mapping during upgrade the metadata is always rewritten by the latest version
                 if (result.upgradeVersion().after(versionTuple.v1())) {
                     version = result.upgradeVersion();
@@ -124,7 +124,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
     protected ShardUpgradeResult shardOperation(UpgradeRequest request, ShardRouting shardRouting) throws IOException {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
         org.apache.lucene.util.Version oldestLuceneSegment = indexShard.upgrade(request);
-        // We are using the current version of Elasticsearch as upgrade version since we update mapping to match the current version
+        // We are using the current version as upgrade version since we update mapping to match the current version
         return new ShardUpgradeResult(shardRouting.shardId(), indexShard.routingEntry().primary(), Version.CURRENT, oldestLuceneSegment);
     }
 

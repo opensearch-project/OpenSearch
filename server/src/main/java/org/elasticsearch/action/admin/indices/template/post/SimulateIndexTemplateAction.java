@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.template.post;
+package org.opensearch.action.admin.indices.template.post;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class SimulateIndexTemplateAction extends ActionType<SimulateIndexTemplateResponse> {
 

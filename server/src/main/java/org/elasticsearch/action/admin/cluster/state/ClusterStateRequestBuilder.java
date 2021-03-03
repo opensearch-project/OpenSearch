@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.state;
+package org.opensearch.action.admin.cluster.state;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.unit.TimeValue;
 
 public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest,
         ClusterStateResponse, ClusterStateRequestBuilder> {
@@ -53,7 +53,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.Metadata}. Defaults
+     * Should the cluster state result include the {@link org.opensearch.cluster.metadata.Metadata}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setMetadata(boolean filter) {
@@ -62,7 +62,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.node.DiscoveryNodes}. Defaults
+     * Should the cluster state result include the {@link org.opensearch.cluster.node.DiscoveryNodes}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setNodes(boolean filter) {
@@ -71,7 +71,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.ClusterState.Custom}. Defaults
+     * Should the cluster state result include the {@link org.opensearch.cluster.ClusterState.Custom}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setCustoms(boolean filter) {
@@ -80,7 +80,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
+     * Should the cluster state result include the {@link org.opensearch.cluster.routing.RoutingTable}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setRoutingTable(boolean filter) {
@@ -89,7 +89,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * When {@link #setMetadata(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetadata}
+     * When {@link #setMetadata(boolean)} is set, which indices to return the {@link org.opensearch.cluster.metadata.IndexMetadata}
      * for. Defaults to all indices.
      */
     public ClusterStateRequestBuilder setIndices(String... indices) {

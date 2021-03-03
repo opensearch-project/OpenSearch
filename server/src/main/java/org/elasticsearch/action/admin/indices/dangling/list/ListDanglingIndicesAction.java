@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling.list;
+package org.opensearch.action.admin.indices.dangling.list;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * Represents a request to list all dangling indices known to the cluster.

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.forcemerge;
+package org.opensearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ForceMergeAction extends ActionType<ForceMergeResponse> {
 

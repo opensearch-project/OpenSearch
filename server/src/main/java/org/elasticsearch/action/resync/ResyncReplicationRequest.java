@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.resync;
+package org.opensearch.action.resync;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.Version;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.Arrays;

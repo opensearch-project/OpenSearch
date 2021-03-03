@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.shards;
+package org.opensearch.action.admin.indices.shards;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.cluster.health.ClusterHealthStatus;
 
 /**
  * Request builder for {@link IndicesShardStoresRequest}

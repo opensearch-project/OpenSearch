@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.opensearch.action.admin.cluster.settings;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.master.MasterNodeReadRequest;
 
 /**
- * This request is specific to the REST client. {@link org.elasticsearch.action.admin.cluster.state.ClusterStateRequest}
+ * This request is specific to the REST client. {@link org.opensearch.action.admin.cluster.state.ClusterStateRequest}
  * is used on the transport layer.
  */
 public class ClusterGetSettingsRequest extends MasterNodeReadRequest<ClusterGetSettingsRequest> {

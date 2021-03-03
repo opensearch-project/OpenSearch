@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.snapshots.restore;
+package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.RestoreInfo;
-import org.elasticsearch.snapshots.RestoreService;
+import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.cluster.RestoreInProgress;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.snapshots.RestoreInfo;
+import org.opensearch.snapshots.RestoreService;
 
-import static org.elasticsearch.snapshots.RestoreService.restoreInProgress;
+import static org.opensearch.snapshots.RestoreService.restoreInProgress;
 
 public class RestoreClusterStateListener implements ClusterStateListener {
 

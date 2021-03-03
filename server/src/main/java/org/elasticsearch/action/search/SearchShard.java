@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.Nullable;
+import org.opensearch.index.shard.ShardId;
 
 import java.util.Comparator;
 import java.util.Objects;

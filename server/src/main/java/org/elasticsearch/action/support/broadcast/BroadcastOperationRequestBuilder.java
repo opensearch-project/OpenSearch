@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.broadcast;
+package org.opensearch.action.support.broadcast;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.client.ElasticsearchClient;
 
 public abstract class BroadcastOperationRequestBuilder<
             Request extends BroadcastRequest<Request>,

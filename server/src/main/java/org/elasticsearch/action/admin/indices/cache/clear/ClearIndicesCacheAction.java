@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.cache.clear;
+package org.opensearch.action.admin.indices.cache.clear;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ClearIndicesCacheAction extends ActionType<ClearIndicesCacheResponse> {
 

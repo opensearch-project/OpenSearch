@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.ingest;
+package org.opensearch.action.ingest;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 public class PutPipelineAction extends ActionType<AcknowledgedResponse> {
 

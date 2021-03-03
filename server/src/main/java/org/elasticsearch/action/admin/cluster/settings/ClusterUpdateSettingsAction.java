@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.settings;
+package org.opensearch.action.admin.cluster.settings;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ClusterUpdateSettingsAction extends ActionType<ClusterUpdateSettingsResponse> {
 

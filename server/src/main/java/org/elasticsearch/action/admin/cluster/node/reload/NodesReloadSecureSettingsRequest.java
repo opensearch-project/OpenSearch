@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.reload;
+package org.opensearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.Version;
+import org.opensearch.action.support.nodes.BaseNodesRequest;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.SecureString;
+import org.opensearch.common.CharArrays;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.SecureString;
 
 import java.util.Arrays;
 

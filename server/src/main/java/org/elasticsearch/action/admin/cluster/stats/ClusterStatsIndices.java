@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.stats;
+package org.opensearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.cache.query.QueryCacheStats;
+import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.fielddata.FieldDataStats;
+import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.store.StoreStats;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -61,7 +61,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         this.segments = new SegmentsStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
-            for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
+            for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
                 ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
                 if (indexShardStats == null) {
                     indexShardStats = new ShardStats();

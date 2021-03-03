@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.snapshots.clone;
+package org.opensearch.action.admin.cluster.snapshots.clone;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Strings;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.Strings;
 
 public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CloneSnapshotRequest, AcknowledgedResponse,
                                                                                    CloneSnapshotRequestBuilder> {

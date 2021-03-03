@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.client.Client;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.threadpool.Scheduler;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
@@ -137,7 +137,7 @@ public class BulkProcessor implements Closeable {
         /**
          * Sets a flush interval flushing *any* bulk actions pending if the interval passes. Defaults to not set.
          * <p>
-         * Note, both {@link #setBulkActions(int)} and {@link #setBulkSize(org.elasticsearch.common.unit.ByteSizeValue)}
+         * Note, both {@link #setBulkActions(int)} and {@link #setBulkSize(org.opensearch.common.unit.ByteSizeValue)}
          * can be set to {@code -1} with the flush interval set allowing for complete async processing of bulk actions.
          */
         public Builder setFlushInterval(TimeValue flushInterval) {
@@ -171,7 +171,7 @@ public class BulkProcessor implements Closeable {
          *
          * The default is to back off exponentially.
          *
-         * @see org.elasticsearch.action.bulk.BackoffPolicy#exponentialBackoff()
+         * @see org.opensearch.action.bulk.BackoffPolicy#exponentialBackoff()
          */
         public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
             if (backoffPolicy == null) {
@@ -215,10 +215,10 @@ public class BulkProcessor implements Closeable {
      * @param client The client that executes the bulk operations
      * @param listener The BulkProcessor listener that gets called on bulk events
      * @return the builder for BulkProcessor
-     * @deprecated Use {@link #builder(java.util.function.BiConsumer, org.elasticsearch.action.bulk.BulkProcessor.Listener)}
-     * with client::bulk as the first argument, or {@link #builder(org.elasticsearch.client.Client,
-     * org.elasticsearch.action.bulk.BulkProcessor.Listener, org.elasticsearch.threadpool.Scheduler,
-     * org.elasticsearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
+     * @deprecated Use {@link #builder(java.util.function.BiConsumer, org.opensearch.action.bulk.BulkProcessor.Listener)}
+     * with client::bulk as the first argument, or {@link #builder(org.opensearch.client.Client,
+     * org.opensearch.action.bulk.BulkProcessor.Listener, org.opensearch.threadpool.Scheduler,
+     * org.opensearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
      */
     @Deprecated
     public static Builder builder(Client client, Listener listener) {

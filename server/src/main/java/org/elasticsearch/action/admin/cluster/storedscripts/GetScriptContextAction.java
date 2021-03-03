@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.storedscripts;
+package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class GetScriptContextAction extends ActionType<GetScriptContextResponse> {
 

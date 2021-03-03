@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.threadpool.Scheduler;
+import org.opensearch.action.ActionListener;
+import org.opensearch.threadpool.Scheduler;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;

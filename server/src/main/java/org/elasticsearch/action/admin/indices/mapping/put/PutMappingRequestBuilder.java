@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.put;
+package org.opensearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.Index;
 
 import java.util.Map;
 

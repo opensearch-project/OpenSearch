@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.alias;
+package org.opensearch.action.admin.indices.alias;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.index.query.QueryBuilder;
 
 import java.util.Map;
 

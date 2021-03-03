@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;

@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.query.QuerySearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.dfs.DfsSearchResult;
+import org.opensearch.search.query.QuerySearchRequest;
+import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.List;

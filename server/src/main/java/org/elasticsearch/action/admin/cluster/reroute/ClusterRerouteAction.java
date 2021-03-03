@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.reroute;
+package org.opensearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ClusterRerouteAction extends ActionType<ClusterRerouteResponse> {
 

@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.liveness;
+package org.opensearch.action.admin.cluster.node.liveness;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 /**
  * Transport level private response for the transport handler registered under
- * {@value org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction#NAME}
+ * {@value org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction#NAME}
  */
 public final class LivenessResponse extends ActionResponse {
 

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class MultiSearchAction extends ActionType<MultiSearchResponse> {
 

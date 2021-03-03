@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.single.instance;
+package org.opensearch.action.support.single.instance;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.unit.TimeValue;
 
 public abstract class InstanceShardOperationRequestBuilder<Request extends InstanceShardOperationRequest<Request>,
         Response extends ActionResponse, RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>>

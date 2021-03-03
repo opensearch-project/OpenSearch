@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.create;
+package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.shrink.ResizeType;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
+import org.opensearch.cluster.block.ClusterBlock;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.Index;
 
 import java.util.HashMap;
 import java.util.HashSet;

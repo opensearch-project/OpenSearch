@@ -20,4 +20,4 @@
 /**
  * Explain action.
  */
-package org.elasticsearch.action.explain;
+package org.opensearch.action.explain;

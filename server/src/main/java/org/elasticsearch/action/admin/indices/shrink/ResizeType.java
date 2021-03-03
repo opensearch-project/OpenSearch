@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+package org.opensearch.action.admin.indices.shrink;
 
 /**
  * The type of the resize operation

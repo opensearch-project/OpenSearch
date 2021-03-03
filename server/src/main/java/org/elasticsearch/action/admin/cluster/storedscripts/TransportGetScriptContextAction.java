@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.cluster.storedscripts;
+package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.script.ScriptContextInfo;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.script.ScriptContextInfo;
+import org.opensearch.script.ScriptService;
+import org.opensearch.tasks.Task;
+import org.opensearch.transport.TransportService;
 
 import java.util.Set;
 

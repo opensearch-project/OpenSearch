@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.support;
+package org.opensearch.action.support;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.CountDown;
 
 import java.util.Collection;
 import java.util.Collections;

@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.support.master.info;
+package org.opensearch.action.support.master.info;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.util.ArrayUtils;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.util.ArrayUtils;
 
 public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse,
         Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>>

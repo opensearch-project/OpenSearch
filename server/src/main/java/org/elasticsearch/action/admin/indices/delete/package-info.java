@@ -20,4 +20,4 @@
 /**
  * Delete index action.
  */
-package org.elasticsearch.action.admin.indices.delete;
+package org.opensearch.action.admin.indices.delete;

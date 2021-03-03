@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Countable;
-import org.elasticsearch.common.util.PlainIterator;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.cluster.routing.PlainShardIterator;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.Countable;
+import org.opensearch.common.util.PlainIterator;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.internal.ShardSearchContextId;
 
 import java.util.Comparator;
 import java.util.List;

@@ -20,4 +20,4 @@
 /**
  * Get the term vector for a specific document.
  */
-package org.elasticsearch.action.termvectors;
+package org.opensearch.action.termvectors;

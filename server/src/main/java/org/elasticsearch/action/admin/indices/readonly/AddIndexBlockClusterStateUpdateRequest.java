@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.readonly;
+package org.opensearch.action.admin.indices.readonly;
 
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**
  * Cluster state update request that allows to add a block to one or more indices

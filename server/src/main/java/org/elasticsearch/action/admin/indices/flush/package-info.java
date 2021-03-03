@@ -20,4 +20,4 @@
 /**
  * Flush index/indices action.
  */
-package org.elasticsearch.action.admin.indices.flush;
+package org.opensearch.action.admin.indices.flush;

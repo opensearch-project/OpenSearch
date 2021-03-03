@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.support.master;
+package org.opensearch.action.support.master;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.action.ActionType;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * Base request builder for master node operations that support acknowledgements

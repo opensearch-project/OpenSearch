@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.opensearch.action;
 
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 
 /**
- * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
+ * Needs to be implemented by all {@link org.opensearch.action.ActionRequest} subclasses that relate to
  * one or more indices. Allows to retrieve which indices the action relates to.
  * In case of internal requests originated during the distributed execution of an external request,
  * they will still return the indices that the original request related to.

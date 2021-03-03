@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.opensearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.ShardFetchRequest;
+import org.opensearch.search.internal.InternalScrollSearchRequest;
+import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.query.ScrollQuerySearchResult;
+import org.opensearch.transport.Transport;
 
 import java.util.function.BiFunction;
 

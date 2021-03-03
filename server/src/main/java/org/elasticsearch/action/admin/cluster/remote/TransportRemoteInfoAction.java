@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.remote;
+package org.opensearch.action.admin.cluster.remote;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.search.SearchTransportService;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.tasks.Task;
+import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.TransportService;
 
 import static java.util.stream.Collectors.toList;
 

@@ -20,4 +20,4 @@
 /**
  * Validate action.
  */
-package org.elasticsearch.action.admin.indices.validate.query;
+package org.opensearch.action.admin.indices.validate.query;

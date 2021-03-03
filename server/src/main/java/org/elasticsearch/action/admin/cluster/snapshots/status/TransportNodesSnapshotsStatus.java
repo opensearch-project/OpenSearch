@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.snapshots.status;
+package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotShardsService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.nodes.BaseNodeRequest;
+import org.opensearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.action.support.nodes.BaseNodesRequest;
+import org.opensearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.action.support.nodes.TransportNodesAction;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotShardsService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;

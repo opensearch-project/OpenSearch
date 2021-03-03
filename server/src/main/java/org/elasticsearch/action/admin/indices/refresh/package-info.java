@@ -20,4 +20,4 @@
 /**
  * Refresh index/indices action.
  */
-package org.elasticsearch.action.admin.indices.refresh;
+package org.opensearch.action.admin.indices.refresh;

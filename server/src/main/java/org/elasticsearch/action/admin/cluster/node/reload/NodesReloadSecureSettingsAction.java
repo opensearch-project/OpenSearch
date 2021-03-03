@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.reload;
+package org.opensearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class NodesReloadSecureSettingsAction extends ActionType<NodesReloadSecureSettingsResponse> {
 

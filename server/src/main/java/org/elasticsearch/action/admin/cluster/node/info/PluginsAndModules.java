@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.info;
+package org.opensearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.plugins.PluginInfo;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.node.ReportingService;
+import org.opensearch.plugins.PluginInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;

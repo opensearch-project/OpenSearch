@@ -17,32 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.stats;
+package org.opensearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.index.stats.IndexingPressureStats;
-import org.elasticsearch.indices.NodeIndicesStats;
-import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
-import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.monitor.fs.FsInfo;
-import org.elasticsearch.monitor.jvm.JvmStats;
-import org.elasticsearch.monitor.os.OsStats;
-import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.node.AdaptiveSelectionStats;
-import org.elasticsearch.script.ScriptCacheStats;
-import org.elasticsearch.script.ScriptStats;
-import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.transport.TransportStats;
+import org.opensearch.Version;
+import org.opensearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.discovery.DiscoveryStats;
+import org.opensearch.http.HttpStats;
+import org.opensearch.index.stats.IndexingPressureStats;
+import org.opensearch.indices.NodeIndicesStats;
+import org.opensearch.indices.breaker.AllCircuitBreakerStats;
+import org.opensearch.ingest.IngestStats;
+import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.monitor.jvm.JvmStats;
+import org.opensearch.monitor.os.OsStats;
+import org.opensearch.monitor.process.ProcessStats;
+import org.opensearch.node.AdaptiveSelectionStats;
+import org.opensearch.script.ScriptCacheStats;
+import org.opensearch.script.ScriptStats;
+import org.opensearch.threadpool.ThreadPoolStats;
+import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.util.Map;

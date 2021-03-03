@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.delete.DeleteRequestBuilder;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.WriteRequestBuilder;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.action.update.UpdateRequestBuilder;
+import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
@@ -121,7 +121,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * Adds a framed data in binary format
      * @deprecated use {@link #add(byte[], int, int, String, XContentType)} instead
      */
-    @Deprecated 
+    @Deprecated
     public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType,
                                   XContentType xContentType) throws Exception {
         request.add(data, from, length, defaultIndex, defaultType, xContentType);
@@ -135,7 +135,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
                                   XContentType xContentType) throws Exception {
         request.add(data, from, length, defaultIndex, MapperService.SINGLE_MAPPING_NAME, xContentType);
         return this;
-    }    
+    }
 
     /**
      * Sets the number of shard copies that must be active before proceeding with the write.

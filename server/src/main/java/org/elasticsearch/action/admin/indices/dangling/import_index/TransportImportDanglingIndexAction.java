@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.dangling.import_index;
+package org.opensearch.action.admin.indices.dangling.import_index;
 
 import static java.util.Collections.singletonList;
 
@@ -28,22 +28,22 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
-import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.gateway.LocalAllocateDangledIndices;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.ElasticsearchException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
+import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
+import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
+import org.opensearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.gateway.LocalAllocateDangledIndices;
+import org.opensearch.tasks.Task;
+import org.opensearch.transport.TransportService;
 
 /**
  * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexAction},

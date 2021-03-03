@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.upgrade.get;
+package org.opensearch.action.admin.indices.upgrade.get;
 
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.broadcast.BroadcastResponse;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;

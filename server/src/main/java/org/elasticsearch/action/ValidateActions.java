@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.opensearch.action;
 
 public class ValidateActions {
 

@@ -17,36 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.action.get;
+package org.opensearch.action.get;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.RealtimeRequest;
-import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.RealtimeRequest;
+import org.opensearch.action.ValidateActions;
+import org.opensearch.action.support.single.shard.SingleShardRequest;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to get a document (its source) from an index based on its id. Best created using
- * {@link org.elasticsearch.client.Requests#getRequest(String)}.
+ * {@link org.opensearch.client.Requests#getRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
  * to be set.
  *
- * @see org.elasticsearch.action.get.GetResponse
- * @see org.elasticsearch.client.Requests#getRequest(String)
- * @see org.elasticsearch.client.Client#get(GetRequest)
+ * @see org.opensearch.action.get.GetResponse
+ * @see org.opensearch.client.Requests#getRequest(String)
+ * @see org.opensearch.client.Client#get(GetRequest)
  */
 public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
 
@@ -266,7 +266,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     * Sets the versioning type. Defaults to {@link org.opensearch.index.VersionType#INTERNAL}.
      */
     public GetRequest versionType(VersionType versionType) {
         this.versionType = versionType;

@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support;
+package org.opensearch.action.support;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.shard.IllegalIndexShardStateException;
+import org.opensearch.index.shard.ShardNotFoundException;
 
 public class TransportActions {
 

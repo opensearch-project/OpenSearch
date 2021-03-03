@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteResponse;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.tasks.Task;
+import org.opensearch.transport.TransportService;
 
 /** use transport bulk action directly */
 @Deprecated

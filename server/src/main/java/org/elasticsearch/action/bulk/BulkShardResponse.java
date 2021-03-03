@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.Version;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.support.WriteResponse;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 

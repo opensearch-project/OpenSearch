@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.state;
+package org.opensearch.action.admin.cluster.state;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ClusterStateAction extends ActionType<ClusterStateResponse> {
 

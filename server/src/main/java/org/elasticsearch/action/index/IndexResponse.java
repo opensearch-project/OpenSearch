@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.action.index;
+package org.opensearch.action.index;
 
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of an index operation,
  *
- * @see org.elasticsearch.action.index.IndexRequest
- * @see org.elasticsearch.client.Client#index(IndexRequest)
+ * @see org.opensearch.action.index.IndexRequest
+ * @see org.opensearch.client.Client#index(IndexRequest)
  */
 public class IndexResponse extends DocWriteResponse {
 

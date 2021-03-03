@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.info;
+package org.opensearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.ingest.IngestInfo;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.os.OsInfo;
-import org.elasticsearch.monitor.process.ProcessInfo;
-import org.elasticsearch.search.aggregations.support.AggregationInfo;
-import org.elasticsearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.http.HttpInfo;
+import org.opensearch.ingest.IngestInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.os.OsInfo;
+import org.opensearch.monitor.process.ProcessInfo;
+import org.opensearch.search.aggregations.support.AggregationInfo;
+import org.opensearch.threadpool.ThreadPoolInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.List;

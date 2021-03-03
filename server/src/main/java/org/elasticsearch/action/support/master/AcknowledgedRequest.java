@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.support.master;
+package org.opensearch.action.support.master;
 
-import org.elasticsearch.cluster.ack.AckedRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.cluster.ack.AckedRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * Abstract class that allows to mark action requests that support acknowledgements.

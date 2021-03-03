@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.ingest;
+package org.opensearch.action.ingest;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class SimulatePipelineAction extends ActionType<SimulatePipelineResponse> {
 
