@@ -36,7 +36,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -101,7 +101,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory),
+        IndexReader indexReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(directory),
                 new ShardId(new Index("foo", "_na_"), 1));
         // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
@@ -137,7 +137,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (
-                IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+                IndexReader indexReader = OpenSearchDirectoryReader.wrap(
                     DirectoryReader.open(directory),
                     new ShardId(new Index("foo", "_na_"), 1)
                 )

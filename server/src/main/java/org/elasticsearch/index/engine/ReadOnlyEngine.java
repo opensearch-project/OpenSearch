@@ -28,7 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
@@ -98,7 +98,7 @@ public class ReadOnlyEngine extends Engine {
         try {
             Store store = config.getStore();
             store.incRef();
-            ElasticsearchDirectoryReader reader = null;
+            OpenSearchDirectoryReader reader = null;
             Directory directory = store.directory();
             Lock indexWriterLock = null;
             boolean success = false;
@@ -170,13 +170,13 @@ public class ReadOnlyEngine extends Engine {
         // reopened as an internal engine, which would be the path to fix the issue.
     }
 
-    protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader,
-                                                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
+    protected final OpenSearchDirectoryReader wrapReader(DirectoryReader reader,
+                                                         Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         }
         reader = readerWrapperFunction.apply(reader);
-        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
+        return OpenSearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
@@ -231,7 +231,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+    protected ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
     }
 
@@ -478,7 +478,7 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    protected void processReader(ElasticsearchDirectoryReader reader) {
+    protected void processReader(OpenSearchDirectoryReader reader) {
         refreshListener.accept(reader, null);
     }
 

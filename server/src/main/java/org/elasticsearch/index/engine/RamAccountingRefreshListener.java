@@ -24,7 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Collections;
@@ -36,7 +36,7 @@ import java.util.function.BiConsumer;
 /**
  * A refresh listener that tracks the amount of memory used by segments in the accounting circuit breaker.
  */
-final class RamAccountingRefreshListener implements BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> {
+final class RamAccountingRefreshListener implements BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> {
 
     private final CircuitBreakerService breakerService;
 
@@ -45,7 +45,7 @@ final class RamAccountingRefreshListener implements BiConsumer<ElasticsearchDire
     }
 
     @Override
-    public void accept(ElasticsearchDirectoryReader reader, ElasticsearchDirectoryReader previousReader) {
+    public void accept(OpenSearchDirectoryReader reader, OpenSearchDirectoryReader previousReader) {
         final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
 
         // Construct a list of the previous segment readers, we only want to track memory used

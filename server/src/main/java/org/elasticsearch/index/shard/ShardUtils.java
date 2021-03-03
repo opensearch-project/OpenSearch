@@ -22,7 +22,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
 
 public final class ShardUtils {
@@ -49,11 +49,11 @@ public final class ShardUtils {
      */
     @Nullable
     public static ShardId extractShardId(DirectoryReader reader) {
-        final ElasticsearchDirectoryReader esReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader);
+        final OpenSearchDirectoryReader esReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(reader);
         if (esReader != null) {
             return esReader.shardId();
         }
-        throw new IllegalArgumentException("can't extract shard ID, can't unwrap ElasticsearchDirectoryReader");
+        throw new IllegalArgumentException("can't extract shard ID, can't unwrap OpenSearchDirectoryReader");
     }
 
 
