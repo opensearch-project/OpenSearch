@@ -19,13 +19,13 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 
-public class AliasFilterParsingException extends ElasticsearchException {
+public class AliasFilterParsingException extends OpenSearchException {
 
     public AliasFilterParsingException(Index index, String name, String desc, Throwable ex) {
         super("[" + name + "], " + desc, ex);

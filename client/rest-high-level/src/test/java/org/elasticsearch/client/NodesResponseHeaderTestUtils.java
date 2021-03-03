@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -34,7 +34,7 @@ public class NodesResponseHeaderTestUtils {
 
         if (header.getFailures().isEmpty() == false) {
             builder.startArray("failures");
-            for (ElasticsearchException failure : header.getFailures()) {
+            for (OpenSearchException failure : header.getFailures()) {
                 builder.startObject();
                 failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();

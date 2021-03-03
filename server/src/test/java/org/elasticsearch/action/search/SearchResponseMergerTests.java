@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.collect.Tuple;
@@ -169,9 +169,9 @@ public class SearchResponseMergerTests extends ESTestCase {
             for (int j = 0; j < numFailures; j++) {
                 String index = "index-" + i;
                 ShardId shardId = new ShardId(index, index + "-uuid", j);
-                ElasticsearchException elasticsearchException = new ElasticsearchException(new IllegalArgumentException());
-                elasticsearchException.setShard(shardId);
-                ShardSearchFailure failure = new ShardSearchFailure(elasticsearchException);
+                OpenSearchException openSearchException = new OpenSearchException(new IllegalArgumentException());
+                openSearchException.setShard(shardId);
+                ShardSearchFailure failure = new ShardSearchFailure(openSearchException);
                 shardSearchFailures[j] = failure;
                 priorityQueue.add(Tuple.tuple(shardId, failure));
             }
@@ -205,7 +205,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             int numFailures = randomIntBetween(1, 50);
             ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
             for (int j = 0; j < numFailures; j++) {
-                ShardSearchFailure shardSearchFailure = new ShardSearchFailure(new ElasticsearchException(new IllegalArgumentException()));
+                ShardSearchFailure shardSearchFailure = new ShardSearchFailure(new OpenSearchException(new IllegalArgumentException()));
                 shardSearchFailures[j] = shardSearchFailure;
                 expectedFailures.add(shardSearchFailure);
             }

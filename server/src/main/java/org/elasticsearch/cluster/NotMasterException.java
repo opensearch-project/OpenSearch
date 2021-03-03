@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster;
 
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.io.IOException;
  * currently acting as a master or when a cluster state update task is to be executed
  * on a node that is no longer master.
  */
-public class NotMasterException extends ElasticsearchException {
+public class NotMasterException extends OpenSearchException {
 
     public NotMasterException(String msg) {
         super(msg);

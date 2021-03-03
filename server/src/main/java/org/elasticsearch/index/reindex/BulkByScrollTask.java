@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -938,7 +938,7 @@ public class BulkByScrollTask extends CancellableTask {
                 status.toXContent(builder, params);
             } else {
                 builder.startObject();
-                ElasticsearchException.generateThrowableXContent(builder, params, exception);
+                OpenSearchException.generateThrowableXContent(builder, params, exception);
                 builder.endObject();
             }
             return builder;
@@ -972,7 +972,7 @@ public class BulkByScrollTask extends CancellableTask {
                             Status.innerFromXContent(parser)
                         );
                     } else if (EXPECTED_EXCEPTION_FIELDS.contains(fieldName)){
-                        return new StatusOrException(ElasticsearchException.innerFromXContent(parser, false));
+                        return new StatusOrException(OpenSearchException.innerFromXContent(parser, false));
                     } else {
                         // Ignore unknown tokens
                         token = parser.nextToken();

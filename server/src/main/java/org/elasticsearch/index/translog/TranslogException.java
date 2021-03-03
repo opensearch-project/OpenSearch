@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class TranslogException extends ElasticsearchException {
+public class TranslogException extends OpenSearchException {
 
     public TranslogException(ShardId shardId, String msg) {
         this(shardId, msg, null);

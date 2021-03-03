@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -172,7 +172,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             return size;
         } catch (IOException e) {
             // This should not be possible as we are just rendering the xcontent in memory
-            throw new ElasticsearchException(e);
+            throw new OpenSearchException(e);
         }
     }
 

@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -72,9 +72,9 @@ public class TruncateTranslogAction {
         try {
             commits = DirectoryReader.listCommits(indexDirectory);
         } catch (IndexNotFoundException infe) {
-            throw new ElasticsearchException("unable to find a valid shard at [" + indexPath + "]", infe);
+            throw new OpenSearchException("unable to find a valid shard at [" + indexPath + "]", infe);
         } catch (IOException e) {
-            throw new ElasticsearchException("unable to list commits at [" + indexPath + "]", e);
+            throw new OpenSearchException("unable to list commits at [" + indexPath + "]", e);
         }
 
         // Retrieve the generation and UUID from the existing data
@@ -82,7 +82,7 @@ public class TruncateTranslogAction {
         final String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
 
         if (translogUUID == null) {
-            throw new ElasticsearchException("shard must have a valid translog UUID but got: [null]");
+            throw new OpenSearchException("shard must have a valid translog UUID but got: [null]");
         }
 
         final boolean clean = isTranslogClean(shardPath, clusterState, translogUUID);
@@ -96,7 +96,7 @@ public class TruncateTranslogAction {
         try {
             translogFiles = filesInDirectory(translogPath);
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to find existing translog files", e);
+            throw new OpenSearchException("failed to find existing translog files", e);
         }
         final String details = deletingFilesDetails(translogPath, translogFiles);
 
@@ -116,7 +116,7 @@ public class TruncateTranslogAction {
             translogFiles = filesInDirectory(translogPath);
         } catch (IOException e) {
             terminal.println("encountered IOException while listing directory, aborting...");
-            throw new ElasticsearchException("failed to find existing translog files", e);
+            throw new OpenSearchException("failed to find existing translog files", e);
         }
 
         List<IndexCommit> commits;
@@ -124,14 +124,14 @@ public class TruncateTranslogAction {
             terminal.println("Reading translog UUID information from Lucene commit from shard at [" + indexPath + "]");
             commits = DirectoryReader.listCommits(indexDirectory);
         } catch (IndexNotFoundException infe) {
-            throw new ElasticsearchException("unable to find a valid shard at [" + indexPath + "]", infe);
+            throw new OpenSearchException("unable to find a valid shard at [" + indexPath + "]", infe);
         }
 
         // Retrieve the generation and UUID from the existing data
         commitData = commits.get(commits.size() - 1).getUserData();
         final String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
         if (translogUUID == null) {
-            throw new ElasticsearchException("shard must have a valid translog UUID");
+            throw new OpenSearchException("shard must have a valid translog UUID");
         }
 
         final long globalCheckpoint = commitData.containsKey(SequenceNumbers.MAX_SEQ_NO)

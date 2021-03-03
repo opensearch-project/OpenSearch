@@ -19,7 +19,7 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -30,7 +30,7 @@ import java.io.IOException;
  *
  *
  */
-public class NodeClosedException extends ElasticsearchException {
+public class NodeClosedException extends OpenSearchException {
 
     public NodeClosedException(DiscoveryNode node) {
         super("node closed " + node);

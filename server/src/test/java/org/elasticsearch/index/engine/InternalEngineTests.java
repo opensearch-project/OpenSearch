@@ -69,7 +69,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
@@ -3991,7 +3991,7 @@ public class InternalEngineTests extends EngineTestCase {
                             } catch (InterruptedException e) {
                                 throw new AssertionError(e);
                             }
-                            throw new ElasticsearchException("something completely different");
+                            throw new OpenSearchException("something completely different");
                         }
                     }
                 });

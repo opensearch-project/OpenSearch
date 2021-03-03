@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
@@ -27,7 +27,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RoutingMissingException extends ElasticsearchException {
+public class RoutingMissingException extends OpenSearchException {
 
     private final String type;
 

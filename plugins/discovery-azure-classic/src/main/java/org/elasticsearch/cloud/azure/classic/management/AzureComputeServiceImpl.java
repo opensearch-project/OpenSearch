@@ -35,7 +35,7 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
 import org.elasticsearch.common.Strings;
@@ -82,7 +82,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
             logger.debug("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
             client = ComputeManagementService.create(managementConfig);
         } catch (IOException e) {
-            throw new ElasticsearchException("Unable to configure Azure compute service", e);
+            throw new OpenSearchException("Unable to configure Azure compute service", e);
         }
     }
 
@@ -106,15 +106,15 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() throws OpenSearchException {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() throws OpenSearchException {
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() throws OpenSearchException {
         if (client != null) {
             try {
                 client.close();

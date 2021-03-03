@@ -25,7 +25,7 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -138,7 +138,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             }
             doc.endObject();
         } catch (IOException e) {
-            throw new ElasticsearchException("Unable to generate random artificial doc!");
+            throw new OpenSearchException("Unable to generate random artificial doc!");
         }
         return doc;
     }
@@ -250,7 +250,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             }
             return new MultiTermVectorsResponse(responses);
         } catch (IOException ex) {
-            throw new ElasticsearchException("boom", ex);
+            throw new OpenSearchException("boom", ex);
         }
     }
 

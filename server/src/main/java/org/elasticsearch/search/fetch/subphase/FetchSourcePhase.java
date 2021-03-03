@@ -20,7 +20,7 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -100,7 +100,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
             }
             hitContext.hit().sourceRef(BytesReference.bytes(builder));
         } catch (IOException e) {
-            throw new ElasticsearchException("Error filtering source", e);
+            throw new OpenSearchException("Error filtering source", e);
         }
     }
 
