@@ -22,18 +22,18 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class UpdateByQueryRequestBuilder extends
         AbstractBulkIndexByScrollRequestBuilder<UpdateByQueryRequest, UpdateByQueryRequestBuilder> {
 
-    public UpdateByQueryRequestBuilder(ElasticsearchClient client, ActionType<BulkByScrollResponse> action) {
+    public UpdateByQueryRequestBuilder(OpenSearchClient client, ActionType<BulkByScrollResponse> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE));
     }
 
-    private UpdateByQueryRequestBuilder(ElasticsearchClient client,
-            ActionType<BulkByScrollResponse> action,
-            SearchRequestBuilder search) {
+    private UpdateByQueryRequestBuilder(OpenSearchClient client,
+                                        ActionType<BulkByScrollResponse> action,
+                                        SearchRequestBuilder search) {
         super(client, action, search, new UpdateByQueryRequest(search.request()));
     }
 

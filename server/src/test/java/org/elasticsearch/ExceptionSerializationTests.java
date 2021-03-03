@@ -135,7 +135,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();
         final String path = "/org/elasticsearch";
-        final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+        final Path startPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                 .resolve("org").resolve("elasticsearch");
         final Set<? extends Class<?>> ignore = Sets.newHashSet(
                 CancellableThreadsTests.CustomException.class,
@@ -174,10 +174,10 @@ public class ExceptionSerializationTests extends ESTestCase {
                 if (isEsException(clazz) == false) {
                     return;
                 }
-                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT) == false
-                        && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
+                if (OpenSearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT) == false
+                        && OpenSearchException.class.equals(clazz.getEnclosingClass()) == false) {
                     notRegistered.add(clazz);
-                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT)) {
+                } else if (OpenSearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT)) {
                     registered.add(clazz);
                     try {
                         if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
@@ -190,7 +190,7 @@ public class ExceptionSerializationTests extends ESTestCase {
             }
 
             private boolean isEsException(Class<?> clazz) {
-                return ElasticsearchException.class.isAssignableFrom(clazz);
+                return OpenSearchException.class.isAssignableFrom(clazz);
             }
 
             private Class<?> loadClass(String filename) throws ClassNotFoundException {
@@ -219,13 +219,13 @@ public class ExceptionSerializationTests extends ESTestCase {
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));
-        assertTrue("Classes subclassing ElasticsearchException must be registered \n" + notRegistered.toString(),
+        assertTrue("Classes subclassing OpenSearchException must be registered \n" + notRegistered.toString(),
                 notRegistered.isEmpty());
-        assertTrue(registered.removeAll(ElasticsearchException.getRegisteredKeys())); // check
+        assertTrue(registered.removeAll(OpenSearchException.getRegisteredKeys())); // check
         assertEquals(registered.toString(), 0, registered.size());
     }
 
-    public static final class TestException extends ElasticsearchException {
+    public static final class TestException extends OpenSearchException {
         public TestException(StreamInput in) throws IOException {
             super(in);
         }
@@ -542,7 +542,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         final Exception ex = new UnknownException("eggplant", parsingException);
         Exception exception = serialize(ex);
         assertEquals("unknown_exception: eggplant", exception.getMessage());
-        assertTrue(exception instanceof ElasticsearchException);
+        assertTrue(exception instanceof OpenSearchException);
         ParsingException e = (ParsingException)exception.getCause();
         assertEquals(parsingException.getIndex(), e.getIndex());
         assertEquals(parsingException.getMessage(), e.getMessage());
@@ -559,7 +559,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                 new IllegalArgumentException("alalaal"),
                 new NullPointerException("boom"),
                 new EOFException("dadada"),
-                new ElasticsearchSecurityException("nono!"),
+                new OpenSearchSecurityException("nono!"),
                 new NumberFormatException("not a number"),
                 new CorruptIndexException("baaaam booom", "this is my resource"),
                 new IndexFormatTooNewException("tooo new", 1, 2, 3),
@@ -573,8 +573,8 @@ public class ExceptionSerializationTests extends ESTestCase {
                 new LockObtainFailedException("can't lock directory", new NullPointerException()),
                 unknownException};
         for (final Exception cause : causes) {
-            ElasticsearchException ex = new ElasticsearchException("topLevel", cause);
-            ElasticsearchException deserialized = serialize(ex);
+            OpenSearchException ex = new OpenSearchException("topLevel", cause);
+            OpenSearchException deserialized = serialize(ex);
             assertEquals(deserialized.getMessage(), ex.getMessage());
             assertTrue("Expected: " + deserialized.getCause().getMessage() + " to contain: " +
                             ex.getCause().getClass().getName() + " but it didn't",
@@ -591,7 +591,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testWithRestHeadersException() throws IOException {
         {
-            ElasticsearchException ex = new ElasticsearchException("msg");
+            OpenSearchException ex = new OpenSearchException("msg");
             ex.addHeader("foo", "foo", "bar");
             ex.addMetadata("es.foo_metadata", "value1", "value2");
             ex = serialize(ex);
@@ -610,7 +610,7 @@ public class ExceptionSerializationTests extends ESTestCase {
             uhe.addHeader("foo", "foo", "bar");
             uhe.addMetadata("es.foo_metadata", "value1", "value2");
 
-            ElasticsearchException serialize = serialize((ElasticsearchException) uhe);
+            OpenSearchException serialize = serialize((OpenSearchException) uhe);
             assertTrue(serialize instanceof NotSerializableExceptionWrapper);
             NotSerializableExceptionWrapper e = (NotSerializableExceptionWrapper) serialize;
             assertEquals("unknown_header_exception: msg", e.getMessage());
@@ -632,7 +632,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(msg, ex.getMessage());
     }
 
-    public static class UnknownHeaderException extends ElasticsearchException {
+    public static class UnknownHeaderException extends OpenSearchException {
         private final RestStatus status;
 
         UnknownHeaderException(String msg, RestStatus status) {
@@ -647,8 +647,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testElasticsearchSecurityException() throws IOException {
-        ElasticsearchSecurityException ex = new ElasticsearchSecurityException("user [{}] is not allowed", RestStatus.UNAUTHORIZED, "foo");
-        ElasticsearchSecurityException e = serialize(ex);
+        OpenSearchSecurityException ex = new OpenSearchSecurityException("user [{}] is not allowed", RestStatus.UNAUTHORIZED, "foo");
+        OpenSearchSecurityException e = serialize(ex);
         assertEquals(ex.status(), e.status());
         assertEquals(RestStatus.UNAUTHORIZED, e.status());
     }
@@ -660,25 +660,25 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testThatIdsArePositive() {
-        for (final int id : ElasticsearchException.ids()) {
+        for (final int id : OpenSearchException.ids()) {
             assertThat("negative id", id, greaterThanOrEqualTo(0));
         }
     }
 
     public void testThatIdsAreUnique() {
         final Set<Integer> ids = new HashSet<>();
-        for (final int id: ElasticsearchException.ids()) {
+        for (final int id: OpenSearchException.ids()) {
             assertTrue("duplicate id", ids.add(id));
         }
     }
 
     public void testIds() {
-        Map<Integer, Class<? extends ElasticsearchException>> ids = new HashMap<>();
+        Map<Integer, Class<? extends OpenSearchException>> ids = new HashMap<>();
         ids.put(0, org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException.class);
         ids.put(1, org.elasticsearch.search.dfs.DfsPhaseExecutionException.class);
         ids.put(2, org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException.class);
         ids.put(3, org.elasticsearch.discovery.MasterNotDiscoveredException.class);
-        ids.put(4, org.elasticsearch.ElasticsearchSecurityException.class);
+        ids.put(4, org.elasticsearch.OpenSearchSecurityException.class);
         ids.put(5, org.elasticsearch.index.snapshots.IndexShardRestoreException.class);
         ids.put(6, org.elasticsearch.indices.IndexClosedException.class);
         ids.put(7, org.elasticsearch.http.BindHttpException.class);
@@ -695,7 +695,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(18, org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException.class);
         ids.put(19, org.elasticsearch.ResourceNotFoundException.class);
         ids.put(20, org.elasticsearch.transport.ActionTransportException.class);
-        ids.put(21, org.elasticsearch.ElasticsearchGenerationException.class);
+        ids.put(21, org.elasticsearch.OpenSearchGenerationException.class);
         ids.put(22, null); // was CreateFailedEngineException
         ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
@@ -733,7 +733,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(56, org.elasticsearch.common.settings.SettingsException.class);
         ids.put(57, org.elasticsearch.indices.IndexTemplateMissingException.class);
         ids.put(58, org.elasticsearch.transport.SendRequestTransportException.class);
-        ids.put(59, null); // was EsRejectedExecutionException, which is no longer an instance of ElasticsearchException
+        ids.put(59, null); // was EsRejectedExecutionException, which is no longer an instance of OpenSearchException
         ids.put(60, null); // EarlyTerminationException was removed in 6.0
         ids.put(61, null); // RoutingValidationException was removed in 5.0
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
@@ -742,7 +742,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(65, org.elasticsearch.gateway.GatewayException.class);
         ids.put(66, org.elasticsearch.index.shard.IndexShardNotRecoveringException.class);
         ids.put(67, org.elasticsearch.http.HttpException.class);
-        ids.put(68, org.elasticsearch.ElasticsearchException.class);
+        ids.put(68, OpenSearchException.class);
         ids.put(69, org.elasticsearch.snapshots.SnapshotMissingException.class);
         ids.put(70, org.elasticsearch.action.PrimaryMissingActionException.class);
         ids.put(71, org.elasticsearch.action.FailedNodeException.class);
@@ -833,21 +833,21 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(159, NodeHealthCheckFailureException.class);
         ids.put(160, NoSeedNodeLeftException.class);
 
-        Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
-        for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
+        Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
+        for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {
             if (entry.getValue() != null) {
                 reverse.put(entry.getValue(), entry.getKey());
             }
         }
 
-        for (final Tuple<Integer, Class<? extends ElasticsearchException>> tuple : ElasticsearchException.classes()) {
+        for (final Tuple<Integer, Class<? extends OpenSearchException>> tuple : OpenSearchException.classes()) {
             assertNotNull(tuple.v1());
             assertEquals((int) reverse.get(tuple.v2()), (int)tuple.v1());
         }
 
-        for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
+        for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {
             if (entry.getValue() != null) {
-                assertEquals((int) entry.getKey(), ElasticsearchException.getId(entry.getValue()));
+                assertEquals((int) entry.getKey(), OpenSearchException.getId(entry.getValue()));
             }
         }
     }

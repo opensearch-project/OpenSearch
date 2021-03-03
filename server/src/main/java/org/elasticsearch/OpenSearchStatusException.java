@@ -29,7 +29,7 @@ import java.io.IOException;
  * Exception who's {@link RestStatus} is arbitrary rather than derived. Used, for example, by reindex-from-remote to wrap remote exceptions
  * that contain a status.
  */
-public class OpenSearchStatusException extends ElasticsearchException {
+public class OpenSearchStatusException extends OpenSearchException {
     private final RestStatus status;
 
     /**

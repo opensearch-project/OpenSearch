@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

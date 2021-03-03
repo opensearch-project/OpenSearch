@@ -21,7 +21,7 @@ package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -47,7 +47,7 @@ public class RescorePhase {
             context.queryResult().topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score),
                     context.queryResult().sortValueFormats());
         } catch (IOException e) {
-            throw new ElasticsearchException("Rescore Phase Failed", e);
+            throw new OpenSearchException("Rescore Phase Failed", e);
         }
     }
 

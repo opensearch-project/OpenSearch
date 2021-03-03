@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -98,7 +98,7 @@ public class TransportClearVotingConfigExclusionsAction
 
                 @Override
                 public void onClusterServiceClose() {
-                    listener.onFailure(new ElasticsearchException("cluster service closed while waiting for removal of nodes "
+                    listener.onFailure(new OpenSearchException("cluster service closed while waiting for removal of nodes "
                         + initialState.getVotingConfigExclusions()));
                 }
 

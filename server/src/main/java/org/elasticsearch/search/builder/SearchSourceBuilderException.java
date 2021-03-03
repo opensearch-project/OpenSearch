@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class SearchSourceBuilderException extends ElasticsearchException {
+public class SearchSourceBuilderException extends OpenSearchException {
 
     public SearchSourceBuilderException(String msg) {
         super(msg);

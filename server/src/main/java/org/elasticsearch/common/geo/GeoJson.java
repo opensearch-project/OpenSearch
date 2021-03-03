@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -601,7 +601,7 @@ public final class GeoJson {
 
         protected int numDimensions() {
             if (isEmpty()) {
-                throw new ElasticsearchException("attempting to get number of dimensions on an empty coordinate node");
+                throw new OpenSearchException("attempting to get number of dimensions on an empty coordinate node");
             }
             if (coordinate != null) {
                 return coordinate.hasZ() ? 3 : 2;
@@ -611,14 +611,14 @@ public final class GeoJson {
 
         public Point asPoint() {
             if (children != null) {
-                throw new ElasticsearchException("expected a single points but got a list");
+                throw new OpenSearchException("expected a single points but got a list");
             }
             return coordinate;
         }
 
         public MultiPoint asMultiPoint() {
             if (coordinate != null) {
-                throw new ElasticsearchException("expected a list of points but got a point");
+                throw new OpenSearchException("expected a list of points but got a point");
             }
             List<Point> points = new ArrayList<>();
             for (CoordinateNode node : children) {
@@ -629,11 +629,11 @@ public final class GeoJson {
 
         private double[][] asLineComponents(boolean orientation, boolean coerce, boolean close) {
             if (coordinate != null) {
-                throw new ElasticsearchException("expected a list of points but got a point");
+                throw new OpenSearchException("expected a list of points but got a point");
             }
 
             if (children.size() < 2) {
-                throw new ElasticsearchException("not enough points to build a line");
+                throw new OpenSearchException("not enough points to build a line");
             }
 
             boolean needsClosing;
@@ -685,7 +685,7 @@ public final class GeoJson {
 
         public MultiLine asMultiLineString(boolean coerce) {
             if (coordinate != null) {
-                throw new ElasticsearchException("expected a list of points but got a point");
+                throw new OpenSearchException("expected a list of points but got a point");
             }
             List<Line> lines = new ArrayList<>();
             for (CoordinateNode node : children) {
@@ -697,7 +697,7 @@ public final class GeoJson {
 
         public Polygon asPolygon(boolean orientation, boolean coerce) {
             if (coordinate != null) {
-                throw new ElasticsearchException("expected a list of points but got a point");
+                throw new OpenSearchException("expected a list of points but got a point");
             }
             List<LinearRing> lines = new ArrayList<>();
             for (CoordinateNode node : children) {
@@ -713,7 +713,7 @@ public final class GeoJson {
 
         public MultiPolygon asMultiPolygon(boolean orientation, boolean coerce) {
             if (coordinate != null) {
-                throw new ElasticsearchException("expected a list of points but got a point");
+                throw new OpenSearchException("expected a list of points but got a point");
             }
             List<Polygon> polygons = new ArrayList<>();
             for (CoordinateNode node : children) {

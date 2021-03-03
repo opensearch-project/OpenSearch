@@ -127,7 +127,7 @@ import org.elasticsearch.tasks.TaskId;
  *
  * @see AdminClient#cluster()
  */
-public interface ClusterAdminClient extends ElasticsearchClient {
+public interface ClusterAdminClient extends OpenSearchClient {
 
     /**
      * The health of the cluster.

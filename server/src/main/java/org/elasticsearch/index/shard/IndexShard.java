@@ -38,7 +38,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -1042,7 +1042,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return store.stats(bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover);
         } catch (IOException e) {
             failShard("Failing shard because of exception during storeStats", e);
-            throw new ElasticsearchException("io exception while building 'store stats'", e);
+            throw new OpenSearchException("io exception while building 'store stats'", e);
         }
     }
 
@@ -1282,7 +1282,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             success = true;
             return newSearcher;
         } catch (IOException ex) {
-            throw new ElasticsearchException("failed to wrap searcher", ex);
+            throw new OpenSearchException("failed to wrap searcher", ex);
         } finally {
             if (success == false) {
                 Releasables.close(success, searcher);

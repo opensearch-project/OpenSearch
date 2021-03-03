@@ -27,7 +27,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -247,7 +247,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 lastPosition += analyzer.getPositionIncrementGap("");
                 lastOffset += analyzer.getOffsetGap("");
             } catch (IOException e) {
-                throw new ElasticsearchException("failed to analyze", e);
+                throw new OpenSearchException("failed to analyze", e);
             }
         }
         return tokens;
@@ -384,7 +384,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             try {
                 len = input.read(buf, 0, BUFFER_SIZE);
             } catch (IOException e) {
-                throw new ElasticsearchException("failed to analyze (charFiltering)", e);
+                throw new OpenSearchException("failed to analyze (charFiltering)", e);
             }
             if (len > 0) {
                 sb.append(buf, 0, len);
@@ -448,7 +448,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 lastOffset += offsetGap;
 
             } catch (IOException e) {
-                throw new ElasticsearchException("failed to analyze", e);
+                throw new OpenSearchException("failed to analyze", e);
             } finally {
                 IOUtils.closeWhileHandlingException(stream);
             }

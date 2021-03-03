@@ -20,7 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
@@ -31,11 +31,11 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
  */
 public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetRequest, GetResponse, GetRequestBuilder> {
 
-    public GetRequestBuilder(ElasticsearchClient client, GetAction action) {
+    public GetRequestBuilder(OpenSearchClient client, GetAction action) {
         super(client, action, new GetRequest());
     }
 
-    public GetRequestBuilder(ElasticsearchClient client, GetAction action, @Nullable String index) {
+    public GetRequestBuilder(OpenSearchClient client, GetAction action, @Nullable String index) {
         super(client, action, new GetRequest(index));
     }
 

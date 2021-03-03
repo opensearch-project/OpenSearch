@@ -21,7 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -1802,7 +1802,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                             .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
-                    } catch (IllegalStateException | ElasticsearchException ignored) {
+                    } catch (IllegalStateException | OpenSearchException ignored) {
                     }
                 }
             });

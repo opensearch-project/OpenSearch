@@ -19,7 +19,7 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoTestUtil;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -358,7 +358,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext));
 
         // test store z disabled
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+        OpenSearchException e = expectThrows(OpenSearchException.class,
             () -> ShapeParser.parse(parser, mapperBuilder));
         assertThat(e, hasToString(containsString("unable to add coordinate to CoordinateBuilder: coordinate dimensions do not match")));
     }

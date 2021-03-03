@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -187,7 +187,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             builder.field(Fields.ALLOCATED, allocationStatus.value());
             if (storeException != null) {
                 builder.startObject(Fields.STORE_EXCEPTION);
-                ElasticsearchException.generateThrowableXContent(builder, params, storeException);
+                OpenSearchException.generateThrowableXContent(builder, params, storeException);
                 builder.endObject();
             }
             return builder;

@@ -27,7 +27,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 
-public interface ElasticsearchClient {
+public interface OpenSearchClient {
 
     /**
      * Executes a generic action, denoted by an {@link ActionType}.

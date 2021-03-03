@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /**
@@ -32,14 +32,14 @@ public class GetRepositoriesRequestBuilder
     /**
      * Creates new get repository request builder
      */
-    public GetRepositoriesRequestBuilder(ElasticsearchClient client, GetRepositoriesAction action) {
+    public GetRepositoriesRequestBuilder(OpenSearchClient client, GetRepositoriesAction action) {
         super(client, action, new GetRepositoriesRequest());
     }
 
     /**
      * Creates new get repository request builder
      */
-    public GetRepositoriesRequestBuilder(ElasticsearchClient client, GetRepositoriesAction action, String... repositories) {
+    public GetRepositoriesRequestBuilder(OpenSearchClient client, GetRepositoriesAction action, String... repositories) {
         super(client, action, new GetRepositoriesRequest(repositories));
     }
 

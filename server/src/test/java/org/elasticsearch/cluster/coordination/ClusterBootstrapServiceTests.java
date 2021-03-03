@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -381,7 +381,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService, () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()), () -> false, vc -> {
             bootstrappingAttempts.incrementAndGet();
             if (bootstrappingAttempts.get() < 5L) {
-                throw new ElasticsearchException("test");
+                throw new OpenSearchException("test");
             }
         });
 

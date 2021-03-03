@@ -21,7 +21,7 @@ package org.elasticsearch.ingest;
 
 import java.io.IOException;
 import java.io.InputStream;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -305,8 +305,8 @@ public final class ConfigurationUtils {
         return value;
     }
 
-    public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
-                                                                        String propertyName, String reason) {
+    public static OpenSearchException newConfigurationException(String processorType, String processorTag,
+                                                                String propertyName, String reason) {
         String msg;
         if (propertyName == null) {
            msg = reason;
@@ -318,9 +318,9 @@ public final class ConfigurationUtils {
         return exception;
     }
 
-    public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
-                                                                        String propertyName, Exception cause) {
-        ElasticsearchException exception = ExceptionsHelper.convertToElastic(cause);
+    public static OpenSearchException newConfigurationException(String processorType, String processorTag,
+                                                                String propertyName, Exception cause) {
+        OpenSearchException exception = ExceptionsHelper.convertToElastic(cause);
         addMetadataToException(exception, processorType, processorTag, propertyName);
         return exception;
     }
@@ -378,7 +378,7 @@ public final class ConfigurationUtils {
         }
     }
 
-    private static void addMetadataToException(ElasticsearchException exception, String processorType,
+    private static void addMetadataToException(OpenSearchException exception, String processorType,
                                                String processorTag, String propertyName) {
         if (processorType != null) {
             exception.addMetadata("es.processor_type", processorType);
