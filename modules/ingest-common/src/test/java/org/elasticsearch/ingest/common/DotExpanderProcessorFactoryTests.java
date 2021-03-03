@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -66,7 +66,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("path", "_path");
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
+        Exception e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, "_tag", null, config));
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
 
@@ -76,7 +76,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
         for (String field : fields) {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, "_tag", null, config));
             assertThat(e.getMessage(), equalTo("[field] field does not contain a dot"));
         }
 
@@ -84,7 +84,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
         for (String field : fields) {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, "_tag", null, config));
             assertThat(e.getMessage(), equalTo("[field] Field can't start or end with a dot"));
         }
 
@@ -92,7 +92,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
         for (String field : fields) {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, "_tag", null, config));
             assertThat(e.getMessage(), equalTo("[field] No space between dots"));
         }
     }

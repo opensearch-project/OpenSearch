@@ -31,7 +31,7 @@ import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -193,7 +193,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                     String[] kv = pair.split("=");
                     try {
                         if (kv.length == 2) {
-                            throw new ElasticsearchParseException("key=value pairs are not supported in annotations");
+                            throw new OpenSearchParseException("key=value pairs are not supported in annotations");
                         }
                         if (kv.length == 1) {
                             //Check "=" sign wasn't in the pair string
@@ -206,7 +206,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                             annotations.add(new AnnotationToken(startOffset, endOffset, value));
                         }
                     } catch (UnsupportedEncodingException e) {
-                        throw new ElasticsearchParseException("Unsupported encoding parsing annotated text", e);
+                        throw new OpenSearchParseException("Unsupported encoding parsing annotated text", e);
                     }
                 }
             }

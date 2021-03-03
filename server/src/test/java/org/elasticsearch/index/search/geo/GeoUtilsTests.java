@@ -22,7 +22,7 @@ package org.elasticsearch.index.search.geo;
 import org.apache.lucene.spatial.prefix.tree.Cell;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -438,7 +438,7 @@ public class GeoUtilsTests extends ESTestCase {
             while (parser.currentToken() != Token.VALUE_STRING) {
                 parser.nextToken();
             }
-            Exception e = expectThrows(ElasticsearchParseException.class,
+            Exception e = expectThrows(OpenSearchParseException.class,
                 () -> GeoUtils.parseGeoPoint(parser, new GeoPoint(), false));
             assertThat(e.getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
         }
@@ -451,7 +451,7 @@ public class GeoUtilsTests extends ESTestCase {
         XContentBuilder json = jsonBuilder().startArray().value(lat).value(lon).value(alt).endArray();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class,
+            Exception e = expectThrows(OpenSearchParseException.class,
                 () -> GeoUtils.parseGeoPoint(parser, new GeoPoint(), false));
             assertThat(e.getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
             assertThat(parser.currentToken(), is(Token.END_ARRAY));
@@ -491,7 +491,7 @@ public class GeoUtilsTests extends ESTestCase {
         XContentBuilder json = jsonBuilder().startObject().field("geohash", 1.0).endObject();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), containsString("geohash must be a string"));
             assertThat(parser.currentToken(), is(Token.END_OBJECT));
             assertNull(parser.nextToken());
@@ -503,7 +503,7 @@ public class GeoUtilsTests extends ESTestCase {
         XContentBuilder json = jsonBuilder().startObject().field("lat", lat).endObject();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("field [lon] missing"));
             assertThat(parser.currentToken(), is(Token.END_OBJECT));
             assertNull(parser.nextToken());
@@ -515,7 +515,7 @@ public class GeoUtilsTests extends ESTestCase {
         XContentBuilder json = jsonBuilder().startObject().field("lon", lon).endObject();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("field [lat] missing"));
             assertThat(parser.currentToken(), is(Token.END_OBJECT));
             assertNull(parser.nextToken());
@@ -527,7 +527,7 @@ public class GeoUtilsTests extends ESTestCase {
         XContentBuilder json = jsonBuilder().startObject().field("lat", lat).field("lon", false).endObject();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("longitude must be a number"));
             assertThat(parser.currentToken(), is(Token.END_OBJECT));
             assertNull(parser.nextToken());
@@ -539,7 +539,7 @@ public class GeoUtilsTests extends ESTestCase {
         XContentBuilder json = jsonBuilder().startObject().field("lat", false).field("lon", lon).endObject();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("latitude must be a number"));
             assertThat(parser.currentToken(), is(Token.END_OBJECT));
             assertNull(parser.nextToken());
@@ -553,7 +553,7 @@ public class GeoUtilsTests extends ESTestCase {
             .field("lat", lat).field("lon", lon).field("foo", true).endObject();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
         }
     }
@@ -566,7 +566,7 @@ public class GeoUtilsTests extends ESTestCase {
             .field("lat", lat).field("lon", lon).field("geohash", geohash).endObject();
         try (XContentParser parser = createParser(json)) {
             parser.nextToken();
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), containsString("field must be either lat/lon or geohash"));
         }
     }
@@ -580,7 +580,7 @@ public class GeoUtilsTests extends ESTestCase {
             while (parser.currentToken() != Token.START_ARRAY) {
                 parser.nextToken();
             }
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(),
                 is("Exception parsing coordinates: found Z value [0.0] but [ignore_z_value] parameter is [false]"));
         }
@@ -609,7 +609,7 @@ public class GeoUtilsTests extends ESTestCase {
             while (parser.currentToken() != Token.START_ARRAY) {
                 parser.nextToken();
             }
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("numeric value expected"));
             assertThat(parser.currentToken(), is(Token.END_ARRAY));
             assertThat(parser.nextToken(), is(Token.END_OBJECT));
@@ -623,7 +623,7 @@ public class GeoUtilsTests extends ESTestCase {
             while (parser.currentToken() != Token.VALUE_NUMBER) {
                 parser.nextToken();
             }
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+            Exception e = expectThrows(OpenSearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
             assertThat(e.getMessage(), is("geo_point expected"));
         }
     }

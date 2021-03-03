@@ -29,7 +29,7 @@ import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -173,7 +173,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 geoData = Collections.emptyMap();
             }
         } else {
-            throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.getDatabaseType()
+            throw new OpenSearchParseException("Unsupported database type [" + lazyLoader.getDatabaseType()
                 + "]", new IllegalStateException());
         }
         return geoData;

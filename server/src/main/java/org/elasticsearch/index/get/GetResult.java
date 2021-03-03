@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.get;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -200,7 +200,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to decompress source", e);
+            throw new OpenSearchParseException("failed to decompress source", e);
         }
     }
 
@@ -229,14 +229,14 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         try {
             return XContentHelper.convertToJson(source, false);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to convert source to a json string");
+            throw new OpenSearchParseException("failed to convert source to a json string");
         }
     }
 
     /**
      * The source of the document (As a map).
      */
-    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
+    public Map<String, Object> sourceAsMap() throws OpenSearchParseException {
         if (source == null) {
             return null;
         }

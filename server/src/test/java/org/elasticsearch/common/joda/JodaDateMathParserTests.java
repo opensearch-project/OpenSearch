@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.test.ESTestCase;
@@ -295,7 +295,7 @@ public class JodaDateMathParserTests extends ESTestCase {
         try {
             parser.parse(date, () -> 0);
             fail("Date: " + date + "\n" + msg);
-        } catch (ElasticsearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage().contains(exc), equalTo(true));
         }
     }
@@ -329,8 +329,8 @@ public class JodaDateMathParserTests extends ESTestCase {
         JodaDateMathParser parser = new JodaDateMathParser(Joda.forPattern("epoch_millis"));
         try {
             parser.parse("1234567890123", () -> 42, false, ZoneId.of("CET"));
-            fail("Expected ElasticsearchParseException");
-        } catch(ElasticsearchParseException e) {
+            fail("Expected OpenSearchParseException");
+        } catch(OpenSearchParseException e) {
             assertThat(e.getMessage(), containsString("failed to parse date field"));
             assertThat(e.getMessage(), containsString("with format [epoch_millis]"));
         }

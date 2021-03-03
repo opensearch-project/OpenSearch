@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
@@ -498,7 +498,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
                             builder.putAlias(AliasMetadata.Builder.fromXContent(parser));
                         }
                     } else {
-                        throw new ElasticsearchParseException("unknown key [{}] for index template", currentFieldName);
+                        throw new OpenSearchParseException("unknown key [{}] for index template", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {
