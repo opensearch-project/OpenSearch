@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.opensearch;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.commons.codec.DecoderException;

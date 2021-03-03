@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.opensearch;
 
 import org.elasticsearch.test.ESTestCase;
 
