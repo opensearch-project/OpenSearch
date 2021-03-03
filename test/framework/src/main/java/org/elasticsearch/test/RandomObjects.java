@@ -24,7 +24,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
@@ -308,30 +308,30 @@ public final class RandomObjects {
         ShardId shard = new ShardId(index, indexUuid, shardId);
 
         Exception actualException;
-        ElasticsearchException expectedException;
+        OpenSearchException expectedException;
 
         int type = randomIntBetween(random, 0, 3);
         switch (type) {
             case 0:
                 actualException = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
-                expectedException = new ElasticsearchException("Elasticsearch exception [type=cluster_block_exception, " +
+                expectedException = new OpenSearchException("Elasticsearch exception [type=cluster_block_exception, " +
                         "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
                 break;
             case 1:
                 actualException = new ShardNotFoundException(shard);
-                expectedException = new ElasticsearchException("Elasticsearch exception [type=shard_not_found_exception, " +
+                expectedException = new OpenSearchException("Elasticsearch exception [type=shard_not_found_exception, " +
                         "reason=no such shard]");
                 expectedException.setShard(shard);
                 break;
             case 2:
                 actualException = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
-                expectedException = new ElasticsearchException("Elasticsearch exception [type=illegal_argument_exception, " +
+                expectedException = new OpenSearchException("Elasticsearch exception [type=illegal_argument_exception, " +
                         "reason=Closed resource]",
-                        new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]"));
+                        new OpenSearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]"));
                 break;
             case 3:
                 actualException = new IndexShardRecoveringException(shard);
-                expectedException = new ElasticsearchException("Elasticsearch exception [type=index_shard_recovering_exception, " +
+                expectedException = new OpenSearchException("Elasticsearch exception [type=index_shard_recovering_exception, " +
                         "reason=CurrentState[RECOVERING] Already recovering]");
                 expectedException.setShard(shard);
                 break;

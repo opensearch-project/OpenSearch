@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -103,7 +103,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
                         return null;
                     }
                     if (randomBoolean()) {
-                        return new BulkByScrollTask.StatusOrException(new ElasticsearchException(randomAlphaOfLength(5)));
+                        return new BulkByScrollTask.StatusOrException(new OpenSearchException(randomAlphaOfLength(5)));
                     }
                     return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
                 })

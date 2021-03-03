@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -596,9 +596,9 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .get();
             fail("Expected an exception");
         } catch (SearchPhaseExecutionException e) {
-            ElasticsearchException[] rootCauses = e.guessRootCauses();
+            OpenSearchException[] rootCauses = e.guessRootCauses();
             if (rootCauses.length == 1) {
-                ElasticsearchException rootCause = rootCauses[0];
+                OpenSearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
                     assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));

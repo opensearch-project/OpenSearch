@@ -27,7 +27,7 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
@@ -135,7 +135,7 @@ final class Bootstrap {
                         try {
                             Bootstrap.stop();
                         } catch (IOException e) {
-                            throw new ElasticsearchException("failed to stop node", e);
+                            throw new OpenSearchException("failed to stop node", e);
                         }
                         return true;
                     }
@@ -197,7 +197,7 @@ final class Bootstrap {
                                     "Any outstanding requests or tasks might get killed.");
                         }
                     } catch (IOException ex) {
-                        throw new ElasticsearchException("failed to stop node", ex);
+                        throw new OpenSearchException("failed to stop node", ex);
                     } catch (InterruptedException e) {
                         LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
                         Thread.currentThread().interrupt();

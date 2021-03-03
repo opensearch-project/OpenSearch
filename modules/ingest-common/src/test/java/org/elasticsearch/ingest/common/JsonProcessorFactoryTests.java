@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -72,7 +72,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
     public void testCreateWithMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
+        OpenSearchException exception = expectThrows(ElasticsearchParseException.class,
             () -> FACTORY.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
     }
@@ -84,7 +84,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         config.put("field", randomField);
         config.put("target_field", randomTargetField);
         config.put("add_to_root", true);
-        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
+        OpenSearchException exception = expectThrows(ElasticsearchParseException.class,
             () -> FACTORY.create(null, randomAlphaOfLength(10), null, config));
         assertThat(exception.getMessage(), equalTo("[target_field] Cannot set a target field while also setting `add_to_root` to true"));
     }

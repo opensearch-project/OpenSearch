@@ -41,7 +41,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
@@ -817,11 +817,11 @@ public class FunctionScoreTests extends ESTestCase {
         IndexSearcher localSearcher = new IndexSearcher(reader);
         FunctionScoreQuery query1 = new FunctionScoreQuery(new TermQuery(new Term(FIELD, "out")),
             new ConstantScoreFunction(Float.NaN), CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
-        ElasticsearchException exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query1, 1));
+        OpenSearchException exc = expectThrows(OpenSearchException.class, () -> localSearcher.search(query1, 1));
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NaN));
         FunctionScoreQuery query2 = new FunctionScoreQuery(new TermQuery(new Term(FIELD, "out")),
             new ConstantScoreFunction(Float.NEGATIVE_INFINITY), CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
-        exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query2, 1));
+        exc = expectThrows(OpenSearchException.class, () -> localSearcher.search(query2, 1));
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NEGATIVE_INFINITY));
     }
 

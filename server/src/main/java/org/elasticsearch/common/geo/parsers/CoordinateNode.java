@@ -19,7 +19,7 @@
 package org.elasticsearch.common.geo.parsers;
 
 import org.locationtech.jts.geom.Coordinate;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -64,7 +64,7 @@ public class CoordinateNode implements ToXContentObject {
 
     protected int numDimensions() {
         if (isEmpty()) {
-            throw new ElasticsearchException("attempting to get number of dimensions on an empty coordinate node");
+            throw new OpenSearchException("attempting to get number of dimensions on an empty coordinate node");
         }
         if (coordinate != null) {
             return Double.isNaN(coordinate.z) ? 2 : 3;

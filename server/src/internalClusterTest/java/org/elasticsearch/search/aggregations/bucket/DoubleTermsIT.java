@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -674,7 +674,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 // expected
             }
         }
@@ -695,7 +695,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 // expected
             }
         }
@@ -713,7 +713,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
                         "with an unknown specified metric to order by");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 // expected
             }
         }
@@ -731,7 +731,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
                         "where the metric name is not specified");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 // expected
             }
         }

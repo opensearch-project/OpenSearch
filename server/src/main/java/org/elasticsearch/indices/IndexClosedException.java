@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * Exception indicating that one or more requested indices are closed.
  */
-public class IndexClosedException extends ElasticsearchException {
+public class IndexClosedException extends OpenSearchException {
 
     public IndexClosedException(Index index) {
         super("closed");

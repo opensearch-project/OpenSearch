@@ -24,7 +24,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.index.IndexResponse;
@@ -561,7 +561,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
 
         final ShardScrollRequestTest request = new ShardScrollRequestTest(indexShard.shardId());
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+        OpenSearchException ex = expectThrows(OpenSearchException.class,
             () -> service.createAndPutReaderContext(
                 request, indexService, indexShard, indexShard.acquireSearcherSupplier(), randomBoolean()));
         assertEquals(
@@ -593,7 +593,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         try {
                             searchService.createAndPutReaderContext(
                                 new ShardScrollRequestTest(indexShard.shardId()), indexService, indexShard, reader, true);
-                        } catch (ElasticsearchException e) {
+                        } catch (OpenSearchException e) {
                             assertThat(e.getMessage(), equalTo(
                                 "Trying to create too many scroll contexts. Must be less than or equal to: " +
                                     "[" + maxScrollContexts + "]. " +

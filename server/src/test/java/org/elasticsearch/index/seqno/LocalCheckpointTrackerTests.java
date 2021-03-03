@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
@@ -178,7 +178,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
             threads[t] = new Thread(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    throw new ElasticsearchException("failure in background thread", e);
+                    throw new OpenSearchException("failure in background thread", e);
                 }
 
                 @Override
@@ -230,7 +230,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
             threads[t] = new Thread(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    throw new ElasticsearchException("failure in background thread", e);
+                    throw new OpenSearchException("failure in background thread", e);
                 }
 
                 @Override

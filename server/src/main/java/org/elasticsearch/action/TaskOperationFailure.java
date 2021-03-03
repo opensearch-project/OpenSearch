@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,14 +58,14 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
                 int i = 0;
                 String nodeId = (String) constructorObjects[i++];
                 long taskId = (long) constructorObjects[i++];
-                ElasticsearchException reason = (ElasticsearchException) constructorObjects[i];
+                OpenSearchException reason = (OpenSearchException) constructorObjects[i];
                 return new TaskOperationFailure(nodeId, taskId, reason);
             });
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(NODE_ID));
         PARSER.declareLong(constructorArg(), new ParseField(TASK_ID));
-        PARSER.declareObject(constructorArg(), (parser, c) -> ElasticsearchException.fromXContent(parser), new ParseField(REASON));
+        PARSER.declareObject(constructorArg(), (parser, c) -> OpenSearchException.fromXContent(parser), new ParseField(REASON));
     }
 
     public TaskOperationFailure(String nodeId, long taskId, Exception e) {
@@ -126,7 +126,7 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
         if (reason != null) {
             builder.field(REASON);
             builder.startObject();
-            ElasticsearchException.generateThrowableXContent(builder, params, reason);
+            OpenSearchException.generateThrowableXContent(builder, params, reason);
             builder.endObject();
         }
         return builder;

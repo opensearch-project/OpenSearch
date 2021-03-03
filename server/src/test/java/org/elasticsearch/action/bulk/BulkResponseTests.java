@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -76,7 +76,7 @@ public class BulkResponseTests extends ESTestCase {
                 String type = randomAlphaOfLength(5);
                 String id = randomAlphaOfLength(5);
 
-                Tuple<Throwable, ElasticsearchException> failures = randomExceptions();
+                Tuple<Throwable, OpenSearchException> failures = randomExceptions();
 
                 Exception bulkItemCause = (Exception) failures.v1();
                 bulkItems[i] = new BulkItemResponse(i, opType,

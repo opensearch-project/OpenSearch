@@ -22,7 +22,7 @@ package org.elasticsearch.indices.memory.breaker;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -147,7 +147,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i)
                     .get();
-            } catch (ElasticsearchException ex) {
+            } catch (OpenSearchException ex) {
             }
         }
         logger.info("Start Refresh");

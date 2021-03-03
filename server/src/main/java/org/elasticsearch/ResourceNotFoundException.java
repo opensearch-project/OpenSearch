@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * Generic ResourceNotFoundException corresponding to the {@link RestStatus#NOT_FOUND} status code
  */
-public class ResourceNotFoundException extends ElasticsearchException {
+public class ResourceNotFoundException extends OpenSearchException {
 
     public ResourceNotFoundException(String msg, Object... args) {
         super(msg, args);

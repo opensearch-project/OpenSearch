@@ -21,7 +21,7 @@ package org.elasticsearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -158,7 +158,7 @@ public class TaskResultsService {
             taskResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
             index.setSource(builder);
         } catch (IOException e) {
-            throw new ElasticsearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
+            throw new OpenSearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
         }
         doStoreResult(STORE_BACKOFF_POLICY.iterator(), index, listener);
     }

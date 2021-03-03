@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
@@ -151,7 +151,7 @@ final class RemoteRequestBuilders {
                 entity.copyCurrentStructure(queryParser);
                 XContentParser.Token shouldBeEof = queryParser.nextToken();
                 if (shouldBeEof != null) {
-                    throw new ElasticsearchException(
+                    throw new OpenSearchException(
                             "query was more than a single object. This first token after the object is [" + shouldBeEof + "]");
                 }
             }
@@ -168,7 +168,7 @@ final class RemoteRequestBuilders {
             entity.endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
-            throw new ElasticsearchException("unexpected error building entity", e);
+            throw new OpenSearchException("unexpected error building entity", e);
         }
         return request;
     }
@@ -245,7 +245,7 @@ final class RemoteRequestBuilders {
                 .endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to build scroll entity", e);
+            throw new OpenSearchException("failed to build scroll entity", e);
         }
         return request;
     }
@@ -264,7 +264,7 @@ final class RemoteRequestBuilders {
                 .endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to build clear scroll entity", e);
+            throw new OpenSearchException("failed to build clear scroll entity", e);
         }
         return request;
     }

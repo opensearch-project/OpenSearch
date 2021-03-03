@@ -25,7 +25,7 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -79,7 +79,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         ExceptionsHelper.maybeDieOnAnotherThread(cause);
-        final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
+        final Throwable unwrapped = ExceptionsHelper.unwrap(cause, OpenSearchException.class);
         final Throwable newCause = unwrapped != null ? unwrapped : cause;
         Netty4TcpChannel tcpChannel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
         if (newCause instanceof Error) {

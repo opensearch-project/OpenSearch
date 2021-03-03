@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.snapshots;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * Generic shard restore exception
  */
-public class IndexShardRestoreException extends ElasticsearchException {
+public class IndexShardRestoreException extends OpenSearchException {
     public IndexShardRestoreException(ShardId shardId, String msg) {
         this(shardId, msg, null);
     }

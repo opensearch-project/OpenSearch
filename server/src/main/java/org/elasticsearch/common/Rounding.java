@@ -21,7 +21,7 @@ package org.elasticsearch.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
@@ -257,7 +257,7 @@ public abstract class Rounding implements Writeable {
                 case 6: return HOUR_OF_DAY;
                 case 7: return MINUTES_OF_HOUR;
                 case 8: return SECOND_OF_MINUTE;
-                default: throw new ElasticsearchException("Unknown date time unit id [" + id + "]");
+                default: throw new OpenSearchException("Unknown date time unit id [" + id + "]");
             }
         }
     }
@@ -1301,7 +1301,7 @@ public abstract class Rounding implements Writeable {
             case OffsetRounding.ID:
                 return new OffsetRounding(in);
             default:
-                throw new ElasticsearchException("unknown rounding id [" + id + "]");
+                throw new OpenSearchException("unknown rounding id [" + id + "]");
         }
     }
 
