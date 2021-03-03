@@ -26,21 +26,8 @@ POST _bulk
 
 `POST /<target>/_bulk`
 
-** To use the `create` action, you must have the `create_doc`, `create`,
-`index`, or `write` index privilege. Data streams support only the `create`
-action.
-
-** To use the `index` action, you must have the `create`, `index`, or `write`
-index privilege.
-
-** To use the `delete` action, you must have the `delete` or `write` index
-privilege.
-
-** To use the `update` action, you must have the `index` or `write` index
-privilege.
-
-** To automatically create a data stream or index with a bulk API request, you
-must have the `auto_configure`, `create_index`, or `manage` index privilege.
+[[docs-bulk-api-prereqs]]
+==== {api-prereq-title}
 
 * Automatic data stream creation requires a matching index template with data
 stream enabled. See <<set-up-a-data-stream>>.
