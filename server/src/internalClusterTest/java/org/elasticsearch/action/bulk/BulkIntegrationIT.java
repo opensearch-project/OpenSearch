@@ -20,7 +20,7 @@
 
 package org.opensearch.action.bulk;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -186,7 +186,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
                                 XContentType.JSON).get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
-                    } catch (ElasticsearchException ignore) {
+                    } catch (OpensearchException ignore) {
                         logger.info("--> fail to index id={}", id);
                     }
                 }

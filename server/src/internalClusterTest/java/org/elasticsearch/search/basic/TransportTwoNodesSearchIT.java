@@ -20,7 +20,7 @@
 package org.opensearch.search.basic;
 
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -319,7 +319,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
             fail("search should fail");
-        } catch (ElasticsearchException e) {
+        } catch (OpensearchException e) {
             assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
             // all is well
         }

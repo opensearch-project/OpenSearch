@@ -22,7 +22,7 @@ package org.opensearch.search.sort;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -1879,7 +1879,7 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen("index");
         for (String invalidField : new String[] {"keyword", "ip"}) {
             for (String numericType : new String[]{"long", "double", "date", "date_nanos"}) {
-                ElasticsearchException exc = expectThrows(ElasticsearchException.class, () -> client().prepareSearch()
+                OpensearchException exc = expectThrows(OpensearchException.class, () -> client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addSort(SortBuilders.fieldSort(invalidField).setNumericType(numericType))
                     .get()

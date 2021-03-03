@@ -23,7 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.English;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.index.IndexResponse;
@@ -120,7 +120,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                     numCreated++;
                     added[i] = true;
                 }
-            } catch (ElasticsearchException ex) {
+            } catch (OpensearchException ex) {
             }
         }
         logger.info("Start Refresh");

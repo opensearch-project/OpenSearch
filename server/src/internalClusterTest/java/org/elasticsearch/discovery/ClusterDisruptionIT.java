@@ -21,7 +21,7 @@ package org.opensearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.get.GetResponse;
@@ -171,7 +171,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
-                            } catch (ElasticsearchException e) {
+                            } catch (OpensearchException e) {
                                 exceptedExceptions.add(e);
                                 final String docId = id;
                                 logger.trace(() -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
@@ -478,7 +478,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
                         ackedDocs.add(response.getId());
-                    } catch (ElasticsearchException ignore) {
+                    } catch (OpensearchException ignore) {
                         logger.info("--> fail to index id={}", id);
                     }
                 }

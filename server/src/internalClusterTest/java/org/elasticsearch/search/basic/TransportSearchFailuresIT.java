@@ -19,7 +19,7 @@
 
 package org.opensearch.search.basic;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -72,7 +72,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
                 fail("search should fail");
-            } catch (ElasticsearchException e) {
+            } catch (OpensearchException e) {
                 assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
                 // all is well
             }
@@ -107,7 +107,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
                 fail("search should fail");
-            } catch (ElasticsearchException e) {
+            } catch (OpensearchException e) {
                 assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
                 // all is well
             }

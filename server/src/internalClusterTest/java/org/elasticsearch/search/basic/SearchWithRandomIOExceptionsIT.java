@@ -20,7 +20,7 @@
 package org.opensearch.search.basic;
 
 import org.apache.lucene.util.English;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
@@ -147,7 +147,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                     numCreated++;
                     added[i] = true;
                 }
-            } catch (ElasticsearchException ex) {
+            } catch (OpensearchException ex) {
             }
 
         }

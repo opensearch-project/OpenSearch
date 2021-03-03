@@ -19,7 +19,7 @@
 package org.opensearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
@@ -729,8 +729,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
-        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        expectThrows(OpensearchException.class, snapshotThree::actionGet);
+        expectThrows(OpensearchException.class, snapshotFour::actionGet);
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver2() throws Exception {
@@ -762,8 +762,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, masterNode);
         networkDisruption.stopDisrupting();
         awaitNoMoreRunningOperations();
-        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
-        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        expectThrows(OpensearchException.class, snapshotThree::actionGet);
+        expectThrows(OpensearchException.class, snapshotFour::actionGet);
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOverMultipleRepos() throws Exception {
@@ -804,12 +804,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
-        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        expectThrows(OpensearchException.class, snapshotThree::actionGet);
+        expectThrows(OpensearchException.class, snapshotFour::actionGet);
         assertAcked(deleteFuture.get());
         try {
             createBlockedSnapshot.actionGet();
-        } catch (ElasticsearchException ex) {
+        } catch (OpensearchException ex) {
             // Ignored, thrown most of the time but due to retries when shutting down the master could randomly pass when the request is
             // retried and gets executed after the above delete
         }

@@ -21,7 +21,7 @@ package org.opensearch.http.nio;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.network.NetworkService;
@@ -124,7 +124,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             bindServer();
             success = true;
         } catch (IOException e) {
-            throw new ElasticsearchException(e);
+            throw new OpensearchException(e);
         } finally {
             if (success == false) {
                 doStop(); // otherwise we leak threads since we never moved to started

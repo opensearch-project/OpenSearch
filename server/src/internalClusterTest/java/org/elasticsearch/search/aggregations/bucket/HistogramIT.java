@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongHashSet;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -656,9 +656,9 @@ public class HistogramIT extends ESIntegTestCase {
                 .get();
             fail("Expected an exception");
         } catch (SearchPhaseExecutionException e) {
-            ElasticsearchException[] rootCauses = e.guessRootCauses();
+            OpensearchException[] rootCauses = e.guessRootCauses();
             if (rootCauses.length == 1) {
-                ElasticsearchException rootCause = rootCauses[0];
+                OpensearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
                     assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));

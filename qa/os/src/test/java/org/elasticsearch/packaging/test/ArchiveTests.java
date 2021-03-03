@@ -341,7 +341,7 @@ public class ArchiveTests extends PackagingTestCase {
         };
     }
 
-    public void test92ElasticsearchNodeCliPackaging() throws Exception {
+    public void test92OpensearchNodeCliPackaging() throws Exception {
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
@@ -350,7 +350,7 @@ public class ArchiveTests extends PackagingTestCase {
         };
     }
 
-    public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
+    public void test93OpensearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 

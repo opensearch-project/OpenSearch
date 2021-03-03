@@ -18,7 +18,7 @@
  */
 package org.opensearch.indices;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.ClusterState;
@@ -86,7 +86,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
                 beforeAddedCount.incrementAndGet();
                 if (MockIndexEventListener.TestPlugin.INDEX_FAIL.get(indexSettings)) {
-                    throw new ElasticsearchException("failing on purpose");
+                    throw new OpensearchException("failing on purpose");
                 }
             }
 
@@ -155,7 +155,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             client().admin().indices().prepareCreate("failed")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put("index.fail", true)).get();
             fail("should have thrown an exception");
-        } catch (ElasticsearchException e) {
+        } catch (OpensearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
             assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
@@ -271,7 +271,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         public void beforeIndexCreated(Index index, Settings indexSettings) {
             this.creationSettings = indexSettings;
             if (indexSettings.getAsBoolean("index.fail", false)) {
-                throw new ElasticsearchException("failing on purpose");
+                throw new OpensearchException("failing on purpose");
             }
         }
 

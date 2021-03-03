@@ -20,7 +20,7 @@
 package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -102,7 +102,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         @Override
         protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
             if (blockedActions.contains(action)) {
-                throw new ElasticsearchException("force exception on [" + action + "]");
+                throw new OpensearchException("force exception on [" + action + "]");
             }
             return true;
         }

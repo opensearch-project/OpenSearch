@@ -19,7 +19,7 @@
 
 package org.opensearch.search;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -70,7 +70,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     public void testPartialResultsIntolerantTimeout() throws Exception {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () ->
+        OpensearchException ex = expectThrows(OpensearchException.class, () ->
             client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
                 .setQuery(scriptQuery(
                         new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))

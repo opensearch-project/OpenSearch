@@ -18,7 +18,7 @@
  */
 package org.opensearch.env;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
@@ -86,7 +86,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         logger.info("--> Repurposing node 1");
         executeRepurposeCommand(noMasterNoDataSettingsForDataNode, 1, 1);
 
-        ElasticsearchException lockedException = expectThrows(ElasticsearchException.class,
+        OpensearchException lockedException = expectThrows(OpensearchException.class,
             () -> executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, 1, 1)
         );
 

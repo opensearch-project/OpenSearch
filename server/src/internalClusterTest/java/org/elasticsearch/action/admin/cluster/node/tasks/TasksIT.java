@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.cluster.node.tasks;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.ElasticsearchTimeoutException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceNotFoundException;
@@ -718,7 +718,7 @@ public class TasksIT extends ESIntegTestCase {
             .setTimeout(timeValueSeconds(10)).get();
 
         // It should finish quickly and without complaint and list the list tasks themselves
-        assertThat(response.getNodeFailures(), emptyCollectionOf(ElasticsearchException.class));
+        assertThat(response.getNodeFailures(), emptyCollectionOf(OpensearchException.class));
         assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
     }

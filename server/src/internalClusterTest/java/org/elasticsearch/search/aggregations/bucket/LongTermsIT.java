@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.bucket;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -673,7 +673,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpensearchException e) {
                 // expected
             }
         }
@@ -693,7 +693,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpensearchException e) {
                 // expected
             }
         }
@@ -713,7 +713,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
                         "with an unknown specified metric to order by");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpensearchException e) {
                 // expected
             }
         }
@@ -733,7 +733,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
                         "where the metric name is not specified");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpensearchException e) {
                 // expected
             }
         }

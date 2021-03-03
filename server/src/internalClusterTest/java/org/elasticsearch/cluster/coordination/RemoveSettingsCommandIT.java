@@ -19,7 +19,7 @@
 package org.opensearch.cluster.coordination;
 
 import joptsimple.OptionSet;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -48,7 +48,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         expectThrows(() -> removeSettings(environment, true,
             new String[]{ DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() }),
-            ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
+            OpensearchNodeCommand.ABORTED_BY_USER_MSG);
     }
 
     public void testRemoveSettingsSuccessful() throws Exception {
@@ -98,7 +98,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
             "found on this node"));
     }
 
-    private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort, String... args)
+    private MockTerminal executeCommand(OpensearchNodeCommand command, Environment environment, boolean abort, String... args)
         throws Exception {
         final MockTerminal terminal = new MockTerminal();
         final OptionSet options = command.getParser().parse(args);
@@ -115,7 +115,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
         try {
             command.execute(terminal, options, environment);
         } finally {
-            assertThat(terminal.getOutput(), containsString(ElasticsearchNodeCommand.STOP_WARNING_MSG));
+            assertThat(terminal.getOutput(), containsString(OpensearchNodeCommand.STOP_WARNING_MSG));
         }
 
         return terminal;
@@ -129,7 +129,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
     }
 
     private void expectThrows(ThrowingRunnable runnable, String message) {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, runnable);
+        OpensearchException ex = expectThrows(OpensearchException.class, runnable);
         assertThat(ex.getMessage(), containsString(message));
     }
 }

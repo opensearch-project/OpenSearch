@@ -27,7 +27,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.mapper.ICUCollationKeywordFieldMapper.CollationFieldType;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
@@ -129,7 +129,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
 
         assertEquals(expected, ft.rangeQuery("a", "b", false, false, null, null, null, MOCK_QSC));
 
-        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+        OpensearchException ee = expectThrows(OpensearchException.class,
                 () -> ft.rangeQuery("a", "b", true, true, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
                 "'search.allow_expensive_queries' is set to false.", ee.getMessage());

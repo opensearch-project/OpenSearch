@@ -32,7 +32,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
@@ -339,7 +339,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 causeReference.set(cause);
                 try {
-                    final ElasticsearchException e = new ElasticsearchException("you sent a bad request and you should feel bad");
+                    final OpensearchException e = new OpensearchException("you sent a bad request and you should feel bad");
                     channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
                 } catch (final IOException e) {
                     throw new AssertionError(e);

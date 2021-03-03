@@ -18,7 +18,7 @@
  */
 package org.opensearch.repositories.fs;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
@@ -94,7 +94,7 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
         assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder()
             .put("location", repoPath).put("readonly", true)));
 
-        final ElasticsearchException exception = expectThrows(ElasticsearchException.class, () ->
+        final OpensearchException exception = expectThrows(OpensearchException.class, () ->
             client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get());
         assertThat(exception.getRootCause(), instanceOf(NoSuchFileException.class));
 

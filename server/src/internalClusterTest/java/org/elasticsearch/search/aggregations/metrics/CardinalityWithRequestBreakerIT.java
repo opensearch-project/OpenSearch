@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.common.breaker.CircuitBreakingException;
@@ -61,7 +61,7 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
                     .order(BucketOrder.aggregation("cardinality", randomBoolean()))
                     .subAggregation(cardinality("cardinality").precisionThreshold(randomLongBetween(1, 40000)).field("field1.keyword")))
                 .get();
-        } catch (ElasticsearchException e) {
+        } catch (OpensearchException e) {
             if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) == null) {
                 throw e;
             }

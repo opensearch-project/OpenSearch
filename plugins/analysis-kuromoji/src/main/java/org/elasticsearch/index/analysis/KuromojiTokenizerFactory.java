@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer.Mode;
 import org.apache.lucene.analysis.ja.dict.UserDictionary;
 import org.apache.lucene.analysis.ja.util.CSVUtil;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -90,7 +90,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
             }
             return UserDictionary.open(new StringReader(sb.toString()));
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to load kuromoji user dictionary", e);
+            throw new OpensearchException("failed to load kuromoji user dictionary", e);
         }
     }
 

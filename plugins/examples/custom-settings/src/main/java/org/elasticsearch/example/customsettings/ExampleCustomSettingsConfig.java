@@ -18,7 +18,7 @@
  */
 package org.opensearch.example.customsettings;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
@@ -91,7 +91,7 @@ public class ExampleCustomSettingsConfig {
             customSettings = Settings.builder().loadFromPath(customSettingsYamlFile).build();
             assert customSettings != null;
         } catch (IOException e) {
-            throw new ElasticsearchException("Failed to load settings", e);
+            throw new OpensearchException("Failed to load settings", e);
         }
 
         this.simple = SIMPLE_SETTING.get(customSettings);

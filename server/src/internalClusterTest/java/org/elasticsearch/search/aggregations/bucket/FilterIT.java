@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.bucket;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -172,7 +172,7 @@ public class FilterIT extends ESIntegTestCase {
             fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source" +
                     "context which the sub-aggregation can inherit");
 
-        } catch (ElasticsearchException e) {
+        } catch (OpensearchException e) {
             assertThat(e.getMessage(), is("all shards failed"));
         }
     }

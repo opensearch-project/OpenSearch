@@ -21,7 +21,7 @@ package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
@@ -109,7 +109,7 @@ public class NioTransport extends TcpTransport {
             super.doStart();
             success = true;
         } catch (IOException e) {
-            throw new ElasticsearchException(e);
+            throw new OpensearchException(e);
         } finally {
             if (success == false) {
                 doStop();

@@ -19,7 +19,7 @@
 
 package org.opensearch.search.query;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -188,7 +188,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
             updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            OpensearchException e = expectThrows(OpensearchException.class,
                     () -> client()
                             .prepareSearch("test-index")
                             .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))

@@ -19,7 +19,7 @@
 
 package org.opensearch.search.suggest;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -1256,7 +1256,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Post query error has been swallowed");
-        } catch(ElasticsearchException e) {
+        } catch(OpensearchException e) {
             // expected
         }
 
@@ -1287,7 +1287,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Post filter error has been swallowed");
-        } catch(ElasticsearchException e) {
+        } catch(OpensearchException e) {
             //expected
         }
 
@@ -1304,7 +1304,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Malformed query (lack of additional params) should fail");
-        } catch (ElasticsearchException e) {
+        } catch (OpensearchException e) {
             // expected
         }
 

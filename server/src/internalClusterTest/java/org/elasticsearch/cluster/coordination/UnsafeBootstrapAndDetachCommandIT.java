@@ -19,7 +19,7 @@
 package org.opensearch.cluster.coordination;
 
 import joptsimple.OptionSet;
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpensearchException;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.cluster.ClusterState;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
-    private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, int nodeOrdinal, boolean abort)
+    private MockTerminal executeCommand(OpensearchNodeCommand command, Environment environment, int nodeOrdinal, boolean abort)
             throws Exception {
         final MockTerminal terminal = new MockTerminal();
         final OptionSet options = command.getParser().parse("-ordinal", Integer.toString(nodeOrdinal));
@@ -71,7 +71,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         try {
             command.execute(terminal, options, environment);
         } finally {
-            assertThat(terminal.getOutput(), containsString(ElasticsearchNodeCommand.STOP_WARNING_MSG));
+            assertThat(terminal.getOutput(), containsString(OpensearchNodeCommand.STOP_WARNING_MSG));
         }
 
         return terminal;
@@ -100,7 +100,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
     }
 
     private void expectThrows(ThrowingRunnable runnable, String message) {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, runnable);
+        OpensearchException ex = expectThrows(OpensearchException.class, runnable);
         assertThat(ex.getMessage(), containsString(message));
     }
 
@@ -113,19 +113,19 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testBootstrapNoDataFolder() {
         final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_FOLDER_FOUND_MSG);
+        expectThrows(() -> unsafeBootstrap(environment), OpensearchNodeCommand.NO_NODE_FOLDER_FOUND_MSG);
     }
 
     public void testDetachNoDataFolder() {
         final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.NO_NODE_FOLDER_FOUND_MSG);
+        expectThrows(() -> detachCluster(environment), OpensearchNodeCommand.NO_NODE_FOLDER_FOUND_MSG);
     }
 
     public void testBootstrapNodeLocked() throws IOException {
         Settings envSettings = buildEnvSettings(Settings.EMPTY);
         Environment environment = TestEnvironment.newEnvironment(envSettings);
         try (NodeEnvironment ignored = new NodeEnvironment(envSettings, environment)) {
-            expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
+            expectThrows(() -> unsafeBootstrap(environment), OpensearchNodeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
         }
     }
 
@@ -133,14 +133,14 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         Settings envSettings = buildEnvSettings(Settings.EMPTY);
         Environment environment = TestEnvironment.newEnvironment(envSettings);
         try (NodeEnvironment ignored = new NodeEnvironment(envSettings, environment)) {
-            expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
+            expectThrows(() -> detachCluster(environment), OpensearchNodeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
         }
     }
 
     public void testBootstrapNoNodeMetadata() {
         Settings envSettings = buildEnvSettings(Settings.EMPTY);
         Environment environment = TestEnvironment.newEnvironment(envSettings);
-        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_FOLDER_FOUND_MSG);
+        expectThrows(() -> unsafeBootstrap(environment), OpensearchNodeCommand.NO_NODE_FOLDER_FOUND_MSG);
     }
 
     public void testBootstrapNotBootstrappedCluster() throws Exception {
@@ -174,7 +174,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
 
-        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
+        expectThrows(() -> unsafeBootstrap(environment), OpensearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }
 
     public void testDetachNoClusterState() throws IOException {
@@ -188,7 +188,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
 
-        expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
+        expectThrows(() -> detachCluster(environment), OpensearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }
 
     public void testBootstrapAbortedByUser() throws IOException {
@@ -200,7 +200,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        expectThrows(() -> unsafeBootstrap(environment, true), ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
+        expectThrows(() -> unsafeBootstrap(environment, true), OpensearchNodeCommand.ABORTED_BY_USER_MSG);
     }
 
     public void testDetachAbortedByUser() throws IOException {
@@ -212,7 +212,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        expectThrows(() -> detachCluster(environment, true), ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
+        expectThrows(() -> detachCluster(environment, true), OpensearchNodeCommand.ABORTED_BY_USER_MSG);
     }
 
     public void test3MasterNodes2Failed() throws Exception {
@@ -268,7 +268,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> unsafely-bootstrap 1st master-eligible node");
         MockTerminal terminal = unsafeBootstrap(environmentMaster1);
-        Metadata metadata = ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, nodeEnvironment.nodeDataPaths())
+        Metadata metadata = OpensearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, nodeEnvironment.nodeDataPaths())
             .loadBestOnDiskState().metadata;
         assertThat(terminal.getOutput(), containsString(
             String.format(Locale.ROOT, UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,
