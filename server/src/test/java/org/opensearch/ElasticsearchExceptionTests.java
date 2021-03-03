@@ -20,46 +20,46 @@
 package org.opensearch;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.shard.IndexShardRecoveringException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.RoutingMissingException;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.opensearch.client.transport.NoNodeAvailableException;
+import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.common.xcontent.XContentParseException;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.query.QueryShardException;
+import org.opensearch.index.shard.IndexShardRecoveringException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.node.NodeClosedException;
+import org.opensearch.repositories.RepositoryException;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.script.ScriptException;
+import org.opensearch.search.SearchContextMissingException;
+import org.opensearch.search.SearchParseException;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.transport.RemoteTransportException;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -74,8 +74,8 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.TestSearchContext.SHARD_TARGET;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
@@ -342,7 +342,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"," +
                     "\"stack_trace\":\"java.lang.IllegalStateException: bar" +
                     (Constants.WINDOWS ? "\\r\\n" : "\\n") +
-                    "\\tat org.elasticsearch."));
+                    "\\tat org.opensearch."));
         }
     }
 
