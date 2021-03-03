@@ -23,7 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
+import org.elasticsearch.common.lucene.index.OpenSearchLeafReader;
 
 public final class ShardUtils {
 
@@ -35,9 +35,9 @@ public final class ShardUtils {
      */
     @Nullable
     public static ShardId extractShardId(LeafReader reader) {
-        final ElasticsearchLeafReader esReader = ElasticsearchLeafReader.getElasticsearchLeafReader(reader);
+        final OpenSearchLeafReader esReader = OpenSearchLeafReader.getOpenSearchLeafReader(reader);
         if (esReader != null) {
-            assert reader.getRefCount() > 0 : "ElasticsearchLeafReader is already closed";
+            assert reader.getRefCount() > 0 : "OpenSearchLeafReader is already closed";
             return esReader.shardId();
         }
         return null;
