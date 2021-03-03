@@ -39,7 +39,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;
 
-public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
+public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
 
     static final String CLUSTER_STATE_TERM_VERSION_MSG_FORMAT =
             "Current node cluster state (term, version) pair is (%s, %s)";

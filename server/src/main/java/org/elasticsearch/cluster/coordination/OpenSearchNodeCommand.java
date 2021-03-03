@@ -57,8 +57,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
-    private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
+public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
+    private static final Logger logger = LogManager.getLogger(OpenSearchNodeCommand.class);
     protected static final String DELIMITER = "------------------------------------------------------------------------\n";
     static final String STOP_WARNING_MSG =
             DELIMITER +
@@ -110,7 +110,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
     };
 
-    public ElasticsearchNodeCommand(String description) {
+    public OpenSearchNodeCommand(String description) {
         super(description);
         nodeOrdinalOption = parser.accepts("ordinal", "Optional node ordinal, 0 if not specified")
                 .withRequiredArg().ofType(Integer.class);
@@ -199,7 +199,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         throws IOException, UserException;
 
     protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
-        return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
+        return Arrays.stream(dataPaths).map(OpenSearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
     }
 
     private static NodeEnvironment.NodePath createNodePath(Path path) {

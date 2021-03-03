@@ -73,7 +73,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         builder.endObject();
 
         Metadata loadedMetadata;
-        try (XContentParser parser = createParser(hasMissingCustoms ? ElasticsearchNodeCommand.namedXContentRegistry : xContentRegistry(),
+        try (XContentParser parser = createParser(hasMissingCustoms ? OpenSearchNodeCommand.namedXContentRegistry : xContentRegistry(),
             JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             loadedMetadata = Metadata.fromXContent(parser);
         }
@@ -84,7 +84,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         // make sure the index tombstones are the same too
         if (hasMissingCustoms) {
             assertNotNull(loadedMetadata.custom(IndexGraveyard.TYPE));
-            assertThat(loadedMetadata.custom(IndexGraveyard.TYPE), instanceOf(ElasticsearchNodeCommand.UnknownMetadataCustom.class));
+            assertThat(loadedMetadata.custom(IndexGraveyard.TYPE), instanceOf(OpenSearchNodeCommand.UnknownMetadataCustom.class));
 
             if (preserveUnknownCustoms) {
                 // check that we reserialize unknown metadata correctly again
