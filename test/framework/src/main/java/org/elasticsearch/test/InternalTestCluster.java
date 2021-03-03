@@ -29,7 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -2249,7 +2249,7 @@ public final class InternalTestCluster extends TestCluster {
                     Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
                 ));
             } catch (Exception e) {
-                throw new ElasticsearchException("failed to update minimum master node to [{}] (current masters [{}])", e,
+                throw new OpenSearchException("failed to update minimum master node to [{}] (current masters [{}])", e,
                     minMasterNodes, getMasterNodesCount());
             }
         }

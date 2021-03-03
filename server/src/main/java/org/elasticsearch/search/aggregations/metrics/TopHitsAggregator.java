@@ -36,7 +36,7 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
@@ -171,7 +171,7 @@ class TopHitsAggregator extends MetricsAggregator {
                 try {
                     topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
                 } catch (IOException e) {
-                    throw new ElasticsearchException("Rescore TopHits Failed", e);
+                    throw new OpenSearchException("Rescore TopHits Failed", e);
                 }
             }
             if (topDocs.scoreDocs.length > 0) {

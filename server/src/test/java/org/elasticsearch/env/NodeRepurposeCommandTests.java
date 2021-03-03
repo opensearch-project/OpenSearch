@@ -19,7 +19,7 @@
 package org.elasticsearch.env;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
@@ -122,7 +122,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
     public void testLocked() throws IOException {
         try (NodeEnvironment env = new NodeEnvironment(dataMasterSettings, TestEnvironment.newEnvironment(dataMasterSettings))) {
-            assertThat(expectThrows(ElasticsearchException.class,
+            assertThat(expectThrows(OpenSearchException.class,
                 () -> verifyNoQuestions(noDataNoMasterSettings, null)).getMessage(),
                 containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
         }
@@ -192,7 +192,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         withTerminal(verbose, outputMatcher, terminal -> {
             terminal.addTextInput(randomFrom("yy", "Yy", "n", "yes", "true", "N", "no"));
             verifyUnchangedDataFiles(() -> {
-                ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> executeRepurposeCommand(terminal, settings, 0));
                 assertThat(exception.getMessage(), containsString(NodeRepurposeCommand.ABORTED_BY_USER_MSG));
             });

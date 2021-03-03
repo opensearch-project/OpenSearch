@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -78,7 +78,7 @@ public class RestCountAction extends AbstractCatAction {
                 }
             });
         } catch (IOException e) {
-            throw new ElasticsearchException("Couldn't parse query", e);
+            throw new OpenSearchException("Couldn't parse query", e);
         }
         return channel -> client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
             @Override

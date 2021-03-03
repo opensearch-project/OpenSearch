@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -491,7 +491,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         IndexRequest updateResponse = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
-        Exception err = new ElasticsearchException("I'm dead <(x.x)>");
+        Exception err = new OpenSearchException("I'm dead <(x.x)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0);
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
@@ -680,7 +680,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexShard shard = mock(IndexShard.class);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        final ElasticsearchException err = new ElasticsearchException("oops");
+        final OpenSearchException err = new OpenSearchException("oops");
         when(updateHelper.prepare(any(), eq(shard), any())).thenThrow(err);
         BulkItemRequest[] items = new BulkItemRequest[]{primaryRequest};
         BulkShardRequest bulkShardRequest =

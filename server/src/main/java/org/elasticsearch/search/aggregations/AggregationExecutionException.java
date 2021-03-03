@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * Thrown when failing to execute an aggregation
  */
-public class AggregationExecutionException extends ElasticsearchException {
+public class AggregationExecutionException extends OpenSearchException {
 
     public AggregationExecutionException(String msg) {
         super(msg);

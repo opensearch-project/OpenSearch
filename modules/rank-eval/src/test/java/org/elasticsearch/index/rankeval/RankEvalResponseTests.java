@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -72,7 +72,7 @@ public class RankEvalResponseTests extends ESTestCase {
             new SearchPhaseExecutionException("search", "all shards failed",
                     new ShardSearchFailure[] { new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
                             new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)) }),
-            new ElasticsearchException("Parsing failed",
+            new OpenSearchException("Parsing failed",
                     new ParsingException(9, 42, "Wrong state", new NullPointerException("Unexpected null value"))) };
 
     private static RankEvalResponse createRandomResponse() {
@@ -144,7 +144,7 @@ public class RankEvalResponseTests extends ESTestCase {
         assertEquals(testItem.getFailures().keySet(), parsedItem.getFailures().keySet());
         for (String queryId : testItem.getFailures().keySet()) {
             Exception ex = parsedItem.getFailures().get(queryId);
-            assertThat(ex, instanceOf(ElasticsearchException.class));
+            assertThat(ex, instanceOf(OpenSearchException.class));
         }
     }
 

@@ -20,7 +20,7 @@ package org.elasticsearch.env;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
@@ -74,12 +74,12 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
         final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
         if (nodeMetadata == null) {
-            throw new ElasticsearchException(NO_METADATA_MESSAGE);
+            throw new OpenSearchException(NO_METADATA_MESSAGE);
         }
 
         try {
             nodeMetadata.upgradeToCurrentVersion();
-            throw new ElasticsearchException("found [" + nodeMetadata + "] which is compatible with current version [" + Version.CURRENT
+            throw new OpenSearchException("found [" + nodeMetadata + "] which is compatible with current version [" + Version.CURRENT
                 + "], so there is no need to override the version checks");
         } catch (IllegalStateException e) {
             // ok, means the version change is not supported

@@ -22,7 +22,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -589,9 +589,9 @@ public class ElasticsearchAssertions {
             extraInfo += " with status [" + status + "]";
         }
 
-        Throwable expected = expectThrowsAnyOf(Arrays.asList(exceptionClass, ElasticsearchException.class), future::actionGet);
-        if (expected instanceof ElasticsearchException) {
-            assertThat(extraInfo, ((ElasticsearchException) expected).unwrapCause(), instanceOf(exceptionClass));
+        Throwable expected = expectThrowsAnyOf(Arrays.asList(exceptionClass, OpenSearchException.class), future::actionGet);
+        if (expected instanceof OpenSearchException) {
+            assertThat(extraInfo, ((OpenSearchException) expected).unwrapCause(), instanceOf(exceptionClass));
         } else {
             assertThat(extraInfo, expected, instanceOf(exceptionClass));
         }

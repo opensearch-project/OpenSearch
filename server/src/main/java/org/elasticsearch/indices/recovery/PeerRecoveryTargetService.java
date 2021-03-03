@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -376,7 +376,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
                     @Override
                     public void onClusterServiceClose() {
-                        listener.onFailure(new ElasticsearchException(
+                        listener.onFailure(new OpenSearchException(
                             "cluster service was closed while waiting for mapping updates"));
                     }
 

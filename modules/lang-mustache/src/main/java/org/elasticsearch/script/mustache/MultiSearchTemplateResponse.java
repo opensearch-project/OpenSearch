@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -108,7 +108,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     private final Item[] items;
     private final long tookInMillis;
-    
+
     MultiSearchTemplateResponse(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(Item::new, Item[]::new);
@@ -122,7 +122,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     MultiSearchTemplateResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;
-    }    
+    }
 
     @Override
     public Iterator<Item> iterator() {
@@ -135,7 +135,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     public Item[] getResponses() {
         return this.items;
     }
-    
+
     /**
      * How long the msearch_template took.
      */
@@ -154,12 +154,12 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field("took", tookInMillis);       
+        builder.field("took", tookInMillis);
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
             if (item.isFailure()) {
                 builder.startObject();
-                ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
+                OpenSearchException.generateFailureXContent(builder, params, item.getFailure(), true);
                 builder.endObject();
             } else {
                 item.getResponse().toXContent(builder, params);
@@ -173,7 +173,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     static final class Fields {
         static final String RESPONSES = "responses";
     }
-    
+
     public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
         //The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
         MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
@@ -188,7 +188,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
             }
             templateResponses[i++] = new Item(stResponse, item.getFailure());
         }
-        return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());    
+        return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
     }
 
     @Override

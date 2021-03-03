@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class IndexShardRecoveryException extends ElasticsearchException {
+public class IndexShardRecoveryException extends OpenSearchException {
     public IndexShardRecoveryException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);
         setShard(shardId);

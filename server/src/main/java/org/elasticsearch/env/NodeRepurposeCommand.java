@@ -21,7 +21,7 @@ package org.elasticsearch.env;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
@@ -206,7 +206,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         try {
             IOUtils.rm(path);
         } catch (IOException e) {
-            throw new ElasticsearchException("Unable to clean up path: " + path + ": " + e.getMessage());
+            throw new OpenSearchException("Unable to clean up path: " + path + ": " + e.getMessage());
         }
     }
 

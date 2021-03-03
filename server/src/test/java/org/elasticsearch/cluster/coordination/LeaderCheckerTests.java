@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
@@ -133,7 +133,7 @@ public class LeaderCheckerTests extends ESTestCase {
                         if (successResponse) {
                             handleResponse(requestId, Empty.INSTANCE);
                         } else {
-                            handleRemoteError(requestId, new ElasticsearchException("simulated error"));
+                            handleRemoteError(requestId, new OpenSearchException("simulated error"));
                         }
                     }
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.routing;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -354,7 +354,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         try {
             client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1").get();
             fail("index with missing routing when routing is required should fail");
-        } catch (ElasticsearchException e) {
+        } catch (OpenSearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
 
@@ -372,7 +372,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         try {
             client().prepareDelete(indexOrAlias(), "type1", "1").get();
             fail("delete with missing routing when routing is required should fail");
-        } catch (ElasticsearchException e) {
+        } catch (OpenSearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
 
@@ -398,7 +398,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                     .execute()
                     .actionGet();
             fail("update with missing routing when routing is required should fail");
-        } catch (ElasticsearchException e) {
+        } catch (OpenSearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
 
