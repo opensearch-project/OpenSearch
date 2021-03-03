@@ -21,7 +21,7 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -1060,7 +1060,7 @@ public final class Settings implements ToXContentFragment {
                 builder.map(map);
                 return loadFromSource(Strings.toString(builder), builder.contentType());
             } catch (IOException e) {
-                throw new ElasticsearchGenerationException("Failed to generate [" + map + "]", e);
+                throw new OpenSearchGenerationException("Failed to generate [" + map + "]", e);
             }
         }
 

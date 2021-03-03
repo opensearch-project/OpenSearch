@@ -774,8 +774,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.ResourceNotFoundException::new, 19, UNKNOWN_VERSION_ADDED),
         ACTION_TRANSPORT_EXCEPTION(org.elasticsearch.transport.ActionTransportException.class,
                 org.elasticsearch.transport.ActionTransportException::new, 20, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_GENERATION_EXCEPTION(org.elasticsearch.ElasticsearchGenerationException.class,
-                org.elasticsearch.ElasticsearchGenerationException::new, 21, UNKNOWN_VERSION_ADDED),
+        ELASTICSEARCH_GENERATION_EXCEPTION(OpenSearchGenerationException.class,
+                OpenSearchGenerationException::new, 21, UNKNOWN_VERSION_ADDED),
         //      22 was CreateFailedEngineException
         INDEX_SHARD_STARTED_EXCEPTION(org.elasticsearch.index.shard.IndexShardStartedException.class,
                 org.elasticsearch.index.shard.IndexShardStartedException::new, 23, UNKNOWN_VERSION_ADDED),

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -304,7 +304,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             builder.map(mappingSource);
             return source(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
     }
 
