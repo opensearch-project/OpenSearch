@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -94,7 +94,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
                 senderTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, receiver),
                     (connection, requestId, action, request, options) -> {
                         if (action.equals(PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)) {
-                            throw new ElasticsearchException("rejected");
+                            throw new OpenSearchException("rejected");
                         }
                         connection.sendRequest(requestId, action, request, options);
                     });

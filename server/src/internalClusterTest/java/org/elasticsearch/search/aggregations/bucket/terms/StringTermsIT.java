@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -587,9 +587,9 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 .get();
             fail("Expected an exception");
         } catch (SearchPhaseExecutionException e) {
-            ElasticsearchException[] rootCauses = e.guessRootCauses();
+            OpenSearchException[] rootCauses = e.guessRootCauses();
             if (rootCauses.length == 1) {
-                ElasticsearchException rootCause = rootCauses[0];
+                OpenSearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
                     assertThat(aggException.getMessage(), startsWith("Invalid aggregation order path"));
@@ -833,7 +833,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 // expected
             }
         }
@@ -854,7 +854,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation " +
                         "which is not of a metrics or single-bucket type");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 // expected
             }
         }
@@ -874,7 +874,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation "
                         + "with an unknown specified metric to order by. response had " + response.getFailedShards() + " failed shards.");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 // expected
             }
         }
@@ -894,7 +894,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation "
                         + "where the metric name is not specified");
 
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 // expected
             }
         }

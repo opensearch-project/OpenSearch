@@ -27,7 +27,7 @@ import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -1929,7 +1929,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
                 break;
             default:
-                throw new ElasticsearchException("Scope not supported: " + scope);
+                throw new OpenSearchException("Scope not supported: " + scope);
         }
 
 

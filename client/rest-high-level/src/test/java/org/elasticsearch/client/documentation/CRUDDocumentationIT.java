@@ -20,7 +20,7 @@
 package org.elasticsearch.client.documentation;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -224,7 +224,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setIfPrimaryTerm(20);
             try {
                 IndexResponse response = client.index(request, RequestOptions.DEFAULT);
-            } catch(ElasticsearchException e) {
+            } catch(OpenSearchException e) {
                 if (e.status() == RestStatus.CONFLICT) {
                     // <1>
                 }
@@ -239,7 +239,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 .opType(DocWriteRequest.OpType.CREATE);
             try {
                 IndexResponse response = client.index(request, RequestOptions.DEFAULT);
-            } catch(ElasticsearchException e) {
+            } catch(OpenSearchException e) {
                 if (e.status() == RestStatus.CONFLICT) {
                     // <1>
                 }
@@ -422,7 +422,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             try {
                 UpdateResponse updateResponse = client.update(
                         request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 if (e.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -438,7 +438,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             try {
                 UpdateResponse updateResponse = client.update(
                         request, RequestOptions.DEFAULT);
-            } catch(ElasticsearchException e) {
+            } catch(OpenSearchException e) {
                 if (e.status() == RestStatus.CONFLICT) {
                     // <1>
                 }
@@ -635,7 +635,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 DeleteResponse deleteResponse = client.delete(
                     new DeleteRequest("posts", "1").setIfSeqNo(100).setIfPrimaryTerm(2),
                         RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
                     // <1>
                 }
@@ -704,7 +704,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts").id("4")  // <3>
                     .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request-with-mixed-operations
-            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT); 
+            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
 
@@ -1379,7 +1379,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             GetRequest request = new GetRequest("does_not_exist", "1");
             try {
                 GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 if (e.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -1391,7 +1391,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             try {
                 GetRequest request = new GetRequest("posts", "1").version(2);
                 GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
                     // <1>
                 }
@@ -1931,7 +1931,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::multi-get-indexnotfound
             assertNull(missingIndexItem.getResponse());                // <1>
             Exception e = missingIndexItem.getFailure().getFailure();  // <2>
-            ElasticsearchException ee = (ElasticsearchException) e;    // <3>
+            OpenSearchException ee = (OpenSearchException) e;    // <3>
             // TODO status is broken! fix in a followup
             // assertEquals(RestStatus.NOT_FOUND, ee.status());        // <4>
             assertThat(e.getMessage(),
@@ -2023,7 +2023,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             MultiGetItemResponse item = response.getResponses()[0];
             assertNull(item.getResponse());                          // <1>
             Exception e = item.getFailure().getFailure();            // <2>
-            ElasticsearchException ee = (ElasticsearchException) e;  // <3>
+            OpenSearchException ee = (OpenSearchException) e;  // <3>
             // TODO status is broken! fix in a followup
             // assertEquals(RestStatus.CONFLICT, ee.status());          // <4>
             assertThat(e.getMessage(),

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class IllegalIndexShardStateException extends ElasticsearchException {
+public class IllegalIndexShardStateException extends OpenSearchException {
 
     private final IndexShardState currentState;
 

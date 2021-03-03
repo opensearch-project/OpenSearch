@@ -20,7 +20,7 @@
 package org.apache.lucene.search.uhighlight;
 
 import org.apache.lucene.search.highlight.Encoder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
+import org.opensearch.search.fetch.subphase.highlight.HighlightUtils;
 
 /**
  * Custom passage formatter that allows us to:

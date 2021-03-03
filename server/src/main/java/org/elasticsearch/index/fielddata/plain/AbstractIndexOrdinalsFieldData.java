@@ -27,7 +27,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
@@ -92,10 +92,10 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(context, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
+            if (e instanceof OpenSearchException) {
+                throw (OpenSearchException) e;
             } else {
-                throw new ElasticsearchException(e);
+                throw new OpenSearchException(e);
             }
         }
     }
@@ -138,10 +138,10 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(indexReader, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
+            if (e instanceof OpenSearchException) {
+                throw (OpenSearchException) e;
             } else {
-                throw new ElasticsearchException(e);
+                throw new OpenSearchException(e);
             }
         }
     }

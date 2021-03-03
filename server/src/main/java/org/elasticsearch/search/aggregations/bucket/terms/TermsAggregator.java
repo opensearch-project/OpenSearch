@@ -20,7 +20,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -97,11 +97,11 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             }
 
             if (requiredSize <= 0 || shardSize <= 0) {
-                throw new ElasticsearchException("parameters [required_size] and [shard_size] must be >0 in terms aggregation.");
+                throw new OpenSearchException("parameters [required_size] and [shard_size] must be >0 in terms aggregation.");
             }
 
             if (minDocCount < 0 || shardMinDocCount < 0) {
-                throw new ElasticsearchException("parameter [min_doc_count] and [shardMinDocCount] must be >=0 in terms aggregation.");
+                throw new OpenSearchException("parameter [min_doc_count] and [shardMinDocCount] must be >=0 in terms aggregation.");
             }
         }
 

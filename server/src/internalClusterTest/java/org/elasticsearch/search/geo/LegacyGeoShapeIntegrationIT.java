@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -218,7 +218,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
             // Set search.allow_expensive_queries to "false" => assert failure
-            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            OpenSearchException e = expectThrows(OpenSearchException.class,
                     () -> client().prepareSearch("test").setQuery(geoShapeQuery("shape",
                             new Circle(30, 50, 77000))).get());
             assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +

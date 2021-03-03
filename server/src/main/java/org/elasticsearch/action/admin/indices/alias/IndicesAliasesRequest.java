@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
@@ -430,7 +430,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 this.filter = Strings.toString(builder);
                 return this;
             } catch (IOException e) {
-                throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
+                throw new OpenSearchGenerationException("Failed to generate [" + filter + "]", e);
             }
         }
 
@@ -446,7 +446,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 this.filter = Strings.toString(builder);
                 return this;
             } catch (IOException e) {
-                throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
+                throw new OpenSearchGenerationException("Failed to build json for alias request", e);
             }
         }
 

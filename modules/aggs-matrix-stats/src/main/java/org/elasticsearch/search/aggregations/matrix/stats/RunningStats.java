@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -316,7 +316,7 @@ public class RunningStats implements Writeable, Cloneable {
         try {
             return (RunningStats) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw new ElasticsearchException("Error trying to create a copy of RunningStats");
+            throw new OpenSearchException("Error trying to create a copy of RunningStats");
         }
     }
 

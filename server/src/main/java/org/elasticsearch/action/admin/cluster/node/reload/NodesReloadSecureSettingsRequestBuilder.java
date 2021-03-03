@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.SecureString;
 
 /**
@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.SecureString;
 public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationRequestBuilder<NodesReloadSecureSettingsRequest,
         NodesReloadSecureSettingsResponse, NodesReloadSecureSettingsRequestBuilder> {
 
-    public NodesReloadSecureSettingsRequestBuilder(ElasticsearchClient client, NodesReloadSecureSettingsAction action) {
+    public NodesReloadSecureSettingsRequestBuilder(OpenSearchClient client, NodesReloadSecureSettingsAction action) {
         super(client, action, new NodesReloadSecureSettingsRequest());
     }
 

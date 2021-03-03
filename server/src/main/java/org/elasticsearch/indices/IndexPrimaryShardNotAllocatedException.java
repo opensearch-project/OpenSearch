@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
@@ -30,7 +30,7 @@ import java.io.IOException;
  * Thrown when some action cannot be performed because the primary shard of
  * some shard group in an index has not been allocated post api action.
  */
-public class IndexPrimaryShardNotAllocatedException extends ElasticsearchException {
+public class IndexPrimaryShardNotAllocatedException extends OpenSearchException {
     public IndexPrimaryShardNotAllocatedException(StreamInput in) throws IOException{
         super(in);
     }

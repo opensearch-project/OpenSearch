@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -57,7 +57,7 @@ public class DeDuplicatingTokenFilterTests extends ESTestCase {
         assertThat(output, equalTo(expectedOutput));
 
     }
-    
+
     public void testHitCountLimits() throws IOException {
         DuplicateByteSequenceSpotter bytesDeDuper = new DuplicateByteSequenceSpotter();
         long peakMemoryUsed = 0;
@@ -111,9 +111,9 @@ public class DeDuplicatingTokenFilterTests extends ESTestCase {
             short[] expectedFrequencies = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 2, 2, 2, 2, 2, 2 };
             TokenStream test = analyzer.tokenStream("test", input);
             DuplicateSequenceAttribute seqAtt = test.addAttribute(DuplicateSequenceAttribute.class);
-    
+
             test.reset();
-    
+
             for (int i = 0; i < expectedFrequencies.length; i++) {
                 assertThat(test.incrementToken(), equalTo(true));
                 assertThat(seqAtt.getNumPriorUsesInASequence(), equalTo(expectedFrequencies[i]));

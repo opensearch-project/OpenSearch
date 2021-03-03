@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -52,7 +52,7 @@ public final class NodesResponseHeader {
                 int total = (Integer) a[i++];
                 int successful = (Integer) a[i++];
                 int failed = (Integer) a[i++];
-                List<ElasticsearchException> failures = (List<ElasticsearchException>) a[i++];
+                List<OpenSearchException> failures = (List<OpenSearchException>) a[i++];
                 return new NodesResponseHeader(total, successful, failed, failures);
             });
 
@@ -61,15 +61,15 @@ public final class NodesResponseHeader {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), SUCCESSFUL);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), FAILED);
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ElasticsearchException.fromXContent(p), FAILURES);
+            (p, c) -> OpenSearchException.fromXContent(p), FAILURES);
     }
 
     private final int total;
     private final int successful;
     private final int failed;
-    private final List<ElasticsearchException> failures;
+    private final List<OpenSearchException> failures;
 
-    public NodesResponseHeader(int total, int successful, int failed, @Nullable List<ElasticsearchException> failures) {
+    public NodesResponseHeader(int total, int successful, int failed, @Nullable List<OpenSearchException> failures) {
         this.total = total;
         this.successful = successful;
         this.failed = failed;
@@ -100,7 +100,7 @@ public final class NodesResponseHeader {
      *
      * @return Never {@code null}. Can be empty.
      */
-    public List<ElasticsearchException> getFailures() {
+    public List<OpenSearchException> getFailures() {
         return failures;
     }
 

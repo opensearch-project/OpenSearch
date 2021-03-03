@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -103,7 +103,7 @@ public class AtomicArray<E> {
      */
     public E[] toArray(E[] a) {
         if (a.length != array.length()) {
-            throw new ElasticsearchGenerationException("AtomicArrays can only be copied to arrays of the same size");
+            throw new OpenSearchGenerationException("AtomicArrays can only be copied to arrays of the same size");
         }
         for (int i = 0; i < array.length(); i++) {
             a[i] = array.get(i);

@@ -26,7 +26,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
@@ -248,8 +248,8 @@ final class SearchResponseMerger {
                 return shard.getShardId();
             }
             Throwable cause = failure.getCause();
-            if (cause instanceof ElasticsearchException) {
-                ElasticsearchException e = (ElasticsearchException) cause;
+            if (cause instanceof OpenSearchException) {
+                OpenSearchException e = (OpenSearchException) cause;
                 return e.getShardId();
             }
             return null;

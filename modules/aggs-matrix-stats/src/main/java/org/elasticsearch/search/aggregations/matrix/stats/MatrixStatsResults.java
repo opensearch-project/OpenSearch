@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -59,7 +59,7 @@ class MatrixStatsResults implements Writeable {
             results = new RunningStats(in);
             correlation = (Map<String, HashMap<String, Double>>) in.readGenericValue();
         } catch (IOException e) {
-            throw new ElasticsearchException("Error trying to create multifield_stats results from stream input", e);
+            throw new OpenSearchException("Error trying to create multifield_stats results from stream input", e);
         }
     }
 

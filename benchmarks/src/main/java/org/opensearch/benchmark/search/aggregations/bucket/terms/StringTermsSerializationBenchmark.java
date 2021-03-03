@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.benchmark.search.aggregations.bucket.terms;
+package org.opensearch.benchmark.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.common.io.stream.DelayableWriteable;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -51,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class StringTermsSerializationBenchmark {
     private static final NamedWriteableRegistry REGISTRY = new NamedWriteableRegistry(
-        org.elasticsearch.common.collect.List.of(
+        org.opensearch.common.collect.List.of(
             new NamedWriteableRegistry.Entry(InternalAggregation.class, StringTerms.NAME, StringTerms::new)
         )
     );
@@ -62,14 +62,14 @@ public class StringTermsSerializationBenchmark {
 
     @Setup
     public void initResults() {
-        results = DelayableWriteable.referencing(InternalAggregations.from(org.elasticsearch.common.collect.List.of(newTerms(true))));
+        results = DelayableWriteable.referencing(InternalAggregations.from(org.opensearch.common.collect.List.of(newTerms(true))));
     }
 
     private StringTerms newTerms(boolean withNested) {
         List<StringTerms.Bucket> resultBuckets = new ArrayList<>(buckets);
         for (int i = 0; i < buckets; i++) {
             InternalAggregations inner = withNested
-                ? InternalAggregations.from(org.elasticsearch.common.collect.List.of(newTerms(false)))
+                ? InternalAggregations.from(org.opensearch.common.collect.List.of(newTerms(false)))
                 : InternalAggregations.EMPTY;
             resultBuckets.add(new StringTerms.Bucket(new BytesRef("test" + i), i, inner, false, 0, DocValueFormat.RAW));
         }

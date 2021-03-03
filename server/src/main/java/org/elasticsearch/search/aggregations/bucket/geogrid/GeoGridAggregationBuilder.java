@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -193,7 +193,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         }
 
         if (requiredSize <= 0 || shardSize <= 0) {
-            throw new ElasticsearchException(
+            throw new OpenSearchException(
                     "parameters [required_size] and [shard_size] must be > 0 in " + getType() + " aggregation [" + name + "].");
         }
 

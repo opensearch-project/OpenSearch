@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.collect.Tuple;
 
@@ -76,7 +76,7 @@ public final class TrackingResultProcessor implements Processor {
             }
             ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
                 // special handling for pipeline cycle errors
-                if (e instanceof ElasticsearchException &&
+                if (e instanceof OpenSearchException &&
                     e.getCause() instanceof IllegalStateException &&
                     e.getCause().getMessage().startsWith(PIPELINE_CYCLE_ERROR_MESSAGE)) {
                     if (ignoreFailure) {

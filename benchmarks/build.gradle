@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -19,12 +19,12 @@ import org.elasticsearch.gradle.info.BuildParams
  * under the License.
  */
 
-apply plugin: 'elasticsearch.build'
+apply plugin: 'opensearch.build'
 apply plugin: 'application'
 mainClassName = 'org.openjdk.jmh.Main'
 
 assemble.enabled = false
-archivesBaseName = 'elasticsearch-benchmarks'
+archivesBaseName = 'opensearch-benchmarks'
 
 test.enabled = false
 

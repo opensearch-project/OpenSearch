@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,7 +53,7 @@ public class RoutingTableGenerator {
                 return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
                                                         "node_" + Integer.toString(node_id++), primary, ShardRoutingState.RELOCATING);
             default:
-                throw new ElasticsearchException("Unknown state: " + state.name());
+                throw new OpenSearchException("Unknown state: " + state.name());
         }
 
     }

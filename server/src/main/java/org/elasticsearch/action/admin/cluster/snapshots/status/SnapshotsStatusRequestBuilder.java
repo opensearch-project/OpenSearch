@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /**
@@ -32,14 +32,14 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
     /**
      * Constructs the new snapshot status request
      */
-    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, SnapshotsStatusAction action) {
+    public SnapshotsStatusRequestBuilder(OpenSearchClient client, SnapshotsStatusAction action) {
         super(client, action, new SnapshotsStatusRequest());
     }
 
     /**
      * Constructs the new snapshot status request with specified repository
      */
-    public SnapshotsStatusRequestBuilder(ElasticsearchClient client, SnapshotsStatusAction action, String repository) {
+    public SnapshotsStatusRequestBuilder(OpenSearchClient client, SnapshotsStatusAction action, String repository) {
         super(client, action, new SnapshotsStatusRequest(repository));
     }
 

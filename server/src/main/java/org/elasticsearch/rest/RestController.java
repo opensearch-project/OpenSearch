@@ -22,7 +22,7 @@ package org.elasticsearch.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -205,11 +205,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try {
             final Exception e;
             if (cause == null) {
-                e = new ElasticsearchException("unknown cause");
+                e = new OpenSearchException("unknown cause");
             } else if (cause instanceof Exception) {
                 e = (Exception) cause;
             } else {
-                e = new ElasticsearchException(cause);
+                e = new OpenSearchException(cause);
             }
             channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
         } catch (final IOException e) {

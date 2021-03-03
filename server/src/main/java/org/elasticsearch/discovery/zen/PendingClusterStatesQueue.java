@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -75,7 +75,7 @@ public class PendingClusterStatesQueue {
             ClusterStateContext context = pendingStates.remove(0);
             logger.warn("dropping pending state [{}]. more than [{}] pending states.", context, maxQueueSize);
             if (context.committed()) {
-                context.listener.onNewClusterStateFailed(new ElasticsearchException("too many pending states ([{}] pending)",
+                context.listener.onNewClusterStateFailed(new OpenSearchException("too many pending states ([{}] pending)",
                     maxQueueSize));
             }
         }

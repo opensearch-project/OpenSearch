@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -35,7 +35,7 @@ import java.util.Map;
 public class PutMappingRequestBuilder
     extends AcknowledgedRequestBuilder<PutMappingRequest, AcknowledgedResponse, PutMappingRequestBuilder> {
 
-    public PutMappingRequestBuilder(ElasticsearchClient client, PutMappingAction action) {
+    public PutMappingRequestBuilder(OpenSearchClient client, PutMappingAction action) {
         super(client, action, new PutMappingRequest());
     }
 

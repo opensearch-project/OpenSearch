@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -74,7 +74,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         try {
             return new NodeHotThreads(clusterService.localNode(), hotThreads.detect());
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to detect hot threads", e);
+            throw new OpenSearchException("failed to detect hot threads", e);
         }
     }
 

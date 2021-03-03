@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
@@ -131,7 +131,7 @@ public class TransportNodesListGatewayStartedShards extends
                             customDataPath = new IndexSettings(metadata, settings).customDataPath();
                         } else {
                             logger.trace("{} node doesn't have meta data for the requests index", shardId);
-                            throw new ElasticsearchException("node doesn't have meta data for index " + shardId.getIndex());
+                            throw new OpenSearchException("node doesn't have meta data for index " + shardId.getIndex());
                         }
                     }
                     // we don't have an open shard on the store, validate the files on disk are openable
@@ -165,7 +165,7 @@ public class TransportNodesListGatewayStartedShards extends
             logger.trace("{} no local shard info found", shardId);
             return new NodeGatewayStartedShards(clusterService.localNode(), null, false);
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to load started shards", e);
+            throw new OpenSearchException("failed to load started shards", e);
         }
     }
 

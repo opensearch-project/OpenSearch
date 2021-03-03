@@ -19,7 +19,7 @@
 
 package org.elasticsearch.geometry;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -49,7 +49,7 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
         try {
             return (T) wkt.fromWKT(text);
         } catch (ParseException e) {
-            throw new ElasticsearchException(e);
+            throw new OpenSearchException(e);
         }
     }
 
