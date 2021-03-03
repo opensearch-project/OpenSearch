@@ -26,39 +26,39 @@ import java.io.IOException;
 /**
  * Generic security exception
  */
-public class ElasticsearchSecurityException extends ElasticsearchStatusException {
+public class OpenSearchSecurityException extends ElasticsearchStatusException {
     /**
      * Build the exception with a specific status and cause.
      */
-    public ElasticsearchSecurityException(String msg, RestStatus status, Throwable cause, Object... args) {
+    public OpenSearchSecurityException(String msg, RestStatus status, Throwable cause, Object... args) {
         super(msg, status, cause, args);
     }
 
     /**
      * Build the exception with the status derived from the cause.
      */
-    public ElasticsearchSecurityException(String msg, Exception cause, Object... args) {
+    public OpenSearchSecurityException(String msg, Exception cause, Object... args) {
         this(msg, ExceptionsHelper.status(cause), cause, args);
     }
 
     /**
      * Build the exception with a status of {@link RestStatus#INTERNAL_SERVER_ERROR} without a cause.
      */
-    public ElasticsearchSecurityException(String msg, Object... args) {
+    public OpenSearchSecurityException(String msg, Object... args) {
         this(msg, RestStatus.INTERNAL_SERVER_ERROR, args);
     }
 
     /**
      * Build the exception without a cause.
      */
-    public ElasticsearchSecurityException(String msg, RestStatus status, Object... args) {
+    public OpenSearchSecurityException(String msg, RestStatus status, Object... args) {
         super(msg, status, args);
     }
 
     /**
      * Read from a stream.
      */
-    public ElasticsearchSecurityException(StreamInput in) throws IOException {
+    public OpenSearchSecurityException(StreamInput in) throws IOException {
         super(in);
     }
 }
