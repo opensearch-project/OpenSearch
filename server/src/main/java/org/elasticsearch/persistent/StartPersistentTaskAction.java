@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -157,7 +157,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<StartPersistentTaskAction.Request,
             PersistentTaskResponse, StartPersistentTaskAction.RequestBuilder> {
 
-        protected RequestBuilder(ElasticsearchClient client, StartPersistentTaskAction action) {
+        protected RequestBuilder(OpenSearchClient client, StartPersistentTaskAction action) {
             super(client, action, new Request());
         }
 

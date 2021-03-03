@@ -21,11 +21,11 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class SyncedFlushRequestBuilder extends ActionRequestBuilder<SyncedFlushRequest, SyncedFlushResponse> {
 
-    public SyncedFlushRequestBuilder(ElasticsearchClient client, SyncedFlushAction action) {
+    public SyncedFlushRequestBuilder(OpenSearchClient client, SyncedFlushAction action) {
         super(client, action, new SyncedFlushRequest());
     }
 

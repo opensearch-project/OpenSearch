@@ -22,18 +22,18 @@ package org.elasticsearch.action.admin.indices.open;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 /**
  * Builder for for open index request
  */
 public class OpenIndexRequestBuilder extends AcknowledgedRequestBuilder<OpenIndexRequest, OpenIndexResponse, OpenIndexRequestBuilder> {
 
-    public OpenIndexRequestBuilder(ElasticsearchClient client, OpenIndexAction action) {
+    public OpenIndexRequestBuilder(OpenSearchClient client, OpenIndexAction action) {
         super(client, action, new OpenIndexRequest());
     }
 
-    public OpenIndexRequestBuilder(ElasticsearchClient client, OpenIndexAction action, String... indices) {
+    public OpenIndexRequestBuilder(OpenSearchClient client, OpenIndexAction action, String... indices) {
         super(client, action, new OpenIndexRequest(indices));
     }
 
