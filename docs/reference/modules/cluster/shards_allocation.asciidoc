@@ -63,10 +63,7 @@ in your cluster to improve its balance. Rebalancing obeys all other shard
 allocation rules such as <<cluster-shard-allocation-filtering,allocation
 filtering>> and <<forced-awareness,forced awareness>> which may prevent it from
 completely balancing the cluster. In that case, rebalancing strives to acheve
-the most balanced cluster possible within the rules you have configured. If you
-are using <<data-tiers,data tiers>> then {es} automatically applies allocation
-filtering rules to place each shard within the appropriate tier. These rules
-mean that the balancer works independently within each tier.
+the most balanced cluster possible within the rules you have configured.
 
 You can use the following settings to control the rebalancing of shards across
 the cluster:
