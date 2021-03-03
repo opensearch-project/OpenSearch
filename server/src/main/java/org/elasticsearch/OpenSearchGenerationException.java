@@ -28,17 +28,17 @@ import java.io.IOException;
  *
  *
  */
-public class ElasticsearchGenerationException extends OpenSearchException {
+public class OpenSearchGenerationException extends OpenSearchException {
 
-    public ElasticsearchGenerationException(String msg) {
+    public OpenSearchGenerationException(String msg) {
         super(msg);
     }
 
-    public ElasticsearchGenerationException(String msg, Throwable cause) {
+    public OpenSearchGenerationException(String msg, Throwable cause) {
         super(msg, cause);
     }
 
-    public ElasticsearchGenerationException(StreamInput in) throws IOException{
+    public OpenSearchGenerationException(StreamInput in) throws IOException{
         super(in);
     }
 }
