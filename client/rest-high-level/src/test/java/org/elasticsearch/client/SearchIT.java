@@ -22,7 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -340,7 +340,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             searchSourceBuilder.size(0);
             searchRequest.source(searchSourceBuilder);
 
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class,
                     () -> execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync));
             assertEquals(RestStatus.BAD_REQUEST, exception.status());
         }
@@ -722,7 +722,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertTrue(clearScrollResponse.isSucceeded());
 
             SearchScrollRequest scrollRequest = new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2));
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> execute(scrollRequest,
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> execute(scrollRequest,
                     highLevelClient()::scroll, highLevelClient()::scrollAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertThat(exception.getRootCause(), instanceOf(OpenSearchException.class));
@@ -954,7 +954,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchTemplateRequest.setScript("non-existent");
         searchTemplateRequest.setScriptParams(Collections.emptyMap());
 
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+        OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class,
             () -> execute(searchTemplateRequest,
                 highLevelClient()::searchTemplate,
                 highLevelClient()::searchTemplateAsync));
@@ -1073,7 +1073,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchTemplateRequest.add(badRequest2);
 
         // The whole HTTP request should fail if no nested search requests are valid
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+        OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class,
                 () -> execute(multiSearchTemplateRequest, highLevelClient()::msearchTemplate,
                         highLevelClient()::msearchTemplateAsync));
 
