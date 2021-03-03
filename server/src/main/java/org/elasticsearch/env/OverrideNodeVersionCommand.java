@@ -23,14 +23,14 @@ import joptsimple.OptionSet;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
+import org.elasticsearch.cluster.coordination.OpenSearchNodeCommand;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
+public class OverrideNodeVersionCommand extends OpenSearchNodeCommand {
     private static final String TOO_NEW_MESSAGE =
         DELIMITER +
             "\n" +
