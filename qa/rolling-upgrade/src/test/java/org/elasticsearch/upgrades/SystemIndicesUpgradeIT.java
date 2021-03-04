@@ -20,8 +20,8 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
+import org.opensearch.client.Request;
+import org.opensearch.client.ResponseException;
 import org.elasticsearch.test.XContentTestUtils.JsonMapView;
 
 import java.util.Map;

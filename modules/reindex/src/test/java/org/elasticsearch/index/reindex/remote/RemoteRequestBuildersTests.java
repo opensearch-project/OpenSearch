@@ -23,7 +23,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Request;
+import org.opensearch.client.Request;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;

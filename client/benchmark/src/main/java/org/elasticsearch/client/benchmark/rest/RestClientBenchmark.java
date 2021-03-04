@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.rest;
+package org.opensearch.client.benchmark.rest;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.benchmark.AbstractBenchmark;
-import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
-import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.RestClient;
+import org.opensearch.client.benchmark.AbstractBenchmark;
+import org.opensearch.client.benchmark.ops.bulk.BulkRequestExecutor;
+import org.opensearch.client.benchmark.ops.search.SearchRequestExecutor;
 
 import java.io.IOException;
 import java.util.Collections;

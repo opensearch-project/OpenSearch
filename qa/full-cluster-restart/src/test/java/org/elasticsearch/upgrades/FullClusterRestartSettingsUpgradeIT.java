@@ -21,8 +21,8 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

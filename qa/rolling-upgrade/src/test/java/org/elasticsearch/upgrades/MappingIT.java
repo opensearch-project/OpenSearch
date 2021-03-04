@@ -19,8 +19,8 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 public class MappingIT extends AbstractRollingTestCase {

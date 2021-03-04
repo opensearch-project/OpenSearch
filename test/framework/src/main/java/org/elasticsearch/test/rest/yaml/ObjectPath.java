@@ -19,7 +19,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.Response;
+import org.opensearch.client.Response;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;

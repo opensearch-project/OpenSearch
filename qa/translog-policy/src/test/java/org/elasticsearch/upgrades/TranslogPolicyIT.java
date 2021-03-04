@@ -20,7 +20,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
+import org.opensearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.opensearch.transport.client.PreBuiltTransportClient;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.AfterClass;

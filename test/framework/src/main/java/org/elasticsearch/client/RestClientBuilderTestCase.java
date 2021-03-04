@@ -25,6 +25,7 @@ import java.util.Map;
 import joptsimple.internal.Strings;
 import org.apache.http.Header;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.client.RestClient;
 
 /**
  * A test case with access to internals of a RestClient.

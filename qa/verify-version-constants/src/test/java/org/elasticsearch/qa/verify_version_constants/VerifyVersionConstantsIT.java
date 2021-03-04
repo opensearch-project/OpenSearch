@@ -20,8 +20,8 @@
 package org.elasticsearch.qa.verify_version_constants;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 

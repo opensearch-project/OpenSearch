@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.http;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;

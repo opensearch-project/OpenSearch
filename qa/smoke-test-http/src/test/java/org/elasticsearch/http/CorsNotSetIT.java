@@ -19,9 +19,9 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
+import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
+import org.opensearch.client.Response;
 
 import java.io.IOException;
 

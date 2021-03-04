@@ -24,7 +24,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Request;
+import org.opensearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
