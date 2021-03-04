@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.opensearch.
+package org.opensearch
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
