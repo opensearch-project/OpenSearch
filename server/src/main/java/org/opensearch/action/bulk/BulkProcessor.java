@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -171,7 +171,7 @@ public class BulkProcessor implements Closeable {
          *
          * The default is to back off exponentially.
          *
-         * @see org.opensearch.action.bulk.BackoffPolicy#exponentialBackoff()
+         * @see BackoffPolicy#exponentialBackoff()
          */
         public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
             if (backoffPolicy == null) {
@@ -215,9 +215,9 @@ public class BulkProcessor implements Closeable {
      * @param client The client that executes the bulk operations
      * @param listener The BulkProcessor listener that gets called on bulk events
      * @return the builder for BulkProcessor
-     * @deprecated Use {@link #builder(java.util.function.BiConsumer, org.opensearch.action.bulk.BulkProcessor.Listener)}
+     * @deprecated Use {@link #builder(java.util.function.BiConsumer, BulkProcessor.Listener)}
      * with client::bulk as the first argument, or {@link #builder(org.opensearch.client.Client,
-     * org.opensearch.action.bulk.BulkProcessor.Listener, org.opensearch.threadpool.Scheduler,
+     * BulkProcessor.Listener, org.opensearch.threadpool.Scheduler,
      * org.opensearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
      */
     @Deprecated
