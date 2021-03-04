@@ -20,7 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
@@ -226,7 +226,7 @@ public class RestRequest implements ToXContent.Params {
      */
     public final BytesReference requiredContent() {
         if (hasContent() == false) {
-            throw new ElasticsearchParseException("request body is required");
+            throw new OpenSearchParseException("request body is required");
         } else if (xContentType.get() == null) {
             throw new IllegalStateException("unknown content type");
         }
@@ -416,7 +416,7 @@ public class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * A parser for the contents of this request if there is a body, otherwise throws an {@link ElasticsearchParseException}. Use
+     * A parser for the contents of this request if there is a body, otherwise throws an {@link OpenSearchParseException}. Use
      * {@link #applyContentParser(CheckedConsumer)} if you want to gracefully handle when the request doesn't have any contents. Use
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
@@ -446,7 +446,7 @@ public class RestRequest implements ToXContent.Params {
 
     /**
      * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
-     * otherwise throws an {@link ElasticsearchParseException}. Use {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} instead
+     * otherwise throws an {@link OpenSearchParseException}. Use {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} instead
      * if you need to handle the absence request content gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
@@ -480,7 +480,7 @@ public class RestRequest implements ToXContent.Params {
      */
     public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
         if (hasContentOrSourceParam() == false) {
-            throw new ElasticsearchParseException("request body or source parameter is required");
+            throw new OpenSearchParseException("request body or source parameter is required");
         } else if (hasContent()) {
             return new Tuple<>(xContentType.get(), requiredContent());
         }

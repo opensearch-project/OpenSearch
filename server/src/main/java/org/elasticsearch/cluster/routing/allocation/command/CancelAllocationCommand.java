@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -193,20 +193,20 @@ public class CancelAllocationCommand implements AllocationCommand {
                 } else if ("allow_primary".equals(currentFieldName) || "allowPrimary".equals(currentFieldName)) {
                     allowPrimary = parser.booleanValue();
                 } else {
-                    throw new ElasticsearchParseException("[{}] command does not support field [{}]", NAME, currentFieldName);
+                    throw new OpenSearchParseException("[{}] command does not support field [{}]", NAME, currentFieldName);
                 }
             } else {
-                throw new ElasticsearchParseException("[{}] command does not support complex json tokens [{}]", NAME, token);
+                throw new OpenSearchParseException("[{}] command does not support complex json tokens [{}]", NAME, token);
             }
         }
         if (index == null) {
-            throw new ElasticsearchParseException("[{}] command missing the index parameter", NAME);
+            throw new OpenSearchParseException("[{}] command missing the index parameter", NAME);
         }
         if (shardId == -1) {
-            throw new ElasticsearchParseException("[{}] command missing the shard parameter", NAME);
+            throw new OpenSearchParseException("[{}] command missing the shard parameter", NAME);
         }
         if (nodeId == null) {
-            throw new ElasticsearchParseException("[{}] command missing the node parameter", NAME);
+            throw new OpenSearchParseException("[{}] command missing the node parameter", NAME);
         }
         return new CancelAllocationCommand(index, shardId, nodeId, allowPrimary);
     }

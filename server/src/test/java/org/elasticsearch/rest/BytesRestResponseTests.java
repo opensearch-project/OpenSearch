@@ -237,24 +237,24 @@ public class BytesRestResponseTests extends ESTestCase {
             case 3:
                 TransportAddress address = buildNewFakeTransportAddress();
                 original = new RemoteTransportException("remote", address, "action",
-                        new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status"));
+                        new ResourceAlreadyExistsException("OpenSearchWrapperException with a cause that has a custom status"));
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
                     type = "resource_already_exists_exception";
-                    reason = "ElasticsearchWrapperException with a cause that has a custom status";
+                    reason = "OpenSearchWrapperException with a cause that has a custom status";
                 } else {
                     reason = "RemoteTransportException[[remote][" + address.toString() + "][action]]";
                 }
                 break;
             case 4:
-                original = new RemoteTransportException("ElasticsearchWrapperException with a cause that has a special treatment",
+                original = new RemoteTransportException("OpenSearchWrapperException with a cause that has a special treatment",
                         new IllegalArgumentException("wrong"));
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
                     type = "illegal_argument_exception";
                     reason = "wrong";
                 } else {
-                    reason = "RemoteTransportException[[ElasticsearchWrapperException with a cause that has a special treatment]]";
+                    reason = "RemoteTransportException[[OpenSearchWrapperException with a cause that has a special treatment]]";
                 }
                 break;
             case 5:

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +75,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadStringPropertyInvalidType() {
         try {
             ConfigurationUtils.readStringProperty(null, null, config, "arr");
-        } catch (ElasticsearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[arr] property isn't a string, but of type [java.util.Arrays$ArrayList]"));
         }
     }
@@ -93,7 +93,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadBooleanPropertyInvalidType() {
         try {
             ConfigurationUtils.readBooleanProperty(null, null, config, "arr", true);
-        } catch (ElasticsearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[arr] property isn't a boolean, but of type [java.util.Arrays$ArrayList]"));
         }
     }
@@ -108,7 +108,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadStringOrIntPropertyInvalidType() {
         try {
             ConfigurationUtils.readStringOrIntProperty(null, null, config, "arr", null);
-        } catch (ElasticsearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo(
                 "[arr] property isn't a string or int, but of type [java.util.Arrays$ArrayList]"));
         }
@@ -135,7 +135,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
             unknownTaggedConfig.put("description", "my_description");
         }
         config.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class,
             () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry));
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
         assertThat(e.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
@@ -151,7 +151,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         secondUnknownTaggedConfig.put("tag", "my_second_unknown");
         config2.add(Collections.singletonMap("second_unknown_processor", secondUnknownTaggedConfig));
         e = expectThrows(
-            ElasticsearchParseException.class,
+            OpenSearchParseException.class,
             () -> ConfigurationUtils.readProcessorConfigs(config2, scriptService, registry)
         );
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
@@ -160,8 +160,8 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(e.getMetadata("es.property_name"), is(nullValue()));
 
         assertThat(e.getSuppressed().length, equalTo(1));
-        assertThat(e.getSuppressed()[0], instanceOf(ElasticsearchParseException.class));
-        ElasticsearchParseException e2 = (ElasticsearchParseException) e.getSuppressed()[0];
+        assertThat(e.getSuppressed()[0], instanceOf(OpenSearchParseException.class));
+        OpenSearchParseException e2 = (OpenSearchParseException) e.getSuppressed()[0];
         assertThat(e2.getMessage(), equalTo("No processor type exists with name [second_unknown_processor]"));
         assertThat(e2.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_second_unknown")));
         assertThat(e2.getMetadata("es.processor_type"), equalTo(Collections.singletonList("second_unknown_processor")));
@@ -220,7 +220,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
 
         Object invalidConfig = 12L;
 
-        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+        OpenSearchParseException ex = expectThrows(OpenSearchParseException.class,
             () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig));
         assertThat(ex.getMessage(), equalTo("property isn't a map, but of type [" + invalidConfig.getClass().getName() + "]"));
     }

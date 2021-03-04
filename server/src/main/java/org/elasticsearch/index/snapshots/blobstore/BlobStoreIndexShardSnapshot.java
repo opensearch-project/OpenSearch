@@ -21,7 +21,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -308,28 +308,28 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                                 metaHash.offset = 0;
                                 metaHash.length = metaHash.bytes.length;
                             } else {
-                                throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
+                                throw new OpenSearchParseException("unknown parameter [{}]", currentFieldName);
                             }
                         } else {
-                            throw new ElasticsearchParseException("unexpected token  [{}]", token);
+                            throw new OpenSearchParseException("unexpected token  [{}]", token);
                         }
                     } else {
-                        throw new ElasticsearchParseException("unexpected token [{}]",token);
+                        throw new OpenSearchParseException("unexpected token [{}]",token);
                     }
                 }
             }
 
             // Verify that file information is complete
             if (name == null || Strings.validFileName(name) == false) {
-                throw new ElasticsearchParseException("missing or invalid file name [" + name + "]");
+                throw new OpenSearchParseException("missing or invalid file name [" + name + "]");
             } else if (physicalName == null || Strings.validFileName(physicalName) == false) {
-                throw new ElasticsearchParseException("missing or invalid physical file name [" + physicalName + "]");
+                throw new OpenSearchParseException("missing or invalid physical file name [" + physicalName + "]");
             } else if (length < 0) {
-                throw new ElasticsearchParseException("missing or invalid file length");
+                throw new OpenSearchParseException("missing or invalid file length");
             } else if (writtenBy == null) {
-                throw new ElasticsearchParseException("missing or invalid written_by [" + writtenByStr + "]");
+                throw new OpenSearchParseException("missing or invalid written_by [" + writtenByStr + "]");
             } else if (checksum == null) {
-                throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
+                throw new OpenSearchParseException("missing checksum for name [" + name + "]");
             }
             return new FileInfo(name, new StoreFileMetadata(physicalName, length, checksum, writtenBy, metaHash), partSize);
         }
@@ -466,7 +466,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     private static final String TIME = "time";
     private static final String FILES = "files";
     // for the sake of BWC keep the actual property names as in 6.x
-    // + there is a constraint in #fromXContent() that leads to ElasticsearchParseException("unknown parameter [incremental_file_count]");
+    // + there is a constraint in #fromXContent() that leads to OpenSearchParseException("unknown parameter [incremental_file_count]");
     private static final String INCREMENTAL_FILE_COUNT = "number_of_files";
     private static final String INCREMENTAL_SIZE = "total_size";
 
@@ -540,7 +540,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                     } else if (PARSE_INCREMENTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
                         incrementalSize = parser.longValue();
                     } else {
-                        throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
+                        throw new OpenSearchParseException("unknown parameter [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if (PARSE_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -548,10 +548,10 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                             indexFiles.add(FileInfo.fromXContent(parser));
                         }
                     } else {
-                        throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
+                        throw new OpenSearchParseException("unknown parameter [{}]", currentFieldName);
                     }
                 } else {
-                    throw new ElasticsearchParseException("unexpected token [{}]", token);
+                    throw new OpenSearchParseException("unexpected token [{}]", token);
                 }
             }
         }

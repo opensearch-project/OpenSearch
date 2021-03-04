@@ -42,7 +42,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         expectThrows(() -> removeCustoms(environment, true, new String[]{ "index-graveyard" }),
-            ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
+            OpenSearchNodeCommand.ABORTED_BY_USER_MSG);
     }
 
     public void testRemoveCustomsSuccessful() throws Exception {
@@ -88,7 +88,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
             "found on this node"));
     }
 
-    private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort, String... args)
+    private MockTerminal executeCommand(OpenSearchNodeCommand command, Environment environment, boolean abort, String... args)
         throws Exception {
         final MockTerminal terminal = new MockTerminal();
         final OptionSet options = command.getParser().parse(args);
@@ -105,7 +105,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         try {
             command.execute(terminal, options, environment);
         } finally {
-            assertThat(terminal.getOutput(), containsString(ElasticsearchNodeCommand.STOP_WARNING_MSG));
+            assertThat(terminal.getOutput(), containsString(OpenSearchNodeCommand.STOP_WARNING_MSG));
         }
 
         return terminal;

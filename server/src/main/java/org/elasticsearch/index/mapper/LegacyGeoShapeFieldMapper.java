@@ -28,7 +28,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
@@ -137,7 +137,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         public void setPointsOnly(boolean pointsOnly) {
             if (this.strategy == SpatialStrategy.TERM && pointsOnly == false) {
-                throw new ElasticsearchParseException("points_only cannot be set to false for term strategy");
+                throw new OpenSearchParseException("points_only cannot be set to false for term strategy");
             }
             this.pointsOnly = pointsOnly;
         }
@@ -174,7 +174,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private static void checkPrefixTreeSupport(String fieldName) {
             if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
-                throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type",
+                throw new OpenSearchParseException("Field parameter [{}] is not supported for [{}] field type",
                     fieldName, CONTENT_TYPE);
             }
             DEPRECATION_LOGGER.deprecate("geo_mapper_field_parameter",

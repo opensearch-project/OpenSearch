@@ -44,9 +44,9 @@ import java.util.Map;
  * For now, this {@link MergePolicy} takes care of moving versions that used to
  * be stored as payloads to numeric doc values.
  */
-public final class ElasticsearchMergePolicy extends FilterMergePolicy {
+public final class OpenSearchMergePolicy extends FilterMergePolicy {
 
-    private static final Logger logger = LogManager.getLogger(ElasticsearchMergePolicy.class);
+    private static final Logger logger = LogManager.getLogger(OpenSearchMergePolicy.class);
 
     // True if the next merge request should do segment upgrades:
     private volatile boolean upgradeInProgress;
@@ -57,7 +57,7 @@ public final class ElasticsearchMergePolicy extends FilterMergePolicy {
     private static final int MAX_CONCURRENT_UPGRADE_MERGES = 5;
 
     /** @param delegate the merge policy to wrap */
-    public ElasticsearchMergePolicy(MergePolicy delegate) {
+    public OpenSearchMergePolicy(MergePolicy delegate) {
         super(delegate);
     }
 

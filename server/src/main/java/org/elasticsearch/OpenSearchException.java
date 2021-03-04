@@ -232,7 +232,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
 
     /**
      * Unwraps the actual cause from the exception for cases when the exception is a
-     * {@link ElasticsearchWrapperException}.
+     * {@link OpenSearchWrapperException}.
      *
      * @see ExceptionsHelper#unwrapCause(Throwable)
      */
@@ -799,8 +799,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException::new, 33, UNKNOWN_VERSION_ADDED),
         TRANSPORT_EXCEPTION(org.elasticsearch.transport.TransportException.class,
                 org.elasticsearch.transport.TransportException::new, 34, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_PARSE_EXCEPTION(org.elasticsearch.ElasticsearchParseException.class,
-                org.elasticsearch.ElasticsearchParseException::new, 35, UNKNOWN_VERSION_ADDED),
+        ELASTICSEARCH_PARSE_EXCEPTION(org.elasticsearch.OpenSearchParseException.class,
+                org.elasticsearch.OpenSearchParseException::new, 35, UNKNOWN_VERSION_ADDED),
         SEARCH_EXCEPTION(org.elasticsearch.search.SearchException.class,
                 org.elasticsearch.search.SearchException::new, 36, UNKNOWN_VERSION_ADDED),
         MAPPER_EXCEPTION(org.elasticsearch.index.mapper.MapperException.class,
