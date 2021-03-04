@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -91,7 +91,7 @@ final class Bootstrap {
                     // bail out
                 }
             }
-        }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
+        }, "opensearch[keepAlive/" + Version.CURRENT + "]");
         keepAliveThread.setDaemon(false);
         // keep this thread alive (non daemon thread) until we shutdown
         Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -108,7 +108,7 @@ final class Bootstrap {
 
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
-            throw new RuntimeException("can not run elasticsearch as root");
+            throw new RuntimeException("can not run opensearch as root");
         }
 
         // enable system call filter
@@ -333,7 +333,7 @@ final class Bootstrap {
     }
 
     /**
-     * This method is invoked by {@link OpenSearch#main(String[])} to startup elasticsearch.
+     * This method is invoked by {@link OpenSearch#main(String[])} to startup opensearch.
      */
     static void init(
             final boolean foreground,
