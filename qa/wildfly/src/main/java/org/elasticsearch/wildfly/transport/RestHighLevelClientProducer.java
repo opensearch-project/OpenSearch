@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.wildfly.transport;
+package org.opensearch.wildfly.transport;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.client.RestClient;
+import org.opensearch.client.RestHighLevelClient;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
 
 import javax.enterprise.inject.Produces;
 import java.nio.file.Path;

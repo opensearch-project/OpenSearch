@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.XContentTestUtils;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.RestClient;
+import org.opensearch.common.io.Streams;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,12 +38,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
-import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
-import static org.elasticsearch.indices.IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING;
-import static org.elasticsearch.rest.RestStatus.ACCEPTED;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.test.XContentTestUtils.createJsonMapView;
+import static org.opensearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
+import static org.opensearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
+import static org.opensearch.indices.IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING;
+import static org.opensearch.rest.RestStatus.ACCEPTED;
+import static org.opensearch.rest.RestStatus.OK;
+import static org.opensearch.test.XContentTestUtils.createJsonMapView;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.is;
  * implementation, and they cannot be REST tests today since they need to
  * restart nodes. Really, though, this test should live elsewhere.
  *
- * @see org.elasticsearch.action.admin.indices.dangling
+ * @see org.opensearch.action.admin.indices.dangling
  */
 @ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST, autoManageMasterNodes = false)
 public class DanglingIndicesRestIT extends HttpSmokeTestCase {

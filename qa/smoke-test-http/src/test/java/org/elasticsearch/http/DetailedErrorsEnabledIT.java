@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
 
 import java.io.IOException;
 

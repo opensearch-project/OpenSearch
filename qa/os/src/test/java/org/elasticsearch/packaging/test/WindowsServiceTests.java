@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
 import junit.framework.TestCase;
-import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell;
-import org.elasticsearch.packaging.util.Shell.Result;
+import org.opensearch.packaging.util.FileUtils;
+import org.opensearch.packaging.util.Platforms;
+import org.opensearch.packaging.util.ServerUtils;
+import org.opensearch.packaging.util.Shell;
+import org.opensearch.packaging.util.Shell.Result;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -34,10 +34,10 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
-import static org.elasticsearch.packaging.util.Archives.installArchive;
-import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.mv;
+import static org.opensearch.packaging.util.Archives.installArchive;
+import static org.opensearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.opensearch.packaging.util.FileUtils.append;
+import static org.opensearch.packaging.util.FileUtils.mv;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 

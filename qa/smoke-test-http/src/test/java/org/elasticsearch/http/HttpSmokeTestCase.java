@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
+import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.transport.Netty4Plugin;
+import org.opensearch.transport.nio.MockNioTransportPlugin;
+import org.opensearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;

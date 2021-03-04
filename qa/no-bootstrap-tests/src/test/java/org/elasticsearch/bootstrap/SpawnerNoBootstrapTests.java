@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.plugins.PluginTestUtil;
-import org.elasticsearch.plugins.Platforms;
+import org.opensearch.Version;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.env.TestEnvironment;
+import org.opensearch.plugins.PluginTestUtil;
+import org.opensearch.plugins.Platforms;
 
 import java.io.BufferedReader;
 import java.io.IOException;

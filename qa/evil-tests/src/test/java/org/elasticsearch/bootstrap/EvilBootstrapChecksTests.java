@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.node.NodeValidationException;
+import org.opensearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.bootstrap.BootstrapChecks.ES_ENFORCE_BOOTSTRAP_CHECKS;
+import static org.opensearch.bootstrap.BootstrapChecks.ES_ENFORCE_BOOTSTRAP_CHECKS;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;

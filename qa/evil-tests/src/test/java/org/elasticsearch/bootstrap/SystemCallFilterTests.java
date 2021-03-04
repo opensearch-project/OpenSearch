@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 /** Simple tests system call filter is working. */
 public class SystemCallFilterTests extends ESTestCase {

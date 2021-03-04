@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.cli;
+package org.opensearch.cli;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,7 +61,7 @@ public class EvilCommandTests extends ESTestCase {
             // ensure that we dump the exception
             assertThat(output, containsString("java.io.IOException: fail"));
             // ensure that we dump the stack trace too
-            assertThat(output, containsString("\tat org.elasticsearch.cli.EvilCommandTests$1.close"));
+            assertThat(output, containsString("\tat org.opensearch.cli.EvilCommandTests$1.close"));
         } else {
             assertThat(output, is(emptyString()));
         }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.util;
+package org.opensearch.packaging.util;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,11 +27,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.packaging.test.PackagingTestCase.getRootTempDir;
-import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
-import static org.elasticsearch.packaging.util.Platforms.isDPKG;
-import static org.elasticsearch.packaging.util.Platforms.isRPM;
-import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.opensearch.packaging.test.PackagingTestCase.getRootTempDir;
+import static org.opensearch.packaging.util.FileUtils.lsGlob;
+import static org.opensearch.packaging.util.Platforms.isDPKG;
+import static org.opensearch.packaging.util.Platforms.isRPM;
+import static org.opensearch.packaging.util.Platforms.isSystemd;
 
 public class Cleanup {
 
@@ -59,7 +59,7 @@ public class Cleanup {
         // kill elasticsearch processes
         Platforms.onLinux(() -> {
             sh.runIgnoreExitCode("pkill -u elasticsearch");
-            sh.runIgnoreExitCode("ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
+            sh.runIgnoreExitCode("ps aux | grep -i 'org.opensearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
         });
 
         Platforms.onWindows(
@@ -67,7 +67,7 @@ public class Cleanup {
                 // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
                 sh.runIgnoreExitCode(
                     "Get-WmiObject Win32_Process | "
-                        + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
+                        + "Where-Object { $_.CommandLine -Match 'org.opensearch.bootstrap.Elasticsearch' } | "
                         + "ForEach-Object { $_.Terminate() }"
                 );
             }

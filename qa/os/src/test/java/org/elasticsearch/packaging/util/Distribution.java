@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.util;
+package org.opensearch.packaging.util;
 
 import java.nio.file.Path;
 import java.util.Locale;
