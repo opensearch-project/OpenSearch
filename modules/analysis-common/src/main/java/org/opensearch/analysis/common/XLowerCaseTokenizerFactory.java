@@ -16,21 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'Adds "built in" analyzers to OpenSearch.'
-  classname 'org.opensearch.analysis.common.CommonAnalysisPlugin'
-  extendedPlugins = ['lang-painless']
-}
+package org.opensearch.analysis.common;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
-  }
-}
+import org.apache.lucene.analysis.Tokenizer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
-dependencies {
-  compileOnly project(':modules:lang-painless')
+@Deprecated
+// NORELEASE we should prevent the usage on indices created after 7.0 in order to be able to remove in 8
+public class XLowerCaseTokenizerFactory extends AbstractTokenizerFactory {
+
+    public XLowerCaseTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, settings, name);
+    }
+
+    @Override
+    public Tokenizer create() {
+        return new XLowerCaseTokenizer();
+    }
 }
