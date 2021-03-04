@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.common.xcontent.XContentOpenSearchExtension;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -161,9 +161,9 @@ public class RestRecoveryActionTests extends ESTestCase {
             final List<Object> expectedValues = Arrays.asList(
                     "index",
                     i,
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
+                    XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
                     state.getTimer().startTime(),
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
+                    XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
                     state.getTimer().stopTime(),
                     new TimeValue(state.getTimer().time()),
                     state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),
