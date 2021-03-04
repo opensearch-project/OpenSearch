@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.benchmark.transport;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -91,7 +91,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
                 Thread.currentThread().interrupt();
                 return false;
             } catch (ExecutionException e) {
-                throw new ElasticsearchException(e);
+                throw new OpenSearchException(e);
             }
             return !bulkResponse.hasFailures();
         }
@@ -120,7 +120,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
                 Thread.currentThread().interrupt();
                 return false;
             } catch (ExecutionException e) {
-                throw new ElasticsearchException(e);
+                throw new OpenSearchException(e);
             }
         }
     }

@@ -22,7 +22,7 @@ package org.opensearch.action.admin.cluster.health;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
@@ -30,7 +30,7 @@ import org.opensearch.common.unit.TimeValue;
 public class ClusterHealthRequestBuilder
         extends MasterNodeReadOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
 
-    public ClusterHealthRequestBuilder(ElasticsearchClient client, ClusterHealthAction action) {
+    public ClusterHealthRequestBuilder(OpenSearchClient client, ClusterHealthAction action) {
         super(client, action, new ClusterHealthRequest());
     }
 

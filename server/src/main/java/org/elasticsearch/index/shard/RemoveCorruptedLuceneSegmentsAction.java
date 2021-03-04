@@ -21,7 +21,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 
@@ -82,7 +82,7 @@ public class RemoveCorruptedLuceneSegmentsAction {
                     terminal.println("Wrote new segments file \"" + status.segmentsFileName + "\"");
                 }
             } else {
-                throw new ElasticsearchException("Index is unrecoverable - there are missing segments");
+                throw new OpenSearchException("Index is unrecoverable - there are missing segments");
             }
         }
     }

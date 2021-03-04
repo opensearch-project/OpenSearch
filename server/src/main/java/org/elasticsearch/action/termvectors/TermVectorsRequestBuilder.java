@@ -20,7 +20,7 @@
 package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 
@@ -35,7 +35,7 @@ import java.util.Map;
  */
 public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse> {
 
-    public TermVectorsRequestBuilder(ElasticsearchClient client, TermVectorsAction action) {
+    public TermVectorsRequestBuilder(OpenSearchClient client, TermVectorsAction action) {
         super(client, action, new TermVectorsRequest());
     }
 
@@ -44,7 +44,7 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
      * from the provided index. Use {@code index}, {@code type} and
      * {@code id} to specify the document to load.
      */
-    public TermVectorsRequestBuilder(ElasticsearchClient client, TermVectorsAction action, String index, String type, String id) {
+    public TermVectorsRequestBuilder(OpenSearchClient client, TermVectorsAction action, String index, String type, String id) {
         super(client, action, new TermVectorsRequest(index, type, id));
     }
 

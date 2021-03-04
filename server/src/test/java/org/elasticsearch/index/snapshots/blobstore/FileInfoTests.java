@@ -20,7 +20,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -136,7 +136,7 @@ public class FileInfoTests extends ESTestCase {
                     parser.nextToken();
                     BlobStoreIndexShardSnapshot.FileInfo.fromXContent(parser);
                     fail("Should have failed with [" + failure + "]");
-                } catch (ElasticsearchParseException ex) {
+                } catch (OpenSearchParseException ex) {
                     assertThat(ex.getMessage(), containsString(failure));
                 }
             }

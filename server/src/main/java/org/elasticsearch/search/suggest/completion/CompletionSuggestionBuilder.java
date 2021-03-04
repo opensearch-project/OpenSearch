@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -279,7 +279,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         String field = builder.field;
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
-            throw new ElasticsearchParseException(
+            throw new OpenSearchParseException(
                 "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new CompletionSuggestionBuilder(field, builder);

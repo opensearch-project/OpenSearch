@@ -20,13 +20,13 @@
 package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 import java.util.List;
 
 public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse> {
 
-    public ClearScrollRequestBuilder(ElasticsearchClient client, ClearScrollAction action) {
+    public ClearScrollRequestBuilder(OpenSearchClient client, ClearScrollAction action) {
         super(client, action, new ClearScrollRequest());
     }
 

@@ -20,7 +20,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.Scroll;
 
@@ -29,11 +29,11 @@ import org.opensearch.search.Scroll;
  */
 public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse> {
 
-    public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action) {
+    public SearchScrollRequestBuilder(OpenSearchClient client, SearchScrollAction action) {
         super(client, action, new SearchScrollRequest());
     }
 
-    public SearchScrollRequestBuilder(ElasticsearchClient client, SearchScrollAction action, String scrollId) {
+    public SearchScrollRequestBuilder(OpenSearchClient client, SearchScrollAction action, String scrollId) {
         super(client, action, new SearchScrollRequest(scrollId));
     }
 

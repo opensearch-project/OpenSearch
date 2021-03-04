@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -174,7 +174,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * also only add objects which can be serialized with
      * {@link StreamOutput#writeGenericValue(Object)} and
      * {@link XContentBuilder#value(Object)}. And they'll have an integration
-     * test. 
+     * test.
      */
     public void collectDebugInfo(BiConsumer<String, Object> add) {}
 
@@ -213,7 +213,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
                     return mode;
                 }
             }
-            throw new ElasticsearchParseException("no [{}] found for value [{}]", KEY.getPreferredName(), value);
+            throw new OpenSearchParseException("no [{}] found for value [{}]", KEY.getPreferredName(), value);
         }
 
         public static SubAggCollectionMode readFromStream(StreamInput in) throws IOException {

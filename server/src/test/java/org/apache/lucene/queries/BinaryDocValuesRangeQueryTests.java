@@ -26,9 +26,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.index.mapper.RangeFieldMapper;
+import org.opensearch.index.mapper.RangeType;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

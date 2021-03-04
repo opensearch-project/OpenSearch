@@ -20,13 +20,13 @@
 package org.opensearch.action.admin.indices.validate.query;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.index.query.QueryBuilder;
 
 public class ValidateQueryRequestBuilder
     extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
 
-    public ValidateQueryRequestBuilder(ElasticsearchClient client, ValidateQueryAction action) {
+    public ValidateQueryRequestBuilder(OpenSearchClient client, ValidateQueryAction action) {
         super(client, action, new ValidateQueryRequest());
     }
 

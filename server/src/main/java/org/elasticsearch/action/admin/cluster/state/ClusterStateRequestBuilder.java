@@ -21,13 +21,13 @@ package org.opensearch.action.admin.cluster.state;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
 public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest,
         ClusterStateResponse, ClusterStateRequestBuilder> {
 
-    public ClusterStateRequestBuilder(ElasticsearchClient client, ClusterStateAction action) {
+    public ClusterStateRequestBuilder(OpenSearchClient client, ClusterStateAction action) {
         super(client, action, new ClusterStateRequest());
     }
 

@@ -21,14 +21,14 @@ package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
 /** A helper class to build {@link GetFieldMappingsRequest} objects */
 public class GetFieldMappingsRequestBuilder
         extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
-    public GetFieldMappingsRequestBuilder(ElasticsearchClient client, GetFieldMappingsAction action, String... indices) {
+    public GetFieldMappingsRequestBuilder(OpenSearchClient client, GetFieldMappingsAction action, String... indices) {
         super(client, action, new GetFieldMappingsRequest().indices(indices));
     }
 

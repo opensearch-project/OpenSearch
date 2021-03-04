@@ -20,12 +20,12 @@
 package org.opensearch.action.admin.indices.upgrade.get;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class UpgradeStatusRequestBuilder
         extends BroadcastOperationRequestBuilder<UpgradeStatusRequest, UpgradeStatusResponse, UpgradeStatusRequestBuilder> {
 
-    public UpgradeStatusRequestBuilder(ElasticsearchClient client, UpgradeStatusAction action) {
+    public UpgradeStatusRequestBuilder(OpenSearchClient client, UpgradeStatusAction action) {
         super(client, action, new UpgradeStatusRequest());
     }
 }

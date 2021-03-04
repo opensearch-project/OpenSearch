@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
@@ -117,7 +117,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
 
     public ShapeBuilder getShapeAt(int i) {
         if (i >= this.shapes.size() || i < 0) {
-            throw new ElasticsearchException("GeometryCollection contains " + this.shapes.size() + " shapes. + " +
+            throw new OpenSearchException("GeometryCollection contains " + this.shapes.size() + " shapes. + " +
                     "No shape found at index " + i);
         }
         return this.shapes.get(i);

@@ -22,12 +22,12 @@ package org.opensearch.action.admin.indices.delete;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class DeleteIndexRequestBuilder
         extends AcknowledgedRequestBuilder<DeleteIndexRequest, AcknowledgedResponse, DeleteIndexRequestBuilder> {
 
-    public DeleteIndexRequestBuilder(ElasticsearchClient client, DeleteIndexAction action, String... indices) {
+    public DeleteIndexRequestBuilder(OpenSearchClient client, DeleteIndexAction action, String... indices) {
         super(client, action, new DeleteIndexRequest(indices));
     }
 

@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.shard.ShardId;
@@ -27,7 +27,7 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class UnavailableShardsException extends ElasticsearchException {
+public class UnavailableShardsException extends OpenSearchException {
 
     public UnavailableShardsException(@Nullable ShardId shardId, String message, Object... args) {
         super(buildMessage(shardId, message), args);

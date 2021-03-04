@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ko.KoreanTokenizer;
 import org.apache.lucene.analysis.ko.dict.UserDictionary;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -64,7 +64,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
         try (Reader rulesReader = new StringReader(sb.toString())) {
             return UserDictionary.open(rulesReader);
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to load nori user dictionary", e);
+            throw new OpenSearchException("failed to load nori user dictionary", e);
         }
     }
 

@@ -20,11 +20,11 @@
 package org.opensearch.action.main;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class MainRequestBuilder extends ActionRequestBuilder<MainRequest, MainResponse> {
 
-    public MainRequestBuilder(ElasticsearchClient client, MainAction action) {
+    public MainRequestBuilder(OpenSearchClient client, MainAction action) {
         super(client, action, new MainRequest());
     }
 }

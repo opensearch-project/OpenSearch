@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -52,16 +52,16 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
     public void testToString() {
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
-                new ElasticsearchException("foo", new IllegalArgumentException("bar", new RuntimeException("baz"))));
-            assertEquals("[null][-1] failed, reason [ElasticsearchException[foo]; nested: " +
+                new OpenSearchException("foo", new IllegalArgumentException("bar", new RuntimeException("baz"))));
+            assertEquals("[null][-1] failed, reason [OpenSearchException[foo]; nested: " +
                 "IllegalArgumentException[bar]; nested: RuntimeException[baz]; ]", exception.toString());
         }
         {
-            ElasticsearchException elasticsearchException = new ElasticsearchException("foo");
-            elasticsearchException.setIndex(new Index("index1", "_na_"));
-            elasticsearchException.setShard(new ShardId("index1", "_na_", 1));
-            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(elasticsearchException);
-            assertEquals("[index1][1] failed, reason [ElasticsearchException[foo]]", exception.toString());
+            OpenSearchException openSearchException = new OpenSearchException("foo");
+            openSearchException.setIndex(new Index("index1", "_na_"));
+            openSearchException.setShard(new ShardId("index1", "_na_", 1));
+            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(openSearchException);
+            assertEquals("[index1][1] failed, reason [OpenSearchException[foo]]", exception.toString());
         }
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException("index2", 2, new Exception("foo"));
@@ -71,13 +71,13 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         {
-            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(new ElasticsearchException("foo"));
+            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(new OpenSearchException("foo"));
             assertEquals("{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\"," +
                 "\"reason\":{\"type\":\"exception\",\"reason\":\"foo\"}}", Strings.toString(exception));
         }
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
-                new ElasticsearchException("foo", new IllegalArgumentException("bar")));
+                new OpenSearchException("foo", new IllegalArgumentException("bar")));
             assertEquals("{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\",\"reason\":{\"type\":\"exception\"," +
                 "\"reason\":\"foo\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"bar\"}}}",
                 Strings.toString(exception));
@@ -144,8 +144,8 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
 
     private static DefaultShardOperationFailedException randomInstance() {
         final Exception cause = randomException();
-        if (cause instanceof ElasticsearchException) {
-            return new DefaultShardOperationFailedException((ElasticsearchException) cause);
+        if (cause instanceof OpenSearchException) {
+            return new DefaultShardOperationFailedException((OpenSearchException) cause);
         } else {
             return new DefaultShardOperationFailedException(randomAlphaOfLengthBetween(1, 5), randomIntBetween(0, 10), cause);
         }

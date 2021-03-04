@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -60,7 +60,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("doc['field2'].value * param1", vars -> {   
+            scripts.put("doc['field2'].value * param1", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles field2Values = (ScriptDocValues.Doubles) doc.get("field2");
                 Double param1 = (Double) vars.get("param1");
@@ -188,7 +188,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
             updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            OpenSearchException e = expectThrows(OpenSearchException.class,
                     () -> client()
                             .prepareSearch("test-index")
                             .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))

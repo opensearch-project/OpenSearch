@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -37,14 +37,14 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     /**
      * Constructs new restore snapshot request builder
      */
-    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action) {
+    public RestoreSnapshotRequestBuilder(OpenSearchClient client, RestoreSnapshotAction action) {
         super(client, action, new RestoreSnapshotRequest());
     }
 
     /**
      * Constructs new restore snapshot request builder with specified repository and snapshot names
      */
-    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action, String repository, String name) {
+    public RestoreSnapshotRequestBuilder(OpenSearchClient client, RestoreSnapshotAction action, String repository, String name) {
         super(client, action, new RestoreSnapshotRequest(repository, name));
     }
 

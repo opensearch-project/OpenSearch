@@ -21,17 +21,17 @@ package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 
 public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, AcknowledgedResponse> {
 
-    public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action) {
+    public PutPipelineRequestBuilder(OpenSearchClient client, PutPipelineAction action) {
         super(client, action, new PutPipelineRequest());
     }
 
-    public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action, String id, BytesReference source,
+    public PutPipelineRequestBuilder(OpenSearchClient client, PutPipelineAction action, String id, BytesReference source,
                                      XContentType xContentType) {
         super(client, action, new PutPipelineRequest(id, source, xContentType));
     }

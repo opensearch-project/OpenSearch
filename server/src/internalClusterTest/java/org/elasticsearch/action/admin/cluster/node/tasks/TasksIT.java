@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -669,7 +669,7 @@ public class TasksIT extends ESIntegTestCase {
 
             for (Throwable failure : failures) {
                 assertNotNull(
-                        ExceptionsHelper.unwrap(failure, ElasticsearchTimeoutException.class, ReceiveTimeoutTransportException.class));
+                        ExceptionsHelper.unwrap(failure, OpenSearchTimeoutException.class, ReceiveTimeoutTransportException.class));
             }
         } finally {
             // Now we can unblock those requests
@@ -718,7 +718,7 @@ public class TasksIT extends ESIntegTestCase {
             .setTimeout(timeValueSeconds(10)).get();
 
         // It should finish quickly and without complaint and list the list tasks themselves
-        assertThat(response.getNodeFailures(), emptyCollectionOf(ElasticsearchException.class));
+        assertThat(response.getNodeFailures(), emptyCollectionOf(OpenSearchException.class));
         assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
     }

@@ -22,8 +22,8 @@ package org.opensearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.ElasticsearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.NoShardAvailableActionException;
@@ -319,7 +319,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (successfulOps.get() == 0) { // we have 0 successful results that means we shortcut stuff and return a failure
             final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
             Throwable cause = shardSearchFailures.length == 0 ? null :
-                ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                OpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
             logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
@@ -333,7 +333,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     if (logger.isDebugEnabled()) {
                         int numShardFailures = shardSearchFailures.length;
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
-                        Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                        Throwable cause = OpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
                         logger.debug(() -> new ParameterizedMessage("{} shards failed for phase: [{}]",
                             numShardFailures, getName()), cause);
                     }

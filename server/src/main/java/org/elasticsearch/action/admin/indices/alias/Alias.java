@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.alias;
 
-import org.opensearch.ElasticsearchGenerationException;
+import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
@@ -126,7 +126,7 @@ public class Alias implements Writeable, ToXContentFragment {
             this.filter = Strings.toString(builder);
             return this;
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + filter + "]", e);
         }
     }
 
@@ -145,7 +145,7 @@ public class Alias implements Writeable, ToXContentFragment {
             this.filter = Strings.toString(builder);
             return this;
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
+            throw new OpenSearchGenerationException("Failed to build json for alias request", e);
         }
     }
 

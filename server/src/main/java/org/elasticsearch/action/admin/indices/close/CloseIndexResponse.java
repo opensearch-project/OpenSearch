@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.indices.close;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
@@ -158,7 +158,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
                     builder.field("closed", false);
                     if (exception != null) {
                         builder.startObject("exception");
-                        ElasticsearchException.generateFailureXContent(builder, params, exception, true);
+                        OpenSearchException.generateFailureXContent(builder, params, exception, true);
                         builder.endObject();
                     } else {
                         builder.startObject("failedShards");

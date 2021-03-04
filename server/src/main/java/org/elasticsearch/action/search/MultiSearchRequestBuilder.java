@@ -21,7 +21,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * A request builder for multiple search requests.
@@ -29,7 +29,7 @@ import org.opensearch.client.ElasticsearchClient;
 public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse> {
 
 
-    public MultiSearchRequestBuilder(ElasticsearchClient client, MultiSearchAction action) {
+    public MultiSearchRequestBuilder(OpenSearchClient client, MultiSearchAction action) {
         super(client, action, new MultiSearchRequest());
     }
 

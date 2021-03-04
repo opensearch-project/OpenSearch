@@ -19,8 +19,8 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -162,7 +162,7 @@ public class IngestClientIT extends ESIntegTestCase {
             BulkItemResponse itemResponse = response.getItems()[i];
             if (i % 2 == 0) {
                 BulkItemResponse.Failure failure = itemResponse.getFailure();
-                ElasticsearchException compoundProcessorException = (ElasticsearchException) failure.getCause();
+                OpenSearchException compoundProcessorException = (OpenSearchException) failure.getCause();
                 assertThat(compoundProcessorException.getRootCause().getMessage(), equalTo("test processor failed"));
             } else {
                 IndexResponse indexResponse = itemResponse.getResponse();
@@ -269,7 +269,7 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endArray()
                 .endObject());
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id2", source, XContentType.JSON);
-        Exception e = expectThrows(ElasticsearchParseException.class,
+        Exception e = expectThrows(OpenSearchParseException.class,
             () -> client().admin().cluster().putPipeline(putPipelineRequest).actionGet());
         assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
 

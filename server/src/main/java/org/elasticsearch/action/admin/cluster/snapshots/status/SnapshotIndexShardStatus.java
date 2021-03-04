@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.opensearch.ElasticsearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.broadcast.BroadcastShardResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParseField;
@@ -177,7 +177,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 try {
                     stage = SnapshotIndexShardStage.valueOf(rawStage);
                 } catch (IllegalArgumentException iae) {
-                    throw new ElasticsearchParseException(
+                    throw new OpenSearchParseException(
                         "failed to parse snapshot index shard status [{}][{}], unknown stage [{}]",
                         shard.getIndex().getName(), shard.getId(), rawStage);
                 }
@@ -195,7 +195,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
             try {
                 shard = Integer.parseInt(shardName);
             } catch (NumberFormatException nfe) {
-                throw new ElasticsearchParseException(
+                throw new OpenSearchParseException(
                     "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]", indexId, shardName);
             }
             ShardId shardId = new ShardId(new Index(indexId, IndexMetadata.INDEX_UUID_NA_VALUE), shard);

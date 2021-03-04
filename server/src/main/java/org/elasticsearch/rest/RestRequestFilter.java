@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -64,7 +64,7 @@ public interface RestRequestFilter {
                             XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                             filteredBytes = BytesReference.bytes(xContentBuilder);
                         } catch (IOException e) {
-                            throw new ElasticsearchException("failed to parse request", e);
+                            throw new OpenSearchException("failed to parse request", e);
                         }
                     }
                     return filteredBytes;

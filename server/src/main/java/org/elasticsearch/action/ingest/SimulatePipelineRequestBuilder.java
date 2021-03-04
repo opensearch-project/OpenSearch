@@ -20,7 +20,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -29,14 +29,14 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
     /**
      * Create a new builder for {@link SimulatePipelineRequest}s
      */
-    public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action) {
+    public SimulatePipelineRequestBuilder(OpenSearchClient client, SimulatePipelineAction action) {
         super(client, action, new SimulatePipelineRequest());
     }
 
     /**
      * Create a new builder for {@link SimulatePipelineRequest}s
      */
-    public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action, BytesReference source,
+    public SimulatePipelineRequestBuilder(OpenSearchClient client, SimulatePipelineAction action, BytesReference source,
                                           XContentType xContentType) {
         super(client, action, new SimulatePipelineRequest(source, xContentType));
     }

@@ -22,7 +22,7 @@ package org.opensearch.action.support.broadcast;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public abstract class BroadcastOperationRequestBuilder<
             Request extends BroadcastRequest<Request>,
@@ -30,7 +30,7 @@ public abstract class BroadcastOperationRequestBuilder<
             RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>
         > extends ActionRequestBuilder<Request, Response> {
 
-    protected BroadcastOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected BroadcastOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

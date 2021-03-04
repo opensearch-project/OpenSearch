@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.get;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
@@ -200,7 +200,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             return;
         }
         if (response.isSourceEmpty()) {
-            listener.onFailure(new ElasticsearchException("Stored task status for [{}] didn't contain any source!", response.getId()));
+            listener.onFailure(new OpenSearchException("Stored task status for [{}] didn't contain any source!", response.getId()));
             return;
         }
         try (XContentParser parser = XContentHelper

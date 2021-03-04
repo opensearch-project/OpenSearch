@@ -23,8 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.Assertions;
-import org.opensearch.ElasticsearchParseException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -505,7 +505,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             break;
                         default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
-                } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {
+                } catch (OpenSearchParseException | IllegalArgumentException | RoutingMissingException e) {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.type(),
                         docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);

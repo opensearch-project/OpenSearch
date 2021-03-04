@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -32,7 +32,7 @@ import java.util.Map;
 public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<ClusterUpdateSettingsRequest,
         ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
 
-    public ClusterUpdateSettingsRequestBuilder(ElasticsearchClient client, ClusterUpdateSettingsAction action) {
+    public ClusterUpdateSettingsRequestBuilder(OpenSearchClient client, ClusterUpdateSettingsAction action) {
         super(client, action, new ClusterUpdateSettingsRequest());
     }
 

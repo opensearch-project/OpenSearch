@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
@@ -144,7 +144,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     /**
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
-    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
+    public Map<String, Object> sourceAsMap() throws OpenSearchParseException {
         Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {
             // the type name is the root value, reduce it
@@ -156,7 +156,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     /**
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
-    public Map<String, Object> getSourceAsMap() throws ElasticsearchParseException {
+    public Map<String, Object> getSourceAsMap() throws OpenSearchParseException {
         return sourceAsMap();
     }
 

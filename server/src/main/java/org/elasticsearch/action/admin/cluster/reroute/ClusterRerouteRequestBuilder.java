@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.reroute;
 
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 
 /**
@@ -28,7 +28,7 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
  */
 public class ClusterRerouteRequestBuilder
         extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
-    public ClusterRerouteRequestBuilder(ElasticsearchClient client, ClusterRerouteAction action) {
+    public ClusterRerouteRequestBuilder(OpenSearchClient client, ClusterRerouteAction action) {
         super(client, action, new ClusterRerouteRequest());
     }
 

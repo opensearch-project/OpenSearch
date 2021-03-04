@@ -20,13 +20,13 @@
 package org.opensearch.action.admin.cluster.node.hotthreads;
 
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
 public class NodesHotThreadsRequestBuilder
         extends NodesOperationRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
 
-    public NodesHotThreadsRequestBuilder(ElasticsearchClient client, NodesHotThreadsAction action) {
+    public NodesHotThreadsRequestBuilder(OpenSearchClient client, NodesHotThreadsAction action) {
         super(client, action, new NodesHotThreadsRequest());
     }
 

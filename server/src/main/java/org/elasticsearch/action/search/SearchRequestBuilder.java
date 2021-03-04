@@ -21,7 +21,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilder;
@@ -47,7 +47,7 @@ import java.util.List;
  */
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
-    public SearchRequestBuilder(ElasticsearchClient client, SearchAction action) {
+    public SearchRequestBuilder(OpenSearchClient client, SearchAction action) {
         super(client, action, new SearchRequest());
     }
 

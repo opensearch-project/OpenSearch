@@ -19,14 +19,14 @@
 
 package org.opensearch.action;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class FailedNodeException extends ElasticsearchException {
+public class FailedNodeException extends OpenSearchException {
 
     private final String nodeId;
 

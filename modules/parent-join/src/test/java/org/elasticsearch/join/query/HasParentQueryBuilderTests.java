@@ -22,7 +22,7 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -269,7 +269,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
         HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder(
                 CHILD_DOC, new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), false);
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+        OpenSearchException e = expectThrows(OpenSearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
         assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 e.getMessage());

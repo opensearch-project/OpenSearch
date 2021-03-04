@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.repositories.put;
 
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -36,14 +36,14 @@ public class PutRepositoryRequestBuilder
     /**
      * Constructs register repository request
      */
-    public PutRepositoryRequestBuilder(ElasticsearchClient client, PutRepositoryAction action) {
+    public PutRepositoryRequestBuilder(OpenSearchClient client, PutRepositoryAction action) {
         super(client, action, new PutRepositoryRequest());
     }
 
     /**
      * Constructs register repository request for the repository with a given name
      */
-    public PutRepositoryRequestBuilder(ElasticsearchClient client, PutRepositoryAction action, String name) {
+    public PutRepositoryRequestBuilder(OpenSearchClient client, PutRepositoryAction action, String name) {
         super(client, action, new PutRepositoryRequest(name));
     }
 

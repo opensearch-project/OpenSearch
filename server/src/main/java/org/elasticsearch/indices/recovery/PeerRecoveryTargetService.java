@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -376,14 +376,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
                     @Override
                     public void onClusterServiceClose() {
-                        listener.onFailure(new ElasticsearchException(
+                        listener.onFailure(new OpenSearchException(
                             "cluster service was closed while waiting for mapping updates"));
                     }
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         // note that we do not use a timeout (see comment above)
-                        listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for mapping updates " +
+                        listener.onFailure(new OpenSearchTimeoutException("timed out waiting for mapping updates " +
                             "(timeout [" + timeout + "])"));
                     }
                 });

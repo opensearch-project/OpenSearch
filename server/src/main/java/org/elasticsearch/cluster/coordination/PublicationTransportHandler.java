@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -305,7 +305,7 @@ public class PublicationTransportHandler {
                         }
                     }
                 } catch (IOException e) {
-                    throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
+                    throw new OpenSearchException("failed to serialize cluster state for publishing to node {}", e, node);
                 }
             }
         }

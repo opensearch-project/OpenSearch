@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.ingest;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -49,7 +49,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
                 return new SimulateDocumentBaseResult(((WriteableIngestDocument)a[0]).getIngestDocument());
             } else {
                 assert a[0] == null;
-                return new SimulateDocumentBaseResult((ElasticsearchException)a[1]);
+                return new SimulateDocumentBaseResult((OpenSearchException)a[1]);
             }
           }
         );
@@ -61,7 +61,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
         );
         PARSER.declareObject(
             optionalConstructorArg(),
-            (p, c) -> ElasticsearchException.fromXContent(p),
+            (p, c) -> OpenSearchException.fromXContent(p),
             new ParseField("error")
         );
     }
@@ -136,7 +136,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
         if (failure == null) {
             ingestDocument.toXContent(builder, params);
         } else {
-            ElasticsearchException.generateFailureXContent(builder, params, failure, true);
+            OpenSearchException.generateFailureXContent(builder, params, failure, true);
         }
         builder.endObject();
         return builder;

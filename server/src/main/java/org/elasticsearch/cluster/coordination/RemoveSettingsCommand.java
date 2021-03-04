@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
-public class RemoveSettingsCommand extends ElasticsearchNodeCommand {
+public class RemoveSettingsCommand extends OpenSearchNodeCommand {
 
     static final String SETTINGS_REMOVED_MSG = "Settings were successfully removed from the cluster state";
     static final String CONFIRMATION_MSG =

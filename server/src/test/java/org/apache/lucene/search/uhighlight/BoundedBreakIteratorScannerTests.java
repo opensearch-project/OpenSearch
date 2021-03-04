@@ -19,7 +19,7 @@
 
 package org.apache.lucene.search.uhighlight;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.text.BreakIterator;
 import java.util.ArrayList;

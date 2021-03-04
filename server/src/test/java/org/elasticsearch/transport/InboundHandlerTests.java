@@ -22,7 +22,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -158,7 +158,7 @@ public class InboundHandlerTests extends ESTestCase {
         byte responseStatus = TransportStatus.setResponse((byte) 0);
         if (isError) {
             responseStatus = TransportStatus.setError(responseStatus);
-            transportChannel.sendResponse(new ElasticsearchException("boom"));
+            transportChannel.sendResponse(new OpenSearchException("boom"));
         } else {
             transportChannel.sendResponse(new TestResponse(responseValue));
         }
@@ -172,7 +172,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         if (isError) {
             assertThat(exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
-            assertThat(exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
+            assertThat(exceptionCaptor.get().getCause(), instanceOf(OpenSearchException.class));
             assertEquals("boom", exceptionCaptor.get().getCause().getMessage());
         } else {
             assertEquals(responseValue, responseCaptor.get().value);
@@ -287,7 +287,7 @@ public class InboundHandlerTests extends ESTestCase {
                 final StreamInput streamInput = new InputStreamStreamInput(new InputStream() {
                     @Override
                     public int read() {
-                        throw new ElasticsearchException("unreadable handshake");
+                        throw new OpenSearchException("unreadable handshake");
                     }
                 });
                 streamInput.setVersion(remoteVersion);

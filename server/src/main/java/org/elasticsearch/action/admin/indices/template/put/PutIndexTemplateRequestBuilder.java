@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.template.put;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -33,11 +33,11 @@ import java.util.Map;
 public class PutIndexTemplateRequestBuilder
     extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, AcknowledgedResponse, PutIndexTemplateRequestBuilder> {
 
-    public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action) {
+    public PutIndexTemplateRequestBuilder(OpenSearchClient client, PutIndexTemplateAction action) {
         super(client, action, new PutIndexTemplateRequest());
     }
 
-    public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action, String name) {
+    public PutIndexTemplateRequestBuilder(OpenSearchClient client, PutIndexTemplateAction action, String name) {
         super(client, action, new PutIndexTemplateRequest(name));
     }
 

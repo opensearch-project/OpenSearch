@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.alias;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.index.query.QueryBuilder;
 
 import java.util.Map;
@@ -33,7 +33,7 @@ import java.util.Map;
 public class IndicesAliasesRequestBuilder
         extends AcknowledgedRequestBuilder<IndicesAliasesRequest, AcknowledgedResponse, IndicesAliasesRequestBuilder> {
 
-    public IndicesAliasesRequestBuilder(ElasticsearchClient client, IndicesAliasesAction action) {
+    public IndicesAliasesRequestBuilder(OpenSearchClient client, IndicesAliasesAction action) {
         super(client, action, new IndicesAliasesRequest());
     }
 

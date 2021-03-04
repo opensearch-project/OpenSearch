@@ -19,7 +19,7 @@
 
 package org.opensearch.action.get;
 
-import org.opensearch.ElasticsearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -145,7 +145,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     /**
      * The source of the document (As a map).
      */
-    public Map<String, Object> getSourceAsMap() throws ElasticsearchParseException {
+    public Map<String, Object> getSourceAsMap() throws OpenSearchParseException {
         return getResult.sourceAsMap();
     }
 

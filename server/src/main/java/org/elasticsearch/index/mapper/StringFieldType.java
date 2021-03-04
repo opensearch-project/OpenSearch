@@ -31,7 +31,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -61,7 +61,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
             boolean transpositions, QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[fuzzy] queries cannot be executed when '" +
+            throw new OpenSearchException("[fuzzy] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();
@@ -72,7 +72,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
+            throw new OpenSearchException("[prefix] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
                     "fields please enable [index_prefixes].");
         }
@@ -126,7 +126,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         failIfNotIndexed();
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
+            throw new OpenSearchException("[wildcard] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
@@ -151,7 +151,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
             MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[regexp] queries cannot be executed when '" +
+            throw new OpenSearchException("[regexp] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();
@@ -166,7 +166,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[range] queries on [text] or [keyword] fields cannot be executed when '" +
+            throw new OpenSearchException("[range] queries on [text] or [keyword] fields cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();

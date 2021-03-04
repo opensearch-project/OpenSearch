@@ -25,7 +25,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -224,7 +224,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             if (isNormalizable(lat()) && isNormalizable(lon())) {
                 GeoUtils.normalizePoint(this);
             } else {
-                throw new ElasticsearchParseException("cannot normalize the point - not a number");
+                throw new OpenSearchParseException("cannot normalize the point - not a number");
             }
         }
 

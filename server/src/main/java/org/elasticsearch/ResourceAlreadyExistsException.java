@@ -25,7 +25,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class ResourceAlreadyExistsException extends ElasticsearchException {
+public class ResourceAlreadyExistsException extends OpenSearchException {
 
     public ResourceAlreadyExistsException(Index index) {
         this("index {} already exists", index.toString());

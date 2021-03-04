@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.opensearch.ElasticsearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -88,7 +89,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         if (request.hasPassword() && isNodeLocal(request) == false && isNodeTransportTLSEnabled() == false) {
             request.closePassword();
             listener.onFailure(
-                new ElasticsearchException("Secure settings cannot be updated cluster wide when TLS for the transport layer" +
+                new OpenSearchException("Secure settings cannot be updated cluster wide when TLS for the transport layer" +
                 " is not enabled. Enable TLS or use the API with a `_local` filter on each node."));
         } else {
             super.doExecute(task, request, ActionListener.wrap(response -> {

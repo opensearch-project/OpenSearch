@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
@@ -34,7 +34,7 @@ import org.opensearch.client.ElasticsearchClient;
 public class IndicesStatsRequestBuilder
         extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
 
-    public IndicesStatsRequestBuilder(ElasticsearchClient client, IndicesStatsAction action) {
+    public IndicesStatsRequestBuilder(OpenSearchClient client, IndicesStatsAction action) {
         super(client, action, new IndicesStatsRequest());
     }
 

@@ -21,7 +21,7 @@ package org.opensearch.action.delete;
 
 import org.opensearch.action.support.WriteRequestBuilder;
 import org.opensearch.action.support.replication.ReplicationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.VersionType;
 
@@ -31,11 +31,11 @@ import org.opensearch.index.VersionType;
 public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder>
         implements WriteRequestBuilder<DeleteRequestBuilder> {
 
-    public DeleteRequestBuilder(ElasticsearchClient client, DeleteAction action) {
+    public DeleteRequestBuilder(OpenSearchClient client, DeleteAction action) {
         super(client, action, new DeleteRequest());
     }
 
-    public DeleteRequestBuilder(ElasticsearchClient client, DeleteAction action, @Nullable String index) {
+    public DeleteRequestBuilder(OpenSearchClient client, DeleteAction action, @Nullable String index) {
         super(client, action, new DeleteRequest(index));
     }
 

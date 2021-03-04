@@ -19,8 +19,8 @@
 
 package org.opensearch.action.support.broadcast;
 
-import org.opensearch.ElasticsearchException;
-import org.opensearch.ElasticsearchWrapperException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchWrapperException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.shard.ShardId;
 
@@ -31,7 +31,7 @@ import java.io.IOException;
  *
  *
  */
-public class BroadcastShardOperationFailedException extends ElasticsearchException implements ElasticsearchWrapperException {
+public class BroadcastShardOperationFailedException extends OpenSearchException implements OpenSearchWrapperException {
 
     public BroadcastShardOperationFailedException(ShardId shardId, String msg) {
         this(shardId, msg, null);

@@ -21,7 +21,7 @@ package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * Base request builder for master node read operations that can be executed on the local node as well
@@ -30,7 +30,7 @@ public abstract class MasterNodeReadOperationRequestBuilder<Request extends Mast
         RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected MasterNodeReadOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected MasterNodeReadOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

@@ -20,7 +20,7 @@
 package org.opensearch.action.explain;
 
 import org.opensearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.index.query.QueryBuilder;
@@ -31,11 +31,11 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
  */
 public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
-    ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action) {
+    ExplainRequestBuilder(OpenSearchClient client, ExplainAction action) {
         super(client, action, new ExplainRequest());
     }
 
-    public ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action, String index, String type, String id) {
+    public ExplainRequestBuilder(OpenSearchClient client, ExplainAction action, String index, String type, String id) {
         super(client, action, new ExplainRequest().index(index).type(type).id(id));
     }
 

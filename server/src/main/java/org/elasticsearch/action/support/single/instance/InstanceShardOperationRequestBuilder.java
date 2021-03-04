@@ -22,14 +22,14 @@ package org.opensearch.action.support.single.instance;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
 public abstract class InstanceShardOperationRequestBuilder<Request extends InstanceShardOperationRequest<Request>,
         Response extends ActionResponse, RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response> {
 
-    protected InstanceShardOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected InstanceShardOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

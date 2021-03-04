@@ -24,7 +24,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.WriteRequestBuilder;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -36,11 +36,11 @@ import java.util.Map;
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
         implements WriteRequestBuilder<UpdateRequestBuilder> {
 
-    public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
+    public UpdateRequestBuilder(OpenSearchClient client, UpdateAction action) {
         super(client, action, new UpdateRequest());
     }
 
-    public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action, String index, String type, String id) {
+    public UpdateRequestBuilder(OpenSearchClient client, UpdateAction action, String index, String type, String id) {
         super(client, action, new UpdateRequest(index, type, id));
     }
 

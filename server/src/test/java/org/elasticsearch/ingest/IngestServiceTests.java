@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
@@ -625,8 +625,8 @@ public class IngestServiceTests extends ESTestCase {
         ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
 
-        ElasticsearchParseException e =
-            expectThrows(ElasticsearchParseException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
+        OpenSearchParseException e =
+            expectThrows(OpenSearchParseException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
         assertEquals("Processor type [remove] is not installed on node [" + node2 + "]", e.getMessage());
         assertEquals("remove", e.getMetadata("es.processor_type").get(0));
         assertEquals("tag2", e.getMetadata("es.processor_tag").get(0));

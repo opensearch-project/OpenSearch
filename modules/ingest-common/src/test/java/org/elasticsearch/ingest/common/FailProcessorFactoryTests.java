@@ -19,8 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -54,7 +54,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch(OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[message] required property is missing"));
         }
     }
@@ -64,7 +64,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("message", "{{error}}");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag,
+        OpenSearchException exception = expectThrows(OpenSearchException.class, () -> factory.create(null, processorTag,
             null, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));

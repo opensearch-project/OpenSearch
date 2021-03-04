@@ -19,12 +19,12 @@
 
 package org.opensearch.action;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class PrimaryMissingActionException extends ElasticsearchException {
+public class PrimaryMissingActionException extends OpenSearchException {
 
     public PrimaryMissingActionException(String message) {
         super(message);

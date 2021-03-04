@@ -20,8 +20,8 @@ package org.opensearch.action.admin.cluster.configuration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.ElasticsearchException;
-import org.opensearch.ElasticsearchTimeoutException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.TransportMasterNodeAction;
@@ -98,13 +98,13 @@ public class TransportClearVotingConfigExclusionsAction
 
                 @Override
                 public void onClusterServiceClose() {
-                    listener.onFailure(new ElasticsearchException("cluster service closed while waiting for removal of nodes "
+                    listener.onFailure(new OpenSearchException("cluster service closed while waiting for removal of nodes "
                         + initialState.getVotingConfigExclusions()));
                 }
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchTimeoutException(
+                    listener.onFailure(new OpenSearchTimeoutException(
                         "timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. "
                         + initialState.getVotingConfigExclusions()));
                 }

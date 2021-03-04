@@ -20,7 +20,7 @@ package org.opensearch.action.support.tasks;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.tasks.TaskId;
 
@@ -33,7 +33,7 @@ public class TasksRequestBuilder<
             RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>
         > extends ActionRequestBuilder<Request, Response> {
 
-    protected TasksRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected TasksRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

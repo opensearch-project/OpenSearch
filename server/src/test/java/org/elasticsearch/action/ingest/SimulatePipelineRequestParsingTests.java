@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -152,7 +152,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             Map<String, Object> expectedDoc = new HashMap<>();
-            List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO, 
+            List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO,
                 IF_PRIMARY_TERM);
             for(IngestDocument.Metadata field : fields) {
                 if (field == VERSION) {
@@ -293,7 +293,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         docs.add(new HashMap<>());
         requestContent.put(Fields.DOCS, docs);
         requestContent.put(Fields.PIPELINE, pipelineConfig);
-        Exception e3 = expectThrows(ElasticsearchParseException.class,
+        Exception e3 = expectThrows(OpenSearchParseException.class,
             () -> SimulatePipelineRequest.parse(requestContent, false, ingestService));
         assertThat(e3.getMessage(), containsString("required property is missing"));
     }

@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.shards;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 
 /**
@@ -33,7 +33,7 @@ public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequ
         IndicesShardStoresResponse,
         IndicesShardStoreRequestBuilder> {
 
-    public IndicesShardStoreRequestBuilder(ElasticsearchClient client, ActionType<IndicesShardStoresResponse> action, String... indices) {
+    public IndicesShardStoreRequestBuilder(OpenSearchClient client, ActionType<IndicesShardStoresResponse> action, String... indices) {
         super(client, action, new IndicesShardStoresRequest(indices));
     }
 

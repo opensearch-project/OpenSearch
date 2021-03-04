@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.create;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.ElasticsearchGenerationException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -172,7 +172,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             return size;
         } catch (IOException e) {
             // This should not be possible as we are just rendering the xcontent in memory
-            throw new ElasticsearchException(e);
+            throw new OpenSearchException(e);
         }
     }
 
@@ -377,7 +377,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             builder.map(source);
             settings(Strings.toString(builder), builder.contentType());
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
     }

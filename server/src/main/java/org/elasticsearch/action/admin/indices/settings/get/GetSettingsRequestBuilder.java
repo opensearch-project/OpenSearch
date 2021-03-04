@@ -21,13 +21,13 @@ package org.opensearch.action.admin.indices.settings.get;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
 public class GetSettingsRequestBuilder
         extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
 
-    public GetSettingsRequestBuilder(ElasticsearchClient client, GetSettingsAction action, String... indices) {
+    public GetSettingsRequestBuilder(OpenSearchClient client, GetSettingsAction action, String... indices) {
         super(client, action, new GetSettingsRequest().indices(indices));
     }
 

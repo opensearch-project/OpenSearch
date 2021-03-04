@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.snapshots.get;
 
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
 /**
@@ -32,14 +32,14 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     /**
      * Constructs the new get snapshot request
      */
-    public GetSnapshotsRequestBuilder(ElasticsearchClient client, GetSnapshotsAction action) {
+    public GetSnapshotsRequestBuilder(OpenSearchClient client, GetSnapshotsAction action) {
         super(client, action, new GetSnapshotsRequest());
     }
 
     /**
      * Constructs the new get snapshot request with specified repository
      */
-    public GetSnapshotsRequestBuilder(ElasticsearchClient client, GetSnapshotsAction action, String repository) {
+    public GetSnapshotsRequestBuilder(OpenSearchClient client, GetSnapshotsAction action, String repository) {
         super(client, action, new GetSnapshotsRequest(repository));
     }
 

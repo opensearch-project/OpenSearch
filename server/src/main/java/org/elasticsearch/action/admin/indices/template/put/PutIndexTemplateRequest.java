@@ -18,8 +18,8 @@
  */
 package org.opensearch.action.admin.indices.template.put;
 
-import org.opensearch.ElasticsearchGenerationException;
-import org.opensearch.ElasticsearchParseException;
+import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -297,7 +297,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             mappings.put(type, Strings.toString(builder));
             return this;
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -374,7 +374,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                throw new ElasticsearchParseException("unknown key [{}] in the template ", name);
+                throw new OpenSearchParseException("unknown key [{}] in the template ", name);
             }
         }
         return this;
@@ -421,7 +421,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             builder.map(source);
             return aliases(BytesReference.bytes(builder));
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -453,7 +453,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             }
             return this;
         } catch(IOException e) {
-            throw new ElasticsearchParseException("Failed to parse aliases", e);
+            throw new OpenSearchParseException("Failed to parse aliases", e);
         }
     }
 

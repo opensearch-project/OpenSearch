@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -112,7 +112,7 @@ public class GlobalIT extends ESIntegTestCase {
             fail("expected to fail executing non-top-level global aggregator. global aggregations are only allowed as top level" +
                     "aggregations");
 
-        } catch (ElasticsearchException e) {
+        } catch (OpenSearchException e) {
             assertThat(e.getMessage(), is("all shards failed"));
         }
     }

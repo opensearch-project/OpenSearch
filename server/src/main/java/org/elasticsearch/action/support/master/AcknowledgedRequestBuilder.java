@@ -19,7 +19,7 @@
 package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
 /**
@@ -29,7 +29,7 @@ public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedReq
         RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>>
         extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected AcknowledgedRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected AcknowledgedRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

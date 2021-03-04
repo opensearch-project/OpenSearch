@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.close;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for close index request
@@ -30,11 +30,11 @@ import org.opensearch.client.ElasticsearchClient;
 public class CloseIndexRequestBuilder
     extends AcknowledgedRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
 
-    public CloseIndexRequestBuilder(ElasticsearchClient client, CloseIndexAction action) {
+    public CloseIndexRequestBuilder(OpenSearchClient client, CloseIndexAction action) {
         super(client, action, new CloseIndexRequest());
     }
 
-    public CloseIndexRequestBuilder(ElasticsearchClient client, CloseIndexAction action, String... indices) {
+    public CloseIndexRequestBuilder(OpenSearchClient client, CloseIndexAction action, String... indices) {
         super(client, action, new CloseIndexRequest(indices));
     }
 

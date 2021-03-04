@@ -20,16 +20,16 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class GetPipelineRequestBuilder
         extends MasterNodeReadOperationRequestBuilder<GetPipelineRequest, GetPipelineResponse, GetPipelineRequestBuilder> {
 
-    public GetPipelineRequestBuilder(ElasticsearchClient client, GetPipelineAction action) {
+    public GetPipelineRequestBuilder(OpenSearchClient client, GetPipelineAction action) {
         super(client, action, new GetPipelineRequest());
     }
 
-    public GetPipelineRequestBuilder(ElasticsearchClient client, GetPipelineAction action, String[] ids) {
+    public GetPipelineRequestBuilder(OpenSearchClient client, GetPipelineAction action, String[] ids) {
         super(client, action, new GetPipelineRequest(ids));
     }
 

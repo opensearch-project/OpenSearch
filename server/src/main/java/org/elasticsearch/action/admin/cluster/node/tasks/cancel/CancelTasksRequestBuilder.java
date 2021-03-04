@@ -20,14 +20,14 @@
 package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
 import org.opensearch.action.support.tasks.TasksRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for the request to cancel tasks running on the specified nodes
  */
 public class CancelTasksRequestBuilder extends TasksRequestBuilder<CancelTasksRequest, CancelTasksResponse, CancelTasksRequestBuilder> {
 
-    public CancelTasksRequestBuilder(ElasticsearchClient client, CancelTasksAction action) {
+    public CancelTasksRequestBuilder(OpenSearchClient client, CancelTasksAction action) {
         super(client, action, new CancelTasksRequest());
     }
 

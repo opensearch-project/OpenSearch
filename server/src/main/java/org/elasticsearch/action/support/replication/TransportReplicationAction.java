@@ -22,8 +22,8 @@ package org.opensearch.action.support.replication;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Assertions;
-import org.opensearch.ElasticsearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
@@ -536,7 +536,7 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
-    public static class RetryOnReplicaException extends ElasticsearchException {
+    public static class RetryOnReplicaException extends OpenSearchException {
 
         public RetryOnReplicaException(ShardId shardId, String msg) {
             super(msg);

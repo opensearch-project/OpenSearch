@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -700,7 +700,7 @@ public final class RepositoryData {
                                 // A snapshotted index references a snapshot which does not exist in
                                 // the list of snapshots. This can happen when multiple clusters in
                                 // different versions create or delete snapshot in the same repository.
-                                throw new ElasticsearchParseException("Detected a corrupted repository, index " + indexId
+                                throw new OpenSearchParseException("Detected a corrupted repository, index " + indexId
                                         + " references an unknown snapshot uuid [" + uuid + "]");
                             }
                             snapshotIds.add(snapshotId);

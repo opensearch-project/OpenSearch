@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.upgrade.post;
 import org.opensearch.Version;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.collect.Tuple;
 
 import java.util.Map;
@@ -33,7 +33,7 @@ import java.util.Map;
 public class UpgradeSettingsRequestBuilder
         extends AcknowledgedRequestBuilder<UpgradeSettingsRequest, AcknowledgedResponse, UpgradeSettingsRequestBuilder> {
 
-    public UpgradeSettingsRequestBuilder(ElasticsearchClient client, UpgradeSettingsAction action) {
+    public UpgradeSettingsRequestBuilder(OpenSearchClient client, UpgradeSettingsAction action) {
         super(client, action, new UpgradeSettingsRequest());
     }
 

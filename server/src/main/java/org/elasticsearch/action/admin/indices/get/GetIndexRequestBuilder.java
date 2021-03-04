@@ -21,11 +21,11 @@ package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.opensearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class GetIndexRequestBuilder extends ClusterInfoRequestBuilder<GetIndexRequest, GetIndexResponse, GetIndexRequestBuilder> {
 
-    public GetIndexRequestBuilder(ElasticsearchClient client, GetIndexAction action, String... indices) {
+    public GetIndexRequestBuilder(OpenSearchClient client, GetIndexAction action, String... indices) {
         super(client, action, new GetIndexRequest().indices(indices));
     }
 

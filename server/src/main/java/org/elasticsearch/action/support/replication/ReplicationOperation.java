@@ -22,8 +22,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Assertions;
-import org.opensearch.ElasticsearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.support.ActiveShardCount;
@@ -512,7 +512,7 @@ public class ReplicationOperation<
 
     }
 
-    public static class RetryOnPrimaryException extends ElasticsearchException {
+    public static class RetryOnPrimaryException extends OpenSearchException {
         RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
         }

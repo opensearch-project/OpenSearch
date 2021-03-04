@@ -351,7 +351,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
@@ -668,7 +668,7 @@ public abstract class AbstractClient implements Client {
         private final ClusterAdmin clusterAdmin;
         private final IndicesAdmin indicesAdmin;
 
-        Admin(ElasticsearchClient client) {
+        Admin(OpenSearchClient client) {
             this.clusterAdmin = new ClusterAdmin(client);
             this.indicesAdmin = new IndicesAdmin(client);
         }
@@ -686,9 +686,9 @@ public abstract class AbstractClient implements Client {
 
     static class ClusterAdmin implements ClusterAdminClient {
 
-        private final ElasticsearchClient client;
+        private final OpenSearchClient client;
 
-        ClusterAdmin(ElasticsearchClient client) {
+        ClusterAdmin(OpenSearchClient client) {
             this.client = client;
         }
 
@@ -1277,9 +1277,9 @@ public abstract class AbstractClient implements Client {
 
     static class IndicesAdmin implements IndicesAdminClient {
 
-        private final ElasticsearchClient client;
+        private final OpenSearchClient client;
 
-        IndicesAdmin(ElasticsearchClient client) {
+        IndicesAdmin(OpenSearchClient client) {
             this.client = client;
         }
 

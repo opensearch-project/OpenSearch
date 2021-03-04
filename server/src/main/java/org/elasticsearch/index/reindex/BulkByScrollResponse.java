@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -230,8 +230,8 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
        Integer status = null;
        Integer shardId = null;
        String nodeId = null;
-       ElasticsearchException bulkExc = null;
-       ElasticsearchException searchExc = null;
+       OpenSearchException bulkExc = null;
+       OpenSearchException searchExc = null;
        while ((token = parser.nextToken()) != Token.END_OBJECT) {
            ensureExpectedToken(Token.FIELD_NAME, token, parser);
            String name = parser.currentName();
@@ -241,10 +241,10 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
            } else if (token == Token.START_OBJECT) {
                switch (name) {
                    case SearchFailure.REASON_FIELD:
-                       searchExc = ElasticsearchException.fromXContent(parser);
+                       searchExc = OpenSearchException.fromXContent(parser);
                        break;
                    case Failure.CAUSE_FIELD:
-                       bulkExc = ElasticsearchException.fromXContent(parser);
+                       bulkExc = OpenSearchException.fromXContent(parser);
                        break;
                    default:
                        parser.skipChildren();
@@ -291,7 +291,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
                return new SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
            }
        } else {
-           throw new ElasticsearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
+           throw new OpenSearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
        }
     }
 

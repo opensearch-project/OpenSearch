@@ -21,12 +21,12 @@ package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class DeleteStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<DeleteStoredScriptRequest,
     AcknowledgedResponse, DeleteStoredScriptRequestBuilder> {
 
-    public DeleteStoredScriptRequestBuilder(ElasticsearchClient client, DeleteStoredScriptAction action) {
+    public DeleteStoredScriptRequestBuilder(OpenSearchClient client, DeleteStoredScriptAction action) {
         super(client, action, new DeleteStoredScriptRequest());
     }
 

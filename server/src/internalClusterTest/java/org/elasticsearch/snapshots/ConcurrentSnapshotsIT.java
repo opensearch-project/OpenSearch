@@ -19,7 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -729,8 +729,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
-        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        expectThrows(OpenSearchException.class, snapshotThree::actionGet);
+        expectThrows(OpenSearchException.class, snapshotFour::actionGet);
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver2() throws Exception {
@@ -762,8 +762,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, masterNode);
         networkDisruption.stopDisrupting();
         awaitNoMoreRunningOperations();
-        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
-        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        expectThrows(OpenSearchException.class, snapshotThree::actionGet);
+        expectThrows(OpenSearchException.class, snapshotFour::actionGet);
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOverMultipleRepos() throws Exception {
@@ -804,12 +804,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
-        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        expectThrows(OpenSearchException.class, snapshotThree::actionGet);
+        expectThrows(OpenSearchException.class, snapshotFour::actionGet);
         assertAcked(deleteFuture.get());
         try {
             createBlockedSnapshot.actionGet();
-        } catch (ElasticsearchException ex) {
+        } catch (OpenSearchException ex) {
             // Ignored, thrown most of the time but due to retries when shutting down the master could randomly pass when the request is
             // retried and gets executed after the above delete
         }

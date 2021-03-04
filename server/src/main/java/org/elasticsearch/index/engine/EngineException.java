@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class EngineException extends ElasticsearchException {
+public class EngineException extends OpenSearchException {
 
     public EngineException(ShardId shardId, String msg, Object... params) {
         this(shardId, msg, null, params);

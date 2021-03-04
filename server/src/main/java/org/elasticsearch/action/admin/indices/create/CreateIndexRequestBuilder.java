@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.create;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -37,11 +37,11 @@ import java.util.Map;
 public class CreateIndexRequestBuilder
     extends AcknowledgedRequestBuilder<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
 
-    public CreateIndexRequestBuilder(ElasticsearchClient client, CreateIndexAction action) {
+    public CreateIndexRequestBuilder(OpenSearchClient client, CreateIndexAction action) {
         super(client, action, new CreateIndexRequest());
     }
 
-    public CreateIndexRequestBuilder(ElasticsearchClient client, CreateIndexAction action, String index) {
+    public CreateIndexRequestBuilder(OpenSearchClient client, CreateIndexAction action, String index) {
         super(client, action, new CreateIndexRequest(index));
     }
 

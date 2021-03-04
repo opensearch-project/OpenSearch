@@ -20,16 +20,16 @@ package org.opensearch.action.admin.indices.template.delete;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class DeleteIndexTemplateRequestBuilder
         extends MasterNodeOperationRequestBuilder<DeleteIndexTemplateRequest, AcknowledgedResponse, DeleteIndexTemplateRequestBuilder> {
 
-    public DeleteIndexTemplateRequestBuilder(ElasticsearchClient client, DeleteIndexTemplateAction action) {
+    public DeleteIndexTemplateRequestBuilder(OpenSearchClient client, DeleteIndexTemplateAction action) {
         super(client, action, new DeleteIndexTemplateRequest());
     }
 
-    public DeleteIndexTemplateRequestBuilder(ElasticsearchClient client, DeleteIndexTemplateAction action, String name) {
+    public DeleteIndexTemplateRequestBuilder(OpenSearchClient client, DeleteIndexTemplateAction action, String name) {
         super(client, action, new DeleteIndexTemplateRequest(name));
     }
 

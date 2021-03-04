@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -123,8 +123,8 @@ public class ReplicationResponseTests extends ESTestCase {
                 assertEquals(expectedFailure.nodeId(), actualFailure.nodeId());
                 assertEquals(expectedFailure.primary(), actualFailure.primary());
 
-                ElasticsearchException expectedCause = (ElasticsearchException) expectedFailure.getCause();
-                ElasticsearchException actualCause = (ElasticsearchException) actualFailure.getCause();
+                OpenSearchException expectedCause = (OpenSearchException) expectedFailure.getCause();
+                OpenSearchException actualCause = (OpenSearchException) actualFailure.getCause();
                 assertDeepEquals(expectedCause, actualCause);
             }
         }

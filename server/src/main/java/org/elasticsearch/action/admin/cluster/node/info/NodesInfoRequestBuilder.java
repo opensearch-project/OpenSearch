@@ -20,11 +20,11 @@
 package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
-    public NodesInfoRequestBuilder(ElasticsearchClient client, NodesInfoAction action) {
+    public NodesInfoRequestBuilder(OpenSearchClient client, NodesInfoAction action) {
         super(client, action, new NodesInfoRequest());
     }
 

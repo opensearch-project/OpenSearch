@@ -19,14 +19,14 @@
 
 package org.opensearch.action;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class NoShardAvailableActionException extends ElasticsearchException {
+public class NoShardAvailableActionException extends OpenSearchException {
 
     public NoShardAvailableActionException(ShardId shardId) {
         this(shardId, null);

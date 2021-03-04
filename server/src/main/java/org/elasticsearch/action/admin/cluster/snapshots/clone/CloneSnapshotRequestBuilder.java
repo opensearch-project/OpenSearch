@@ -23,18 +23,18 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Strings;
 
 public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CloneSnapshotRequest, AcknowledgedResponse,
                                                                                    CloneSnapshotRequestBuilder> {
 
-    protected CloneSnapshotRequestBuilder(ElasticsearchClient client, ActionType<AcknowledgedResponse> action,
+    protected CloneSnapshotRequestBuilder(OpenSearchClient client, ActionType<AcknowledgedResponse> action,
                                           CloneSnapshotRequest request) {
         super(client, action, request);
     }
 
-    public CloneSnapshotRequestBuilder(ElasticsearchClient client, ActionType<AcknowledgedResponse> action,
+    public CloneSnapshotRequestBuilder(OpenSearchClient client, ActionType<AcknowledgedResponse> action,
                                        String repository, String source, String target) {
         this(client, action, new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY));
     }

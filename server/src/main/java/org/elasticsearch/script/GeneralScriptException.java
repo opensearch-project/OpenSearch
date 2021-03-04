@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.io.IOException;
  *             from various abstractions)
  */
 @Deprecated
-public class GeneralScriptException extends ElasticsearchException {
+public class GeneralScriptException extends OpenSearchException {
 
     public GeneralScriptException(String msg) {
         super(msg);

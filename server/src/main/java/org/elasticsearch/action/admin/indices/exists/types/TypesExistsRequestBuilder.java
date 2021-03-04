@@ -20,7 +20,7 @@ package org.opensearch.action.admin.indices.exists.types;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Strings;
 
 /**
@@ -33,11 +33,11 @@ public class TypesExistsRequestBuilder
     /**
      * @param indices What indices to check for types
      */
-    public TypesExistsRequestBuilder(ElasticsearchClient client, TypesExistsAction action, String... indices) {
+    public TypesExistsRequestBuilder(OpenSearchClient client, TypesExistsAction action, String... indices) {
         super(client, action, new TypesExistsRequest(indices, Strings.EMPTY_ARRAY));
     }
 
-    TypesExistsRequestBuilder(ElasticsearchClient client, TypesExistsAction action) {
+    TypesExistsRequestBuilder(OpenSearchClient client, TypesExistsAction action) {
         super(client, action, new TypesExistsRequest());
     }
 

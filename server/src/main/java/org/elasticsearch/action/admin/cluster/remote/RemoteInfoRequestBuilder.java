@@ -20,11 +20,11 @@
 package org.opensearch.action.admin.cluster.remote;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public final class RemoteInfoRequestBuilder extends ActionRequestBuilder<RemoteInfoRequest, RemoteInfoResponse> {
 
-    public RemoteInfoRequestBuilder(ElasticsearchClient client, RemoteInfoAction action) {
+    public RemoteInfoRequestBuilder(OpenSearchClient client, RemoteInfoAction action) {
         super(client, action, new RemoteInfoRequest());
     }
 }

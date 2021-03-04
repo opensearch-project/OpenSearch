@@ -29,7 +29,7 @@ import org.opensearch.action.support.WriteRequestBuilder;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
@@ -43,18 +43,18 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
         implements WriteRequestBuilder<BulkRequestBuilder> {
 
     /**
-     * @deprecated use {@link #BulkRequestBuilder(ElasticsearchClient, BulkAction, String)} instead
+     * @deprecated use {@link #BulkRequestBuilder(OpenSearchClient, BulkAction, String)} instead
      */
     @Deprecated
-    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action, @Nullable String globalIndex, @Nullable String globalType) {
+    public BulkRequestBuilder(OpenSearchClient client, BulkAction action, @Nullable String globalIndex, @Nullable String globalType) {
         super(client, action, new BulkRequest(globalIndex, globalType));
     }
 
-    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action, @Nullable String globalIndex) {
+    public BulkRequestBuilder(OpenSearchClient client, BulkAction action, @Nullable String globalIndex) {
         super(client, action, new BulkRequest(globalIndex));
     }
 
-    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action) {
+    public BulkRequestBuilder(OpenSearchClient client, BulkAction action) {
         super(client, action, new BulkRequest());
     }
 

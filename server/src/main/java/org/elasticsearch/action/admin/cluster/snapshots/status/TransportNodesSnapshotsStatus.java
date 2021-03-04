@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -112,7 +112,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
             }
             return new NodeSnapshotStatus(clusterService.localNode(), unmodifiableMap(snapshotMapBuilder));
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to load metadata", e);
+            throw new OpenSearchException("failed to load metadata", e);
         }
     }
 

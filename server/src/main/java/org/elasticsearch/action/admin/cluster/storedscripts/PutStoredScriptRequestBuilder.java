@@ -21,14 +21,14 @@ package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 
 public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<PutStoredScriptRequest,
     AcknowledgedResponse, PutStoredScriptRequestBuilder> {
 
-    public PutStoredScriptRequestBuilder(ElasticsearchClient client, PutStoredScriptAction action) {
+    public PutStoredScriptRequestBuilder(OpenSearchClient client, PutStoredScriptAction action) {
         super(client, action, new PutStoredScriptRequest());
     }
 

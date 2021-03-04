@@ -20,12 +20,12 @@
 package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 
 public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTermVectorsRequest, MultiTermVectorsResponse> {
 
-    public MultiTermVectorsRequestBuilder(ElasticsearchClient client, MultiTermVectorsAction action) {
+    public MultiTermVectorsRequestBuilder(OpenSearchClient client, MultiTermVectorsAction action) {
         super(client, action, new MultiTermVectorsRequest());
     }
 

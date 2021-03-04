@@ -34,7 +34,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -480,7 +480,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
     public static class TestTasksRequestBuilder extends TasksRequestBuilder<TestTasksRequest, TestTasksResponse, TestTasksRequestBuilder> {
 
-        protected TestTasksRequestBuilder(ElasticsearchClient client) {
+        protected TestTasksRequestBuilder(OpenSearchClient client) {
             super(client, TestTaskAction.INSTANCE, new TestTasksRequest());
         }
 

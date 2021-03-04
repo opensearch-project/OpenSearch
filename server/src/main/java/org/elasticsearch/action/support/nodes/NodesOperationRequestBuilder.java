@@ -21,14 +21,14 @@ package org.opensearch.action.support.nodes;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
 public abstract class NodesOperationRequestBuilder<Request extends BaseNodesRequest<Request>, Response extends BaseNodesResponse,
         RequestBuilder extends NodesOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response> {
 
-    protected NodesOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected NodesOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

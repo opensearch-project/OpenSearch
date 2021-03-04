@@ -19,7 +19,7 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.ElasticsearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -89,7 +89,7 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
                                 );
                                 break;
                             case "error":
-                                result = new SimulateDocumentBaseResult(ElasticsearchException.fromXContent(parser));
+                                result = new SimulateDocumentBaseResult(OpenSearchException.fromXContent(parser));
                                 break;
                             default:
                                 parser.skipChildren();

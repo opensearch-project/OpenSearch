@@ -22,13 +22,13 @@ package org.opensearch.action.support.single.shard;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public abstract class SingleShardOperationRequestBuilder<Request extends SingleShardRequest<Request>, Response extends ActionResponse,
         RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response> {
 
-    protected SingleShardOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected SingleShardOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

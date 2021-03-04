@@ -22,7 +22,7 @@ package org.apache.lucene.search.uhighlight;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;

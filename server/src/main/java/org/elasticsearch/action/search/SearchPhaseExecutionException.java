@@ -21,6 +21,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.ElasticsearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -33,7 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class SearchPhaseExecutionException extends ElasticsearchException {
+public class SearchPhaseExecutionException extends OpenSearchException {
     private final String phaseName;
     private final ShardSearchFailure[] shardFailures;
 
@@ -103,7 +104,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         Throwable cause = super.getCause();
         if (cause == null) {
             // fall back to guessed root cause
-            for (ElasticsearchException rootCause : guessRootCauses()) {
+            for (OpenSearchException rootCause : guessRootCauses()) {
                 return rootCause;
             }
         }
@@ -154,14 +155,14 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    public ElasticsearchException[] guessRootCauses() {
+    public OpenSearchException[] guessRootCauses() {
         ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
-        List<ElasticsearchException> rootCauses = new ArrayList<>(failures.length);
+        List<OpenSearchException> rootCauses = new ArrayList<>(failures.length);
         for (ShardOperationFailedException failure : failures) {
-            ElasticsearchException[] guessRootCauses = ElasticsearchException.guessRootCauses(failure.getCause());
+            OpenSearchException[] guessRootCauses = OpenSearchException.guessRootCauses(failure.getCause());
             rootCauses.addAll(Arrays.asList(guessRootCauses));
         }
-        return rootCauses.toArray(new ElasticsearchException[0]);
+        return rootCauses.toArray(new OpenSearchException[0]);
     }
 
     @Override

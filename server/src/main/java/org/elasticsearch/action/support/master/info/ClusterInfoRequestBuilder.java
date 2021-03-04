@@ -22,7 +22,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
 public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse,
@@ -30,7 +30,7 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
         extends MasterNodeReadOperationRequestBuilder<Request, Response, Builder> {
 
 
-    protected ClusterInfoRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
+    protected ClusterInfoRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

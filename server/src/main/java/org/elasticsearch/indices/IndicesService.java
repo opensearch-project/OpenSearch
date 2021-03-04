@@ -27,7 +27,7 @@ import org.apache.lucene.index.IndexReader.CacheHelper;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -597,13 +597,13 @@ public class IndicesService extends AbstractLifecycleComponent
                 @Override
                 public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
                     assert false : "temp index should not trigger shard creation";
-                    throw new ElasticsearchException("temp index should not trigger shard creation [{}]", index);
+                    throw new OpenSearchException("temp index should not trigger shard creation [{}]", index);
                 }
 
                 @Override
                 public void onStoreCreated(ShardId shardId) {
                     assert false : "temp index should not trigger store creation";
-                    throw new ElasticsearchException("temp index should not trigger store creation [{}]", index);
+                    throw new OpenSearchException("temp index should not trigger store creation [{}]", index);
                 }
             }
         );
@@ -970,7 +970,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     deleteIndexStore("no longer used", metadata);
                 } catch (Exception e) {
                     // wrap the exception to indicate we already deleted the shard
-                    throw new ElasticsearchException("failed to delete unused index after deleting its last shard (" + shardId + ")", e);
+                    throw new OpenSearchException("failed to delete unused index after deleting its last shard (" + shardId + ")", e);
                 }
             } else {
                 logger.trace("[{}] still has shard stores, leaving as is", shardId.getIndex());

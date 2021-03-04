@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.upgrade.post;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * A request to upgrade one or more indices. In order to optimize on all the indices, pass an empty array or
@@ -28,7 +28,7 @@ import org.opensearch.client.ElasticsearchClient;
  */
 public class UpgradeRequestBuilder extends BroadcastOperationRequestBuilder<UpgradeRequest, UpgradeResponse, UpgradeRequestBuilder> {
 
-    public UpgradeRequestBuilder(ElasticsearchClient client, UpgradeAction action) {
+    public UpgradeRequestBuilder(OpenSearchClient client, UpgradeAction action) {
         super(client, action, new UpgradeRequest());
     }
 

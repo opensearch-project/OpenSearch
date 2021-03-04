@@ -21,12 +21,12 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.opensearch.client.ElasticsearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class NodesStatsRequestBuilder
         extends NodesOperationRequestBuilder<NodesStatsRequest, NodesStatsResponse, NodesStatsRequestBuilder> {
 
-    public NodesStatsRequestBuilder(ElasticsearchClient client, NodesStatsAction action) {
+    public NodesStatsRequestBuilder(OpenSearchClient client, NodesStatsAction action) {
         super(client, action, new NodesStatsRequest());
     }
 
