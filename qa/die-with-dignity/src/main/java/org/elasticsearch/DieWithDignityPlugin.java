@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.opensearch
+package org.opensearch;
 
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
