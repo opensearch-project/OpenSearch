@@ -67,7 +67,7 @@ public class ReadOnlyEngine extends Engine {
      */
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
-    private final ElasticsearchReaderManager readerManager;
+    private final OpenSearchReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
     private final RamAccountingRefreshListener refreshListener;
@@ -114,7 +114,7 @@ public class ReadOnlyEngine extends Engine {
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 reader = wrapReader(open(indexCommit), readerWrapperFunction);
-                readerManager = new ElasticsearchReaderManager(reader, refreshListener);
+                readerManager = new OpenSearchReaderManager(reader, refreshListener);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
