@@ -16,16 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
+package org.opensearch.search.aggregations.matrix.stats;
 
-esplugin {
-  description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
-  classname 'org.opensearch.search.aggregations.matrix.MatrixAggregationPlugin'
-  hasClientJar = true
-}
-
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
-  }
+/**
+ * Counterpart to {@link org.elasticsearch.search.aggregations.support.AggregationInspectionHelper}, providing
+ * helpers for some aggs in the MatrixStats package
+ */
+public class MatrixAggregationInspectionHelper {
+    public static boolean hasValue(InternalMatrixStats agg) {
+        return agg.getResults() != null;
+    }
 }
