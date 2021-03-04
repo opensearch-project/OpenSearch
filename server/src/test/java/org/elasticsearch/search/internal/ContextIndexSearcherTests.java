@@ -60,7 +60,7 @@ import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -227,7 +227,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
             }
         };
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w),
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(w),
             new ShardId(settings.getIndex(), 0));
         BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));

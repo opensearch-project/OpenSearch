@@ -47,7 +47,7 @@ import java.util.Set;
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
  * and current merges.
  */
-class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
+class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
     protected final Logger logger;
     private final Settings indexSettings;
@@ -66,7 +66,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
 
-    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+    OpenSearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();

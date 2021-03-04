@@ -91,7 +91,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
@@ -4730,8 +4730,8 @@ public class InternalEngineTests extends EngineTestCase {
 
 
     public void assertSameReader(Engine.Searcher left, Engine.Searcher right) {
-        List<LeafReaderContext> leftLeaves = ElasticsearchDirectoryReader.unwrap(left.getDirectoryReader()).leaves();
-        List<LeafReaderContext> rightLeaves = ElasticsearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
+        List<LeafReaderContext> leftLeaves = OpenSearchDirectoryReader.unwrap(left.getDirectoryReader()).leaves();
+        List<LeafReaderContext> rightLeaves = OpenSearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
         assertEquals(rightLeaves.size(), leftLeaves.size());
         for (int i = 0; i < leftLeaves.size(); i++) {
             assertSame(leftLeaves.get(i).reader(), rightLeaves.get(i).reader());
@@ -4739,8 +4739,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void assertNotSameReader(Engine.Searcher left, Engine.Searcher right) {
-        List<LeafReaderContext> leftLeaves = ElasticsearchDirectoryReader.unwrap(left.getDirectoryReader()).leaves();
-        List<LeafReaderContext> rightLeaves = ElasticsearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
+        List<LeafReaderContext> leftLeaves = OpenSearchDirectoryReader.unwrap(left.getDirectoryReader()).leaves();
+        List<LeafReaderContext> rightLeaves = OpenSearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
         if (rightLeaves.size() == leftLeaves.size()) {
             for (int i = 0; i < leftLeaves.size(); i++) {
                 if (leftLeaves.get(i).reader() != rightLeaves.get(i).reader()) {
@@ -6285,7 +6285,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testNotWarmUpSearcherInEngineCtor() throws Exception {
         try (Store store = createStore()) {
-            List<ElasticsearchDirectoryReader> warmedUpReaders = new ArrayList<>();
+            List<OpenSearchDirectoryReader> warmedUpReaders = new ArrayList<>();
             Engine.Warmer warmer = reader -> {
                 assertNotNull(reader);
                 assertThat(reader, not(in(warmedUpReaders)));

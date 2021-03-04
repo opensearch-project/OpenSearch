@@ -232,7 +232,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
 
     /**
      * Unwraps the actual cause from the exception for cases when the exception is a
-     * {@link ElasticsearchWrapperException}.
+     * {@link OpenSearchWrapperException}.
      *
      * @see ExceptionsHelper#unwrapCause(Throwable)
      */
