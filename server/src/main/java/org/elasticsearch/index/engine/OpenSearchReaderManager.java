@@ -38,19 +38,19 @@ import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
  *
  */
 @SuppressForbidden(reason = "reference counting is required here")
-class ElasticsearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
+class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
     private final BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener;
 
     /**
-     * Creates and returns a new ElasticsearchReaderManager from the given
+     * Creates and returns a new OpenSearchReaderManager from the given
      * already-opened {@link OpenSearchDirectoryReader}, stealing
      * the incoming reference.
      *
      * @param reader            the directoryReader to use for future reopens
      * @param refreshListener   A consumer that is called every time a new reader is opened
      */
-    ElasticsearchReaderManager(OpenSearchDirectoryReader reader,
-                               BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener) {
+    OpenSearchReaderManager(OpenSearchDirectoryReader reader,
+                            BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener) {
         this.current = reader;
         this.refreshListener = refreshListener;
         refreshListener.accept(current, null);

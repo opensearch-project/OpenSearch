@@ -135,7 +135,7 @@ public class InternalEngine extends Engine {
     private final IndexWriter indexWriter;
 
     private final ExternalReaderManager externalReaderManager;
-    private final ElasticsearchReaderManager internalReaderManager;
+    private final OpenSearchReaderManager internalReaderManager;
 
     private final Lock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
@@ -220,7 +220,7 @@ public class InternalEngine extends Engine {
         IndexWriter writer = null;
         Translog translog = null;
         ExternalReaderManager externalReaderManager = null;
-        ElasticsearchReaderManager internalReaderManager = null;
+        OpenSearchReaderManager internalReaderManager = null;
         EngineMergeScheduler scheduler = null;
         boolean success = false;
         try {
@@ -348,10 +348,10 @@ public class InternalEngine extends Engine {
     @SuppressForbidden(reason = "reference counting is required here")
     private static final class ExternalReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
         private final BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener;
-        private final ElasticsearchReaderManager internalReaderManager;
+        private final OpenSearchReaderManager internalReaderManager;
         private boolean isWarmedUp; //guarded by refreshLock
 
-        ExternalReaderManager(ElasticsearchReaderManager internalReaderManager,
+        ExternalReaderManager(OpenSearchReaderManager internalReaderManager,
                               BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener) throws IOException {
             this.refreshListener = refreshListener;
             this.internalReaderManager = internalReaderManager;
@@ -635,12 +635,12 @@ public class InternalEngine extends Engine {
 
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
         boolean success = false;
-        ElasticsearchReaderManager internalReaderManager = null;
+        OpenSearchReaderManager internalReaderManager = null;
         try {
             try {
                 final OpenSearchDirectoryReader directoryReader =
                     OpenSearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                internalReaderManager = new ElasticsearchReaderManager(directoryReader,
+                internalReaderManager = new OpenSearchReaderManager(directoryReader,
                     new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService()));
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
