@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.opensearch.search.aggregations;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.WrapperQueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
-import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.query.WrapperQueryBuilder;
+import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.opensearch.search.aggregations.bucket.filter.InternalFilters;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;

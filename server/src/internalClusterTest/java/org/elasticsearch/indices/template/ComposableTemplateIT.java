@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.template;
+package org.opensearch.indices.template;
 
-import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.template.put.PutComponentTemplateAction;
+import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.opensearch.cluster.metadata.ComponentTemplate;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.cluster.metadata.Template;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.collect.List;
+import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

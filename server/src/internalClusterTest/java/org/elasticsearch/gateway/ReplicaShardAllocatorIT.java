@@ -17,35 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.seqno.RetentionLease;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoveryCleanFilesRequest;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.seqno.ReplicationTracker;
+import org.opensearch.index.seqno.RetentionLease;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.recovery.RecoveryCleanFilesRequest;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,7 +55,7 @@ import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -361,7 +361,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
     }
 
     /**
-     * If the recovery source is on an old node (before <pre>{@link org.elasticsearch.Version#V_7_2_0}</pre>) then the recovery target
+     * If the recovery source is on an old node (before <pre>{@link org.opensearch.Version#V_7_2_0}</pre>) then the recovery target
      * won't have the safe commit after phase1 because the recovery source does not send the global checkpoint in the clean_files
      * step. And if the recovery fails and retries, then the recovery stage might not transition properly. This test simulates
      * this behavior by changing the global checkpoint in phase1 to unassigned.

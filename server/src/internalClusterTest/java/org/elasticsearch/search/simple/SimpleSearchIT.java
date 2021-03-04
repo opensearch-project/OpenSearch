@@ -17,41 +17,41 @@
  * under the License.
  */
 
-package org.elasticsearch.search.simple;
+package org.opensearch.search.simple;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.search.rescore.QueryRescorerBuilder;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
+import static org.opensearch.index.query.QueryBuilders.rangeQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

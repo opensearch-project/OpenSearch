@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.script.ScriptType;
+import org.opensearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.opensearch.search.aggregations.bucket.histogram.Histogram;
+import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -56,12 +56,12 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class MinDocCountIT extends AbstractTermsTestCase {
@@ -152,7 +152,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         YES {
             @Override
             TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
-                return builder.script(new org.elasticsearch.script.Script(ScriptType.INLINE,
+                return builder.script(new org.opensearch.script.Script(ScriptType.INLINE,
                     CustomScriptPlugin.NAME, "doc['" + field + "']", Collections.emptyMap()));
             }
         };

@@ -17,33 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.ingest.IngestTestPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.StoredScriptsIT;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.opensearch.action.ingest.DeletePipelineRequest;
+import org.opensearch.action.ingest.GetPipelineResponse;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.ingest.IngestTestPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.StoredScriptsIT;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 

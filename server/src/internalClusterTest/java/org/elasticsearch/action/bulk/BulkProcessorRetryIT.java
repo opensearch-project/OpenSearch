@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.transport.RemoteTransportException;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -35,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;

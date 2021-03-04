@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.search.functionscore;
+package org.opensearch.search.functionscore;
 
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 
 /**
  * Tests for the {@code field_value_factor} function in a function_score query.

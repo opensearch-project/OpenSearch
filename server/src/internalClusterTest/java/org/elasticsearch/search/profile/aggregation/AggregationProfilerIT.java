@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search.profile.aggregation;
+package org.opensearch.search.profile.aggregation;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsSamplerAggregator;
-import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
-import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsSamplerAggregator;
+import org.opensearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
+import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.ProfileShardResult;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,14 +35,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.diversifiedSampler;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.aggregations.AggregationBuilders.avg;
+import static org.opensearch.search.aggregations.AggregationBuilders.diversifiedSampler;
+import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.max;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -56,7 +56,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     private static final String INITIALIZE = AggregationTimingType.INITIALIZE.toString();
     private static final String BUILD_AGGREGATION = AggregationTimingType.BUILD_AGGREGATION.toString();
     private static final String REDUCE = AggregationTimingType.REDUCE.toString();
-    private static final Set<String> BREAKDOWN_KEYS = org.elasticsearch.common.collect.Set.of(
+    private static final Set<String> BREAKDOWN_KEYS = org.opensearch.common.collect.Set.of(
         INITIALIZE,
         BUILD_LEAF_COLLECTOR,
         COLLECT,
@@ -91,7 +91,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .setSettings(org.elasticsearch.common.collect.Map.of("number_of_shards", 1, "number_of_replicas", 0))
+                .setSettings(org.opensearch.common.collect.Map.of("number_of_shards", 1, "number_of_replicas", 0))
                 .addMapping("type", STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
@@ -143,7 +143,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(breakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> debug = histoAggResult.getDebugInfo();
             assertThat(debug, notNullValue());
-            assertThat(debug.keySet(), equalTo(org.elasticsearch.common.collect.Set.of(TOTAL_BUCKETS)));
+            assertThat(debug.keySet(), equalTo(org.opensearch.common.collect.Set.of(TOTAL_BUCKETS)));
             assertThat(((Number) debug.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
         }
     }
@@ -187,7 +187,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
             assertThat(histoDebugInfo, notNullValue());
-            assertThat(histoDebugInfo.keySet(), equalTo(org.elasticsearch.common.collect.Set.of(TOTAL_BUCKETS)));
+            assertThat(histoDebugInfo.keySet(), equalTo(org.opensearch.common.collect.Set.of(TOTAL_BUCKETS)));
             assertThat(((Number) histoDebugInfo.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(1));
 
@@ -218,7 +218,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -266,7 +266,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
             assertThat(histoDebugInfo, notNullValue());
-            assertThat(histoDebugInfo.keySet(), equalTo(org.elasticsearch.common.collect.Set.of(TOTAL_BUCKETS)));
+            assertThat(histoDebugInfo.keySet(), equalTo(org.opensearch.common.collect.Set.of(TOTAL_BUCKETS)));
             assertThat(((Number) histoDebugInfo.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(1));
 
@@ -297,7 +297,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -334,7 +334,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(diversifyBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(diversifyBreakdown.get(REDUCE), equalTo(0L));
             assertThat(diversifyAggResult.getDebugInfo(), equalTo(
-                org.elasticsearch.common.collect.Map.of(DEFERRED, org.elasticsearch.common.collect.List.of("max"))));
+                org.opensearch.common.collect.Map.of(DEFERRED, org.opensearch.common.collect.List.of("max"))));
             assertThat(diversifyAggResult.getProfiledChildren().size(), equalTo(1));
 
             ProfileResult maxAggResult = diversifyAggResult.getProfiledChildren().get(0);
@@ -351,7 +351,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(diversifyBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(maxAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -397,7 +397,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
             assertThat(histoDebugInfo, notNullValue());
-            assertThat(histoDebugInfo.keySet(), equalTo(org.elasticsearch.common.collect.Set.of(TOTAL_BUCKETS)));
+            assertThat(histoDebugInfo.keySet(), equalTo(org.opensearch.common.collect.Set.of(TOTAL_BUCKETS)));
             assertThat(((Number) histoDebugInfo.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(2));
 
@@ -436,7 +436,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
 
             ProfileResult maxAggResult = tagsAggResultSubAggregations.get("max");
@@ -452,7 +452,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(maxAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
 
             ProfileResult stringsAggResult = histoAggResultSubAggregations.get("strings");
@@ -487,7 +487,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
 
             maxAggResult = stringsAggResultSubAggregations.get("max");
@@ -503,7 +503,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(maxAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
 
             tagsAggResult = stringsAggResultSubAggregations.get("tags");
@@ -539,7 +539,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
 
             maxAggResult = tagsAggResultSubAggregations.get("max");
@@ -555,7 +555,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(maxAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }

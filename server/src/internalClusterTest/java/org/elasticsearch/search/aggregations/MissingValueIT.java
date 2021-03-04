@@ -17,31 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.opensearch.search.aggregations;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.search.aggregations.metrics.Cardinality;
-import org.elasticsearch.search.aggregations.metrics.GeoBounds;
-import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.Percentiles;
-import org.elasticsearch.search.aggregations.metrics.Stats;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.opensearch.search.aggregations.bucket.histogram.Histogram;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.opensearch.search.aggregations.metrics.Cardinality;
+import org.opensearch.search.aggregations.metrics.GeoBounds;
+import org.opensearch.search.aggregations.metrics.GeoCentroid;
+import org.opensearch.search.aggregations.metrics.Percentiles;
+import org.opensearch.search.aggregations.metrics.Stats;
+import org.opensearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.geoBounds;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.geoCentroid;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
+import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.geoBounds;
+import static org.opensearch.search.aggregations.AggregationBuilders.geoCentroid;
+import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.opensearch.search.aggregations.AggregationBuilders.stats;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 
 @ESIntegTestCase.SuiteScopeTestCase

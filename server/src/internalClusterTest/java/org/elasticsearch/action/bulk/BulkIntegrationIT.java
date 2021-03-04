@@ -18,26 +18,26 @@
  */
 
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.ingest.IngestTestPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.ingest.PutPipelineRequest;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.ingest.IngestTestPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -49,11 +49,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
-import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.action.DocWriteResponse.Result.CREATED;
+import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,7 +68,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
     }
 
     public void testBulkIndexCreatesMapping() throws Exception {
-        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/bulk-log.json");
+        String bulkAction = copyToStringFromClasspath("/org.opensearch.action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
         bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         bulkBuilder.get();
@@ -126,7 +126,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
 
     public void testBulkWithGlobalDefaults() throws Exception {
         // all requests in the json are missing index and type parameters: "_index" : "test", "_type" : "type1",
-        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk-missing-index-type.json");
+        String bulkAction = copyToStringFromClasspath("/org.opensearch.action/bulk/simple-bulk-missing-index-type.json");
         {
             BulkRequestBuilder bulkBuilder = client().prepareBulk();
             bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);

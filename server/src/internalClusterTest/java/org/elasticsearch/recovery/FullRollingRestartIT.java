@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.recovery;
+package org.opensearch.recovery;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.common.Priority;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartIT extends ESIntegTestCase {

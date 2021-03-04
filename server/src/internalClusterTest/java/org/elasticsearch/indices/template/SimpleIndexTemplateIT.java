@@ -16,31 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.template;
+package org.opensearch.indices.template;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.InvalidAliasNameException;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.SearchHit;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.junit.After;
 
 import java.io.IOException;
@@ -52,11 +52,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;

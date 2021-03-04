@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.get.GetRequest;
+import org.opensearch.action.get.MultiGetRequest;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
@@ -38,8 +38,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntToLongFunction;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchIdleIT extends ESSingleNodeTestCase {

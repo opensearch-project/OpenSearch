@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.searchafter;
+package org.opensearch.search.searchafter;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.List;
@@ -38,9 +38,9 @@ import java.util.Comparator;
 import java.util.Collections;
 import java.util.Arrays;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

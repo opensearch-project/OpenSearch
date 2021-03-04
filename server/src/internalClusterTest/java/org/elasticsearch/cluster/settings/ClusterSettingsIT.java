@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.settings;
+package org.opensearch.cluster.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.test.ESIntegTestCase;
 import org.junit.After;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

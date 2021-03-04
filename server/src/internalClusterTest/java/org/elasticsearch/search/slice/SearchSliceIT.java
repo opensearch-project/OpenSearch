@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.search.slice;
+package org.opensearch.search.slice;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchException;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.search.Scroll;
+import org.opensearch.search.SearchException;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,9 +42,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 

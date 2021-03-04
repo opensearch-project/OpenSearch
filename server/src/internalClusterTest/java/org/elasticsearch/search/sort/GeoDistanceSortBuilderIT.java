@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.search.sort;
+package org.opensearch.search.sort;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.GeoValidationMethod;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.geo.GeoDistance;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.query.GeoValidationMethod;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,12 +39,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.sort.SortBuilders.fieldSort;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
 import static org.hamcrest.Matchers.closeTo;
 
 public class GeoDistanceSortBuilderIT extends ESIntegTestCase {

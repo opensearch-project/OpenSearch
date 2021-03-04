@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.opensearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.missing.Missing;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.opensearch.search.aggregations.bucket.histogram.Histogram;
+import org.opensearch.search.aggregations.bucket.missing.Missing;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.missing;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;

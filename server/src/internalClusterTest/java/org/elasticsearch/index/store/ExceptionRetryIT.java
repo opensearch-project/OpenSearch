@@ -16,29 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.store;
+package org.opensearch.index.store;
 
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequestBuilder;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.bulk.TransportShardBulkAction;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.client.Client;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.SearchHit;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,11 +49,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 

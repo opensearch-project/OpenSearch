@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.similarity;
+package org.opensearch.similarity;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 

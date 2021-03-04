@@ -17,35 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.opensearch.cluster.routing;
 
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MockEngineFactoryPlugin;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommandIT;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.client.Requests;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.allocation.AllocationDecision;
+import org.opensearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.shard.RemoveCorruptedShardDataCommandIT;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.DummyShardLock;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -54,8 +54,8 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;

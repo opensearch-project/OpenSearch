@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.script.MockScriptPlugin;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -35,9 +35,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
-import static org.elasticsearch.search.SearchTimeoutIT.ScriptedTimeoutPlugin.SCRIPT_NAME;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.index.query.QueryBuilders.scriptQuery;
+import static org.opensearch.search.SearchTimeoutIT.ScriptedTimeoutPlugin.SCRIPT_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)

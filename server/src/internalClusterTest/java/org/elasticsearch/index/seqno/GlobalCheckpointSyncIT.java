@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.index.seqno;
+package org.opensearch.index.seqno;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;

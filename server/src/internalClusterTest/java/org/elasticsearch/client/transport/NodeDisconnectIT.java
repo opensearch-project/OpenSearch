@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.transport;
+package org.opensearch.client.transport;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.transport.MockTransportClient;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.client.transport.TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL;
+import static org.opensearch.client.transport.TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL;
 
 @ClusterScope(scope = Scope.TEST)
 public class NodeDisconnectIT  extends ESIntegTestCase {

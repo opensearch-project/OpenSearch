@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.master;
+package org.opensearch.action.support.master;
 
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
 import java.util.HashSet;

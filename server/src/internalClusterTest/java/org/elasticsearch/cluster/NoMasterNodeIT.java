@@ -17,37 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.opensearch.cluster;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.AutoCreateIndex;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.IsolateAllNodes;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.bulk.BulkRequestBuilder;
+import org.opensearch.action.get.GetResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.AutoCreateIndex;
+import org.opensearch.client.Client;
+import org.opensearch.client.Requests;
+import org.opensearch.cluster.action.index.MappingUpdatedAction;
+import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.discovery.MasterNotDiscoveredException;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.disruption.NetworkDisruption.IsolateAllNodes;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -55,9 +55,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertExists;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 

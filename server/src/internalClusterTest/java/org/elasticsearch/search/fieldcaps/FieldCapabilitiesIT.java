@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fieldcaps;
+package org.opensearch.search.fieldcaps;
 
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.fieldcaps.FieldCapabilities;
+import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class FieldCapabilitiesIT extends ESIntegTestCase {
 

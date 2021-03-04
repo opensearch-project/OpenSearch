@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool;
+package org.opensearch.threadpool;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -35,8 +35,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SimpleThreadPoolIT extends ESIntegTestCase {

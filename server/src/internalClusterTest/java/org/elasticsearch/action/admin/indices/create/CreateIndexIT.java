@@ -17,44 +17,44 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.create;
+package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
 
 import java.util.HashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

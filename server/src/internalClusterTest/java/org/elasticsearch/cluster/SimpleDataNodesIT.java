@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.opensearch.cluster;
 
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.client.Requests;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Priority;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
 
-import static org.elasticsearch.client.Requests.createIndexRequest;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.test.NodeRoles.dataNode;
-import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.opensearch.client.Requests.createIndexRequest;
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
+import static org.opensearch.test.NodeRoles.dataNode;
+import static org.opensearch.test.NodeRoles.nonDataNode;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)

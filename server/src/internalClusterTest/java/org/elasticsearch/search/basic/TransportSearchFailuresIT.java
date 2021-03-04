@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.search.basic;
+package org.opensearch.search.basic;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.client.Client;
+import org.opensearch.client.Requests;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.common.Priority;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.query.MatchQueryBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.client.Requests.refreshRequest;
-import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.client.Requests.clusterHealthRequest;
+import static org.opensearch.client.Requests.refreshRequest;
+import static org.opensearch.client.Requests.searchRequest;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

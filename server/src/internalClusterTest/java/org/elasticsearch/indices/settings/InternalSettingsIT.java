@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.settings;
+package org.opensearch.indices.settings;
 
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;

@@ -16,27 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.mget;
+package org.opensearch.mget;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetRequestBuilder;
-import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.get.MultiGetItemResponse;
+import org.opensearch.action.get.MultiGetRequest;
+import org.opensearch.action.get.MultiGetRequestBuilder;
+import org.opensearch.action.get.MultiGetResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;

@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin;
+package org.opensearch.action.admin;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.KeyStoreWrapper;
+import org.opensearch.common.settings.SecureSettings;
+import org.opensearch.common.settings.SecureString;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.ReloadablePlugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.transport.RemoteTransportException;
 
 import java.io.InputStream;
 import java.nio.file.Files;

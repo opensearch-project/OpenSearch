@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.forcemerge;
+package org.opensearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)

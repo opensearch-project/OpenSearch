@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.mapping;
+package org.opensearch.indices.mapping;
 
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
 import java.util.List;
@@ -32,8 +32,8 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
 public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {

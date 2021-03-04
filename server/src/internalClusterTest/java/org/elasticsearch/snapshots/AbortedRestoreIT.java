@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPoolStats;
 import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;

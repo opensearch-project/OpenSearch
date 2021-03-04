@@ -17,31 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.suggest.stats;
+package org.opensearch.index.suggest.stats;
 
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.cluster.routing.ShardIterator;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.search.stats.SearchStats;
+import org.opensearch.search.suggest.SuggestBuilder;
+import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.opensearch.search.suggest.term.TermSuggestionBuilder;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

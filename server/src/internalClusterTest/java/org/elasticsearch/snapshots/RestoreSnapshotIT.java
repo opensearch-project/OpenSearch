@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.indices.InvalidIndexNameException;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestStatus;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -46,17 +46,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
+import static org.opensearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.tasks;
+package org.opensearch.action.admin.cluster.tasks;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.gateway.GatewayService;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 
 public class PendingTasksBlocksIT extends ESIntegTestCase {
 

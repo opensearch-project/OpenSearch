@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.search.msearch;
+package org.opensearch.search.msearch;
 
-import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.search.MultiSearchRequest;
+import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiSearchIT extends ESIntegTestCase {

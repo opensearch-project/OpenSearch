@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.document;
+package org.opensearch.document;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.Alias;
 
-import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.opensearch.client.Requests.createIndexRequest;
 
 public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
 

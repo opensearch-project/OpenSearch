@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
+import org.opensearch.action.delete.DeleteResponse;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.opensearch.common.Priority;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;

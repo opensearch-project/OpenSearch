@@ -16,23 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.versioning;
+package org.opensearch.versioning;
 
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.delete.DeleteResponse;
+import org.opensearch.action.get.GetResponse;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,11 +43,11 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 

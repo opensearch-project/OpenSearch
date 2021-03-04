@@ -16,22 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

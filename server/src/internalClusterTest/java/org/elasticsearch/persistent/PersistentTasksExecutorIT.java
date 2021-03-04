@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.persistent;
+package org.opensearch.persistent;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestTasksRequestBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.ResourceAlreadyExistsException;
+import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.opensearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
+import org.opensearch.persistent.TestPersistentTasksPlugin.State;
+import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
+import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
+import org.opensearch.persistent.TestPersistentTasksPlugin.TestTasksRequestBuilder;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskInfo;
+import org.opensearch.test.ESIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,7 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;

@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.routing;
+package org.opensearch.routing;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.test.ESIntegTestCase;
 import org.mockito.internal.util.collections.Sets;
 
 import java.util.HashMap;

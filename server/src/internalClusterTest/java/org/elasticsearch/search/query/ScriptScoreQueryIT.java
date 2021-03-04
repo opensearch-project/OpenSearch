@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.search.query;
+package org.opensearch.search.query;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.script.MockScriptPlugin;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -38,16 +38,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.scriptScoreQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
+import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.index.query.QueryBuilders.scriptScoreQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 
 public class ScriptScoreQueryIT extends ESIntegTestCase {
 

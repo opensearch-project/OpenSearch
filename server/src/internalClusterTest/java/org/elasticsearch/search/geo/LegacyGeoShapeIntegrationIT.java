@@ -16,31 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.geo;
+package org.opensearch.search.geo;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.geometry.Circle;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.geometry.Circle;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.index.query.QueryBuilders.geoShapeQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 

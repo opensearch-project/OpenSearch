@@ -17,30 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.opensearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.FollowersChecker;
-import org.elasticsearch.cluster.coordination.LeaderChecker;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.LongGCDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
-import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
-import org.elasticsearch.test.disruption.SingleNodeDisruption;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.coordination.Coordinator;
+import org.opensearch.cluster.coordination.FollowersChecker;
+import org.opensearch.cluster.coordination.LeaderChecker;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
+import org.opensearch.common.Strings;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.disruption.LongGCDisruption;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
+import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.opensearch.test.disruption.SingleNodeDisruption;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;

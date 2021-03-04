@@ -16,24 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.validate;
+package org.opensearch.validate;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.indices.TermsLookup;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.opensearch.client.Client;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.TermsQueryBuilder;
+import org.opensearch.indices.TermsLookup;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -45,10 +45,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

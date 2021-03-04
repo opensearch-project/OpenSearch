@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.stats;
+package org.opensearch.indices.stats;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.Version;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;

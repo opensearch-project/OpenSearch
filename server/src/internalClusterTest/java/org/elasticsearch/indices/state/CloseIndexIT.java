@@ -16,34 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.state;
+package org.opensearch.indices.state;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.test.BackgroundIndexer;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.close.CloseIndexRequestBuilder;
+import org.opensearch.action.admin.indices.close.CloseIndexResponse;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MetadataIndexStateService;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.indices.IndexClosedException;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.test.BackgroundIndexer;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,10 +55,10 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.action.support.IndicesOptions.lenientExpandOpen;
-import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.action.support.IndicesOptions.lenientExpandOpen;
+import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;

@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.recovery;
+package org.opensearch.recovery;
 
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.get.GetResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.client.Requests.flushRequest;
-import static org.elasticsearch.client.Requests.getRequest;
-import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.client.Requests.refreshRequest;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.client.Requests.flushRequest;
+import static org.opensearch.client.Requests.getRequest;
+import static org.opensearch.client.Requests.indexRequest;
+import static org.opensearch.client.Requests.refreshRequest;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleRecoveryIT extends ESIntegTestCase {

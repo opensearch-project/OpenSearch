@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryData;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.snapshots.mockstore.MockRepository;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -46,7 +46,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;

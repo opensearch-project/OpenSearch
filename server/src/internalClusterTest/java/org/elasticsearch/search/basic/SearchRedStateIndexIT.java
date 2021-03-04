@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.search.basic;
+package org.opensearch.search.basic;
 
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.search.SearchService;
+import org.opensearch.test.ESIntegTestCase;
 import org.junit.After;
 
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

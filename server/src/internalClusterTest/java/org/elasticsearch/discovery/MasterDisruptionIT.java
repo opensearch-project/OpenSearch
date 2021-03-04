@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.opensearch.discovery;
 
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
-import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
-import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.disruption.SingleNodeDisruption;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.bulk.BulkRequestBuilder;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.discovery.zen.ZenDiscovery;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.disruption.BlockMasterServiceOnMaster;
+import org.opensearch.test.disruption.IntermittentLongGCDisruption;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.opensearch.test.disruption.ServiceDisruptionScheme;
+import org.opensearch.test.disruption.SingleNodeDisruption;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -44,7 +44,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 

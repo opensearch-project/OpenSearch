@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.InternalTestCluster.RestartCallback;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.client.Requests.clusterHealthRequest;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class QuorumGatewayIT extends ESIntegTestCase {

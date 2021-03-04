@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.single;
+package org.opensearch.discovery.single;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.JoinHelper;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.NodeConfigurationSource;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.JoinHelper;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.DiscoverySettings;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.MockHttpTransport;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.NodeConfigurationSource;
+import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.Path;

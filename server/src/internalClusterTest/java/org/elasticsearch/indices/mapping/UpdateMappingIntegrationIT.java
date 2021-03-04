@@ -17,30 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.mapping;
+package org.opensearch.indices.mapping;
 
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.action.index.MappingUpdatedAction;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.Priority;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -54,12 +54,12 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

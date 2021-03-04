@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.operateAllIndices;
+package org.opensearch.operateAllIndices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESIntegTestCase;
 import org.junit.After;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DestructiveOperationsIT extends ESIntegTestCase {

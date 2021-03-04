@@ -17,33 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.search.basic;
+package org.opensearch.search.basic;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.English;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.MockEngineFactoryPlugin;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.engine.MockEngineSupport;
-import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings.Builder;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.engine.MockEngineSupport;
+import org.opensearch.test.engine.ThrowingLeafReaderWrapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +53,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 

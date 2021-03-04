@@ -16,39 +16,39 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest;
+package org.opensearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
-import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.FuzzyOptions;
-import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
-import org.elasticsearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.segments.IndexShardSegments;
+import org.opensearch.action.admin.indices.segments.ShardSegments;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.common.FieldMemoryStats;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.suggest.completion.CompletionStats;
+import org.opensearch.search.suggest.completion.CompletionSuggestion;
+import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.opensearch.search.suggest.completion.FuzzyOptions;
+import org.opensearch.search.suggest.completion.context.CategoryContextMapping;
+import org.opensearch.search.suggest.completion.context.ContextMapping;
+import org.opensearch.search.suggest.completion.context.GeoContextMapping;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,15 +61,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -742,7 +742,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         // suggestion with a character, which needs unicode awareness
-        org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder completionSuggestionBuilder =
+        org.opensearch.search.suggest.completion.CompletionSuggestionBuilder completionSuggestionBuilder =
                 SuggestBuilders.completionSuggestion(FIELD).prefix("öööи", FuzzyOptions.builder().setUnicodeAware(true).build()).size(10);
 
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder()

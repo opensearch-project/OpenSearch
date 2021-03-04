@@ -16,23 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.blobstore;
+package org.opensearch.repositories.blobstore;
 
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.RepositoryCleanupInProgress;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.RepositoryCleanupInProgress;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)

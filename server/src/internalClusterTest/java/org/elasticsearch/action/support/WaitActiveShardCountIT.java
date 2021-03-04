@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support;
+package org.opensearch.action.support;
 
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.common.Priority;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 

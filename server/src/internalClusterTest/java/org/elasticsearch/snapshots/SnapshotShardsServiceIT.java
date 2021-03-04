@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.snapshots.mockstore.MockRepository;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;

@@ -17,30 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport;
+package org.opensearch.client.transport;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.MockNode;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.Version;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.coordination.ClusterBootstrapService;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.env.Environment;
+import org.opensearch.node.MockNode;
+import org.opensearch.node.Node;
+import org.opensearch.node.NodeValidationException;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.MockHttpTransport;
+import org.opensearch.transport.MockTransportClient;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.opensearch.test.NodeRoles.nonDataNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;

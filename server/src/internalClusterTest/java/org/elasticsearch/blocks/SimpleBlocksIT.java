@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.blocks;
+package org.opensearch.blocks;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.test.BackgroundIndexer;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.opensearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.test.BackgroundIndexer;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,13 +51,13 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.action.support.IndicesOptions.lenientExpandOpen;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
-import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.action.support.IndicesOptions.lenientExpandOpen;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;

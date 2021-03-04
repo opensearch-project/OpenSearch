@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.opensearch.index.query.QueryBuilders.geoDistanceQuery;
+import static org.opensearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;

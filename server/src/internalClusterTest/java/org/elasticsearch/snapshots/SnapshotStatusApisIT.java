@@ -16,28 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.Version;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -49,7 +49,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;

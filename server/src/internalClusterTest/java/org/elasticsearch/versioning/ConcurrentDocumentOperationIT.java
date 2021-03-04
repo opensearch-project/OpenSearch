@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.versioning;
+package org.opensearch.versioning;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 

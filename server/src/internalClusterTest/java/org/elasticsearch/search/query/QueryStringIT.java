@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.search.query;
+package org.opensearch.search.query;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.Operator;
+import org.opensearch.index.query.QueryStringQueryBuilder;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchModule;
+import org.opensearch.test.ESIntegTestCase;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -41,12 +41,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
+import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,7 +62,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
     }
@@ -149,7 +149,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testDocWithAllTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        String docBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-example-document.json");
+        String docBody = copyToStringFromClasspath("/org.opensearch.search/query/all-example-document.json");
         reqs.add(client().prepareIndex("test", "_doc", "1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
@@ -208,7 +208,7 @@ public class QueryStringIT extends ESIntegTestCase {
     }
 
     public void testAllFields() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
 
         Settings.Builder settings = Settings.builder().put("index.query.default_field", "*");
         prepareCreate("test_1").setSource(indexBody, XContentType.JSON).setSettings(settings).get();

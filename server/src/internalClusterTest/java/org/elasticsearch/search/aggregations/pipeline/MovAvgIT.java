@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.opensearch.search.aggregations.pipeline;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.EvictingQueue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.metrics.Avg;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.bulk.BulkRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.client.Client;
+import org.opensearch.common.collect.EvictingQueue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.search.aggregations.bucket.histogram.Histogram;
+import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
+import org.opensearch.search.aggregations.metrics.Avg;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.opensearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -43,15 +43,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.movingAvg;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.aggregations.AggregationBuilders.avg;
+import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.max;
+import static org.opensearch.search.aggregations.AggregationBuilders.min;
+import static org.opensearch.search.aggregations.AggregationBuilders.range;
+import static org.opensearch.search.aggregations.PipelineAggregatorBuilders.derivative;
+import static org.opensearch.search.aggregations.PipelineAggregatorBuilders.movingAvg;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;

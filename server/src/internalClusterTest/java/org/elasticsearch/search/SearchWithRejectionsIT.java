@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchType;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)

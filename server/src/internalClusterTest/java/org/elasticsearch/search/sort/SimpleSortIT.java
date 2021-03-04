@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.search.sort;
+package org.opensearch.search.sort;
 
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.Strings;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.script.MockScriptPlugin;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,13 +48,13 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.sort.SortBuilders.scriptSort;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

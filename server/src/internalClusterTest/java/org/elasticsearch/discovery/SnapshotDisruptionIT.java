@@ -16,40 +16,40 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery;
+package org.opensearch.discovery;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotException;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotMissingException;
-import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.opensearch.snapshots.SnapshotException;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotMissingException;
+import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.mockstore.MockRepository;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;

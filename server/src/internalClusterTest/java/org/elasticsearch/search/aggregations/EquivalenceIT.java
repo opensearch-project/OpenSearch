@@ -17,30 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.opensearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntHashSet;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.range.Range;
-import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.Sum;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.script.MockScriptPlugin;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
+import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.opensearch.search.aggregations.bucket.filter.Filter;
+import org.opensearch.search.aggregations.bucket.histogram.Histogram;
+import org.opensearch.search.aggregations.bucket.range.Range;
+import org.opensearch.search.aggregations.bucket.range.Range.Bucket;
+import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
+import org.opensearch.search.aggregations.metrics.Sum;
+import org.opensearch.test.ESIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -53,20 +53,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.aggregations.AggregationBuilders.extendedStats;
+import static org.opensearch.search.aggregations.AggregationBuilders.filter;
+import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.max;
+import static org.opensearch.search.aggregations.AggregationBuilders.min;
+import static org.opensearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.opensearch.search.aggregations.AggregationBuilders.range;
+import static org.opensearch.search.aggregations.AggregationBuilders.stats;
+import static org.opensearch.search.aggregations.AggregationBuilders.sum;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 

@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.stats;
+package org.opensearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.monitor.os.OsStats;
-import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.client.Requests;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.Priority;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.monitor.os.OsStats;
+import org.opensearch.node.NodeRoleSettings;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.OS;
+import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.OS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;

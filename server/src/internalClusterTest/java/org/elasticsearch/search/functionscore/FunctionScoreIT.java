@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.search.functionscore;
+package org.opensearch.search.functionscore;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.lucene.search.function.CombineFunction;
+import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.script.MockScriptPlugin;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,15 +44,15 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
-import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.client.Requests.searchRequest;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

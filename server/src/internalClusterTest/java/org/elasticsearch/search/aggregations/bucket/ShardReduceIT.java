@@ -16,39 +16,39 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.missing.Missing;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
-import org.elasticsearch.search.aggregations.bucket.range.Range;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.geometry.utils.Geohash;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.opensearch.search.aggregations.bucket.filter.Filter;
+import org.opensearch.search.aggregations.bucket.geogrid.GeoGrid;
+import org.opensearch.search.aggregations.bucket.global.Global;
+import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.opensearch.search.aggregations.bucket.histogram.Histogram;
+import org.opensearch.search.aggregations.bucket.missing.Missing;
+import org.opensearch.search.aggregations.bucket.nested.Nested;
+import org.opensearch.search.aggregations.bucket.range.Range;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.geotileGrid;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.ipRange;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.dateRange;
+import static org.opensearch.search.aggregations.AggregationBuilders.filter;
+import static org.opensearch.search.aggregations.AggregationBuilders.geohashGrid;
+import static org.opensearch.search.aggregations.AggregationBuilders.geotileGrid;
+import static org.opensearch.search.aggregations.AggregationBuilders.global;
+import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.ipRange;
+import static org.opensearch.search.aggregations.AggregationBuilders.missing;
+import static org.opensearch.search.aggregations.AggregationBuilders.nested;
+import static org.opensearch.search.aggregations.AggregationBuilders.range;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

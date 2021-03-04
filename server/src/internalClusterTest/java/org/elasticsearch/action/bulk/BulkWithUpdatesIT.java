@@ -17,34 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.DocWriteRequest.OpType;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.action.DocWriteRequest.OpType;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.get.GetResponse;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.action.update.UpdateRequestBuilder;
+import org.opensearch.action.update.UpdateResponse;
+import org.opensearch.client.Requests;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.VersionType;
+import org.opensearch.indices.IndexClosedException;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.script.MockScriptPlugin;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.ScriptType;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,10 +55,10 @@ import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

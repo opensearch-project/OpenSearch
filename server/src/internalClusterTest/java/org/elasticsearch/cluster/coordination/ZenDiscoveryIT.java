@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.zen.FaultDetection;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.discovery.Discovery;
+import org.opensearch.discovery.DiscoveryStats;
+import org.opensearch.discovery.zen.FaultDetection;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.TestCustomMetadata;
+import org.opensearch.transport.RemoteTransportException;
 
 import java.util.EnumSet;
 import java.util.Optional;
@@ -46,9 +46,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.DISCOVERY;
-import static org.elasticsearch.test.NodeRoles.dataNode;
-import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
+import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.DISCOVERY;
+import static org.opensearch.test.NodeRoles.dataNode;
+import static org.opensearch.test.NodeRoles.masterOnlyNode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

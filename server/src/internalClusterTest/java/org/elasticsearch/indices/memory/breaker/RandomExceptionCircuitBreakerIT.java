@@ -17,35 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.memory.breaker;
+package org.opensearch.indices.memory.breaker;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.MockEngineFactoryPlugin;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.engine.MockEngineSupport;
-import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.common.Strings;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.engine.MockEngineSupport;
+import org.opensearch.test.engine.ThrowingLeafReaderWrapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,8 +55,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

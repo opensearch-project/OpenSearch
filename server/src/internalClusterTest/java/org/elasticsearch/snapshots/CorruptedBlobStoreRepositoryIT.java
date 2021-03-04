@@ -16,33 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.IndexMetaDataGenerations;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.Version;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.IndexMetaDataGenerations;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
@@ -58,9 +58,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

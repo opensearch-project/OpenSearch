@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.Version;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 

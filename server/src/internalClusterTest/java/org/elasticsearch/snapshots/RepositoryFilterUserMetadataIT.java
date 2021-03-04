@@ -16,36 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.RepositoryPlugin;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
 public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
@@ -68,7 +68,7 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
     }
 
     // Mock plugin that stores the name of the master node that started a snapshot in each snapshot's metadata
-    public static final class MetadataFilteringPlugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
+    public static final class MetadataFilteringPlugin extends org.opensearch.plugins.Plugin implements RepositoryPlugin {
 
         private static final String MOCK_FILTERED_META = "mock_filtered_meta";
 

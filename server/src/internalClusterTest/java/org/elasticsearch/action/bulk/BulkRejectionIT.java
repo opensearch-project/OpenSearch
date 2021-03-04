@@ -16,23 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.index.IndexService;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2)
 public class BulkRejectionIT extends ESIntegTestCase {

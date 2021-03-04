@@ -17,52 +17,52 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.stats;
+package org.opensearch.indices.stats;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.MergeSchedulerConfig;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.indices.IndicesRequestCache;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.get.GetResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.MergeSchedulerConfig;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.cache.query.QueryCacheStats;
+import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesQueryCache;
+import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,11 +83,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1111,7 +1111,7 @@ public class IndexStatsIT extends ESIntegTestCase {
      * Test that we can safely concurrently index and get stats. This test was inspired by a serialization issue that arose due to a race
      * getting doc stats during heavy indexing. The race could lead to deleted docs being negative which would then be serialized as a
      * variable-length long. Since serialization of negative longs using a variable-length format was unsupported
-     * ({@link org.elasticsearch.common.io.stream.StreamOutput#writeVLong(long)}), the stream would become corrupted. Here, we want to test
+     * ({@link org.opensearch.common.io.stream.StreamOutput#writeVLong(long)}), the stream would become corrupted. Here, we want to test
      * that we can continue to get stats while indexing.
      */
     public void testConcurrentIndexingAndStatsRequests() throws BrokenBarrierException, InterruptedException, ExecutionException {

@@ -17,30 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.opensearch.cluster;
 
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,8 +52,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;

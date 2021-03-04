@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.env;
+package org.opensearch.env;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.NodeRoles;
+import org.opensearch.Version;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.gateway.PersistedClusterStateService;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.NodeRoles;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -38,7 +38,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
-import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.opensearch.test.NodeRoles.nonDataNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;

@@ -16,28 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.exists.types;
+package org.opensearch.indices.exists.types;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.admin.indices.exists.types.TypesExistsResponse;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TypesExistsIT extends ESIntegTestCase {
