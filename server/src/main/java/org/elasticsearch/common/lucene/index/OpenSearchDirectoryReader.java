@@ -29,7 +29,7 @@ import java.io.IOException;
 
 /**
  * A {@link org.apache.lucene.index.FilterDirectoryReader} that exposes
- * Elasticsearch internal per shard / index information like the shard ID.
+ * OpenSearch internal per shard / index information like the shard ID.
  */
 public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
 
@@ -63,7 +63,7 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
 
     /**
      * Wraps the given reader in a {@link OpenSearchDirectoryReader} as
-     * well as all it's sub-readers in {@link ElasticsearchLeafReader} to
+     * well as all it's sub-readers in {@link OpenSearchLeafReader} to
      * expose the given shard Id.
      *
      * @param reader the reader to wrap
@@ -80,7 +80,7 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
         }
         @Override
         public LeafReader wrap(LeafReader reader) {
-            return new ElasticsearchLeafReader(reader, shardId);
+            return new OpenSearchLeafReader(reader, shardId);
         }
     }
 
@@ -97,7 +97,7 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
         OpenSearchDirectoryReader openSearchDirectoryReader = getOpenSearchDirectoryReader(reader);
         if (openSearchDirectoryReader == null) {
             throw new IllegalArgumentException(
-                    "Can't install close listener reader is not an OpenSearchDirectoryReader/ElasticsearchLeafReader");
+                    "Can't install close listener reader is not an OpenSearchDirectoryReader/OpenSearchLeafReader");
         }
         IndexReader.CacheHelper cacheHelper = openSearchDirectoryReader.getReaderCacheHelper();
         if (cacheHelper == null) {
@@ -120,7 +120,7 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
                 // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
                 // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
                 // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
-                // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
+                // may be instance of OpenSearchLeafReader. This can cause us to miss the shardId.
                 return getOpenSearchDirectoryReader(((FilterDirectoryReader) reader).getDelegate());
             }
         }
