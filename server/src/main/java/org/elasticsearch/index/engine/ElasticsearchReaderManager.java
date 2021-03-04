@@ -27,10 +27,10 @@ import org.apache.lucene.search.ReferenceManager;
 
 import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 
 /**
- * Utility class to safely share {@link ElasticsearchDirectoryReader} instances across
+ * Utility class to safely share {@link OpenSearchDirectoryReader} instances across
  * multiple threads, while periodically reopening. This class ensures each
  * reader is closed only once all threads have finished using it.
  *
@@ -38,32 +38,32 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
  *
  */
 @SuppressForbidden(reason = "reference counting is required here")
-class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectoryReader> {
-    private final BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener;
+class ElasticsearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
+    private final BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener;
 
     /**
      * Creates and returns a new ElasticsearchReaderManager from the given
-     * already-opened {@link ElasticsearchDirectoryReader}, stealing
+     * already-opened {@link OpenSearchDirectoryReader}, stealing
      * the incoming reference.
      *
      * @param reader            the directoryReader to use for future reopens
      * @param refreshListener   A consumer that is called every time a new reader is opened
      */
-    ElasticsearchReaderManager(ElasticsearchDirectoryReader reader,
-                               BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener) {
+    ElasticsearchReaderManager(OpenSearchDirectoryReader reader,
+                               BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener) {
         this.current = reader;
         this.refreshListener = refreshListener;
         refreshListener.accept(current, null);
     }
 
     @Override
-    protected void decRef(ElasticsearchDirectoryReader reference) throws IOException {
+    protected void decRef(OpenSearchDirectoryReader reference) throws IOException {
         reference.decRef();
     }
 
     @Override
-    protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
-        final ElasticsearchDirectoryReader reader = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
+    protected OpenSearchDirectoryReader refreshIfNeeded(OpenSearchDirectoryReader referenceToRefresh) throws IOException {
+        final OpenSearchDirectoryReader reader = (OpenSearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
         if (reader != null) {
             refreshListener.accept(reader, referenceToRefresh);
         }
@@ -71,12 +71,12 @@ class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectory
     }
 
     @Override
-    protected boolean tryIncRef(ElasticsearchDirectoryReader reference) {
+    protected boolean tryIncRef(OpenSearchDirectoryReader reference) {
         return reference.tryIncRef();
     }
 
     @Override
-    protected int getRefCount(ElasticsearchDirectoryReader reference) {
+    protected int getRefCount(OpenSearchDirectoryReader reference) {
         return reference.getRefCount();
     }
 }

@@ -31,7 +31,7 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -146,7 +146,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         if (readerContexts != null && topLevelReader != null) {
             topLevelReader.close();
         }
-        topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
+        topLevelReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         readerContexts = topLevelReader.leaves();
         return readerContexts;
     }
