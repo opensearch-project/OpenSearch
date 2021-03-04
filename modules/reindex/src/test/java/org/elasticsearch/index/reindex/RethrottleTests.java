@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -190,7 +190,7 @@ public class RethrottleTests extends ReindexTestCase {
                 rethrottleResponse.rethrowFailures("Rethrottle");
                 assertThat(rethrottleResponse.getTasks(), hasSize(1));
                 response.set(rethrottleResponse);
-            } catch (ElasticsearchException e) {
+            } catch (OpenSearchException e) {
                 Throwable unwrapped = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
                 if (unwrapped == null) {
                     throw e;

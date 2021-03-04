@@ -29,7 +29,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
@@ -47,11 +47,11 @@ public class CompletionStatsCacheTests extends ESTestCase {
     public void testExceptionsAreNotCached() {
         final AtomicInteger openCount = new AtomicInteger();
         final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
-            throw new ElasticsearchException("simulated " + openCount.incrementAndGet());
+            throw new OpenSearchException("simulated " + openCount.incrementAndGet());
         });
 
-        assertThat(expectThrows(ElasticsearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 1"));
-        assertThat(expectThrows(ElasticsearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 2"));
+        assertThat(expectThrows(OpenSearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 1"));
+        assertThat(expectThrows(OpenSearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 2"));
     }
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {

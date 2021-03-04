@@ -18,7 +18,7 @@ package org.elasticsearch.client;
  * under the License.
  */
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
@@ -76,7 +76,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
 
-        final ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
+        final OpenSearchStatusException statusException = expectThrows(OpenSearchStatusException.class,
             () -> execute(getRequest, highLevelClient()::getScript,
                 highLevelClient()::getScriptAsync));
         assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));

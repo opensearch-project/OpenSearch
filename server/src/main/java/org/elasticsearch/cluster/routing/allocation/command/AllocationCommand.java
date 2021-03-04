@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -43,7 +44,7 @@ public interface AllocationCommand extends NamedWriteable, ToXContentObject {
     /**
      * Executes the command on a {@link RoutingAllocation} setup
      * @param allocation {@link RoutingAllocation} to modify
-     * @throws org.elasticsearch.ElasticsearchException if something happens during reconfiguration
+     * @throws OpenSearchException if something happens during reconfiguration
      */
     RerouteExplanation execute(RoutingAllocation allocation, boolean explain);
 

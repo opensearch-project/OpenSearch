@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
@@ -112,7 +112,7 @@ public final class PidFile {
                 try {
                     Files.deleteIfExists(path);
                 } catch (IOException e) {
-                    throw new ElasticsearchException("Failed to delete pid file " + path, e);
+                    throw new OpenSearchException("Failed to delete pid file " + path, e);
                 }
             }
         });

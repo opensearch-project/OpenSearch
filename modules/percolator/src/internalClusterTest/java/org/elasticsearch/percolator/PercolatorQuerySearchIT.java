@@ -19,7 +19,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -949,7 +949,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            OpenSearchException e = expectThrows(OpenSearchException.class,
                     () -> client().prepareSearch()
                             .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
                             .get());

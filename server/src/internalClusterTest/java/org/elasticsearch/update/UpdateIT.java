@@ -19,7 +19,7 @@
 
 package org.elasticsearch.update;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -752,7 +752,7 @@ public class UpdateIT extends ESIntegTestCase {
                     try {
                         waitForOutstandingRequests(TimeValue.timeValueSeconds(60), updateRequestsOutstanding, maxUpdateRequests, "Update");
                         waitForOutstandingRequests(TimeValue.timeValueSeconds(60), deleteRequestsOutstanding, maxDeleteRequests, "Delete");
-                    } catch (ElasticsearchTimeoutException ete) {
+                    } catch (OpenSearchTimeoutException ete) {
                         failures.add(ete);
                     }
                     latch.countDown();
@@ -779,7 +779,7 @@ public class UpdateIT extends ESIntegTestCase {
                         //Just keep swimming
                     }
                 } while ((System.currentTimeMillis() - start) < timeOut.getMillis());
-                throw new ElasticsearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" +
+                throw new OpenSearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" +
                     name + "]" );
             }
         }

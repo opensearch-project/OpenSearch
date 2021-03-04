@@ -86,13 +86,13 @@ import static org.hamcrest.Matchers.startsWith;
 public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testStatus() {
-        ElasticsearchException exception = new ElasticsearchException("test");
+        OpenSearchException exception = new OpenSearchException("test");
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        exception = new ElasticsearchException("test", new RuntimeException());
+        exception = new OpenSearchException("test", new RuntimeException());
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        exception = new ElasticsearchException("test", new ResourceNotFoundException("test"));
+        exception = new OpenSearchException("test", new ResourceNotFoundException("test"));
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
         exception = new RemoteTransportException("test", new ResourceNotFoundException("test"));
@@ -110,11 +110,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testGuessRootCause() {
         {
-            ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar",
+            OpenSearchException exception = new OpenSearchException("foo", new OpenSearchException("bar",
                     new IndexNotFoundException("foo", new RuntimeException("foobar"))));
-            ElasticsearchException[] rootCauses = exception.guessRootCauses();
+            OpenSearchException[] rootCauses = exception.guessRootCauses();
             assertEquals(rootCauses.length, 1);
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "index_not_found_exception");
+            assertEquals(OpenSearchException.getExceptionName(rootCauses[0]), "index_not_found_exception");
             assertEquals("no such index [foo]", rootCauses[0].getMessage());
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
                     new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE));
@@ -125,14 +125,14 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             if (randomBoolean()) {
                 rootCauses = (randomBoolean() ? new RemoteTransportException("remoteboom", ex) : ex).guessRootCauses();
             } else {
-                rootCauses = ElasticsearchException.guessRootCauses(randomBoolean() ? new RemoteTransportException("remoteboom", ex) : ex);
+                rootCauses = OpenSearchException.guessRootCauses(randomBoolean() ? new RemoteTransportException("remoteboom", ex) : ex);
             }
-            assertEquals("parsing_exception", ElasticsearchException.getExceptionName(rootCauses[0]));
+            assertEquals("parsing_exception", OpenSearchException.getExceptionName(rootCauses[0]));
             assertEquals("foobar", rootCauses[0].getMessage());
 
-            ElasticsearchException oneLevel = new ElasticsearchException("foo", new RuntimeException("foobar"));
+            OpenSearchException oneLevel = new OpenSearchException("foo", new RuntimeException("foobar"));
             rootCauses = oneLevel.guessRootCauses();
-            assertEquals("exception", ElasticsearchException.getExceptionName(rootCauses[0]));
+            assertEquals("exception", OpenSearchException.getExceptionName(rootCauses[0]));
             assertEquals("foo", rootCauses[0].getMessage());
         }
         {
@@ -145,31 +145,31 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 2), null, OriginalIndices.NONE));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
                     new ShardSearchFailure[]{failure, failure1, failure2});
-            final ElasticsearchException[] rootCauses = ex.guessRootCauses();
+            final OpenSearchException[] rootCauses = ex.guessRootCauses();
             assertEquals(rootCauses.length, 2);
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "parsing_exception");
+            assertEquals(OpenSearchException.getExceptionName(rootCauses[0]), "parsing_exception");
             assertEquals(rootCauses[0].getMessage(), "foobar");
             assertEquals(1, ((ParsingException) rootCauses[0]).getLineNumber());
             assertEquals(2, ((ParsingException) rootCauses[0]).getColumnNumber());
-            assertEquals("query_shard_exception", ElasticsearchException.getExceptionName(rootCauses[1]));
+            assertEquals("query_shard_exception", OpenSearchException.getExceptionName(rootCauses[1]));
             assertEquals("foo1", rootCauses[1].getIndex().getName());
             assertEquals("foobar", rootCauses[1].getMessage());
         }
 
         {
-            final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(new IllegalArgumentException("foobar"));
+            final OpenSearchException[] foobars = OpenSearchException.guessRootCauses(new IllegalArgumentException("foobar"));
             assertEquals(foobars.length, 1);
-            assertThat(foobars[0], instanceOf(ElasticsearchException.class));
+            assertThat(foobars[0], instanceOf(OpenSearchException.class));
             assertEquals("foobar", foobars[0].getMessage());
             assertEquals(IllegalArgumentException.class, foobars[0].getCause().getClass());
             assertEquals("illegal_argument_exception", foobars[0].getExceptionName());
         }
 
         {
-            final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(
+            final OpenSearchException[] foobars = OpenSearchException.guessRootCauses(
                 new RemoteTransportException("abc", new IllegalArgumentException("foobar")));
             assertEquals(foobars.length, 1);
-            assertThat(foobars[0], instanceOf(ElasticsearchException.class));
+            assertThat(foobars[0], instanceOf(OpenSearchException.class));
             assertEquals("foobar", foobars[0].getMessage());
             assertEquals(IllegalArgumentException.class, foobars[0].getCause().getClass());
             assertEquals("illegal_argument_exception", foobars[0].getExceptionName());
@@ -178,19 +178,19 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         {
             XContentParseException inner = new XContentParseException(null, "inner");
             XContentParseException outer = new XContentParseException(null, "outer", inner);
-            final ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(outer);
+            final OpenSearchException[] causes = OpenSearchException.guessRootCauses(outer);
             assertEquals(causes.length, 1);
-            assertThat(causes[0], instanceOf(ElasticsearchException.class));
+            assertThat(causes[0], instanceOf(OpenSearchException.class));
             assertEquals("inner", causes[0].getMessage());
             assertEquals("x_content_parse_exception", causes[0].getExceptionName());
         }
 
         {
-            ElasticsearchException inner = new ElasticsearchException("inner");
+            OpenSearchException inner = new OpenSearchException("inner");
             XContentParseException outer = new XContentParseException(null, "outer", inner);
-            final ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(outer);
+            final OpenSearchException[] causes = OpenSearchException.guessRootCauses(outer);
             assertEquals(causes.length, 1);
-            assertThat(causes[0], instanceOf(ElasticsearchException.class));
+            assertThat(causes[0], instanceOf(OpenSearchException.class));
             assertEquals("inner", causes[0].getMessage());
             assertEquals("exception", causes[0].getExceptionName());
         }
@@ -276,7 +276,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testGetRootCause() {
         Exception root = new RuntimeException("foobar");
-        ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar",
+        OpenSearchException exception = new OpenSearchException("foo", new OpenSearchException("bar",
                 new IllegalArgumentException("index is closed", root)));
         assertEquals(root, exception.getRootCause());
         assertTrue(contains(exception, RuntimeException.class));
@@ -284,53 +284,53 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     }
 
     public void testToString() {
-        ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar",
+        OpenSearchException exception = new OpenSearchException("foo", new OpenSearchException("bar",
                 new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
-        assertEquals("ElasticsearchException[foo]; nested: ElasticsearchException[bar]; nested: IllegalArgumentException" +
+        assertEquals("OpenSearchException[foo]; nested: OpenSearchException[bar]; nested: IllegalArgumentException" +
                 "[index is closed]; nested: RuntimeException[foobar];", exception.toString());
     }
 
     public void testToXContent() throws IOException {
         {
-            ElasticsearchException e = new ElasticsearchException("test");
+            OpenSearchException e = new OpenSearchException("test");
             assertExceptionAsJson(e, "{\"type\":\"exception\",\"reason\":\"test\"}");
         }
         {
-            ElasticsearchException e = new IndexShardRecoveringException(new ShardId("_test", "_0", 5));
+            OpenSearchException e = new IndexShardRecoveringException(new ShardId("_test", "_0", 5));
             assertExceptionAsJson(e, "{\"type\":\"index_shard_recovering_exception\"," +
                     "\"reason\":\"CurrentState[RECOVERING] Already recovering\",\"index_uuid\":\"_0\"," +
                     "\"shard\":\"5\",\"index\":\"_test\"}");
         }
         {
-            ElasticsearchException e = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 12), "foo",
+            OpenSearchException e = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 12), "foo",
                     new IllegalStateException("bar"));
             assertExceptionAsJson(e, "{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}");
         }
         {
-            ElasticsearchException e = new ElasticsearchException(new IllegalArgumentException("foo"));
+            OpenSearchException e = new OpenSearchException(new IllegalArgumentException("foo"));
             assertExceptionAsJson(e, "{\"type\":\"exception\",\"reason\":\"java.lang.IllegalArgumentException: foo\"," +
                     "\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}");
         }
         {
-            ElasticsearchException e = new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(1,0));
+            OpenSearchException e = new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(1,0));
             assertExceptionAsJson(e, "{\"type\":\"search_parse_exception\",\"reason\":\"foo\",\"line\":1,\"col\":0}");
         }
         {
-            ElasticsearchException ex = new ElasticsearchException("foo",
-                    new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
+            OpenSearchException ex = new OpenSearchException("foo",
+                    new OpenSearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
             assertExceptionAsJson(ex, "{\"type\":\"exception\",\"reason\":\"foo\",\"caused_by\":{\"type\":\"exception\"," +
                     "\"reason\":\"bar\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"index is closed\"," +
                     "\"caused_by\":{\"type\":\"runtime_exception\",\"reason\":\"foobar\"}}}}");
         }
         {
-            ElasticsearchException e = new ElasticsearchException("foo", new IllegalStateException("bar"));
+            OpenSearchException e = new OpenSearchException("foo", new IllegalStateException("bar"));
             assertExceptionAsJson(e, "{\"type\":\"exception\",\"reason\":\"foo\"," +
                     "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}");
 
             // Test the same exception but with the "rest.exception.stacktrace.skip" parameter disabled: the stack_trace must be present
             // in the JSON. Since the stack can be large, it only checks the beginning of the JSON.
             ToXContent.Params params = new ToXContent.MapParams(
-                    Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
+                    Collections.singletonMap(OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
             String actual;
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                 builder.startObject();
@@ -363,10 +363,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         { // test equivalence
-            ElasticsearchException ex =  new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
+            OpenSearchException ex =  new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
             String toXContentString = Strings.toString(ex);
             String throwableString = Strings.toString((builder, params) -> {
-                ElasticsearchException.generateThrowableXContent(builder, params, ex);
+                OpenSearchException.generateThrowableXContent(builder, params, ex);
                 return builder;
             });
 
@@ -389,9 +389,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     }
 
     public void testToXContentWithHeadersAndMetadata() throws IOException {
-        ElasticsearchException e = new ElasticsearchException("foo",
-            new ElasticsearchException("bar",
-                new ElasticsearchException("baz",
+        OpenSearchException e = new OpenSearchException("foo",
+            new OpenSearchException("bar",
+                new OpenSearchException("baz",
                     new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)))));
         e.addHeader("foo_0", "0");
         e.addHeader("foo_1", "1");
@@ -423,10 +423,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         assertExceptionAsJson(e, expectedJson);
 
-        ElasticsearchException parsed;
+        OpenSearchException parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), expectedJson)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = ElasticsearchException.fromXContent(parser);
+            parsed = OpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -440,13 +440,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertEquals(parsed.getMetadata("es.metadata_foo_0").get(0), "foo_0");
         assertEquals(parsed.getMetadata("es.metadata_foo_1").get(0), "foo_1");
 
-        ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
+        OpenSearchException cause = (OpenSearchException) parsed.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
 
-        cause = (ElasticsearchException) cause.getCause();
+        cause = (OpenSearchException) cause.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
 
-        cause = (ElasticsearchException) cause.getCause();
+        cause = (OpenSearchException) cause.getCause();
         assertEquals(cause.getMessage(),
                 "Elasticsearch exception [type=cluster_block_exception, reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
     }
@@ -461,10 +461,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                                                     .endObject();
 
         builder = shuffleXContent(builder);
-        ElasticsearchException parsed;
+        OpenSearchException parsed;
         try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = ElasticsearchException.fromXContent(parser);
+            parsed = OpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -474,19 +474,19 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     }
 
     public void testFromXContentWithCause() throws IOException {
-        ElasticsearchException e = new ElasticsearchException("foo",
-                new ElasticsearchException("bar",
-                        new ElasticsearchException("baz",
+        OpenSearchException e = new OpenSearchException("foo",
+                new OpenSearchException("bar",
+                        new OpenSearchException("baz",
                                 new RoutingMissingException("_test", "_type", "_id"))));
 
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(e).endObject();
         builder = shuffleXContent(builder);
 
-        ElasticsearchException parsed;
+        OpenSearchException parsed;
         try (XContentParser parser = createParser(builder)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = ElasticsearchException.fromXContent(parser);
+            parsed = OpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -494,13 +494,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertNotNull(parsed);
         assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
 
-        ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
+        OpenSearchException cause = (OpenSearchException) parsed.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
 
-        cause = (ElasticsearchException) cause.getCause();
+        cause = (OpenSearchException) cause.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
 
-        cause = (ElasticsearchException) cause.getCause();
+        cause = (OpenSearchException) cause.getCause();
         assertEquals(cause.getMessage(),
                 "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(0));
@@ -511,16 +511,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testFromXContentWithHeadersAndMetadata() throws IOException {
         RoutingMissingException routing = new RoutingMissingException("_test", "_type", "_id");
-        ElasticsearchException baz = new ElasticsearchException("baz", routing);
+        OpenSearchException baz = new OpenSearchException("baz", routing);
         baz.addHeader("baz_0", "baz0");
         baz.addMetadata("es.baz_1", "baz1");
         baz.addHeader("baz_2", "baz2");
         baz.addMetadata("es.baz_3", "baz3");
-        ElasticsearchException bar = new ElasticsearchException("bar", baz);
+        OpenSearchException bar = new OpenSearchException("bar", baz);
         bar.addMetadata("es.bar_0", "bar0");
         bar.addHeader("bar_1", "bar1");
         bar.addMetadata("es.bar_2", "bar2");
-        ElasticsearchException foo = new ElasticsearchException("foo", bar);
+        OpenSearchException foo = new OpenSearchException("foo", bar);
         foo.addMetadata("es.foo_0", "foo0");
         foo.addHeader("foo_1", "foo1");
 
@@ -528,10 +528,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(foo).endObject();
         builder = shuffleXContent(builder);
 
-        ElasticsearchException parsed;
+        OpenSearchException parsed;
         try (XContentParser parser = createParser(builder)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = ElasticsearchException.fromXContent(parser);
+            parsed = OpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -543,7 +543,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(parsed.getMetadataKeys(), hasSize(1));
         assertThat(parsed.getMetadata("es.foo_0"), hasItem("foo0"));
 
-        ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
+        OpenSearchException cause = (OpenSearchException) parsed.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
         assertThat(cause.getHeaderKeys(), hasSize(1));
         assertThat(cause.getHeader("bar_1"), hasItem("bar1"));
@@ -551,7 +551,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(cause.getMetadata("es.bar_0"), hasItem("bar0"));
         assertThat(cause.getMetadata("es.bar_2"), hasItem("bar2"));
 
-        cause = (ElasticsearchException) cause.getCause();
+        cause = (OpenSearchException) cause.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
         assertThat(cause.getHeaderKeys(), hasSize(2));
         assertThat(cause.getHeader("baz_0"), hasItem("baz0"));
@@ -560,7 +560,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(cause.getMetadata("es.baz_1"), hasItem("baz1"));
         assertThat(cause.getMetadata("es.baz_3"), hasItem("baz3"));
 
-        cause = (ElasticsearchException) cause.getCause();
+        cause = (OpenSearchException) cause.getCause();
         assertEquals(cause.getMessage(),
                 "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(0));
@@ -611,10 +611,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             }
         }
 
-        ElasticsearchException parsedException;
+        OpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedException = ElasticsearchException.fromXContent(parser);
+            parsedException = OpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -631,25 +631,25 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testThrowableToAndFromXContent() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
-        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
+        final Tuple<Throwable, OpenSearchException> exceptions = randomExceptions();
         final Throwable throwable = exceptions.v1();
-        final ElasticsearchException expected = exceptions.v2();
+        final OpenSearchException expected = exceptions.v2();
         int suppressedCount = randomBoolean() ? 0 : between(1, 5);
         for (int i = 0; i < suppressedCount; i++) {
-            final Tuple<Throwable, ElasticsearchException> suppressed = randomExceptions();
+            final Tuple<Throwable, OpenSearchException> suppressed = randomExceptions();
             throwable.addSuppressed(suppressed.v1());
             expected.addSuppressed(suppressed.v2());
         }
 
         BytesReference throwableBytes = toShuffledXContent((builder, params) -> {
-            ElasticsearchException.generateThrowableXContent(builder, params, throwable);
+            OpenSearchException.generateThrowableXContent(builder, params, throwable);
             return builder;
         }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
-        ElasticsearchException parsedException;
+        OpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, throwableBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedException = ElasticsearchException.fromXContent(parser);
+            parsedException = OpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -658,7 +658,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         if (suppressedCount > 0) {
             XContentBuilder builder = XContentBuilder.builder(xContent);
             builder.startObject();
-            ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, throwable);
+            OpenSearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, throwable);
             builder.endObject();
             throwableBytes = BytesReference.bytes(builder);
             try (XContentParser parser = createParser(xContent, throwableBytes)) {
@@ -674,15 +674,15 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             // Prints a null failure using generateFailureXContent()
-            ElasticsearchException.generateFailureXContent(builder, params, null, randomBoolean());
+            OpenSearchException.generateFailureXContent(builder, params, null, randomBoolean());
             return builder;
         }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
-        ElasticsearchException parsedFailure;
+        OpenSearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            parsedFailure = OpenSearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
@@ -698,7 +698,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         final Exception failure = (Exception) randomExceptions().v1();
         BytesReference failureBytes = toShuffledXContent((builder, params) -> {
-            ElasticsearchException.generateFailureXContent(builder, params, failure, false);
+            OpenSearchException.generateFailureXContent(builder, params, failure, false);
             return builder;
         }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
@@ -706,23 +706,23 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
-        ElasticsearchException parsedFailure;
+        OpenSearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            parsedFailure = OpenSearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
         assertNotNull(parsedFailure);
 
         String reason;
-        if (failure instanceof ElasticsearchException) {
+        if (failure instanceof OpenSearchException) {
             reason = failure.getClass().getSimpleName() + "[" + failure.getMessage() + "]";
         } else {
-            reason = "No ElasticsearchException found";
+            reason = "No OpenSearchException found";
         }
-        assertEquals(ElasticsearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
+        assertEquals(OpenSearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
         assertEquals(0, parsedFailure.getHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
         assertNull(parsedFailure.getCause());
@@ -733,24 +733,24 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         Exception failure;
         Throwable failureCause;
-        ElasticsearchException expected;
-        ElasticsearchException expectedCause;
-        ElasticsearchException suppressed;
+        OpenSearchException expected;
+        OpenSearchException expectedCause;
+        OpenSearchException suppressed;
 
         switch (randomIntBetween(0, 6)) {
             case 0: // Simple elasticsearch exception without cause
                 failure = new NoNodeAvailableException("A");
 
-                expected = new ElasticsearchException("Elasticsearch exception [type=no_node_available_exception, reason=A]");
-                expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=no_node_available_exception, reason=A]"));
+                expected = new OpenSearchException("Elasticsearch exception [type=no_node_available_exception, reason=A]");
+                expected.addSuppressed(new OpenSearchException("Elasticsearch exception [type=no_node_available_exception, reason=A]"));
                 break;
 
             case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
                 failure = new ParsingException(3, 2, "B", null);
-                ((ElasticsearchException) failure).addHeader("header_name", "0", "1");
-                expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
+                ((OpenSearchException) failure).addHeader("header_name", "0", "1");
+                expected = new OpenSearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
                 expected.addHeader("header_name", "0", "1");
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
+                suppressed = new OpenSearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
                 suppressed.addHeader("header_name", "0", "1");
                 expected.addSuppressed(suppressed);
                 break;
@@ -758,15 +758,15 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             case 2: // Elasticsearch exception with a cause, headers and parsable metadata
                 failureCause = new NullPointerException("var is null");
                 failure = new ScriptException("C", failureCause, singletonList("stack"), "test", "painless");
-                ((ElasticsearchException) failure).addHeader("script_name", "my_script");
+                ((OpenSearchException) failure).addHeader("script_name", "my_script");
 
-                expectedCause = new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, reason=var is null]");
-                expected = new ElasticsearchException("Elasticsearch exception [type=script_exception, reason=C]", expectedCause);
+                expectedCause = new OpenSearchException("Elasticsearch exception [type=null_pointer_exception, reason=var is null]");
+                expected = new OpenSearchException("Elasticsearch exception [type=script_exception, reason=C]", expectedCause);
                 expected.addHeader("script_name", "my_script");
                 expected.addMetadata("es.lang", "painless");
                 expected.addMetadata("es.script", "test");
                 expected.addMetadata("es.script_stack", "stack");
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=script_exception, reason=C]");
+                suppressed = new OpenSearchException("Elasticsearch exception [type=script_exception, reason=C]");
                 suppressed.addHeader("script_name", "my_script");
                 suppressed.addMetadata("es.lang", "painless");
                 suppressed.addMetadata("es.script", "test");
@@ -777,8 +777,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             case 3: // JDK exception without cause
                 failure = new IllegalStateException("D");
 
-                expected = new ElasticsearchException("Elasticsearch exception [type=illegal_state_exception, reason=D]");
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=illegal_state_exception, reason=D]");
+                expected = new OpenSearchException("Elasticsearch exception [type=illegal_state_exception, reason=D]");
+                suppressed = new OpenSearchException("Elasticsearch exception [type=illegal_state_exception, reason=D]");
                 expected.addSuppressed(suppressed);
                 break;
 
@@ -786,12 +786,12 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failureCause = new RoutingMissingException("idx", "type", "id");
                 failure = new RuntimeException("E", failureCause);
 
-                expectedCause = new ElasticsearchException("Elasticsearch exception [type=routing_missing_exception, " +
+                expectedCause = new OpenSearchException("Elasticsearch exception [type=routing_missing_exception, " +
                         "reason=routing is required for [idx]/[type]/[id]]");
                 expectedCause.addMetadata("es.index", "idx");
                 expectedCause.addMetadata("es.index_uuid", "_na_");
-                expected = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]", expectedCause);
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]");
+                expected = new OpenSearchException("Elasticsearch exception [type=runtime_exception, reason=E]", expectedCause);
+                suppressed = new OpenSearchException("Elasticsearch exception [type=runtime_exception, reason=E]");
                 expected.addSuppressed(suppressed);
                 break;
 
@@ -799,8 +799,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failureCause = new FileAlreadyExistsException("File exists");
                 failure = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 5), "F", failureCause);
 
-                expected = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
+                expected = new OpenSearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
+                suppressed = new OpenSearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
                 expected.addSuppressed(suppressed);
                 break;
 
@@ -818,22 +818,22 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
 
-                expectedCause = new ElasticsearchException("Elasticsearch exception [type=node_closed_exception, " +
+                expectedCause = new OpenSearchException("Elasticsearch exception [type=node_closed_exception, " +
                         "reason=node closed " + node + "]");
-                expectedCause = new ElasticsearchException("Elasticsearch exception [type=no_shard_available_action_exception, " +
+                expectedCause = new OpenSearchException("Elasticsearch exception [type=no_shard_available_action_exception, " +
                         "reason=node_g]", expectedCause);
                 expectedCause.addMetadata("es.index", "_index_g");
                 expectedCause.addMetadata("es.index_uuid", "_uuid_g");
                 expectedCause.addMetadata("es.shard", "6");
 
-                expected = new ElasticsearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
+                expected = new OpenSearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
                         "reason=G]", expectedCause);
                 expected.addMetadata("es.phase", "phase_g");
 
-                expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Parsing g]"));
-                expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=repository_exception, " +
+                expected.addSuppressed(new OpenSearchException("Elasticsearch exception [type=parsing_exception, reason=Parsing g]"));
+                expected.addSuppressed(new OpenSearchException("Elasticsearch exception [type=repository_exception, " +
                         "reason=[repository_g] Repo]"));
-                expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=search_context_missing_exception, " +
+                expected.addSuppressed(new OpenSearchException("Elasticsearch exception [type=search_context_missing_exception, " +
                         "reason=No search context found for id [0]]"));
                 break;
             default:
@@ -842,7 +842,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         Exception finalFailure = failure;
         BytesReference failureBytes = toShuffledXContent((builder, params) -> {
-            ElasticsearchException.generateFailureXContent(builder, params, finalFailure, true);
+            OpenSearchException.generateFailureXContent(builder, params, finalFailure, true);
             return builder;
         }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
@@ -850,11 +850,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
-        ElasticsearchException parsedFailure;
+        OpenSearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            parsedFailure = OpenSearchException.failureFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
@@ -875,12 +875,12 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     private static void assertExceptionAsJson(Exception e, String expectedJson) throws IOException {
         assertToXContentAsJson((builder, params) -> {
-            ElasticsearchException.generateThrowableXContent(builder, params, e);
+            OpenSearchException.generateThrowableXContent(builder, params, e);
             return builder;
         }, expectedJson);
     }
 
-    public static void assertDeepEquals(ElasticsearchException expected, ElasticsearchException actual) {
+    public static void assertDeepEquals(OpenSearchException expected, OpenSearchException actual) {
         do {
             if (expected == null) {
                 assertNull(actual);
@@ -903,41 +903,41 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 assertNotNull(actualSuppressed);
                 assertEquals(expectedSuppressed.length, actualSuppressed.length);
                 for (int i = 0; i < expectedSuppressed.length; i++) {
-                    assertDeepEquals((ElasticsearchException) expectedSuppressed[i], (ElasticsearchException) actualSuppressed[i]);
+                    assertDeepEquals((OpenSearchException) expectedSuppressed[i], (OpenSearchException) actualSuppressed[i]);
                 }
             }
 
-            expected = (ElasticsearchException) expected.getCause();
-            actual = (ElasticsearchException) actual.getCause();
+            expected = (OpenSearchException) expected.getCause();
+            actual = (OpenSearchException) actual.getCause();
             if (expected == null) {
                 assertNull(actual);
             }
         } while (expected != null);
     }
 
-    public static Tuple<Throwable, ElasticsearchException> randomExceptions() {
+    public static Tuple<Throwable, OpenSearchException> randomExceptions() {
         Throwable actual;
-        ElasticsearchException expected;
+        OpenSearchException expected;
 
         int type = randomIntBetween(0, 5);
         switch (type) {
             case 0:
                 actual = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
-                expected = new ElasticsearchException("Elasticsearch exception [type=cluster_block_exception, " +
+                expected = new OpenSearchException("Elasticsearch exception [type=cluster_block_exception, " +
                         "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
                 break;
             case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
                 actual = new ParsingException(3, 2, "Unknown identifier", null);
-                expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Unknown identifier]");
+                expected = new OpenSearchException("Elasticsearch exception [type=parsing_exception, reason=Unknown identifier]");
                 break;
             case 2:
                 actual = new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98));
-                expected = new ElasticsearchException("Elasticsearch exception [type=search_parse_exception, reason=Parse failure]");
+                expected = new OpenSearchException("Elasticsearch exception [type=search_parse_exception, reason=Parse failure]");
                 break;
             case 3:
                 actual = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
-                expected = new ElasticsearchException("Elasticsearch exception [type=illegal_argument_exception, reason=Closed resource]",
-                                new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]"));
+                expected = new OpenSearchException("Elasticsearch exception [type=illegal_argument_exception, reason=Closed resource]",
+                                new OpenSearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]"));
                 break;
             case 4:
                 actual = new SearchPhaseExecutionException("search", "all shards failed",
@@ -945,26 +945,26 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                                     new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
                                             new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE))
                             });
-                expected = new ElasticsearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
+                expected = new OpenSearchException("Elasticsearch exception [type=search_phase_execution_exception, " +
                         "reason=all shards failed]");
                 expected.addMetadata("es.phase", "search");
                 break;
             case 5:
-                actual = new ElasticsearchException("Parsing failed",
+                actual = new OpenSearchException("Parsing failed",
                             new ParsingException(9, 42, "Wrong state",
                                 new NullPointerException("Unexpected null value")));
 
-                ElasticsearchException expectedCause = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, " +
-                        "reason=Wrong state]", new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, " +
+                OpenSearchException expectedCause = new OpenSearchException("Elasticsearch exception [type=parsing_exception, " +
+                        "reason=Wrong state]", new OpenSearchException("Elasticsearch exception [type=null_pointer_exception, " +
                         "reason=Unexpected null value]"));
-                expected = new ElasticsearchException("Elasticsearch exception [type=exception, reason=Parsing failed]", expectedCause);
+                expected = new OpenSearchException("Elasticsearch exception [type=exception, reason=Parsing failed]", expectedCause);
                 break;
             default:
                 throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
         }
 
-        if (actual instanceof ElasticsearchException) {
-            ElasticsearchException actualException = (ElasticsearchException) actual;
+        if (actual instanceof OpenSearchException) {
+            OpenSearchException actualException = (OpenSearchException) actual;
             if (randomBoolean()) {
                 int nbHeaders = randomIntBetween(1, 5);
                 Map<String, List<String>> randomHeaders = new HashMap<>(nbHeaders);

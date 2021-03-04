@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -351,18 +351,18 @@ public class TcpTransportTests extends ESTestCase {
 
     @TestLogging(reason = "testing logging", value = "org.elasticsearch.transport.TcpTransport:DEBUG")
     public void testExceptionHandling() throws IllegalAccessException {
-        testExceptionHandling(false, new ElasticsearchException("simulated"), true,
+        testExceptionHandling(false, new OpenSearchException("simulated"), true,
             new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.ERROR, "*"),
             new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.WARN, "*"),
             new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.INFO, "*"),
             new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.DEBUG, "*"));
-        testExceptionHandling(new ElasticsearchException("simulated"),
+        testExceptionHandling(new OpenSearchException("simulated"),
             new MockLogAppender.SeenEventExpectation("message", "org.elasticsearch.transport.TcpTransport",
                 Level.WARN, "exception caught on transport layer [*], closing connection"));
         testExceptionHandling(new ClosedChannelException(),
             new MockLogAppender.SeenEventExpectation("message", "org.elasticsearch.transport.TcpTransport",
                 Level.DEBUG, "close connection exception caught on transport layer [*], disconnecting from relevant node"));
-        testExceptionHandling(new ElasticsearchException("Connection reset"),
+        testExceptionHandling(new OpenSearchException("Connection reset"),
             new MockLogAppender.SeenEventExpectation("message", "org.elasticsearch.transport.TcpTransport",
                 Level.DEBUG, "close connection exception caught on transport layer [*], disconnecting from relevant node"));
         testExceptionHandling(new BindException(),

@@ -167,7 +167,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                 "[OpenSearchParseException[Error updating pipeline with id [" + pipelineIdWithScript + "]]; " +
                 "nested: ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
                 "nested: IllegalArgumentException[cannot execute [inline] scripts];; " +
-                "ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
+                "OpenSearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
                 "nested: IllegalArgumentException[cannot execute [inline] scripts];; java.lang.IllegalArgumentException: " +
                 "cannot execute [inline] scripts]"));
 

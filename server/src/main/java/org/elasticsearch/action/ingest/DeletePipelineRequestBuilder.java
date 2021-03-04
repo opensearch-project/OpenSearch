@@ -21,15 +21,15 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePipelineRequest, AcknowledgedResponse> {
 
-    public DeletePipelineRequestBuilder(ElasticsearchClient client, DeletePipelineAction action) {
+    public DeletePipelineRequestBuilder(OpenSearchClient client, DeletePipelineAction action) {
         super(client, action, new DeletePipelineRequest());
     }
 
-    public DeletePipelineRequestBuilder(ElasticsearchClient client, DeletePipelineAction action, String id) {
+    public DeletePipelineRequestBuilder(OpenSearchClient client, DeletePipelineAction action, String id) {
         super(client, action, new DeletePipelineRequest(id));
     }
 

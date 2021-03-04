@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
@@ -179,7 +179,7 @@ public class FollowersCheckerTests extends ESTestCase {
     public void testFailsNodeThatRejectsCheck() {
         final Settings settings = randomSettings();
         testBehaviourOfFailingNode(settings, () -> {
-                throw new ElasticsearchException("simulated exception");
+                throw new OpenSearchException("simulated exception");
             },
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(),
@@ -203,7 +203,7 @@ public class FollowersCheckerTests extends ESTestCase {
                         recoveries++;
                         return Empty.INSTANCE;
                     }
-                    throw new ElasticsearchException("simulated exception");
+                    throw new OpenSearchException("simulated exception");
                 }
             },
             "followers check retry count exceeded",
@@ -563,7 +563,7 @@ public class FollowersCheckerTests extends ESTestCase {
             final long term = randomNonNegativeLong();
             followersChecker.updateFastResponseState(term, randomFrom(Mode.LEADER, Mode.CANDIDATE));
             final String exceptionMessage = "test simulated exception " + randomNonNegativeLong();
-            coordinatorException.set(new ElasticsearchException(exceptionMessage));
+            coordinatorException.set(new OpenSearchException(exceptionMessage));
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader),

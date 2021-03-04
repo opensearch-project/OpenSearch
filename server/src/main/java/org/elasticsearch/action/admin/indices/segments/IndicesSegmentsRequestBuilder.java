@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class IndicesSegmentsRequestBuilder
         extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
 
-    public IndicesSegmentsRequestBuilder(ElasticsearchClient client, IndicesSegmentsAction action) {
+    public IndicesSegmentsRequestBuilder(OpenSearchClient client, IndicesSegmentsAction action) {
         super(client, action, new IndicesSegmentsRequest());
     }
 

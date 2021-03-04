@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -67,7 +67,7 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
             final Exception e = node.reloadException();
             if (e != null) {
                 builder.startObject("reload_exception");
-                ElasticsearchException.generateThrowableXContent(builder, params, e);
+                OpenSearchException.generateThrowableXContent(builder, params, e);
                 builder.endObject();
             }
             builder.endObject();

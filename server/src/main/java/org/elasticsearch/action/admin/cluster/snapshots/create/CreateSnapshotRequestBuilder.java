@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -36,14 +36,14 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
     /**
      * Constructs a new create snapshot request builder
      */
-    public CreateSnapshotRequestBuilder(ElasticsearchClient client, CreateSnapshotAction action) {
+    public CreateSnapshotRequestBuilder(OpenSearchClient client, CreateSnapshotAction action) {
         super(client, action, new CreateSnapshotRequest());
     }
 
     /**
      * Constructs a new create snapshot request builder with specified repository and snapshot names
      */
-    public CreateSnapshotRequestBuilder(ElasticsearchClient client, CreateSnapshotAction action, String repository, String snapshot) {
+    public CreateSnapshotRequestBuilder(OpenSearchClient client, CreateSnapshotAction action, String repository, String snapshot) {
         super(client, action, new CreateSnapshotRequest(repository, snapshot));
     }
 

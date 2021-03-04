@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -81,7 +81,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             }
         };
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () ->
+        OpenSearchException e = expectThrows(OpenSearchException.class, () ->
             handler.newPublicationContext(new ClusterChangedEvent("test", unserializableClusterState, clusterState)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IOException.class));

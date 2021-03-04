@@ -22,7 +22,7 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,11 +37,11 @@ import java.util.Map;
 public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder>
         implements WriteRequestBuilder<IndexRequestBuilder> {
 
-    public IndexRequestBuilder(ElasticsearchClient client, IndexAction action) {
+    public IndexRequestBuilder(OpenSearchClient client, IndexAction action) {
         super(client, action, new IndexRequest());
     }
 
-    public IndexRequestBuilder(ElasticsearchClient client, IndexAction action, @Nullable String index) {
+    public IndexRequestBuilder(OpenSearchClient client, IndexAction action, @Nullable String index) {
         super(client, action, new IndexRequest(index));
     }
 

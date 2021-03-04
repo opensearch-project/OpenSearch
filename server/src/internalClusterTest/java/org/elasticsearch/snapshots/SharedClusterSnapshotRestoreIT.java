@@ -20,7 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
@@ -370,7 +370,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
             final Throwable cause = ex.getCause();
             assertThat(cause, notNullValue());
-            final Throwable rootCause = new ElasticsearchException(cause).getRootCause();
+            final Throwable rootCause = new OpenSearchException(cause).getRootCause();
             assertThat(rootCause, notNullValue());
             assertThat(rootCause.getMessage(), containsString("Random IOException"));
         }

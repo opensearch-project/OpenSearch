@@ -19,7 +19,7 @@
 
 package org.elasticsearch.env;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * Exception used when the in-memory lock for a shard cannot be obtained
  */
-public class ShardLockObtainFailedException extends ElasticsearchException {
+public class ShardLockObtainFailedException extends OpenSearchException {
 
     public ShardLockObtainFailedException(ShardId shardId, String message) {
         super(buildMessage(shardId, message));

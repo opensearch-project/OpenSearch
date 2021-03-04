@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,7 +44,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
 
     static StatusOrException createTestInstanceWithExceptions() {
         if (randomBoolean()) {
-            return new StatusOrException(new ElasticsearchException("test_exception"));
+            return new StatusOrException(new OpenSearchException("test_exception"));
         } else {
             return new StatusOrException(BulkByScrollTaskStatusTests.randomStatus());
         }
