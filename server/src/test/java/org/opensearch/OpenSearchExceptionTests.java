@@ -376,8 +376,8 @@ public class OpenSearchExceptionTests extends ESTestCase {
 
         { // render header and metadata
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
-            ex.addMetadata("es.test1", "value1");
-            ex.addMetadata("es.test2", "value2");
+            ex.addMetadata("opensearch.test1", "value1");
+            ex.addMetadata("opensearch.test2", "value2");
             ex.addHeader("test", "some value");
             ex.addHeader("test_multi", "some value", "another value");
             String expected = "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2," +
@@ -395,8 +395,8 @@ public class OpenSearchExceptionTests extends ESTestCase {
                     new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)))));
         e.addHeader("foo_0", "0");
         e.addHeader("foo_1", "1");
-        e.addMetadata("es.metadata_foo_0", "foo_0");
-        e.addMetadata("es.metadata_foo_1", "foo_1");
+        e.addMetadata("opensearch.metadata_foo_0", "foo_0");
+        e.addMetadata("opensearch.metadata_foo_1", "foo_1");
 
         final String expectedJson = "{"
             + "\"type\":\"exception\","
@@ -437,8 +437,8 @@ public class OpenSearchExceptionTests extends ESTestCase {
         assertEquals(parsed.getHeader("foo_0").get(0), "0");
         assertEquals(parsed.getHeader("foo_1").get(0), "1");
         assertThat(parsed.getMetadataKeys(), hasSize(2));
-        assertEquals(parsed.getMetadata("es.metadata_foo_0").get(0), "foo_0");
-        assertEquals(parsed.getMetadata("es.metadata_foo_1").get(0), "foo_1");
+        assertEquals(parsed.getMetadata("opensearch.metadata_foo_0").get(0), "foo_0");
+        assertEquals(parsed.getMetadata("opensearch.metadata_foo_1").get(0), "foo_1");
 
         OpenSearchException cause = (OpenSearchException) parsed.getCause();
         assertEquals(cause.getMessage(), "OpenSearch exception [type=exception, reason=bar]");
@@ -506,23 +506,23 @@ public class OpenSearchExceptionTests extends ESTestCase {
                 "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
-        assertThat(cause.getMetadata("es.index"), hasItem("_test"));
-        assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
+        assertThat(cause.getMetadata("opensearch.index"), hasItem("_test"));
+        assertThat(cause.getMetadata("opensearch.index_uuid"), hasItem("_na_"));
     }
 
     public void testFromXContentWithHeadersAndMetadata() throws IOException {
         RoutingMissingException routing = new RoutingMissingException("_test", "_type", "_id");
         OpenSearchException baz = new OpenSearchException("baz", routing);
         baz.addHeader("baz_0", "baz0");
-        baz.addMetadata("es.baz_1", "baz1");
+        baz.addMetadata("opensearch.baz_1", "baz1");
         baz.addHeader("baz_2", "baz2");
-        baz.addMetadata("es.baz_3", "baz3");
+        baz.addMetadata("opensearch.baz_3", "baz3");
         OpenSearchException bar = new OpenSearchException("bar", baz);
-        bar.addMetadata("es.bar_0", "bar0");
+        bar.addMetadata("opensearch.bar_0", "bar0");
         bar.addHeader("bar_1", "bar1");
-        bar.addMetadata("es.bar_2", "bar2");
+        bar.addMetadata("opensearch.bar_2", "bar2");
         OpenSearchException foo = new OpenSearchException("foo", bar);
-        foo.addMetadata("es.foo_0", "foo0");
+        foo.addMetadata("opensearch.foo_0", "foo0");
         foo.addHeader("foo_1", "foo1");
 
         final XContent xContent = randomFrom(XContentType.values()).xContent();
@@ -542,15 +542,15 @@ public class OpenSearchExceptionTests extends ESTestCase {
         assertThat(parsed.getHeaderKeys(), hasSize(1));
         assertThat(parsed.getHeader("foo_1"), hasItem("foo1"));
         assertThat(parsed.getMetadataKeys(), hasSize(1));
-        assertThat(parsed.getMetadata("es.foo_0"), hasItem("foo0"));
+        assertThat(parsed.getMetadata("opensearch.foo_0"), hasItem("foo0"));
 
         OpenSearchException cause = (OpenSearchException) parsed.getCause();
         assertEquals(cause.getMessage(), "OpenSearch exception [type=exception, reason=bar]");
         assertThat(cause.getHeaderKeys(), hasSize(1));
         assertThat(cause.getHeader("bar_1"), hasItem("bar1"));
         assertThat(cause.getMetadataKeys(), hasSize(2));
-        assertThat(cause.getMetadata("es.bar_0"), hasItem("bar0"));
-        assertThat(cause.getMetadata("es.bar_2"), hasItem("bar2"));
+        assertThat(cause.getMetadata("opensearch.bar_0"), hasItem("bar0"));
+        assertThat(cause.getMetadata("opensearch.bar_2"), hasItem("bar2"));
 
         cause = (OpenSearchException) cause.getCause();
         assertEquals(cause.getMessage(), "OpenSearch exception [type=exception, reason=baz]");
@@ -558,16 +558,16 @@ public class OpenSearchExceptionTests extends ESTestCase {
         assertThat(cause.getHeader("baz_0"), hasItem("baz0"));
         assertThat(cause.getHeader("baz_2"), hasItem("baz2"));
         assertThat(cause.getMetadataKeys(), hasSize(2));
-        assertThat(cause.getMetadata("es.baz_1"), hasItem("baz1"));
-        assertThat(cause.getMetadata("es.baz_3"), hasItem("baz3"));
+        assertThat(cause.getMetadata("opensearch.baz_1"), hasItem("baz1"));
+        assertThat(cause.getMetadata("opensearch.baz_3"), hasItem("baz3"));
 
         cause = (OpenSearchException) cause.getCause();
         assertEquals(cause.getMessage(),
                 "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
-        assertThat(cause.getMetadata("es.index"), hasItem("_test"));
-        assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
+        assertThat(cause.getMetadata("opensearch.index"), hasItem("_test"));
+        assertThat(cause.getMetadata("opensearch.index_uuid"), hasItem("_na_"));
     }
 
     /**
@@ -626,7 +626,7 @@ public class OpenSearchExceptionTests extends ESTestCase {
         assertThat(parsedException.getHeader("header_string"), hasItem("some header"));
         assertThat(parsedException.getHeader("header_array_of_strings"), hasItems("foo", "bar", "baz"));
         assertEquals(1, parsedException.getMetadataKeys().size());
-        assertThat(parsedException.getMetadata("es.metadata_other"), hasItem("some metadata"));
+        assertThat(parsedException.getMetadata("opensearch.metadata_other"), hasItem("some metadata"));
     }
 
     public void testThrowableToAndFromXContent() throws IOException {
@@ -764,14 +764,14 @@ public class OpenSearchExceptionTests extends ESTestCase {
                 expectedCause = new OpenSearchException("OpenSearch exception [type=null_pointer_exception, reason=var is null]");
                 expected = new OpenSearchException("OpenSearch exception [type=script_exception, reason=C]", expectedCause);
                 expected.addHeader("script_name", "my_script");
-                expected.addMetadata("es.lang", "painless");
-                expected.addMetadata("es.script", "test");
-                expected.addMetadata("es.script_stack", "stack");
+                expected.addMetadata("opensearch.lang", "painless");
+                expected.addMetadata("opensearch.script", "test");
+                expected.addMetadata("opensearch.script_stack", "stack");
                 suppressed = new OpenSearchException("OpenSearch exception [type=script_exception, reason=C]");
                 suppressed.addHeader("script_name", "my_script");
-                suppressed.addMetadata("es.lang", "painless");
-                suppressed.addMetadata("es.script", "test");
-                suppressed.addMetadata("es.script_stack", "stack");
+                suppressed.addMetadata("opensearch.lang", "painless");
+                suppressed.addMetadata("opensearch.script", "test");
+                suppressed.addMetadata("opensearch.script_stack", "stack");
                 expected.addSuppressed(suppressed);
                 break;
 
@@ -789,8 +789,8 @@ public class OpenSearchExceptionTests extends ESTestCase {
 
                 expectedCause = new OpenSearchException("OpenSearch exception [type=routing_missing_exception, " +
                         "reason=routing is required for [idx]/[type]/[id]]");
-                expectedCause.addMetadata("es.index", "idx");
-                expectedCause.addMetadata("es.index_uuid", "_na_");
+                expectedCause.addMetadata("opensearch.index", "idx");
+                expectedCause.addMetadata("opensearch.index_uuid", "_na_");
                 expected = new OpenSearchException("OpenSearch exception [type=runtime_exception, reason=E]", expectedCause);
                 suppressed = new OpenSearchException("OpenSearch exception [type=runtime_exception, reason=E]");
                 expected.addSuppressed(suppressed);
@@ -823,13 +823,13 @@ public class OpenSearchExceptionTests extends ESTestCase {
                         "reason=node closed " + node + "]");
                 expectedCause = new OpenSearchException("OpenSearch exception [type=no_shard_available_action_exception, " +
                         "reason=node_g]", expectedCause);
-                expectedCause.addMetadata("es.index", "_index_g");
-                expectedCause.addMetadata("es.index_uuid", "_uuid_g");
-                expectedCause.addMetadata("es.shard", "6");
+                expectedCause.addMetadata("opensearch.index", "_index_g");
+                expectedCause.addMetadata("opensearch.index_uuid", "_uuid_g");
+                expectedCause.addMetadata("opensearch.shard", "6");
 
                 expected = new OpenSearchException("OpenSearch exception [type=search_phase_execution_exception, " +
                         "reason=G]", expectedCause);
-                expected.addMetadata("es.phase", "phase_g");
+                expected.addMetadata("opensearch.phase", "phase_g");
 
                 expected.addSuppressed(new OpenSearchException("OpenSearch exception [type=parsing_exception, reason=Parsing g]"));
                 expected.addSuppressed(new OpenSearchException("OpenSearch exception [type=repository_exception, " +
@@ -948,7 +948,7 @@ public class OpenSearchExceptionTests extends ESTestCase {
                             });
                 expected = new OpenSearchException("OpenSearch exception [type=search_phase_execution_exception, " +
                         "reason=all shards failed]");
-                expected.addMetadata("es.phase", "search");
+                expected.addMetadata("opensearch.phase", "search");
                 break;
             case 5:
                 actual = new OpenSearchException("Parsing failed",
@@ -1002,7 +1002,7 @@ public class OpenSearchExceptionTests extends ESTestCase {
                     for (int j = 0; j < nbValues; j++) {
                         values.add(frequently() ? randomAlphaOfLength(5) : "");
                     }
-                    randomMetadata.put("es.metadata_" + i, values);
+                    randomMetadata.put("opensearch.metadata_" + i, values);
                 }
 
                 for (Map.Entry<String, List<String>> entry : randomMetadata.entrySet()) {
@@ -1012,7 +1012,7 @@ public class OpenSearchExceptionTests extends ESTestCase {
 
                 if (rarely()) {
                     // Empty or null metadata are not printed out by the toXContent method
-                    actualException.addMetadata("es.ignored", randomBoolean() ? emptyList() : null);
+                    actualException.addMetadata("opensearch.ignored", randomBoolean() ? emptyList() : null);
                 }
             }
 

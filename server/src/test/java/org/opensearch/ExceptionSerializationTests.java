@@ -593,22 +593,22 @@ public class ExceptionSerializationTests extends ESTestCase {
         {
             OpenSearchException ex = new OpenSearchException("msg");
             ex.addHeader("foo", "foo", "bar");
-            ex.addMetadata("es.foo_metadata", "value1", "value2");
+            ex.addMetadata("opensearch.foo_metadata", "value1", "value2");
             ex = serialize(ex);
             assertEquals("msg", ex.getMessage());
             assertEquals(2, ex.getHeader("foo").size());
             assertEquals("foo", ex.getHeader("foo").get(0));
             assertEquals("bar", ex.getHeader("foo").get(1));
-            assertEquals(2, ex.getMetadata("es.foo_metadata").size());
-            assertEquals("value1", ex.getMetadata("es.foo_metadata").get(0));
-            assertEquals("value2", ex.getMetadata("es.foo_metadata").get(1));
+            assertEquals(2, ex.getMetadata("opensearch.foo_metadata").size());
+            assertEquals("value1", ex.getMetadata("opensearch.foo_metadata").get(0));
+            assertEquals("value2", ex.getMetadata("opensearch.foo_metadata").get(1));
         }
         {
             RestStatus status = randomFrom(RestStatus.values());
             // ensure we are carrying over the headers and metadata even if not serialized
             UnknownHeaderException uhe = new UnknownHeaderException("msg", status);
             uhe.addHeader("foo", "foo", "bar");
-            uhe.addMetadata("es.foo_metadata", "value1", "value2");
+            uhe.addMetadata("opensearch.foo_metadata", "value1", "value2");
 
             OpenSearchException serialize = serialize((OpenSearchException) uhe);
             assertTrue(serialize instanceof NotSerializableExceptionWrapper);
@@ -617,9 +617,9 @@ public class ExceptionSerializationTests extends ESTestCase {
             assertEquals(2, e.getHeader("foo").size());
             assertEquals("foo", e.getHeader("foo").get(0));
             assertEquals("bar", e.getHeader("foo").get(1));
-            assertEquals(2, e.getMetadata("es.foo_metadata").size());
-            assertEquals("value1", e.getMetadata("es.foo_metadata").get(0));
-            assertEquals("value2", e.getMetadata("es.foo_metadata").get(1));
+            assertEquals(2, e.getMetadata("opensearch.foo_metadata").size());
+            assertEquals("value1", e.getMetadata("opensearch.foo_metadata").get(0));
+            assertEquals("value2", e.getMetadata("opensearch.foo_metadata").get(1));
             assertSame(status, e.status());
         }
     }
