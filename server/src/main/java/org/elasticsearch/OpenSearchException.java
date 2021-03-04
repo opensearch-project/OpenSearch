@@ -232,7 +232,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
 
     /**
      * Unwraps the actual cause from the exception for cases when the exception is a
-     * {@link ElasticsearchWrapperException}.
+     * {@link OpenSearchWrapperException}.
      *
      * @see ExceptionsHelper#unwrapCause(Throwable)
      */
@@ -799,8 +799,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException::new, 33, UNKNOWN_VERSION_ADDED),
         TRANSPORT_EXCEPTION(org.elasticsearch.transport.TransportException.class,
                 org.elasticsearch.transport.TransportException::new, 34, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_PARSE_EXCEPTION(org.elasticsearch.ElasticsearchParseException.class,
-                org.elasticsearch.ElasticsearchParseException::new, 35, UNKNOWN_VERSION_ADDED),
+        ELASTICSEARCH_PARSE_EXCEPTION(org.elasticsearch.OpenSearchParseException.class,
+                org.elasticsearch.OpenSearchParseException::new, 35, UNKNOWN_VERSION_ADDED),
         SEARCH_EXCEPTION(org.elasticsearch.search.SearchException.class,
                 org.elasticsearch.search.SearchException::new, 36, UNKNOWN_VERSION_ADDED),
         MAPPER_EXCEPTION(org.elasticsearch.index.mapper.MapperException.class,
@@ -946,8 +946,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException::new, 116, UNKNOWN_VERSION_ADDED),
         RETRY_ON_PRIMARY_EXCEPTION(ReplicationOperation.RetryOnPrimaryException.class,
                 ReplicationOperation.RetryOnPrimaryException::new, 117, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_TIMEOUT_EXCEPTION(org.elasticsearch.ElasticsearchTimeoutException.class,
-                org.elasticsearch.ElasticsearchTimeoutException::new, 118, UNKNOWN_VERSION_ADDED),
+        ELASTICSEARCH_TIMEOUT_EXCEPTION(org.elasticsearch.OpenSearchTimeoutException.class,
+                org.elasticsearch.OpenSearchTimeoutException::new, 118, UNKNOWN_VERSION_ADDED),
         QUERY_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.query.QueryPhaseExecutionException.class,
                 org.elasticsearch.search.query.QueryPhaseExecutionException::new, 119, UNKNOWN_VERSION_ADDED),
         REPOSITORY_VERIFICATION_EXCEPTION(org.elasticsearch.repositories.RepositoryVerificationException.class,

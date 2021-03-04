@@ -20,7 +20,7 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -375,10 +375,10 @@ public final class GeoJson {
         }
         if (shapeType == ShapeType.GEOMETRYCOLLECTION) {
             if (geometries == null) {
-                throw new ElasticsearchParseException("geometries not included");
+                throw new OpenSearchParseException("geometries not included");
             }
             if (coordinates != null) {
-                throw new ElasticsearchParseException("parameter coordinates is not supported for type " + type);
+                throw new OpenSearchParseException("parameter coordinates is not supported for type " + type);
             }
             verifyNulls(type, null, orientation, radius);
             return new GeometryCollection<>(geometries);
@@ -386,13 +386,13 @@ public final class GeoJson {
 
         // We expect to have coordinates for all the rest
         if (coordinates == null) {
-            throw new ElasticsearchParseException("coordinates not included");
+            throw new OpenSearchParseException("coordinates not included");
         }
 
         switch (shapeType) {
             case CIRCLE:
                 if (radius == null) {
-                    throw new ElasticsearchParseException("radius is not specified");
+                    throw new OpenSearchParseException("radius is not specified");
                 }
                 verifyNulls(type, geometries, orientation, null);
                 Point point = coordinates.asPoint();
@@ -421,7 +421,7 @@ public final class GeoJson {
                 verifyNulls(type, geometries, orientation, radius);
                 return coordinates.asRectangle();
             default:
-                throw new ElasticsearchParseException("unsupported shape type " + type);
+                throw new OpenSearchParseException("unsupported shape type " + type);
         }
     }
 
@@ -430,13 +430,13 @@ public final class GeoJson {
      */
     private static void verifyNulls(String type, List<Geometry> geometries, Boolean orientation, DistanceUnit.Distance radius) {
         if (geometries != null) {
-            throw new ElasticsearchParseException("parameter geometries is not supported for type " + type);
+            throw new OpenSearchParseException("parameter geometries is not supported for type " + type);
         }
         if (orientation != null) {
-            throw new ElasticsearchParseException("parameter orientation is not supported for type " + type);
+            throw new OpenSearchParseException("parameter orientation is not supported for type " + type);
         }
         if (radius != null) {
-            throw new ElasticsearchParseException("parameter radius is not supported for type " + type);
+            throw new OpenSearchParseException("parameter radius is not supported for type " + type);
         }
     }
 
@@ -459,7 +459,7 @@ public final class GeoJson {
         while (token != XContentParser.Token.END_ARRAY) {
             CoordinateNode node = parseCoordinates(parser);
             if (nodes.isEmpty() == false && nodes.get(0).numDimensions() != node.numDimensions()) {
-                throw new ElasticsearchParseException("Exception parsing coordinates: number of dimensions do not match");
+                throw new OpenSearchParseException("Exception parsing coordinates: number of dimensions do not match");
             }
             nodes.add(node);
             token = parser.nextToken();
@@ -474,11 +474,11 @@ public final class GeoJson {
     private static Point parseCoordinate(XContentParser parser) throws IOException {
         // Add support for coerce here
         if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
-            throw new ElasticsearchParseException("geo coordinates must be numbers");
+            throw new OpenSearchParseException("geo coordinates must be numbers");
         }
         double lon = parser.doubleValue();
         if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-            throw new ElasticsearchParseException("geo coordinates must be numbers");
+            throw new OpenSearchParseException("geo coordinates must be numbers");
         }
         double lat = parser.doubleValue();
         XContentParser.Token token = parser.nextToken();
@@ -490,7 +490,7 @@ public final class GeoJson {
         }
         // do not support > 3 dimensions
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-            throw new ElasticsearchParseException("geo coordinates greater than 3 dimensions are not supported");
+            throw new OpenSearchParseException("geo coordinates greater than 3 dimensions are not supported");
         }
         return new Point(lon, lat, alt);
     }
@@ -724,7 +724,7 @@ public final class GeoJson {
 
         public Rectangle asRectangle() {
             if (children.size() != 2) {
-                throw new ElasticsearchParseException(
+                throw new OpenSearchParseException(
                     "invalid number of points [{}] provided for geo_shape [{}] when expecting an array of 2 coordinates",
                     children.size(), ShapeType.ENVELOPE);
             }

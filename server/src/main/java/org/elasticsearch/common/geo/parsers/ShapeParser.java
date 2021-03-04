@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.geo.parsers;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -66,7 +66,7 @@ public interface ShapeParser {
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return GeoWKTParser.parse(parser, shapeMapper);
         }
-        throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
+        throw new OpenSearchParseException("shape must be an object consisting of type and coordinates");
     }
 
     /**

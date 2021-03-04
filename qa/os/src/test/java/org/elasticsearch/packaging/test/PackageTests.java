@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Packages;
-import org.elasticsearch.packaging.util.Shell.Result;
+import org.opensearch.packaging.util.FileUtils;
+import org.opensearch.packaging.util.Packages;
+import org.opensearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
@@ -33,26 +33,26 @@ import java.util.regex.Pattern;
 
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
-import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.assertPathsDoNotExist;
-import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
-import static org.elasticsearch.packaging.util.FileUtils.fileWithGlobExist;
-import static org.elasticsearch.packaging.util.FileUtils.mv;
-import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.FileUtils.slurp;
-import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
-import static org.elasticsearch.packaging.util.Packages.assertInstalled;
-import static org.elasticsearch.packaging.util.Packages.assertRemoved;
-import static org.elasticsearch.packaging.util.Packages.installPackage;
-import static org.elasticsearch.packaging.util.Packages.remove;
-import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
-import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
-import static org.elasticsearch.packaging.util.Platforms.isSystemd;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.opensearch.packaging.util.FileUtils.append;
+import static org.opensearch.packaging.util.FileUtils.assertPathsDoNotExist;
+import static org.opensearch.packaging.util.FileUtils.assertPathsExist;
+import static org.opensearch.packaging.util.FileUtils.fileWithGlobExist;
+import static org.opensearch.packaging.util.FileUtils.mv;
+import static org.opensearch.packaging.util.FileUtils.rm;
+import static org.opensearch.packaging.util.FileUtils.slurp;
+import static org.opensearch.packaging.util.Packages.SYSTEMD_SERVICE;
+import static org.opensearch.packaging.util.Packages.assertInstalled;
+import static org.opensearch.packaging.util.Packages.assertRemoved;
+import static org.opensearch.packaging.util.Packages.installPackage;
+import static org.opensearch.packaging.util.Packages.remove;
+import static org.opensearch.packaging.util.Packages.restartElasticsearch;
+import static org.opensearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.opensearch.packaging.util.Platforms.getOsRelease;
+import static org.opensearch.packaging.util.Platforms.isSystemd;
+import static org.opensearch.packaging.util.ServerUtils.makeRequest;
+import static org.opensearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -88,7 +88,7 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test31InstallDoesNotStartServer() {
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout, not(containsString("org.opensearch.bootstrap.Elasticsearch")));
     }
 
     private void assertRunsWithJavaHome() throws Exception {
@@ -187,7 +187,7 @@ public class PackageTests extends PackagingTestCase {
         remove(distribution());
 
         // removing must stop the service
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout, not(containsString("org.opensearch.bootstrap.Elasticsearch")));
 
         if (isSystemd()) {
 

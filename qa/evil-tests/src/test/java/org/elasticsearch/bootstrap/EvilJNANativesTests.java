@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -19,7 +19,7 @@
 package org.opensearch.action.admin.cluster.node.tasks;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.ElasticsearchTimeoutException;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionFuture;
@@ -669,7 +669,7 @@ public class TasksIT extends ESIntegTestCase {
 
             for (Throwable failure : failures) {
                 assertNotNull(
-                        ExceptionsHelper.unwrap(failure, ElasticsearchTimeoutException.class, ReceiveTimeoutTransportException.class));
+                        ExceptionsHelper.unwrap(failure, OpenSearchTimeoutException.class, ReceiveTimeoutTransportException.class));
             }
         } finally {
             // Now we can unblock those requests

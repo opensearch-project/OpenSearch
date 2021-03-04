@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.smoketest;
+package org.opensearch.smoketest;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.client.Client;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThan;

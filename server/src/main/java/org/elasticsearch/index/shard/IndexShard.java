@@ -64,7 +64,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -1273,8 +1273,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
-        assert ElasticsearchDirectoryReader.unwrap(searcher.getDirectoryReader())
-            != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
+        assert OpenSearchDirectoryReader.unwrap(searcher.getDirectoryReader())
+            != null : "DirectoryReader must be an instance or OpenSearchDirectoryReader";
         boolean success = false;
         try {
             final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
@@ -1293,22 +1293,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher,
                                         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
         assert readerWrapper != null;
-        final ElasticsearchDirectoryReader elasticsearchDirectoryReader =
-            ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
-        if (elasticsearchDirectoryReader == null) {
+        final OpenSearchDirectoryReader openSearchDirectoryReader =
+            OpenSearchDirectoryReader.getOpenSearchDirectoryReader(engineSearcher.getDirectoryReader());
+        if (openSearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
         }
         NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
         DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
-            if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
+            if (reader.getReaderCacheHelper() != openSearchDirectoryReader.getReaderCacheHelper()) {
                 throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
                     " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
                     "used as cache keys since their are used only per request which would lead to subtle bugs");
             }
-            if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
+            if (OpenSearchDirectoryReader.getOpenSearchDirectoryReader(reader) != openSearchDirectoryReader) {
                 // prevent that somebody wraps with a non-filter reader
-                throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
+                throw new IllegalStateException("wrapped directory reader hides actual OpenSearchDirectoryReader but shouldn't");
             }
         }
 

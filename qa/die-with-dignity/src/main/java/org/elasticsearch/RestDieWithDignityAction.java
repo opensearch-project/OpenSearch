@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.opensearch;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestRequest;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.RestRequest;
 
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestDieWithDignityAction extends BaseRestHandler {
 

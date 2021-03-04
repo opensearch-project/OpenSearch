@@ -96,7 +96,7 @@ public class Build {
         type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
-        final URL url = getElasticsearchCodeSourceLocation();
+        final URL url = getOpenSearchCodeSourceLocation();
         final String urlStr = url == null ? "" : url.toString();
         if (urlStr.startsWith("file:/") && (
             urlStr.endsWith(esPrefix + ".jar") ||
@@ -148,11 +148,11 @@ public class Build {
     private final boolean isSnapshot;
 
     /**
-     * The location of the code source for Elasticsearch
+     * The location of the code source for OpenSearch
      *
-     * @return the location of the code source for Elasticsearch which may be null
+     * @return the location of the code source for OpenSearch which may be null
      */
-    static URL getElasticsearchCodeSourceLocation() {
+    static URL getOpenSearchCodeSourceLocation() {
         final CodeSource codeSource = Build.class.getProtectionDomain().getCodeSource();
         return codeSource == null ? null : codeSource.getLocation();
     }

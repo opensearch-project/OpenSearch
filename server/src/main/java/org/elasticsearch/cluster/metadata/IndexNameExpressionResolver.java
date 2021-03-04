@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -1123,7 +1123,7 @@ public class IndexNameExpressionResolver {
                                 inDateFormat = true;
                                 inPlaceHolderSb.append(c);
                             } else {
-                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]." +
+                                throw new OpenSearchParseException("invalid dynamic name expression [{}]." +
                                     " invalid character in placeholder at position [{}]", new String(text, from, length), i);
                             }
                             break;
@@ -1147,11 +1147,11 @@ public class IndexNameExpressionResolver {
                                     timeZone = ZoneOffset.UTC;
                                 } else {
                                     if (inPlaceHolderString.lastIndexOf(RIGHT_BOUND) != inPlaceHolderString.length() - 1) {
-                                        throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing closing `}`" +
+                                        throw new OpenSearchParseException("invalid dynamic name expression [{}]. missing closing `}`" +
                                             " for date math format", inPlaceHolderString);
                                     }
                                     if (dateTimeFormatLeftBoundIndex == inPlaceHolderString.length() - 2) {
-                                        throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing date format",
+                                        throw new OpenSearchParseException("invalid dynamic name expression [{}]. missing date format",
                                             inPlaceHolderString);
                                     }
                                     mathExpression = inPlaceHolderString.substring(0, dateTimeFormatLeftBoundIndex);
@@ -1194,7 +1194,7 @@ public class IndexNameExpressionResolver {
 
                         case RIGHT_BOUND:
                             if (!escapedChar) {
-                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]." +
+                                throw new OpenSearchParseException("invalid dynamic name expression [{}]." +
                                     " invalid character at position [{}]. `{` and `}` are reserved characters and" +
                                     " should be escaped when used as part of the index name using `\\` (e.g. `\\{text\\}`)",
                                     new String(text, from, length), i);
@@ -1206,11 +1206,11 @@ public class IndexNameExpressionResolver {
             }
 
             if (inPlaceHolder) {
-                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. date math placeholder is open ended",
+                throw new OpenSearchParseException("invalid dynamic name expression [{}]. date math placeholder is open ended",
                     new String(text, from, length));
             }
             if (beforePlaceHolderSb.length() == 0) {
-                throw new ElasticsearchParseException("nothing captured");
+                throw new OpenSearchParseException("nothing captured");
             }
             return beforePlaceHolderSb.toString();
         }

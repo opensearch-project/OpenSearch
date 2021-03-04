@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.opensearch;
 
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,7 +44,7 @@ public class BuildTests extends ESTestCase {
 
     /** Asking for the jar metadata should not throw exception in tests, no matter how configured */
     public void testJarMetadata() throws IOException {
-        URL url = Build.getElasticsearchCodeSourceLocation();
+        URL url = Build.getOpenSearchCodeSourceLocation();
         // throws exception if does not exist, or we cannot access it
         try (InputStream ignored = FileSystemUtils.openFileURLStream(url)) {}
         // these should never be null

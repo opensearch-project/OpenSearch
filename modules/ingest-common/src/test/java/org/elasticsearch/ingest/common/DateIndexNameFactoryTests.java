@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -89,12 +89,12 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         DateIndexNameProcessor.Factory factory = new DateIndexNameProcessor.Factory(TestTemplateService.instance());
         Map<String, Object> config = new HashMap<>();
         config.put("date_rounding", "y");
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
 
         config.clear();
         config.put("field", "_field");
-        e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
+        e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), Matchers.equalTo("[date_rounding] required property is missing"));
     }
 }

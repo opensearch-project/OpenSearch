@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Installation;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell.Result;
+import org.opensearch.packaging.util.FileUtils;
+import org.opensearch.packaging.util.Installation;
+import org.opensearch.packaging.util.Platforms;
+import org.opensearch.packaging.util.ServerUtils;
+import org.opensearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
@@ -34,12 +34,12 @@ import java.util.List;
 
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
-import static org.elasticsearch.packaging.util.Archives.installArchive;
-import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.mv;
-import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
+import static org.opensearch.packaging.util.Archives.installArchive;
+import static org.opensearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.opensearch.packaging.util.FileUtils.append;
+import static org.opensearch.packaging.util.FileUtils.mv;
+import static org.opensearch.packaging.util.FileUtils.rm;
+import static org.opensearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -247,7 +247,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
         withCustomConfig(tempConf -> {
-            final List<String> jvmOptions = org.elasticsearch.common.collect.List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
+            final List<String> jvmOptions = org.opensearch.common.collect.List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
@@ -341,7 +341,7 @@ public class ArchiveTests extends PackagingTestCase {
         };
     }
 
-    public void test92ElasticsearchNodeCliPackaging() throws Exception {
+    public void test92OpensearchNodeCliPackaging() throws Exception {
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
@@ -350,7 +350,7 @@ public class ArchiveTests extends PackagingTestCase {
         };
     }
 
-    public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
+    public void test93OpensearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 

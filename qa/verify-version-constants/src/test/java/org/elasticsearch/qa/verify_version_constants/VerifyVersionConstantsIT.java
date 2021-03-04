@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.qa.verify_version_constants;
+package org.opensearch.qa.verify_version_constants;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.opensearch.Version;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.text.ParseException;

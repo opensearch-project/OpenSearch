@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -104,7 +104,7 @@ public class TransportClearVotingConfigExclusionsAction
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchTimeoutException(
+                    listener.onFailure(new OpenSearchTimeoutException(
                         "timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. "
                         + initialState.getVotingConfigExclusions()));
                 }
