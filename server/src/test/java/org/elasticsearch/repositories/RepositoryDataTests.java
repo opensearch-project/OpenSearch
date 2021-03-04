@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -235,7 +235,7 @@ public class RepositoryDataTests extends ESTestCase {
         corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, Version.CURRENT);
 
         try (XContentParser xParser = createParser(corruptedBuilder)) {
-            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
+            OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () ->
                 RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId(), randomBoolean()));
             assertThat(e.getMessage(), equalTo("Detected a corrupted repository, index " + corruptedIndexId + " references an unknown " +
                 "snapshot uuid [_does_not_exist]"));
@@ -272,7 +272,7 @@ public class RepositoryDataTests extends ESTestCase {
         builder.endObject();
 
         try (XContentParser xParser = createParser(builder)) {
-            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
+            OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () ->
                 RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong(), randomBoolean()));
             assertThat(e.getMessage(), equalTo("Detected a corrupted repository, " +
                 "index [docs/_id] references an unknown snapshot uuid [null]"));

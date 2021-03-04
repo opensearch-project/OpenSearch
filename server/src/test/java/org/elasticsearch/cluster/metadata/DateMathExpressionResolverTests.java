@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -155,28 +155,28 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     }
 
     public void testExpressionInvalidUnescaped() throws Exception {
-        Exception e = expectThrows(ElasticsearchParseException.class,
+        Exception e = expectThrows(OpenSearchParseException.class,
                 () -> expressionResolver.resolve(context, Arrays.asList("<.mar}vel-{now/d}>")));
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
         assertThat(e.getMessage(), containsString("invalid character at position ["));
     }
 
     public void testExpressionInvalidDateMathFormat() throws Exception {
-        Exception e = expectThrows(ElasticsearchParseException.class,
+        Exception e = expectThrows(OpenSearchParseException.class,
                 () -> expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}>")));
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
         assertThat(e.getMessage(), containsString("date math placeholder is open ended"));
     }
 
     public void testExpressionInvalidEmptyDateMathFormat() throws Exception {
-        Exception e = expectThrows(ElasticsearchParseException.class,
+        Exception e = expectThrows(OpenSearchParseException.class,
                 () -> expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}}>")));
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
         assertThat(e.getMessage(), containsString("missing date format"));
     }
 
     public void testExpressionInvalidOpenEnded() throws Exception {
-        Exception e = expectThrows(ElasticsearchParseException.class,
+        Exception e = expectThrows(OpenSearchParseException.class,
                 () -> expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d>")));
         assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
         assertThat(e.getMessage(), containsString("date math placeholder is open ended"));

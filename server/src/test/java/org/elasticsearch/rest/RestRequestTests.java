@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -102,14 +102,14 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testContentParser() throws IOException {
-        Exception e = expectThrows(ElasticsearchParseException.class, () ->
+        Exception e = expectThrows(OpenSearchParseException.class, () ->
             contentRestRequest("", emptyMap()).contentParser());
         assertEquals("request body is required", e.getMessage());
-        e = expectThrows(ElasticsearchParseException.class, () ->
+        e = expectThrows(OpenSearchParseException.class, () ->
             contentRestRequest("", singletonMap("source", "{}")).contentParser());
         assertEquals("request body is required", e.getMessage());
         assertEquals(emptyMap(), contentRestRequest("{}", emptyMap()).contentParser().map());
-        e = expectThrows(ElasticsearchParseException.class, () ->
+        e = expectThrows(OpenSearchParseException.class, () ->
             contentRestRequest("", emptyMap(), emptyMap()).contentParser());
         assertEquals("request body is required", e.getMessage());
     }
@@ -123,7 +123,7 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testContentOrSourceParam() throws IOException {
-        Exception e = expectThrows(ElasticsearchParseException.class, () ->
+        Exception e = expectThrows(OpenSearchParseException.class, () ->
             contentRestRequest("", emptyMap()).contentOrSourceParam());
         assertEquals("request body or source parameter is required", e.getMessage());
         assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).contentOrSourceParam().v2());
@@ -148,7 +148,7 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testContentOrSourceParamParser() throws IOException {
-        Exception e = expectThrows(ElasticsearchParseException.class, () ->
+        Exception e = expectThrows(OpenSearchParseException.class, () ->
             contentRestRequest("", emptyMap()).contentOrSourceParamParser());
         assertEquals("request body or source parameter is required", e.getMessage());
         assertEquals(emptyMap(), contentRestRequest("{}", emptyMap()).contentOrSourceParamParser().map());
@@ -218,14 +218,14 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testRequiredContent() {
-        Exception e = expectThrows(ElasticsearchParseException.class, () ->
+        Exception e = expectThrows(OpenSearchParseException.class, () ->
             contentRestRequest("", emptyMap()).requiredContent());
         assertEquals("request body is required", e.getMessage());
         assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).requiredContent());
         assertEquals(new BytesArray("stuff"),
             contentRestRequest("stuff", MapBuilder.<String, String>newMapBuilder()
                 .put("source", "stuff2").put("source_content_type", "application/json").immutableMap()).requiredContent());
-        e = expectThrows(ElasticsearchParseException.class, () ->
+        e = expectThrows(OpenSearchParseException.class, () ->
             contentRestRequest("", MapBuilder.<String, String>newMapBuilder()
                 .put("source", "{\"foo\": \"stuff\"}").put("source_content_type", "application/json").immutableMap())
                 .requiredContent());

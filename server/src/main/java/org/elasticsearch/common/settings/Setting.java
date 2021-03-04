@@ -21,7 +21,7 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -465,7 +465,7 @@ public class Setting<T> implements ToXContentObject {
                 validator.validate(parsed, map, exists(settings));
             }
             return parsed;
-        } catch (ElasticsearchParseException ex) {
+        } catch (OpenSearchParseException ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         } catch (NumberFormatException ex) {
             String err = "Failed to parse value" + (isFiltered() ? "" : " [" + value + "]") + " for setting [" + getKey() + "]";

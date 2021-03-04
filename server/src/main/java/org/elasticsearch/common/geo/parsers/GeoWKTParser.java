@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.geo.parsers;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
@@ -64,19 +64,19 @@ public class GeoWKTParser {
     private GeoWKTParser() {}
 
     public static ShapeBuilder parse(XContentParser parser, final AbstractShapeGeometryFieldMapper shapeMapper)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         return parseExpectedType(parser, null, shapeMapper);
     }
 
     public static ShapeBuilder parseExpectedType(XContentParser parser, final GeoShapeType shapeType)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         return parseExpectedType(parser, shapeType, null);
     }
 
     /** throws an exception if the parsed geometry type does not match the expected shape type */
     public static ShapeBuilder parseExpectedType(XContentParser parser, final GeoShapeType shapeType,
                                                  final AbstractShapeGeometryFieldMapper shapeMapper)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         try (StringReader reader = new StringReader(parser.text())) {
             Explicit<Boolean> ignoreZValue = (shapeMapper == null) ? AbstractShapeGeometryFieldMapper.Defaults.IGNORE_Z_VALUE :
                 shapeMapper.ignoreZValue();
@@ -102,11 +102,11 @@ public class GeoWKTParser {
     /** parse geometry from the stream tokenizer */
     private static ShapeBuilder parseGeometry(StreamTokenizer stream, GeoShapeType shapeType, final boolean ignoreZValue,
                                               final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         final GeoShapeType type = GeoShapeType.forName(nextWord(stream));
         if (shapeType != null && shapeType != GeoShapeType.GEOMETRYCOLLECTION) {
             if (type.wktName().equals(shapeType.wktName()) == false) {
-                throw new ElasticsearchParseException("Expected geometry type [{}] but found [{}]", shapeType, type);
+                throw new OpenSearchParseException("Expected geometry type [{}] but found [{}]", shapeType, type);
             }
         }
         switch (type) {
@@ -131,7 +131,7 @@ public class GeoWKTParser {
         }
     }
 
-    private static EnvelopeBuilder parseBBox(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
+    private static EnvelopeBuilder parseBBox(StreamTokenizer stream) throws IOException, OpenSearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
@@ -147,7 +147,7 @@ public class GeoWKTParser {
     }
 
     private static PointBuilder parsePoint(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
@@ -160,7 +160,7 @@ public class GeoWKTParser {
     }
 
     private static List<Coordinate> parseCoordinateList(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         CoordinatesBuilder coordinates = new CoordinatesBuilder();
         boolean isOpenParen = false;
         if (isNumberNext(stream) || (isOpenParen = nextWord(stream).equals(LPAREN))) {
@@ -168,7 +168,7 @@ public class GeoWKTParser {
         }
 
         if (isOpenParen && nextCloser(stream).equals(RPAREN) == false) {
-            throw new ElasticsearchParseException("expected: [{}]" + RPAREN + " but found: [{}]" + tokenString(stream), stream.lineno());
+            throw new OpenSearchParseException("expected: [{}]" + RPAREN + " but found: [{}]" + tokenString(stream), stream.lineno());
         }
 
         while (nextCloserOrComma(stream).equals(COMMA)) {
@@ -177,14 +177,14 @@ public class GeoWKTParser {
                 coordinates.coordinate(parseCoordinate(stream, ignoreZValue, coerce));
             }
             if (isOpenParen && nextCloser(stream).equals(RPAREN) == false) {
-                throw new ElasticsearchParseException("expected: " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
+                throw new OpenSearchParseException("expected: " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
             }
         }
         return coordinates.build();
     }
 
     private static Coordinate parseCoordinate(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         final double lon = nextNumber(stream);
         final double lat = nextNumber(stream);
         Double z = null;
@@ -195,7 +195,7 @@ public class GeoWKTParser {
     }
 
     private static MultiPointBuilder parseMultiPoint(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return new MultiPointBuilder();
@@ -204,7 +204,7 @@ public class GeoWKTParser {
     }
 
     private static LineStringBuilder parseLine(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return null;
@@ -215,7 +215,7 @@ public class GeoWKTParser {
     // A LinearRing is closed LineString with 4 or more positions. The first and last positions
     // are equivalent (they represent equivalent points).
     private static LineStringBuilder parseLinearRing(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return null;
@@ -227,19 +227,19 @@ public class GeoWKTParser {
                 if (coerce) {
                     coordinates.add(coordinates.get(0));
                 } else {
-                    throw new ElasticsearchParseException("invalid LinearRing found (coordinates are not closed)");
+                    throw new OpenSearchParseException("invalid LinearRing found (coordinates are not closed)");
                 }
             }
         }
         if (coordinates.size() < 4) {
-            throw new ElasticsearchParseException("invalid number of points in LinearRing (found [{}] - must be >= 4)",
+            throw new OpenSearchParseException("invalid number of points in LinearRing (found [{}] - must be >= 4)",
                 coordinates.size());
         }
         return new LineStringBuilder(coordinates);
     }
 
     private static MultiLineStringBuilder parseMultiLine(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return new MultiLineStringBuilder();
@@ -253,7 +253,7 @@ public class GeoWKTParser {
     }
 
     private static PolygonBuilder parsePolygon(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
@@ -266,7 +266,7 @@ public class GeoWKTParser {
     }
 
     private static MultiPolygonBuilder parseMultiPolygon(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
@@ -279,7 +279,7 @@ public class GeoWKTParser {
 
     private static GeometryCollectionBuilder parseGeometryCollection(StreamTokenizer stream, final boolean ignoreZValue,
                                                                      final boolean coerce)
-            throws IOException, ElasticsearchParseException {
+            throws IOException, OpenSearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
@@ -292,7 +292,7 @@ public class GeoWKTParser {
     }
 
     /** next word in the stream */
-    private static String nextWord(StreamTokenizer stream) throws ElasticsearchParseException, IOException {
+    private static String nextWord(StreamTokenizer stream) throws OpenSearchParseException, IOException {
         switch (stream.nextToken()) {
             case StreamTokenizer.TT_WORD:
                 final String word = stream.sval;
@@ -301,10 +301,10 @@ public class GeoWKTParser {
             case ')': return RPAREN;
             case ',': return COMMA;
         }
-        throw new ElasticsearchParseException("expected word but found: " + tokenString(stream), stream.lineno());
+        throw new OpenSearchParseException("expected word but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static double nextNumber(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
+    private static double nextNumber(StreamTokenizer stream) throws IOException, OpenSearchParseException {
         if (stream.nextToken() == StreamTokenizer.TT_WORD) {
             if (stream.sval.equalsIgnoreCase(NAN)) {
                 return Double.NaN;
@@ -312,11 +312,11 @@ public class GeoWKTParser {
                 try {
                     return Double.parseDouble(stream.sval);
                 } catch (NumberFormatException e) {
-                    throw new ElasticsearchParseException("invalid number found: " + stream.sval, stream.lineno());
+                    throw new OpenSearchParseException("invalid number found: " + stream.sval, stream.lineno());
                 }
             }
         }
-        throw new ElasticsearchParseException("expected number but found: " + tokenString(stream), stream.lineno());
+        throw new OpenSearchParseException("expected number but found: " + tokenString(stream), stream.lineno());
     }
 
     private static String tokenString(StreamTokenizer stream) {
@@ -335,42 +335,42 @@ public class GeoWKTParser {
         return type == StreamTokenizer.TT_WORD;
     }
 
-    private static String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
+    private static String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, OpenSearchParseException {
         final String next = nextWord(stream);
         if (next.equals(EMPTY) || next.equals(LPAREN)) {
             return next;
         }
-        throw new ElasticsearchParseException("expected " + EMPTY + " or " + LPAREN
+        throw new OpenSearchParseException("expected " + EMPTY + " or " + LPAREN
             + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextCloser(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
+    private static String nextCloser(StreamTokenizer stream) throws IOException, OpenSearchParseException {
         if (nextWord(stream).equals(RPAREN)) {
             return RPAREN;
         }
-        throw new ElasticsearchParseException("expected " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
+        throw new OpenSearchParseException("expected " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextComma(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
+    private static String nextComma(StreamTokenizer stream) throws IOException, OpenSearchParseException {
         if (nextWord(stream).equals(COMMA)) {
             return COMMA;
         }
-        throw new ElasticsearchParseException("expected " + COMMA + " but found: " + tokenString(stream), stream.lineno());
+        throw new OpenSearchParseException("expected " + COMMA + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextCloserOrComma(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
+    private static String nextCloserOrComma(StreamTokenizer stream) throws IOException, OpenSearchParseException {
         String token = nextWord(stream);
         if (token.equals(COMMA) || token.equals(RPAREN)) {
             return token;
         }
-        throw new ElasticsearchParseException("expected " + COMMA + " or " + RPAREN
+        throw new OpenSearchParseException("expected " + COMMA + " or " + RPAREN
             + " but found: " + tokenString(stream), stream.lineno());
     }
 
     /** next word in the stream */
-    private static void checkEOF(StreamTokenizer stream) throws ElasticsearchParseException, IOException {
+    private static void checkEOF(StreamTokenizer stream) throws OpenSearchParseException, IOException {
         if (stream.nextToken() != StreamTokenizer.TT_EOF) {
-            throw new ElasticsearchParseException("expected end of WKT string but found additional text: "
+            throw new OpenSearchParseException("expected end of WKT string but found additional text: "
                 + tokenString(stream), stream.lineno());
         }
     }

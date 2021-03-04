@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
@@ -251,7 +251,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             Object properties;
             try {
                 properties = typeMappings.getSourceAsMap().get("properties");
-            } catch (ElasticsearchParseException e) {
+            } catch (OpenSearchParseException e) {
                 throw new AssertionError(e);
             }
             assertNotNull(properties);

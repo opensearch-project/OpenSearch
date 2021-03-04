@@ -20,7 +20,7 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +46,7 @@ public class GeoBoundingBoxTests extends ESTestCase {
             .endObject();
         XContentParser parser = createParser(bboxBuilder);
         parser.nextToken();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
         assertThat(e.getMessage(), equalTo("failed to parse WKT bounding box"));
     }
 
@@ -57,7 +57,7 @@ public class GeoBoundingBoxTests extends ESTestCase {
             .endObject();
         XContentParser parser = createParser(bboxBuilder);
         parser.nextToken();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
         assertThat(e.getMessage(), equalTo("failed to parse WKT bounding box. [POINT] found. expected [ENVELOPE]"));
     }
 

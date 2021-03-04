@@ -20,7 +20,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.TimedRequest;
@@ -239,7 +239,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
             }
             return this;
         } catch(IOException e) {
-            throw new ElasticsearchParseException("Failed to parse aliases", e);
+            throw new OpenSearchParseException("Failed to parse aliases", e);
         }
     }
 

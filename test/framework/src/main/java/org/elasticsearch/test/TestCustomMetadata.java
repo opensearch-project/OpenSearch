@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -82,18 +82,18 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
                 String currentFieldName = parser.currentName();
                 if ("data".equals(currentFieldName)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                        throw new ElasticsearchParseException("failed to parse snapshottable metadata, invalid data type");
+                        throw new OpenSearchParseException("failed to parse snapshottable metadata, invalid data type");
                     }
                     data = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("failed to parse snapshottable metadata, unknown field [{}]", currentFieldName);
+                    throw new OpenSearchParseException("failed to parse snapshottable metadata, unknown field [{}]", currentFieldName);
                 }
             } else {
-                throw new ElasticsearchParseException("failed to parse snapshottable metadata");
+                throw new OpenSearchParseException("failed to parse snapshottable metadata");
             }
         }
         if (data == null) {
-            throw new ElasticsearchParseException("failed to parse snapshottable metadata, data not found");
+            throw new OpenSearchParseException("failed to parse snapshottable metadata, data not found");
         }
         return (T) supplier.apply(data);
     }
