@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.useragent;
+package org.opensearch.ingest.useragent;
 
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.useragent.UserAgentParser.Details;
-import org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
+import org.opensearch.ingest.useragent.UserAgentParser.Details;
+import org.opensearch.ingest.useragent.UserAgentParser.VersionedName;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
