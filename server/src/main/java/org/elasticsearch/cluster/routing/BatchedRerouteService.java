@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -143,7 +143,7 @@ public class BatchedRerouteService implements RerouteService {
                                 source, state.version()), e);
                         }
                         ActionListener.onFailure(currentListeners,
-                            new ElasticsearchException("delayed reroute [" + reason + "] failed", e));
+                            new OpenSearchException("delayed reroute [" + reason + "] failed", e));
                     }
 
                     @Override
@@ -161,7 +161,7 @@ public class BatchedRerouteService implements RerouteService {
             ClusterState state = clusterService.state();
             logger.warn(() -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
             ActionListener.onFailure(currentListeners,
-                new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e));
+                new OpenSearchException("delayed reroute [" + reason + "] could not be submitted", e));
         }
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -283,7 +283,7 @@ public class ReplicationResponse extends ActionResponse {
                 builder.field(_NODE, nodeId);
                 builder.field(REASON);
                 builder.startObject();
-                ElasticsearchException.generateThrowableXContent(builder, params, cause);
+                OpenSearchException.generateThrowableXContent(builder, params, cause);
                 builder.endObject();
                 builder.field(STATUS, status);
                 builder.field(PRIMARY, primary);
@@ -299,7 +299,7 @@ public class ReplicationResponse extends ActionResponse {
                 int shardId = -1;
                 boolean primary = false;
                 RestStatus status = null;
-                ElasticsearchException reason = null;
+                OpenSearchException reason = null;
 
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -319,7 +319,7 @@ public class ReplicationResponse extends ActionResponse {
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (REASON.equals(currentFieldName)) {
-                            reason = ElasticsearchException.fromXContent(parser);
+                            reason = OpenSearchException.fromXContent(parser);
                         } else {
                             parser.skipChildren(); // skip potential inner objects for forward compatibility
                         }

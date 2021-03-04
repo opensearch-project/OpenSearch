@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
@@ -99,7 +99,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
             builder.map(mappingSource);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
     }
 

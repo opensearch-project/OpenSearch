@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -282,7 +282,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
                 }
                 if (storeException != null) {
                     builder.startObject("store_exception");
-                    ElasticsearchException.generateThrowableXContent(builder, params, storeException);
+                    OpenSearchException.generateThrowableXContent(builder, params, storeException);
                     builder.endObject();
                 }
             }

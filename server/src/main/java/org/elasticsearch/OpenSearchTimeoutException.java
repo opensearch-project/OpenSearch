@@ -19,11 +19,29 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 /**
- * An exception that is meant to be "unwrapped" when sent back to the user
- * as an error because its is {@link #getCause() cause}, if non-null is
- * <strong>always</strong> more useful to the user than the exception itself.
+ * The same as {@link java.util.concurrent.TimeoutException} simply a runtime one.
+ *
+ *
  */
-public interface ElasticsearchWrapperException {
-    Throwable getCause();
+public class OpenSearchTimeoutException extends OpenSearchException {
+    public OpenSearchTimeoutException(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    public OpenSearchTimeoutException(Throwable cause) {
+        super(cause);
+    }
+
+    public OpenSearchTimeoutException(String message, Object... args) {
+        super(message, args);
+    }
+
+    public OpenSearchTimeoutException(String message, Throwable cause, Object... args) {
+        super(message, cause, args);
+    }
 }

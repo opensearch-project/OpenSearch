@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
@@ -133,7 +133,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
 
         ScriptScoreQueryBuilder queryBuilder = doCreateTestQueryBuilder();
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+        OpenSearchException e = expectThrows(OpenSearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
         assertEquals("[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 e.getMessage());

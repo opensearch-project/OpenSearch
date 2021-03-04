@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -905,7 +905,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         @Override
         protected void handleIncomingClusterStateRequest(BytesTransportRequest request, TransportChannel channel) throws IOException {
             if (errorOnSend.get()) {
-                throw new ElasticsearchException("forced error on incoming cluster state");
+                throw new OpenSearchException("forced error on incoming cluster state");
             }
             if (timeoutOnSend.get()) {
                 return;
@@ -916,7 +916,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         @Override
         protected void handleCommitRequest(PublishClusterStateAction.CommitClusterStateRequest request, TransportChannel channel) {
             if (errorOnCommit.get()) {
-                throw new ElasticsearchException("forced error on incoming commit");
+                throw new OpenSearchException("forced error on incoming commit");
             }
             if (timeoutOnCommit.get()) {
                 return;

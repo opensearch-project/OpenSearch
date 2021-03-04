@@ -21,7 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -279,7 +279,7 @@ public class RecoveriesCollection {
             if (accessTime == lastSeenAccessTime) {
                 String message = "no activity after [" + checkInterval + "]";
                 failRecovery(recoveryId,
-                        new RecoveryFailedException(status.state(), message, new ElasticsearchTimeoutException(message)),
+                        new RecoveryFailedException(status.state(), message, new OpenSearchTimeoutException(message)),
                         true // to be safe, we don't know what go stuck
                 );
                 return;

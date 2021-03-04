@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -493,7 +493,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             try {
                 return rangeType.encodeRanges(ranges);
             } catch (IOException e) {
-                throw new ElasticsearchException("failed to encode ranges", e);
+                throw new OpenSearchException("failed to encode ranges", e);
             }
         }
     }

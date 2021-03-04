@@ -16,53 +16,49 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
- * Exception who's {@link RestStatus} is arbitrary rather than derived. Used, for example, by reindex-from-remote to wrap remote exceptions
- * that contain a status.
+ * Generic security exception
  */
-public class ElasticsearchStatusException extends ElasticsearchException {
-    private final RestStatus status;
-
+public class OpenSearchSecurityException extends OpenSearchStatusException {
     /**
      * Build the exception with a specific status and cause.
      */
-    public ElasticsearchStatusException(String msg, RestStatus status, Throwable cause, Object... args) {
-        super(msg, cause, args);
-        this.status = status;
+    public OpenSearchSecurityException(String msg, RestStatus status, Throwable cause, Object... args) {
+        super(msg, status, cause, args);
+    }
+
+    /**
+     * Build the exception with the status derived from the cause.
+     */
+    public OpenSearchSecurityException(String msg, Exception cause, Object... args) {
+        this(msg, ExceptionsHelper.status(cause), cause, args);
+    }
+
+    /**
+     * Build the exception with a status of {@link RestStatus#INTERNAL_SERVER_ERROR} without a cause.
+     */
+    public OpenSearchSecurityException(String msg, Object... args) {
+        this(msg, RestStatus.INTERNAL_SERVER_ERROR, args);
     }
 
     /**
      * Build the exception without a cause.
      */
-    public ElasticsearchStatusException(String msg, RestStatus status, Object... args) {
-        this(msg, status, null, args);
+    public OpenSearchSecurityException(String msg, RestStatus status, Object... args) {
+        super(msg, status, args);
     }
 
     /**
      * Read from a stream.
      */
-    public ElasticsearchStatusException(StreamInput in) throws IOException {
+    public OpenSearchSecurityException(StreamInput in) throws IOException {
         super(in);
-        status = RestStatus.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        RestStatus.writeTo(out, status);
-    }
-
-    @Override
-    public final RestStatus status() {
-        return status;
     }
 }

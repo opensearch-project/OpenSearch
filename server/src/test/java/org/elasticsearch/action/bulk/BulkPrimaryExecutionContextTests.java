@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests.FakeDeleteResult;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests.FakeIndexResult;
@@ -47,7 +47,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         ArrayList<DocWriteRequest<?>> nonAbortedRequests = new ArrayList<>();
         for (BulkItemRequest request : shardRequest.items()) {
             if (randomBoolean()) {
-                request.abort("index", new ElasticsearchException("bla"));
+                request.abort("index", new OpenSearchException("bla"));
             } else {
                 nonAbortedRequests.add(request.request());
             }
@@ -60,7 +60,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
-            context.markOperationAsExecuted(new Engine.IndexResult(new ElasticsearchException("bla"), 1));
+            context.markOperationAsExecuted(new Engine.IndexResult(new OpenSearchException("bla"), 1));
             context.markAsCompleted(context.getExecutionResult());
         }
 
@@ -122,7 +122,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 case CREATE:
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1);
+                        result = new Engine.IndexResult(new OpenSearchException("bla"), 1);
                     } else {
                         result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }
@@ -130,7 +130,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 case UPDATE:
                     context.setRequestToExecute(new IndexRequest(current.index(), current.type(), current.id()));
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1);
+                        result = new Engine.IndexResult(new OpenSearchException("bla"), 1, 1, 1);
                     } else {
                         result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }
@@ -138,7 +138,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 case DELETE:
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1, 1);
+                        result = new Engine.DeleteResult(new OpenSearchException("bla"), 1, 1);
                     } else {
                         result = new FakeDeleteResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -252,7 +252,7 @@ public class OutboundHandlerTests extends ESTestCase {
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         threadContext.putHeader("header", "header_value");
-        ElasticsearchException error = new ElasticsearchException("boom");
+        OpenSearchException error = new OpenSearchException("boom");
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
@@ -292,7 +292,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertTrue(header.isError());
 
         RemoteTransportException remoteException = tuple.v2().streamInput().readException();
-        assertThat(remoteException.getCause(), instanceOf(ElasticsearchException.class));
+        assertThat(remoteException.getCause(), instanceOf(OpenSearchException.class));
         assertEquals(remoteException.getCause().getMessage(), "boom");
         assertEquals(action, remoteException.action());
         assertEquals(channel.getLocalAddress(), remoteException.address().address());

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -262,7 +262,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 throw new UncheckedIOException("failed to convert source to json", e);
             }
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -368,7 +368,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             builder.map(source);
             return aliases(BytesReference.bytes(builder));
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 

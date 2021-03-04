@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 /**
  * A refresh request making all operations performed since the last refresh available for search. The (near) real-time
@@ -29,7 +29,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  */
 public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<RefreshRequest, RefreshResponse, RefreshRequestBuilder> {
 
-    public RefreshRequestBuilder(ElasticsearchClient client, RefreshAction action) {
+    public RefreshRequestBuilder(OpenSearchClient client, RefreshAction action) {
         super(client, action, new RefreshRequest());
     }
 }

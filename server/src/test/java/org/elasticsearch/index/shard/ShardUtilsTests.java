@@ -26,8 +26,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public class ShardUtilsTests extends ESTestCase {
         writer.commit();
         ShardId id = new ShardId("foo", "_na_", random().nextInt());
         try (DirectoryReader reader = DirectoryReader.open(writer)) {
-            ElasticsearchDirectoryReader wrap = ElasticsearchDirectoryReader.wrap(reader, id);
+            OpenSearchDirectoryReader wrap = OpenSearchDirectoryReader.wrap(reader, id);
             assertEquals(id, ShardUtils.extractShardId(wrap));
         }
         final int numDocs = 1 + random().nextInt(5);
@@ -54,7 +54,7 @@ public class ShardUtilsTests extends ESTestCase {
         }
 
         try (DirectoryReader reader = DirectoryReader.open(writer)) {
-            ElasticsearchDirectoryReader wrap = ElasticsearchDirectoryReader.wrap(reader, id);
+            OpenSearchDirectoryReader wrap = OpenSearchDirectoryReader.wrap(reader, id);
             assertEquals(id, ShardUtils.extractShardId(wrap));
             CompositeReaderContext context = wrap.getContext();
             for (LeafReaderContext leaf : context.leaves()) {

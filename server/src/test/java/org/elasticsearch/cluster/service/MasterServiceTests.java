@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -755,7 +755,7 @@ public class MasterServiceTests extends ESTestCase {
                 if (event.source().contains("test6")) {
                     relativeTimeInMillis += MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         + randomLongBetween(1, 1000000);
-                    throw new ElasticsearchException("simulated error during slow publication which should trigger logging");
+                    throw new OpenSearchException("simulated error during slow publication which should trigger logging");
                 }
                 clusterStateRef.set(event.state());
                 publishListener.onResponse(null);

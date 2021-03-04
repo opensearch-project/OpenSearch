@@ -19,7 +19,7 @@
 package org.elasticsearch.docker.test;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +90,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
         try {
             keyStore = PathUtils.get(DockerYmlTestSuiteIT.class.getResource("/testnode.jks").toURI());
         } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
+            throw new OpenSearchException("exception while reading the store", e);
         }
         if (Files.exists(keyStore) == false) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");

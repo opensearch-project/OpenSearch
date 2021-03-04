@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,7 +34,7 @@ import java.io.IOException;
  * XContentParser}.
  * Can contain information about location of the error.
  */
-public class ParsingException extends ElasticsearchException {
+public class ParsingException extends OpenSearchException {
 
     protected static final int UNKNOWN_POSITION = -1;
     private final int lineNumber;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -273,7 +273,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         assertEquals(1, response.getFailures().size());
-        ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(response.getFailures().get("broken_query"));
+        OpenSearchException[] rootCauses = OpenSearchException.guessRootCauses(response.getFailures().get("broken_query"));
         assertEquals("java.lang.NumberFormatException: For input string: \"noStringOnNumericFields\"", rootCauses[0].getCause().toString());
     }
 

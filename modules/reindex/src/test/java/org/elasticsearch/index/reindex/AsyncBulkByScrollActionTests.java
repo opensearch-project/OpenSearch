@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
@@ -925,7 +925,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     e = new ReduceSearchPhaseException("test", "test failure", e, new ShardSearchFailure[0]);
                     continue;
                 case 2:
-                    e = new ElasticsearchException(e);
+                    e = new OpenSearchException(e);
                     continue;
                 }
             }

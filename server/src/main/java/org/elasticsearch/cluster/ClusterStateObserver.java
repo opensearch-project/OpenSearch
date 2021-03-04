@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -96,7 +96,7 @@ public class ClusterStateObserver {
     /** sets the last observed state to the currently applied cluster state and returns it */
     public ClusterState setAndGetObservedState() {
         if (observingContext.get() != null) {
-            throw new ElasticsearchException("cannot set current cluster state while waiting for a cluster state change");
+            throw new OpenSearchException("cannot set current cluster state while waiting for a cluster state change");
         }
         ClusterState clusterState = clusterApplierService.state();
         lastObservedState.set(new StoredState(clusterState));
@@ -130,7 +130,7 @@ public class ClusterStateObserver {
     public void waitForNextChange(Listener listener, Predicate<ClusterState> statePredicate, @Nullable TimeValue timeOutValue) {
         listener = new ContextPreservingListener(listener, contextHolder.newRestorableContext(false));
         if (observingContext.get() != null) {
-            throw new ElasticsearchException("already waiting for a cluster state change");
+            throw new OpenSearchException("already waiting for a cluster state change");
         }
 
         Long timeoutTimeLeftMS;
@@ -171,7 +171,7 @@ public class ClusterStateObserver {
             logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
             final ObservingContext context = new ObservingContext(listener, statePredicate);
             if (!observingContext.compareAndSet(null, context)) {
-                throw new ElasticsearchException("already waiting for a cluster state change");
+                throw new OpenSearchException("already waiting for a cluster state change");
             }
             clusterApplierService.addTimeoutListener(timeoutTimeLeftMS == null ?
                 null : new TimeValue(timeoutTimeLeftMS), clusterStateListener);

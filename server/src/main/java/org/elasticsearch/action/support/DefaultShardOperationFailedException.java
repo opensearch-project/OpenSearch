@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.ParseField;
@@ -48,7 +48,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     protected static <T extends DefaultShardOperationFailedException> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
         objectParser.declareString(constructorArg(), new ParseField(INDEX));
         objectParser.declareInt(constructorArg(), new ParseField(SHARD_ID));
-        objectParser.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
+        objectParser.declareObject(constructorArg(), (p, c) -> OpenSearchException.fromXContent(p), new ParseField(REASON));
     }
 
     static {
@@ -61,7 +61,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         readFrom(in, this);
     }
 
-    public DefaultShardOperationFailedException(ElasticsearchException e) {
+    public DefaultShardOperationFailedException(OpenSearchException e) {
         super(e.getIndex() == null ? null : e.getIndex().getName(), e.getShardId() == null ? -1 : e.getShardId().getId(),
             detailedMessage(e), e.status(), e);
     }
@@ -109,7 +109,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         builder.field("status", status.name());
         if (reason != null) {
             builder.startObject("reason");
-            ElasticsearchException.generateThrowableXContent(builder, params, cause);
+            OpenSearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
         }
         return builder;

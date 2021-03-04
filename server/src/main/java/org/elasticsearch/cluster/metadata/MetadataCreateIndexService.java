@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -242,7 +242,7 @@ public class MetadataCreateIndexService {
             byteCount = index.getBytes("UTF-8").length;
         } catch (UnsupportedEncodingException e) {
             // UTF-8 should always be supported, but rethrow this if it is not for some reason
-            throw new ElasticsearchException("Unable to determine length of index name", e);
+            throw new OpenSearchException("Unable to determine length of index name", e);
         }
         if (byteCount > MAX_INDEX_NAME_BYTES) {
             throw exceptionCtor.apply(index, "index name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + ")");

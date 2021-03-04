@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 /**
  * Builder for requests to explain the allocation of a shard in the cluster
@@ -30,7 +30,7 @@ public class ClusterAllocationExplainRequestBuilder
                                                           ClusterAllocationExplainResponse,
                                                           ClusterAllocationExplainRequestBuilder> {
 
-    public ClusterAllocationExplainRequestBuilder(ElasticsearchClient client, ClusterAllocationExplainAction action) {
+    public ClusterAllocationExplainRequestBuilder(OpenSearchClient client, ClusterAllocationExplainAction action) {
         super(client, action, new ClusterAllocationExplainRequest());
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -80,7 +80,7 @@ public class Netty4BadRequestTests extends ESTestCase {
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
                 try {
-                    final Exception e = cause instanceof Exception ? (Exception) cause : new ElasticsearchException(cause);
+                    final Exception e = cause instanceof Exception ? (Exception) cause : new OpenSearchException(cause);
                     channel.sendResponse(new BytesRestResponse(channel, RestStatus.BAD_REQUEST, e));
                 } catch (final IOException e) {
                     throw new UncheckedIOException(e);

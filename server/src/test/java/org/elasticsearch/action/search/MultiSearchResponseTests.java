@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -71,7 +71,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
                         successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters, null);
                 items[i] = new MultiSearchResponse.Item(searchResponse, null);
             } else {
-                items[i] = new MultiSearchResponse.Item(null, new ElasticsearchException("an error"));
+                items[i] = new MultiSearchResponse.Item(null, new OpenSearchException("an error"));
             }
         }
         return new MultiSearchResponse(items, randomNonNegativeLong());

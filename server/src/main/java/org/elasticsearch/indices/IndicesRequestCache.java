@@ -34,7 +34,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -125,7 +125,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
                 if (previous == null) {
-                    ElasticsearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
+                    OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
                 }
             }
         } else {
