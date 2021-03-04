@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -146,7 +146,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             highLevelClient().index(
                     new IndexRequest("index").id(docId).source(Collections.singletonMap("foo", "bar"))
                 .versionType(VersionType.EXTERNAL).version(12), RequestOptions.DEFAULT);
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> {
                 DeleteRequest deleteRequest = new DeleteRequest("index",  docId).versionType(VersionType.EXTERNAL).version(10);
                 execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             });
@@ -594,7 +594,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id", indexResponse.getId());
             assertEquals(2L, indexResponse.getVersion());
 
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> {
                 IndexRequest wrongRequest = new IndexRequest("index").id("id");
                 wrongRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
                 wrongRequest.setIfSeqNo(1L).setIfPrimaryTerm(5L);
@@ -608,7 +608,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         {
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> {
                 IndexRequest indexRequest = new IndexRequest("index").id("missing_pipeline");
                 indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
                 indexRequest.setPipeline("missing");
@@ -644,7 +644,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("_doc", indexResponse.getType());
             assertEquals("with_create_op_type", indexResponse.getId());
 
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> {
                 execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
             });
 
@@ -675,7 +675,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             UpdateRequest updateRequest = new UpdateRequest("index", "does_not_exist");
             updateRequest.doc(singletonMap("field", "value"), randomFrom(XContentType.values()));
 
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () ->
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () ->
                     execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertEquals("Elasticsearch exception [type=document_missing_exception, reason=[_doc][does_not_exist]: document missing]",
@@ -712,7 +712,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     updateRequest.setIfSeqNo(lastUpdateSeqNo + (randomBoolean() ? 0 : 1));
                     updateRequest.setIfPrimaryTerm(lastUpdatePrimaryTerm + 1);
                 }
-                ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () ->
+                OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () ->
                     execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync));
                 assertEquals(exception.toString(),RestStatus.CONFLICT, exception.status());
                 assertThat(exception.getMessage(), containsString("Elasticsearch exception [type=version_conflict_engine_exception"));

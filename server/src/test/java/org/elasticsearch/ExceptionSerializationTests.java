@@ -559,7 +559,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                 new IllegalArgumentException("alalaal"),
                 new NullPointerException("boom"),
                 new EOFException("dadada"),
-                new ElasticsearchSecurityException("nono!"),
+                new OpenSearchSecurityException("nono!"),
                 new NumberFormatException("not a number"),
                 new CorruptIndexException("baaaam booom", "this is my resource"),
                 new IndexFormatTooNewException("tooo new", 1, 2, 3),
@@ -647,8 +647,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testElasticsearchSecurityException() throws IOException {
-        ElasticsearchSecurityException ex = new ElasticsearchSecurityException("user [{}] is not allowed", RestStatus.UNAUTHORIZED, "foo");
-        ElasticsearchSecurityException e = serialize(ex);
+        OpenSearchSecurityException ex = new OpenSearchSecurityException("user [{}] is not allowed", RestStatus.UNAUTHORIZED, "foo");
+        OpenSearchSecurityException e = serialize(ex);
         assertEquals(ex.status(), e.status());
         assertEquals(RestStatus.UNAUTHORIZED, e.status());
     }
@@ -678,7 +678,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(1, org.elasticsearch.search.dfs.DfsPhaseExecutionException.class);
         ids.put(2, org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException.class);
         ids.put(3, org.elasticsearch.discovery.MasterNotDiscoveredException.class);
-        ids.put(4, org.elasticsearch.ElasticsearchSecurityException.class);
+        ids.put(4, org.elasticsearch.OpenSearchSecurityException.class);
         ids.put(5, org.elasticsearch.index.snapshots.IndexShardRestoreException.class);
         ids.put(6, org.elasticsearch.indices.IndexClosedException.class);
         ids.put(7, org.elasticsearch.http.BindHttpException.class);
@@ -695,7 +695,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(18, org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException.class);
         ids.put(19, org.elasticsearch.ResourceNotFoundException.class);
         ids.put(20, org.elasticsearch.transport.ActionTransportException.class);
-        ids.put(21, org.elasticsearch.ElasticsearchGenerationException.class);
+        ids.put(21, org.elasticsearch.OpenSearchGenerationException.class);
         ids.put(22, null); // was CreateFailedEngineException
         ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
@@ -789,7 +789,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(115, org.elasticsearch.index.translog.TranslogException.class);
         ids.put(116, org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class);
         ids.put(117, ReplicationOperation.RetryOnPrimaryException.class);
-        ids.put(118, org.elasticsearch.ElasticsearchTimeoutException.class);
+        ids.put(118, org.elasticsearch.OpenSearchTimeoutException.class);
         ids.put(119, org.elasticsearch.search.query.QueryPhaseExecutionException.class);
         ids.put(120, org.elasticsearch.repositories.RepositoryVerificationException.class);
         ids.put(121, org.elasticsearch.search.aggregations.InvalidAggregationPathException.class);
@@ -816,7 +816,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
         ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
-        ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
+        ids.put(145, OpenSearchStatusException.class);
         ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
         ids.put(148, null);
@@ -885,8 +885,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testElasticsearchRemoteException() throws IOException {
-        ElasticsearchStatusException ex = new ElasticsearchStatusException("something", RestStatus.TOO_MANY_REQUESTS);
-        ElasticsearchStatusException e = serialize(ex);
+        OpenSearchStatusException ex = new OpenSearchStatusException("something", RestStatus.TOO_MANY_REQUESTS);
+        OpenSearchStatusException e = serialize(ex);
         assertEquals(ex.status(), e.status());
         assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
     }

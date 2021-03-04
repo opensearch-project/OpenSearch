@@ -24,21 +24,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 /**
- * A generic exception indicating failure to generate.
+ * The same as {@link java.util.concurrent.TimeoutException} simply a runtime one.
  *
  *
  */
-public class ElasticsearchGenerationException extends OpenSearchException {
-
-    public ElasticsearchGenerationException(String msg) {
-        super(msg);
-    }
-
-    public ElasticsearchGenerationException(String msg, Throwable cause) {
-        super(msg, cause);
-    }
-
-    public ElasticsearchGenerationException(StreamInput in) throws IOException{
+public class OpenSearchTimeoutException extends OpenSearchException {
+    public OpenSearchTimeoutException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public OpenSearchTimeoutException(Throwable cause) {
+        super(cause);
+    }
+
+    public OpenSearchTimeoutException(String message, Object... args) {
+        super(message, args);
+    }
+
+    public OpenSearchTimeoutException(String message, Throwable cause, Object... args) {
+        super(message, cause, args);
     }
 }
