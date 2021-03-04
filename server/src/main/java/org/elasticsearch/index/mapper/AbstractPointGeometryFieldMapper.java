@@ -19,7 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
@@ -220,7 +220,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                     if (token == XContentParser.Token.VALUE_NUMBER) {
                         GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
                     } else if (token != XContentParser.Token.END_ARRAY) {
-                        throw new ElasticsearchParseException("field type does not accept > 3 dimensions");
+                        throw new OpenSearchParseException("field type does not accept > 3 dimensions");
                     }
 
                     point.resetCoords(x, y);

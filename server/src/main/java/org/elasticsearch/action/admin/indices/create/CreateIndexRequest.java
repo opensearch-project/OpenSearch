@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -339,7 +339,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             }
             return this;
         } catch(IOException e) {
-            throw new ElasticsearchParseException("Failed to parse aliases", e);
+            throw new OpenSearchParseException("Failed to parse aliases", e);
         }
     }
 
@@ -397,7 +397,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
                 if (entry.getValue() instanceof Map == false) {
-                    throw new ElasticsearchParseException("key [settings] must be an object");
+                    throw new OpenSearchParseException("key [settings] must be an object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
@@ -408,7 +408,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             } else if (ALIASES.match(name, deprecationHandler)) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                throw new ElasticsearchParseException("unknown key [{}] for create index", name);
+                throw new OpenSearchParseException("unknown key [{}] for create index", name);
             }
         }
         return this;

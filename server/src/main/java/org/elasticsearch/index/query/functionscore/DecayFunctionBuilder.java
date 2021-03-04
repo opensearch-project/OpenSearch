@@ -21,7 +21,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -247,11 +247,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             } else if (DecayFunctionBuilder.OFFSET.equals(parameterName)) {
                 offset = parser.doubleValue();
             } else {
-                throw new ElasticsearchParseException("parameter [{}] not supported!", parameterName);
+                throw new OpenSearchParseException("parameter [{}] not supported!", parameterName);
             }
         }
         if (!scaleFound || !refFound) {
-            throw new ElasticsearchParseException("both [{}] and [{}] must be set for numeric fields.", DecayFunctionBuilder.SCALE,
+            throw new OpenSearchParseException("both [{}] and [{}] must be set for numeric fields.", DecayFunctionBuilder.SCALE,
                     DecayFunctionBuilder.ORIGIN);
         }
         IndexNumericFieldData numericFieldData = context.getForField(fieldType);
@@ -278,11 +278,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             } else if (DecayFunctionBuilder.OFFSET.equals(parameterName)) {
                 offsetString = parser.text();
             } else {
-                throw new ElasticsearchParseException("parameter [{}] not supported!", parameterName);
+                throw new OpenSearchParseException("parameter [{}] not supported!", parameterName);
             }
         }
         if (origin == null || scaleString == null) {
-            throw new ElasticsearchParseException("[{}] and [{}] must be set for geo fields.", DecayFunctionBuilder.ORIGIN,
+            throw new OpenSearchParseException("[{}] and [{}] must be set for geo fields.", DecayFunctionBuilder.ORIGIN,
                     DecayFunctionBuilder.SCALE);
         }
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
@@ -312,7 +312,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             } else if (DecayFunctionBuilder.OFFSET.equals(parameterName)) {
                 offsetString = parser.text();
             } else {
-                throw new ElasticsearchParseException("parameter [{}] not supported!", parameterName);
+                throw new OpenSearchParseException("parameter [{}] not supported!", parameterName);
             }
         }
         long origin;
@@ -323,7 +323,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
 
         if (scaleString == null) {
-            throw new ElasticsearchParseException("[{}] must be set for date fields.", DecayFunctionBuilder.SCALE);
+            throw new OpenSearchParseException("[{}] must be set for date fields.", DecayFunctionBuilder.SCALE);
         }
         TimeValue val = TimeValue.parseTimeValue(scaleString, TimeValue.timeValueHours(24),
                 DecayFunctionParser.class.getSimpleName() + ".scale");

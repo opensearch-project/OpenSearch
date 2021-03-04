@@ -24,7 +24,7 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -143,11 +143,11 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      * see {@code GeoPoint(String)} for GEO POINT
      */
     @Override
-    public Set<String> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
+    public Set<String> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, OpenSearchParseException {
         if (fieldName != null) {
             MappedFieldType fieldType = parseContext.mapperService().fieldType(fieldName);
             if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-                throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
+                throw new OpenSearchParseException("referenced field must be mapped to geo_point");
             }
         }
         final Set<String> contexts = new HashSet<>();
@@ -162,10 +162,10 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     if (parser.nextToken() == Token.END_ARRAY) {
                         contexts.add(stringEncode(lon, lat, precision));
                     } else {
-                        throw new ElasticsearchParseException("only two values [lon, lat] expected");
+                        throw new OpenSearchParseException("only two values [lon, lat] expected");
                     }
                 } else {
-                    throw new ElasticsearchParseException("latitude must be a numeric value");
+                    throw new OpenSearchParseException("latitude must be a numeric value");
                 }
             } else {
                 while (token != Token.END_ARRAY) {
@@ -298,7 +298,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     deprecationLogger.deprecate("geo_context_mapping",
                         "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new OpenSearchParseException(
                         "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
@@ -307,7 +307,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
                         fieldName, name, mappedFieldType.typeName());
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new OpenSearchParseException(
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
                         fieldName, name, mappedFieldType.typeName());
                 }

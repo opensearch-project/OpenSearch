@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -183,12 +183,12 @@ public class DiskThresholdSettings {
         try {
             doValidateAsPercentage(low, high, flood);
             return; // early return so that we do not try to parse as bytes
-        } catch (final ElasticsearchParseException e) {
+        } catch (final OpenSearchParseException e) {
             // swallow as we are now going to try to parse as bytes
         }
         try {
             doValidateAsBytes(low, high, flood);
-        } catch (final ElasticsearchParseException e) {
+        } catch (final OpenSearchParseException e) {
             final String message = String.format(
                     Locale.ROOT,
                     "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
@@ -350,7 +350,7 @@ public class DiskThresholdSettings {
 
     /**
      * Attempts to parse the watermark into a percentage, returning 100.0% if it can not be parsed and the specified lenient parameter is
-     * true, otherwise throwing an {@link ElasticsearchParseException}.
+     * true, otherwise throwing an {@link OpenSearchParseException}.
      *
      * @param watermark the watermark to parse as a percentage
      * @param lenient true if lenient parsing should be applied
@@ -359,7 +359,7 @@ public class DiskThresholdSettings {
     private static double thresholdPercentageFromWatermark(String watermark, boolean lenient) {
         try {
             return RatioValue.parseRatioValue(watermark).getAsPercent();
-        } catch (ElasticsearchParseException ex) {
+        } catch (OpenSearchParseException ex) {
             // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
             // cases separately
             if (lenient) {
@@ -379,7 +379,7 @@ public class DiskThresholdSettings {
 
     /**
      * Attempts to parse the watermark into a {@link ByteSizeValue}, returning zero bytes if it can not be parsed and the specified lenient
-     * parameter is true, otherwise throwing an {@link ElasticsearchParseException}.
+     * parameter is true, otherwise throwing an {@link OpenSearchParseException}.
      *
      * @param watermark the watermark to parse as a byte size
      * @param settingName the name of the setting
@@ -389,7 +389,7 @@ public class DiskThresholdSettings {
     private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName, boolean lenient) {
         try {
             return ByteSizeValue.parseBytesSizeValue(watermark, settingName);
-        } catch (ElasticsearchParseException ex) {
+        } catch (OpenSearchParseException ex) {
             // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
             // cases separately
             if (lenient) {
@@ -406,10 +406,10 @@ public class DiskThresholdSettings {
     private static String validWatermarkSetting(String watermark, String settingName) {
         try {
             RatioValue.parseRatioValue(watermark);
-        } catch (ElasticsearchParseException e) {
+        } catch (OpenSearchParseException e) {
             try {
                 ByteSizeValue.parseBytesSizeValue(watermark, settingName);
-            } catch (ElasticsearchParseException ex) {
+            } catch (OpenSearchParseException ex) {
                 ex.addSuppressed(e);
                 throw ex;
             }

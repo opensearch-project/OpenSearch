@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -291,7 +291,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
                return new SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
            }
        } else {
-           throw new ElasticsearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
+           throw new OpenSearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
        }
     }
 
