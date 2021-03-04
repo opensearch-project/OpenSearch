@@ -57,11 +57,11 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * SPI extensions for Elasticsearch-specific classes (like the Lucene or Joda
+ * SPI extensions for OpenSearch-specific classes (like the Lucene or Joda
  * dependency classes) that need to be encoded by {@link XContentBuilder} in a
  * specific way.
  */
-public class XContentElasticsearchExtension implements XContentBuilderExtension {
+public class XContentOpenSearchExtension implements XContentBuilderExtension {
 
     public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
     public static final DateFormatter DEFAULT_FORMATTER = DateFormatter.forPattern("strict_date_optional_time_nanos");

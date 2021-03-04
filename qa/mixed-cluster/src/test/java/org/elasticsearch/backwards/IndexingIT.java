@@ -16,22 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.backwards;
+package org.opensearch.backwards;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.opensearch.Version;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.RestClient;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.seqno.SeqNoStats;
+import org.opensearch.rest.action.document.RestGetAction;
+import org.opensearch.rest.action.document.RestIndexAction;
+import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;

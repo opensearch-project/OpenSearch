@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -72,7 +72,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch(OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }
@@ -83,7 +83,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch(OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
         }
     }
@@ -95,7 +95,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch(OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
         }
     }

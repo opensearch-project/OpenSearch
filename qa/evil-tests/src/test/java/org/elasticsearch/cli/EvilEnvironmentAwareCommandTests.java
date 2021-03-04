@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.cli;
+package org.opensearch.cli;
 
 import joptsimple.OptionSet;
 import org.apache.lucene.util.TestRuleRestoreSystemProperties;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.env.Environment;
+import org.opensearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 

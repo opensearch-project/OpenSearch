@@ -20,11 +20,13 @@
 package org.opensearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
-import org.opensearch.ElasticsearchParseException;
+
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.test.ESTestCase;
+
 import org.junit.Before;
 
 import java.io.InputStream;
@@ -173,7 +175,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testEncryptedPdf() throws Exception {
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
         assertThat(e.getDetailedMessage(), containsString("document is encrypted"));
     }
 

@@ -20,7 +20,7 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
@@ -101,7 +101,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
     private void assertMalformed(ShapeBuilder<?, ?, ?> builder) throws IOException {
         XContentBuilder xContentBuilder = toWKTContent(builder, true);
-        assertValidException(xContentBuilder, ElasticsearchParseException.class);
+        assertValidException(xContentBuilder, OpenSearchParseException.class);
     }
 
     @Override
@@ -319,7 +319,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             (GeoShapeFieldMapper) (new GeoShapeFieldMapper.Builder("test").ignoreZValue(false).build(mockBuilderContext));
 
         // test store z disabled
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class,
             () -> ShapeParser.parse(parser, mapperBuilder));
         assertThat(e, hasToString(containsString("but [ignore_z_value] parameter is [false]")));
     }
@@ -407,7 +407,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
         final LegacyGeoShapeFieldMapper defaultMapperBuilder =
             (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").coerce(false).build(mockBuilderContext));
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
+        OpenSearchParseException exception = expectThrows(OpenSearchParseException.class,
             () -> ShapeParser.parse(parser, defaultMapperBuilder));
         assertEquals("invalid LinearRing found (coordinates are not closed)", exception.getMessage());
 
@@ -438,7 +438,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         // malformed points in a polygon is a common typo
         String malformedWKT = "POLYGON ((100, 5) (100, 10) (90, 10), (90, 5), (100, 5)";
         XContentBuilder builder = XContentFactory.jsonBuilder().value(malformedWKT);
-        assertValidException(builder, ElasticsearchParseException.class);
+        assertValidException(builder, OpenSearchParseException.class);
     }
 
     @Override
@@ -479,7 +479,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentBuilder builder = toWKTContent(new PointBuilder(-1, 2), false);
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class,
             () -> GeoWKTParser.parseExpectedType(parser, GeoShapeType.POLYGON));
         assertThat(e, hasToString(containsString("Expected geometry type [polygon] but found [point]")));
     }

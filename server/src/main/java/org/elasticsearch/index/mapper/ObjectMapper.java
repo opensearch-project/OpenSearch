@@ -23,7 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
@@ -231,7 +231,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
                     // nothing to do here, empty (to support "properties: []" case)
                 } else if (!(fieldNode instanceof Map)) {
-                    throw new ElasticsearchParseException("properties must be a map type");
+                    throw new OpenSearchParseException("properties must be a map type");
                 } else {
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 }

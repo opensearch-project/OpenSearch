@@ -16,18 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.remote.test;
+package org.opensearch.cluster.remote.test;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.client.RequestOptions;
+import org.opensearch.client.RestClient;
+import org.opensearch.client.RestHighLevelClient;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

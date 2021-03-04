@@ -24,6 +24,6 @@ package org.elasticsearch;
  * as an error because its is {@link #getCause() cause}, if non-null is
  * <strong>always</strong> more useful to the user than the exception itself.
  */
-public interface ElasticsearchWrapperException {
+public interface OpenSearchWrapperException {
     Throwable getCause();
 }

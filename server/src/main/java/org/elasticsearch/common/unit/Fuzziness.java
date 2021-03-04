@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -135,11 +135,11 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                 int highLimit = Integer.parseInt(fuzzinessLimit[1]);
                 return new Fuzziness("AUTO", lowerLimit, highLimit);
             } catch (NumberFormatException e) {
-                throw new ElasticsearchParseException("failed to parse [{}] as a \"auto:int,int\"", e,
+                throw new OpenSearchParseException("failed to parse [{}] as a \"auto:int,int\"", e,
                     string);
             }
         } else {
-            throw new ElasticsearchParseException("failed to find low and high distance values");
+            throw new OpenSearchParseException("failed to find low and high distance values");
         }
     }
 

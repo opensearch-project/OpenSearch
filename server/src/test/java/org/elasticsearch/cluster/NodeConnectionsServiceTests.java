@@ -21,7 +21,7 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -258,7 +258,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             // however, now node0 is considered to be a new node so we will block on a subsequent attempt to connect to it
             final PlainActionFuture<Void> future3 = new PlainActionFuture<>();
             service.connectToNodes(nodes01, () -> future3.onResponse(null));
-            expectThrows(ElasticsearchTimeoutException.class, () -> future3.actionGet(timeValueMillis(scaledRandomIntBetween(1, 1000))));
+            expectThrows(OpenSearchTimeoutException.class, () -> future3.actionGet(timeValueMillis(scaledRandomIntBetween(1, 1000))));
 
             // once the connection is unblocked we successfully connect to it.
             connectionBarrier.await(10, TimeUnit.SECONDS);
@@ -288,7 +288,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             // if we disconnect from a node while blocked trying to connect to it then the listener is notified
             final PlainActionFuture<Void> future6 = new PlainActionFuture<>();
             service.connectToNodes(nodes01, () -> future6.onResponse(null));
-            expectThrows(ElasticsearchTimeoutException.class, () -> future6.actionGet(timeValueMillis(scaledRandomIntBetween(1, 1000))));
+            expectThrows(OpenSearchTimeoutException.class, () -> future6.actionGet(timeValueMillis(scaledRandomIntBetween(1, 1000))));
 
             service.disconnectFromNodesExcept(nodes1);
             future6.actionGet(); // completed even though the connection attempt is still blocked

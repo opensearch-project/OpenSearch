@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Shell;
+import org.opensearch.packaging.util.Distribution;
+import org.opensearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
-import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.assertPathsDoNotExist;
-import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
-import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
-import static org.elasticsearch.packaging.util.Packages.assertInstalled;
-import static org.elasticsearch.packaging.util.Packages.assertRemoved;
-import static org.elasticsearch.packaging.util.Packages.installPackage;
-import static org.elasticsearch.packaging.util.Packages.remove;
-import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.opensearch.packaging.util.FileUtils.append;
+import static org.opensearch.packaging.util.FileUtils.assertPathsDoNotExist;
+import static org.opensearch.packaging.util.Packages.SYSTEMD_SERVICE;
+import static org.opensearch.packaging.util.Packages.SYSVINIT_SCRIPT;
+import static org.opensearch.packaging.util.Packages.assertInstalled;
+import static org.opensearch.packaging.util.Packages.assertRemoved;
+import static org.opensearch.packaging.util.Packages.installPackage;
+import static org.opensearch.packaging.util.Packages.remove;
+import static org.opensearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.opensearch.packaging.util.Platforms.isSystemd;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeTrue;
 

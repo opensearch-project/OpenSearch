@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -129,7 +129,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                             public RestResponse buildResponse(final GetMappingsResponse response,
                                                               final XContentBuilder builder) throws Exception {
                                 if (threadPool.relativeTimeInMillis() - startTimeMs > timeout.millis()) {
-                                    throw new ElasticsearchTimeoutException("Timed out getting mappings");
+                                    throw new OpenSearchTimeoutException("Timed out getting mappings");
                                 }
                                 final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex =
                                         response.getMappings();

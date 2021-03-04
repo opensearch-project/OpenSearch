@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -433,33 +433,33 @@ public final class Script implements ToXContentObject, Writeable {
                     if (parameterValue instanceof String || parameterValue == null) {
                         lang = (String) parameterValue;
                     } else {
-                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                        throw new OpenSearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
                 } else if (Script.PARAMS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
                     if (parameterValue instanceof Map || parameterValue == null) {
                         params = (Map<String, Object>) parameterValue;
                     } else {
-                        throw new ElasticsearchParseException("Value must be of type Map: [" + parameterName + "]");
+                        throw new OpenSearchParseException("Value must be of type Map: [" + parameterName + "]");
                     }
                 } else if (Script.OPTIONS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
                     if (parameterValue instanceof Map || parameterValue == null) {
                         options = (Map<String, String>) parameterValue;
                     } else {
-                        throw new ElasticsearchParseException("Value must be of type Map: [" + parameterName + "]");
+                        throw new OpenSearchParseException("Value must be of type Map: [" + parameterName + "]");
                     }
                 } else if (ScriptType.INLINE.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
                     if (parameterValue instanceof String || parameterValue == null) {
                         script = (String) parameterValue;
                         type = ScriptType.INLINE;
                     } else {
-                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                        throw new OpenSearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
                 } else if (ScriptType.STORED.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
                     if (parameterValue instanceof String || parameterValue == null) {
                         script = (String) parameterValue;
                         type = ScriptType.STORED;
                     } else {
-                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                        throw new OpenSearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
                 } else {
                     deprecationLogger.deprecate("script_unsupported_fields", "script section does not support ["
@@ -467,7 +467,7 @@ public final class Script implements ToXContentObject, Writeable {
                 }
             }
             if (script == null) {
-                throw new ElasticsearchParseException("Expected one of [{}] or [{}] fields, but found none",
+                throw new OpenSearchParseException("Expected one of [{}] or [{}] fields, but found none",
                     ScriptType.INLINE.getParseField().getPreferredName(), ScriptType.STORED.getParseField().getPreferredName());
             }
             assert type != null : "if script is not null, type should definitely not be null";

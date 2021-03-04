@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Strings;
 
 import java.time.DayOfWeek;
@@ -65,7 +65,7 @@ public class JavaDateMathParser implements DateMathParser {
                 // TODO only millisecond granularity here!
                 time = Instant.ofEpochMilli(now.getAsLong());
             } catch (Exception e) {
-                throw new ElasticsearchParseException("could not read the current timestamp", e);
+                throw new OpenSearchParseException("could not read the current timestamp", e);
             }
             mathString = text.substring("now".length());
         } else {
@@ -81,7 +81,7 @@ public class JavaDateMathParser implements DateMathParser {
     }
 
     private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty,
-                           ZoneId timeZone) throws ElasticsearchParseException {
+                           ZoneId timeZone) throws OpenSearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;
         }
@@ -100,12 +100,12 @@ public class JavaDateMathParser implements DateMathParser {
                 } else if (c == '-') {
                     sign = -1;
                 } else {
-                    throw new ElasticsearchParseException("operator not supported for date math [{}]", mathString);
+                    throw new OpenSearchParseException("operator not supported for date math [{}]", mathString);
                 }
             }
 
             if (i >= mathString.length()) {
-                throw new ElasticsearchParseException("truncated date math [{}]", mathString);
+                throw new OpenSearchParseException("truncated date math [{}]", mathString);
             }
 
             final int num;
@@ -117,13 +117,13 @@ public class JavaDateMathParser implements DateMathParser {
                     i++;
                 }
                 if (i >= mathString.length()) {
-                    throw new ElasticsearchParseException("truncated date math [{}]", mathString);
+                    throw new OpenSearchParseException("truncated date math [{}]", mathString);
                 }
                 num = Integer.parseInt(mathString.substring(numFrom, i));
             }
             if (round) {
                 if (num != 1) {
-                    throw new ElasticsearchParseException("rounding `/` can only be used on single unit types [{}]", mathString);
+                    throw new OpenSearchParseException("rounding `/` can only be used on single unit types [{}]", mathString);
                 }
             }
             char unit = mathString.charAt(i++);
@@ -200,7 +200,7 @@ public class JavaDateMathParser implements DateMathParser {
                     }
                     break;
                 default:
-                    throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
+                    throw new OpenSearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
             }
             if (round && roundUpProperty) {
                 // subtract 1 millisecond to get the largest inclusive value
@@ -212,7 +212,7 @@ public class JavaDateMathParser implements DateMathParser {
 
     private Instant parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
         if (Strings.isNullOrEmpty(value)) {
-            throw new ElasticsearchParseException("cannot parse empty date");
+            throw new OpenSearchParseException("cannot parse empty date");
         }
 
         DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;
@@ -229,7 +229,7 @@ public class JavaDateMathParser implements DateMathParser {
                 return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
         } catch (IllegalArgumentException | DateTimeParseException e) {
-            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]: [{}]",
+            throw new OpenSearchParseException("failed to parse date field [{}] with format [{}]: [{}]",
                 e, value, format, e.getMessage());
         }
     }

@@ -23,7 +23,8 @@ import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
-import org.opensearch.ElasticsearchParseException;
+
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Strings;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.IngestDocument;
@@ -103,7 +104,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             // tika 1.17 throws an exception when the InputStream has 0 bytes.
             // previously, it did not mind. This is here to preserve that behavior.
         } catch (Exception e) {
-            throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
+            throw new OpenSearchParseException("Error parsing document in field [{}]", e, field);
         }
 
         if (properties.contains(Property.CONTENT) && Strings.hasLength(parsedContent)) {

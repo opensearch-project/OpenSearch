@@ -22,7 +22,7 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -624,13 +624,13 @@ public final class Settings implements ToXContentFragment {
             try {
                 while (!parser.isClosed() && (lastToken = parser.nextToken()) == null) ;
             } catch (Exception e) {
-                throw new ElasticsearchParseException(
+                throw new OpenSearchParseException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
                         + "column number: [{}]",
                     e, parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
             }
             if (lastToken != null) {
-                throw new ElasticsearchParseException(
+                throw new OpenSearchParseException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
                         + "column number: [{}]",
                     parser.getTokenLocation().lineNumber, parser.getTokenLocation().columnNumber);
@@ -687,7 +687,7 @@ public final class Settings implements ToXContentFragment {
 
     private static void validateValue(String key, Object currentValue, XContentParser parser, boolean allowNullValues) {
         if (currentValue == null && allowNullValues == false) {
-            throw new ElasticsearchParseException(
+            throw new OpenSearchParseException(
                 "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
                 key,
                 parser.getTokenLocation().lineNumber,
@@ -1107,7 +1107,7 @@ public final class Settings implements ToXContentFragment {
                     }
                 }
                 put(fromXContent(parser, acceptNullValues, true));
-            } catch (ElasticsearchParseException e) {
+            } catch (OpenSearchParseException e) {
                 throw e;
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);

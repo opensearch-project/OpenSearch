@@ -35,7 +35,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -108,7 +108,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
                 } else if (PARTITION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     partition = parser.intValue();
                 } else {
-                    throw new ElasticsearchParseException(
+                    throw new OpenSearchParseException(
                             "Unknown parameter in Include/Exclude clause: " + currentFieldName);
                 }
             }
@@ -552,11 +552,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     private static Set<BytesRef> parseArrayToSet(XContentParser parser) throws IOException {
         final Set<BytesRef> set = new HashSet<>();
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException("Missing start of array in include/exclude clause");
+            throw new OpenSearchParseException("Missing start of array in include/exclude clause");
         }
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (!parser.currentToken().isValue()) {
-                throw new ElasticsearchParseException("Array elements in include/exclude clauses should be string values");
+                throw new OpenSearchParseException("Array elements in include/exclude clauses should be string values");
             }
             set.add(new BytesRef(parser.text()));
         }

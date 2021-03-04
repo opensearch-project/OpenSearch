@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -245,7 +245,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void execute(Task task, String action, Request request,
                     ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
-                listener.onFailure(new ElasticsearchTimeoutException(""));
+                listener.onFailure(new OpenSearchTimeoutException(""));
             }
         }
     }

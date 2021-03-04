@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging;
+package org.opensearch.common.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cli.UserException;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.env.Environment;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.tasks.Task;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * This test confirms JSON log structure is properly formatted and can be parsed.
- * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>
+ * It has to be in a <code>org.opensearch.common.logging</code> package to use <code>PrefixLogger</code>
  */
 public class JsonLoggerTests extends ESTestCase {
 

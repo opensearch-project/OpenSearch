@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.opensearch;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
@@ -36,10 +36,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.Version.V_6_3_0;
-import static org.elasticsearch.Version.V_7_0_0;
-import static org.elasticsearch.test.VersionUtils.allVersions;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.opensearch.Version.V_6_3_0;
+import static org.opensearch.Version.V_7_0_0;
+import static org.opensearch.test.VersionUtils.allVersions;
+import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
