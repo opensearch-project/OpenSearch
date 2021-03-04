@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
@@ -186,7 +186,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
             if (token == XContentParser.Token.FIELD_NAME) {
                 String name = parser.currentName();
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticsearchParseException("failed to parse repository [{}], expected object", name);
+                    throw new OpenSearchParseException("failed to parse repository [{}], expected object", name);
                 }
                 String type = null;
                 Settings settings = Settings.EMPTY;
@@ -197,38 +197,38 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                         String currentFieldName = parser.currentName();
                         if ("type".equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                                throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
+                                throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
                             }
                             type = parser.text();
                         } else if ("settings".equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                                throw new ElasticsearchParseException("failed to parse repository [{}], incompatible params", name);
+                                throw new OpenSearchParseException("failed to parse repository [{}], incompatible params", name);
                             }
                             settings = Settings.fromXContent(parser);
                         } else if ("generation".equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                                throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
+                                throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
                             }
                             generation = parser.longValue();
                         } else if ("pending_generation".equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                                throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
+                                throw new OpenSearchParseException("failed to parse repository [{}], unknown type", name);
                             }
                             pendingGeneration = parser.longValue();
                         } else {
-                            throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]",
+                            throw new OpenSearchParseException("failed to parse repository [{}], unknown field [{}]",
                                 name, currentFieldName);
                         }
                     } else {
-                        throw new ElasticsearchParseException("failed to parse repository [{}]", name);
+                        throw new OpenSearchParseException("failed to parse repository [{}]", name);
                     }
                 }
                 if (type == null) {
-                    throw new ElasticsearchParseException("failed to parse repository [{}], missing repository type", name);
+                    throw new OpenSearchParseException("failed to parse repository [{}], missing repository type", name);
                 }
                 repository.add(new RepositoryMetadata(name, type, settings, generation, pendingGeneration));
             } else {
-                throw new ElasticsearchParseException("failed to parse repositories");
+                throw new OpenSearchParseException("failed to parse repositories");
             }
         }
         return new RepositoriesMetadata(repository);

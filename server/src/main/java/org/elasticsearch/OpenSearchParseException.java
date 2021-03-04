@@ -20,28 +20,28 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
- * The same as {@link java.util.concurrent.TimeoutException} simply a runtime one.
- *
- *
+ * Unchecked exception that is translated into a {@code 400 BAD REQUEST} error when it bubbles out over HTTP.
  */
-public class ElasticsearchTimeoutException extends OpenSearchException {
-    public ElasticsearchTimeoutException(StreamInput in) throws IOException {
+public class OpenSearchParseException extends OpenSearchException {
+
+    public OpenSearchParseException(String msg, Object... args) {
+        super(msg, args);
+    }
+
+    public OpenSearchParseException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
+    }
+
+    public OpenSearchParseException(StreamInput in) throws IOException {
         super(in);
     }
-
-    public ElasticsearchTimeoutException(Throwable cause) {
-        super(cause);
-    }
-
-    public ElasticsearchTimeoutException(String message, Object... args) {
-        super(message, args);
-    }
-
-    public ElasticsearchTimeoutException(String message, Throwable cause, Object... args) {
-        super(message, cause, args);
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

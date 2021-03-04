@@ -21,7 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -1688,29 +1688,29 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Converts a {@link ResponseException} obtained from the low level REST client into an {@link OpenSearchException}.
      * If a response body was returned, tries to parse it as an error returned from Elasticsearch.
-     * If no response body was returned or anything goes wrong while parsing the error, returns a new {@link ElasticsearchStatusException}
+     * If no response body was returned or anything goes wrong while parsing the error, returns a new {@link OpenSearchStatusException}
      * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
      * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
      */
-    protected final ElasticsearchStatusException parseResponseException(ResponseException responseException) {
+    protected final OpenSearchStatusException parseResponseException(ResponseException responseException) {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
-        ElasticsearchStatusException elasticsearchException;
+        OpenSearchStatusException opensearchException;
         RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
 
         if (entity == null) {
-            elasticsearchException = new ElasticsearchStatusException(
+            opensearchException = new OpenSearchStatusException(
                     responseException.getMessage(), restStatus, responseException);
         } else {
             try {
-                elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
-                elasticsearchException.addSuppressed(responseException);
+                opensearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
+                opensearchException.addSuppressed(responseException);
             } catch (Exception e) {
-                elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);
-                elasticsearchException.addSuppressed(e);
+                opensearchException = new OpenSearchStatusException("Unable to parse response body", restStatus, responseException);
+                opensearchException.addSuppressed(e);
             }
         }
-        return elasticsearchException;
+        return opensearchException;
     }
 
     protected final <Resp> Resp parseEntity(final HttpEntity entity,

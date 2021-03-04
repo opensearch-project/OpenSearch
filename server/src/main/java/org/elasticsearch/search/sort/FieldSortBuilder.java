@@ -25,7 +25,7 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -464,7 +464,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.getIndexReader(), minValue, maxValue,
                 true, true, null, dateMathParser, context);
             return relation == MappedFieldType.Relation.DISJOINT;
-        } catch (ElasticsearchParseException exc) {
+        } catch (OpenSearchParseException exc) {
             // can happen if the sort field is mapped differently in another search index
             return false;
         }

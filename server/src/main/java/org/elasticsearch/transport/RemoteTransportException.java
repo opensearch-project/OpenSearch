@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.OpenSearchWrapperException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
 
@@ -31,7 +31,7 @@ import java.io.IOException;
  *
  *
  */
-public class RemoteTransportException extends ActionTransportException implements ElasticsearchWrapperException {
+public class RemoteTransportException extends ActionTransportException implements OpenSearchWrapperException {
 
     public RemoteTransportException(String msg, Throwable cause) {
         super(msg, null, null, cause);

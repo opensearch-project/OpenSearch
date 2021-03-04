@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -158,7 +158,7 @@ public class BytesRestResponse extends RestResponse {
             .endObject());
     }
 
-    public static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {
+    public static OpenSearchStatusException errorFromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
@@ -184,7 +184,7 @@ public class BytesRestResponse extends RestResponse {
             throw new IllegalStateException("Failed to parse elasticsearch status exception: no exception was found");
         }
 
-        ElasticsearchStatusException result = new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
+        OpenSearchStatusException result = new OpenSearchStatusException(exception.getMessage(), status, exception.getCause());
         for (String header : exception.getHeaderKeys()) {
             result.addHeader(header, exception.getHeader(header));
         }

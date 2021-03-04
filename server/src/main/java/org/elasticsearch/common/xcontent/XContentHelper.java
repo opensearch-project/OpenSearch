@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -92,7 +92,7 @@ public class XContentHelper {
      */
     @Deprecated
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
-            throws ElasticsearchParseException {
+            throws OpenSearchParseException {
         return convertToMap(bytes, ordered, null);
     }
 
@@ -100,7 +100,7 @@ public class XContentHelper {
      * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
      */
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
-        throws ElasticsearchParseException {
+        throws OpenSearchParseException {
         try {
             final XContentType contentType;
             InputStream input;
@@ -129,51 +129,51 @@ public class XContentHelper {
                     convertToMap(XContentFactory.xContent(contentType), stream, ordered));
             }
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
+            throw new OpenSearchParseException("Failed to parse content to map", e);
         }
     }
 
     /**
-     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link OpenSearchParseException} if there is any
      * error.
      */
-    public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
+    public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws OpenSearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
         try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
+            throw new OpenSearchParseException("Failed to parse content to map", e);
         }
     }
 
     /**
-     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link OpenSearchParseException} if there is any
      * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
      */
     public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
-            throws ElasticsearchParseException {
+            throws OpenSearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
         try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
+            throw new OpenSearchParseException("Failed to parse content to map", e);
         }
     }
 
     /**
-     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link OpenSearchParseException} if there is any
      * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
      */
     public static Map<String, Object> convertToMap(XContent xContent, byte[] bytes, int offset, int length, boolean ordered)
-            throws ElasticsearchParseException {
+            throws OpenSearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
         try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes, offset, length)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
+            throw new OpenSearchParseException("Failed to parse content to map", e);
         }
     }
 

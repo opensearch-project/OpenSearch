@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -237,35 +237,35 @@ public class BytesRestResponseTests extends ESTestCase {
             case 3:
                 TransportAddress address = buildNewFakeTransportAddress();
                 original = new RemoteTransportException("remote", address, "action",
-                        new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status"));
+                        new ResourceAlreadyExistsException("OpenSearchWrapperException with a cause that has a custom status"));
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
                     type = "resource_already_exists_exception";
-                    reason = "ElasticsearchWrapperException with a cause that has a custom status";
+                    reason = "OpenSearchWrapperException with a cause that has a custom status";
                 } else {
                     reason = "RemoteTransportException[[remote][" + address.toString() + "][action]]";
                 }
                 break;
             case 4:
-                original = new RemoteTransportException("ElasticsearchWrapperException with a cause that has a special treatment",
+                original = new RemoteTransportException("OpenSearchWrapperException with a cause that has a special treatment",
                         new IllegalArgumentException("wrong"));
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
                     type = "illegal_argument_exception";
                     reason = "wrong";
                 } else {
-                    reason = "RemoteTransportException[[ElasticsearchWrapperException with a cause that has a special treatment]]";
+                    reason = "RemoteTransportException[[OpenSearchWrapperException with a cause that has a special treatment]]";
                 }
                 break;
             case 5:
                 status = randomFrom(RestStatus.values());
-                original = new ElasticsearchStatusException("ElasticsearchStatusException with random status", status);
+                original = new OpenSearchStatusException("OpenSearchStatusException with random status", status);
                 if (detailed) {
                     addHeadersOrMetadata = randomBoolean();
                     type = "status_exception";
-                    reason = "ElasticsearchStatusException with random status";
+                    reason = "OpenSearchStatusException with random status";
                 } else {
-                    reason = "ElasticsearchStatusException[ElasticsearchStatusException with random status]";
+                    reason = "OpenSearchStatusException[OpenSearchStatusException with random status]";
                 }
                 break;
             default:
@@ -273,7 +273,7 @@ public class BytesRestResponseTests extends ESTestCase {
         }
 
         String message = "Elasticsearch exception [type=" + type + ", reason=" + reason + "]";
-        ElasticsearchStatusException expected = new ElasticsearchStatusException(message, status, cause);
+        OpenSearchStatusException expected = new OpenSearchStatusException(message, status, cause);
 
         if (addHeadersOrMetadata) {
             OpenSearchException originalException = ((OpenSearchException) original);

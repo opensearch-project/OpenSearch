@@ -20,7 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -191,7 +191,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // Preemptively abort one of the bulk items, but allow the others to proceed
         BulkItemRequest rejectItem = randomFrom(items);
         RestStatus rejectionStatus = randomFrom(RestStatus.BAD_REQUEST, RestStatus.CONFLICT, RestStatus.FORBIDDEN, RestStatus.LOCKED);
-        final ElasticsearchStatusException rejectionCause = new ElasticsearchStatusException("testing rejection", rejectionStatus);
+        final OpenSearchStatusException rejectionCause = new OpenSearchStatusException("testing rejection", rejectionStatus);
         rejectItem.abort("index", rejectionCause);
 
         final CountDownLatch latch = new CountDownLatch(1);

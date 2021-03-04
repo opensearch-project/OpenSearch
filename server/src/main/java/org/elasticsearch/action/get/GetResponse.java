@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -145,7 +145,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     /**
      * The source of the document (As a map).
      */
-    public Map<String, Object> getSourceAsMap() throws ElasticsearchParseException {
+    public Map<String, Object> getSourceAsMap() throws OpenSearchParseException {
         return getResult.sourceAsMap();
     }
 

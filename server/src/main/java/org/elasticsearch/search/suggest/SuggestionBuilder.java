@@ -20,7 +20,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -278,7 +278,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
             }
         }
         if (suggestionBuilder == null) {
-            throw new ElasticsearchParseException("missing suggestion object");
+            throw new OpenSearchParseException("missing suggestion object");
         }
         if (suggestText != null) {
             suggestionBuilder.text(suggestText);

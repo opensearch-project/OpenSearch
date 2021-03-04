@@ -19,26 +19,11 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-
-import java.io.IOException;
-
 /**
- * A generic exception indicating failure to generate.
- *
- *
+ * An exception that is meant to be "unwrapped" when sent back to the user
+ * as an error because its is {@link #getCause() cause}, if non-null is
+ * <strong>always</strong> more useful to the user than the exception itself.
  */
-public class ElasticsearchGenerationException extends OpenSearchException {
-
-    public ElasticsearchGenerationException(String msg) {
-        super(msg);
-    }
-
-    public ElasticsearchGenerationException(String msg, Throwable cause) {
-        super(msg, cause);
-    }
-
-    public ElasticsearchGenerationException(StreamInput in) throws IOException{
-        super(in);
-    }
+public interface OpenSearchWrapperException {
+    Throwable getCause();
 }

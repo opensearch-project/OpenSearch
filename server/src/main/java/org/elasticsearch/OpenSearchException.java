@@ -58,7 +58,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
 /**
- * A base class for all elasticsearch exceptions.
+ * A base class for all opensearch exceptions.
  */
 public class OpenSearchException extends RuntimeException implements ToXContentFragment, Writeable {
 
@@ -232,7 +232,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
 
     /**
      * Unwraps the actual cause from the exception for cases when the exception is a
-     * {@link ElasticsearchWrapperException}.
+     * {@link OpenSearchWrapperException}.
      *
      * @see ExceptionsHelper#unwrapCause(Throwable)
      */
@@ -282,15 +282,15 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     }
 
     public static OpenSearchException readException(StreamInput input, int id) throws IOException {
-        CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
-        if (elasticsearchException == null) {
+        CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> opensearchException = ID_TO_SUPPLIER.get(id);
+        if (opensearchException == null) {
             if (id == 127 && input.getVersion().before(Version.V_7_5_0)) {
                 // was SearchContextException
                 return new SearchException(input);
             }
             throw new IllegalStateException("unknown exception for id: " + id);
         }
-        return elasticsearchException.apply(input);
+        return opensearchException.apply(input);
     }
 
     /**
@@ -740,8 +740,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException::new, 2, UNKNOWN_VERSION_ADDED),
         MASTER_NOT_DISCOVERED_EXCEPTION(org.elasticsearch.discovery.MasterNotDiscoveredException.class,
                 org.elasticsearch.discovery.MasterNotDiscoveredException::new, 3, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_SECURITY_EXCEPTION(org.elasticsearch.ElasticsearchSecurityException.class,
-                org.elasticsearch.ElasticsearchSecurityException::new, 4, UNKNOWN_VERSION_ADDED),
+        ELASTICSEARCH_SECURITY_EXCEPTION(org.elasticsearch.OpenSearchSecurityException.class,
+                org.elasticsearch.OpenSearchSecurityException::new, 4, UNKNOWN_VERSION_ADDED),
         INDEX_SHARD_RESTORE_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardRestoreException.class,
                 org.elasticsearch.index.snapshots.IndexShardRestoreException::new, 5, UNKNOWN_VERSION_ADDED),
         INDEX_CLOSED_EXCEPTION(org.elasticsearch.indices.IndexClosedException.class,
@@ -774,8 +774,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.ResourceNotFoundException::new, 19, UNKNOWN_VERSION_ADDED),
         ACTION_TRANSPORT_EXCEPTION(org.elasticsearch.transport.ActionTransportException.class,
                 org.elasticsearch.transport.ActionTransportException::new, 20, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_GENERATION_EXCEPTION(org.elasticsearch.ElasticsearchGenerationException.class,
-                org.elasticsearch.ElasticsearchGenerationException::new, 21, UNKNOWN_VERSION_ADDED),
+        ELASTICSEARCH_GENERATION_EXCEPTION(org.elasticsearch.OpenSearchGenerationException.class,
+                org.elasticsearch.OpenSearchGenerationException::new, 21, UNKNOWN_VERSION_ADDED),
         //      22 was CreateFailedEngineException
         INDEX_SHARD_STARTED_EXCEPTION(org.elasticsearch.index.shard.IndexShardStartedException.class,
                 org.elasticsearch.index.shard.IndexShardStartedException::new, 23, UNKNOWN_VERSION_ADDED),
@@ -799,8 +799,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException::new, 33, UNKNOWN_VERSION_ADDED),
         TRANSPORT_EXCEPTION(org.elasticsearch.transport.TransportException.class,
                 org.elasticsearch.transport.TransportException::new, 34, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_PARSE_EXCEPTION(org.elasticsearch.ElasticsearchParseException.class,
-                org.elasticsearch.ElasticsearchParseException::new, 35, UNKNOWN_VERSION_ADDED),
+        ELASTICSEARCH_PARSE_EXCEPTION(org.elasticsearch.OpenSearchParseException.class,
+                org.elasticsearch.OpenSearchParseException::new, 35, UNKNOWN_VERSION_ADDED),
         SEARCH_EXCEPTION(org.elasticsearch.search.SearchException.class,
                 org.elasticsearch.search.SearchException::new, 36, UNKNOWN_VERSION_ADDED),
         MAPPER_EXCEPTION(org.elasticsearch.index.mapper.MapperException.class,
@@ -946,8 +946,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException::new, 116, UNKNOWN_VERSION_ADDED),
         RETRY_ON_PRIMARY_EXCEPTION(ReplicationOperation.RetryOnPrimaryException.class,
                 ReplicationOperation.RetryOnPrimaryException::new, 117, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_TIMEOUT_EXCEPTION(org.elasticsearch.ElasticsearchTimeoutException.class,
-                org.elasticsearch.ElasticsearchTimeoutException::new, 118, UNKNOWN_VERSION_ADDED),
+        ELASTICSEARCH_TIMEOUT_EXCEPTION(org.elasticsearch.OpenSearchTimeoutException.class,
+                org.elasticsearch.OpenSearchTimeoutException::new, 118, UNKNOWN_VERSION_ADDED),
         QUERY_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.query.QueryPhaseExecutionException.class,
                 org.elasticsearch.search.query.QueryPhaseExecutionException::new, 119, UNKNOWN_VERSION_ADDED),
         REPOSITORY_VERIFICATION_EXCEPTION(org.elasticsearch.repositories.RepositoryVerificationException.class,
@@ -993,7 +993,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UNKNOWN_VERSION_ADDED),
         NOT_MASTER_EXCEPTION(org.elasticsearch.cluster.NotMasterException.class, org.elasticsearch.cluster.NotMasterException::new, 144,
             UNKNOWN_VERSION_ADDED),
-        STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145,
+        STATUS_EXCEPTION(org.elasticsearch.OpenSearchStatusException.class, org.elasticsearch.OpenSearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
         TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
             org.elasticsearch.tasks.TaskCancelledException::new, 146, UNKNOWN_VERSION_ADDED),

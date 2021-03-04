@@ -34,7 +34,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
+import org.elasticsearch.cluster.coordination.OpenSearchNodeCommand;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
@@ -71,7 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
-public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
+public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
     private static final Logger logger = LogManager.getLogger(RemoveCorruptedShardDataCommand.class);
 

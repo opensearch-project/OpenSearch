@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
-public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
+public class RemoveCustomsCommand extends OpenSearchNodeCommand {
 
     static final String CUSTOMS_REMOVED_MSG = "Customs were successfully removed from the cluster state";
     static final String CONFIRMATION_MSG =

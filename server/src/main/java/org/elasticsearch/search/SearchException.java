@@ -20,13 +20,13 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.OpenSearchWrapperException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class SearchException extends OpenSearchException implements ElasticsearchWrapperException {
+public class SearchException extends OpenSearchException implements OpenSearchWrapperException {
 
     private final SearchShardTarget shardTarget;
 
