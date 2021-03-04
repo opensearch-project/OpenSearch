@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.elasticsearch.packaging.util.Installation;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell;
-import org.elasticsearch.packaging.util.Shell.Result;
+import org.opensearch.packaging.util.Installation;
+import org.opensearch.packaging.util.Platforms;
+import org.opensearch.packaging.util.ServerUtils;
+import org.opensearch.packaging.util.Shell;
+import org.opensearch.packaging.util.Shell.Result;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -40,25 +40,25 @@ import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
-import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
-import static org.elasticsearch.packaging.util.Docker.existsInContainer;
-import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
-import static org.elasticsearch.packaging.util.Docker.getImageLabels;
-import static org.elasticsearch.packaging.util.Docker.getImageName;
-import static org.elasticsearch.packaging.util.Docker.getJson;
-import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
-import static org.elasticsearch.packaging.util.Docker.removeContainer;
-import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
-import static org.elasticsearch.packaging.util.Docker.runContainer;
-import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
-import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
-import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
-import static org.elasticsearch.packaging.util.FileMatcher.p600;
-import static org.elasticsearch.packaging.util.FileMatcher.p644;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.rm;
+import static org.opensearch.packaging.util.Docker.chownWithPrivilegeEscalation;
+import static org.opensearch.packaging.util.Docker.copyFromContainer;
+import static org.opensearch.packaging.util.Docker.existsInContainer;
+import static org.opensearch.packaging.util.Docker.getContainerLogs;
+import static org.opensearch.packaging.util.Docker.getImageLabels;
+import static org.opensearch.packaging.util.Docker.getImageName;
+import static org.opensearch.packaging.util.Docker.getJson;
+import static org.opensearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
+import static org.opensearch.packaging.util.Docker.removeContainer;
+import static org.opensearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
+import static org.opensearch.packaging.util.Docker.runContainer;
+import static org.opensearch.packaging.util.Docker.runContainerExpectingFailure;
+import static org.opensearch.packaging.util.Docker.verifyContainerInstallation;
+import static org.opensearch.packaging.util.Docker.waitForElasticsearch;
+import static org.opensearch.packaging.util.FileMatcher.p600;
+import static org.opensearch.packaging.util.FileMatcher.p644;
+import static org.opensearch.packaging.util.FileMatcher.p660;
+import static org.opensearch.packaging.util.FileUtils.append;
+import static org.opensearch.packaging.util.FileUtils.rm;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -315,7 +315,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the elasticsearch-node tool is shipped in the Docker image and is executable.
      */
-    public void test092ElasticsearchNodeCliPackaging() {
+    public void test092OpensearchNodeCliPackaging() {
         final Installation.Executables bin = installation.executables();
 
         final Result result = sh.run(bin.nodeTool + " -h");

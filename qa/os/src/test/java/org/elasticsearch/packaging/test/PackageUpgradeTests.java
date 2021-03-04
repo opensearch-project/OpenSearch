@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Packages;
+import org.opensearch.packaging.util.Distribution;
+import org.opensearch.packaging.util.Packages;
 
 import java.nio.file.Paths;
 
-import static org.elasticsearch.packaging.util.Packages.assertInstalled;
-import static org.elasticsearch.packaging.util.Packages.installPackage;
-import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
+import static org.opensearch.packaging.util.Packages.assertInstalled;
+import static org.opensearch.packaging.util.Packages.installPackage;
+import static org.opensearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.opensearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
 
 public class PackageUpgradeTests extends PackagingTestCase {

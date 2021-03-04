@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.common.settings;
+package org.opensearch.common.settings;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.cli.UserException;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;

@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell;
+import org.opensearch.packaging.util.Platforms;
+import org.opensearch.packaging.util.ServerUtils;
+import org.opensearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
-import static org.elasticsearch.packaging.util.FileUtils.fileWithGlobExist;
+import static org.opensearch.packaging.util.FileUtils.assertPathsExist;
+import static org.opensearch.packaging.util.FileUtils.fileWithGlobExist;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assume.assumeFalse;

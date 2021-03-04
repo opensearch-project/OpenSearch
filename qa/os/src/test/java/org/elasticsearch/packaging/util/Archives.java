@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.util;
+package org.opensearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,21 +31,21 @@ import java.util.Locale;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
-import static org.elasticsearch.packaging.util.FileMatcher.file;
-import static org.elasticsearch.packaging.util.FileMatcher.p644;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileMatcher.p755;
-import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
-import static org.elasticsearch.packaging.util.FileUtils.getDefaultArchiveInstallPath;
-import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
-import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
-import static org.elasticsearch.packaging.util.FileUtils.mv;
-import static org.elasticsearch.packaging.util.FileUtils.slurp;
-import static org.elasticsearch.packaging.util.Platforms.isDPKG;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.opensearch.packaging.util.FileMatcher.Fileness.Directory;
+import static org.opensearch.packaging.util.FileMatcher.Fileness.File;
+import static org.opensearch.packaging.util.FileMatcher.file;
+import static org.opensearch.packaging.util.FileMatcher.p644;
+import static org.opensearch.packaging.util.FileMatcher.p660;
+import static org.opensearch.packaging.util.FileMatcher.p755;
+import static org.opensearch.packaging.util.FileUtils.getCurrentVersion;
+import static org.opensearch.packaging.util.FileUtils.getDefaultArchiveInstallPath;
+import static org.opensearch.packaging.util.FileUtils.getDistributionFile;
+import static org.opensearch.packaging.util.FileUtils.lsGlob;
+import static org.opensearch.packaging.util.FileUtils.mv;
+import static org.opensearch.packaging.util.FileUtils.slurp;
+import static org.opensearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;

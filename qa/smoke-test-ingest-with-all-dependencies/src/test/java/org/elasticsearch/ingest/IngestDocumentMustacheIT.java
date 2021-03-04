@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.opensearch.ingest;
 
 import java.util.ArrayList;
 import java.util.Arrays;

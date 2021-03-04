@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
@@ -27,16 +27,16 @@ import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.packaging.util.Archives;
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Docker;
-import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Installation;
-import org.elasticsearch.packaging.util.Packages;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.Shell;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.packaging.util.Archives;
+import org.opensearch.packaging.util.Distribution;
+import org.opensearch.packaging.util.Docker;
+import org.opensearch.packaging.util.FileUtils;
+import org.opensearch.packaging.util.Installation;
+import org.opensearch.packaging.util.Packages;
+import org.opensearch.packaging.util.Platforms;
+import org.opensearch.packaging.util.Shell;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -63,11 +63,11 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
-import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
-import static org.elasticsearch.packaging.util.Docker.removeContainer;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
-import static org.elasticsearch.packaging.util.FileUtils.append;
+import static org.opensearch.packaging.util.Cleanup.cleanEverything;
+import static org.opensearch.packaging.util.Docker.ensureImageIsLoaded;
+import static org.opensearch.packaging.util.Docker.removeContainer;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.opensearch.packaging.util.FileUtils.append;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
