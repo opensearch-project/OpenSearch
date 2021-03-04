@@ -31,13 +31,13 @@ import java.io.IOException;
  * A {@link org.apache.lucene.index.FilterDirectoryReader} that exposes
  * Elasticsearch internal per shard / index information like the shard ID.
  */
-public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
+public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
 
     private final ShardId shardId;
     private final FilterDirectoryReader.SubReaderWrapper wrapper;
 
-    private ElasticsearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper,
-            ShardId shardId) throws IOException {
+    private OpenSearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper,
+                                      ShardId shardId) throws IOException {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
@@ -58,19 +58,19 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-        return new ElasticsearchDirectoryReader(in, wrapper, shardId);
+        return new OpenSearchDirectoryReader(in, wrapper, shardId);
     }
 
     /**
-     * Wraps the given reader in a {@link ElasticsearchDirectoryReader} as
+     * Wraps the given reader in a {@link OpenSearchDirectoryReader} as
      * well as all it's sub-readers in {@link ElasticsearchLeafReader} to
      * expose the given shard Id.
      *
      * @param reader the reader to wrap
      * @param shardId the shard ID to expose via the elasticsearch internal reader wrappers.
      */
-    public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId) throws IOException {
-        return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId);
+    public static OpenSearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId) throws IOException {
+        return new OpenSearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId);
     }
 
     private static final class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
@@ -86,22 +86,22 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     /**
      * Adds the given listener to the provided directory reader. The reader
-     * must contain an {@link ElasticsearchDirectoryReader} in it's hierarchy
+     * must contain an {@link OpenSearchDirectoryReader} in it's hierarchy
      * otherwise we can't safely install the listener.
      *
      * @throws IllegalArgumentException if the reader doesn't contain an
-     *     {@link ElasticsearchDirectoryReader} in it's hierarchy
+     *     {@link OpenSearchDirectoryReader} in it's hierarchy
      */
     @SuppressForbidden(reason = "This is the only sane way to add a ReaderClosedListener")
     public static void addReaderCloseListener(DirectoryReader reader, IndexReader.ClosedListener listener) {
-        ElasticsearchDirectoryReader elasticsearchDirectoryReader = getElasticsearchDirectoryReader(reader);
-        if (elasticsearchDirectoryReader == null) {
+        OpenSearchDirectoryReader openSearchDirectoryReader = getOpenSearchDirectoryReader(reader);
+        if (openSearchDirectoryReader == null) {
             throw new IllegalArgumentException(
-                    "Can't install close listener reader is not an ElasticsearchDirectoryReader/ElasticsearchLeafReader");
+                    "Can't install close listener reader is not an OpenSearchDirectoryReader/ElasticsearchLeafReader");
         }
-        IndexReader.CacheHelper cacheHelper = elasticsearchDirectoryReader.getReaderCacheHelper();
+        IndexReader.CacheHelper cacheHelper = openSearchDirectoryReader.getReaderCacheHelper();
         if (cacheHelper == null) {
-            throw new IllegalArgumentException("Reader " + elasticsearchDirectoryReader + " does not support caching");
+            throw new IllegalArgumentException("Reader " + openSearchDirectoryReader + " does not support caching");
         }
         assert cacheHelper.getKey() == reader.getReaderCacheHelper().getKey();
         cacheHelper.addClosedListener(listener);
@@ -109,19 +109,19 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     /**
      * Tries to unwrap the given reader until the first
-     * {@link ElasticsearchDirectoryReader} instance is found or {@code null}
+     * {@link OpenSearchDirectoryReader} instance is found or {@code null}
      * if no instance is found.
      */
-    public static ElasticsearchDirectoryReader getElasticsearchDirectoryReader(DirectoryReader reader) {
+    public static OpenSearchDirectoryReader getOpenSearchDirectoryReader(DirectoryReader reader) {
         if (reader instanceof FilterDirectoryReader) {
-            if (reader instanceof ElasticsearchDirectoryReader) {
-                return (ElasticsearchDirectoryReader) reader;
+            if (reader instanceof OpenSearchDirectoryReader) {
+                return (OpenSearchDirectoryReader) reader;
             } else {
                 // We need to use FilterDirectoryReader#getDelegate and not FilterDirectoryReader#unwrap, because
                 // If there are multiple levels of filtered leaf readers then with the unwrap() method it immediately
                 // returns the most inner leaf reader and thus skipping of over any other filtered leaf reader that
                 // may be instance of ElasticsearchLeafReader. This can cause us to miss the shardId.
-                return getElasticsearchDirectoryReader(((FilterDirectoryReader) reader).getDelegate());
+                return getOpenSearchDirectoryReader(((FilterDirectoryReader) reader).getDelegate());
             }
         }
         return null;
