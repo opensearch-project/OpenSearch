@@ -76,13 +76,6 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.opensearch.client.Cancellable;
-import org.opensearch.client.Request;
-import org.opensearch.client.RequestOptions;
-import org.opensearch.client.Response;
-import org.opensearch.client.ResponseException;
-import org.opensearch.client.ResponseListener;
-import org.opensearch.client.RestClient;
 
 import java.io.IOException;
 import java.lang.reflect.Method;

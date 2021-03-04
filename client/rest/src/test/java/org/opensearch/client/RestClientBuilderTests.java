@@ -163,9 +163,9 @@ public class RestClientBuilderTests extends RestClientTestCase {
 
     public void testBuildCloudId() throws IOException {
         String host = "us-east-1.aws.found.io";
-        String esId = "opensearch";
+        String osId = "opensearch";
         String kibanaId = "kibana";
-        String toEncode = host + "$" + esId + "$" + kibanaId;
+        String toEncode = host + "$" + osId + "$" + kibanaId;
         String encodedId = Base64.getEncoder().encodeToString(toEncode.getBytes(UTF8));
         assertNotNull(RestClient.builder(encodedId));
         assertNotNull(RestClient.builder("humanReadable:" + encodedId));
@@ -187,7 +187,7 @@ public class RestClientBuilderTests extends RestClientTestCase {
 
         RestClient client = RestClient.builder(encodedId).build();
         assertThat(client.getNodes().size(), equalTo(1));
-        assertThat(client.getNodes().get(0).getHost().getHostName(), equalTo(esId + "." + host));
+        assertThat(client.getNodes().get(0).getHost().getHostName(), equalTo(osId + "." + host));
         assertThat(client.getNodes().get(0).getHost().getPort(), equalTo(443));
         assertThat(client.getNodes().get(0).getHost().getSchemeName(), equalTo("https"));
         client.close();
