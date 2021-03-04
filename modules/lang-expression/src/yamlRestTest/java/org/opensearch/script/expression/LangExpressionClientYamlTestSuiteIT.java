@@ -16,29 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'Lucene expressions integration for OpenSearch'
-  classname 'org.opensearch.script.expression.ExpressionPlugin'
-}
+package org.opensearch.script.expression;
 
-dependencies {
-  api "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  api 'org.antlr:antlr4-runtime:4.5.1-1'
-  api 'org.ow2.asm:asm:5.0.4'
-  api 'org.ow2.asm:asm-commons:5.0.4'
-  api 'org.ow2.asm:asm-tree:5.0.4'
-}
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'search'
-  }
-}
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /lucene-.*/, to: 'lucene'
-  mapping from: /asm-.*/, to: 'asm'
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+
+public class LangExpressionClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    public LangExpressionClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }
 
