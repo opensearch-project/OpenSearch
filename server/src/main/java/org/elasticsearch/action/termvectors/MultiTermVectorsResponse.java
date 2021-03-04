@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -127,7 +127,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
-                ElasticsearchException.generateFailureXContent(builder, params, failure.getCause(), true);
+                OpenSearchException.generateFailureXContent(builder, params, failure.getCause(), true);
                 builder.endObject();
             } else {
                 TermVectorsResponse getResponse = response.getResponse();

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.broadcast.node;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -151,7 +151,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 shards.put(shardRouting, Boolean.TRUE);
                 return EmptyResult.INSTANCE;
             } else {
-                ElasticsearchException e = new ElasticsearchException("operation failed");
+                OpenSearchException e = new OpenSearchException("operation failed");
                 shards.put(shardRouting, e);
                 throw e;
             }
@@ -389,7 +389,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         int successfulShards = 0;
         int failedShards = 0;
         for (Object result : action.getResults().values()) {
-            if (!(result instanceof ElasticsearchException)) {
+            if (!(result instanceof OpenSearchException)) {
                 successfulShards++;
             } else {
                 failedShards++;

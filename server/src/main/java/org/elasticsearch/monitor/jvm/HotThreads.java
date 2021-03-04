@@ -20,7 +20,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -132,7 +132,7 @@ public class HotThreads {
     private String innerDetect() throws Exception {
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
         if (threadBean.isThreadCpuTimeSupported() == false) {
-            throw new ElasticsearchException("thread CPU time is not supported on this JDK");
+            throw new OpenSearchException("thread CPU time is not supported on this JDK");
         }
 
         StringBuilder sb = new StringBuilder();

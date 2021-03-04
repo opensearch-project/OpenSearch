@@ -21,7 +21,7 @@ package org.elasticsearch.action.update;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -299,7 +299,7 @@ public class UpdateHelper {
                     sourceFilteredAsBytes = BytesReference.bytes(builder);
                 }
             } catch (IOException e) {
-                throw new ElasticsearchException("Error filtering source", e);
+                throw new OpenSearchException("Error filtering source", e);
             }
         }
 

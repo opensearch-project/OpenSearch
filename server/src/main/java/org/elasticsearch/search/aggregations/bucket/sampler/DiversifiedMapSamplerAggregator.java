@@ -25,7 +25,7 @@ import org.apache.lucene.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
@@ -115,7 +115,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
                 try {
                     values = valuesSource.bytesValues(context);
                 } catch (IOException e) {
-                    throw new ElasticsearchException("Error reading values", e);
+                    throw new OpenSearchException("Error reading values", e);
                 }
                 return new AbstractNumericDocValues() {
 

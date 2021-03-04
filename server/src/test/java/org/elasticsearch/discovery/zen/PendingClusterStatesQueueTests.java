@@ -19,14 +19,13 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.PendingClusterStatesQueue;
 import org.elasticsearch.discovery.zen.PendingClusterStatesQueue.ClusterStateContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -132,7 +131,7 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         PendingClusterStatesQueue queue = createQueueWithStates(states);
         List<ClusterStateContext> committedContexts = randomCommitStates(queue);
         ClusterState toFail = randomFrom(committedContexts).state;
-        queue.markAsFailed(toFail, new ElasticsearchException("boo!"));
+        queue.markAsFailed(toFail, new OpenSearchException("boo!"));
         final Map<String, ClusterStateContext> committedContextsById = new HashMap<>();
         for (ClusterStateContext context : committedContexts) {
             committedContextsById.put(context.stateUUID(), context);
@@ -169,7 +168,7 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         List<ClusterState> states = randomStates(scaledRandomIntBetween(10, 50), "master1", "master2", "master3", "master4");
         PendingClusterStatesQueue queue = createQueueWithStates(states);
         List<ClusterStateContext> committedContexts = randomCommitStates(queue);
-        queue.failAllStatesAndClear(new ElasticsearchException("boo!"));
+        queue.failAllStatesAndClear(new OpenSearchException("boo!"));
         assertThat(queue.pendingStates, empty());
         assertThat(queue.getNextClusterStateToProcess(), nullValue());
         for (ClusterStateContext context : committedContexts) {

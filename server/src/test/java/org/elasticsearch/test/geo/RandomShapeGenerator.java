@@ -20,10 +20,10 @@
 package org.elasticsearch.test.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.elasticsearch.OpenSearchException;
 import org.locationtech.jts.algorithm.ConvexHull;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
@@ -238,7 +238,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 }
                 return pgb;
             default:
-                throw new ElasticsearchException("Unable to create shape of type [" + st + "]");
+                throw new OpenSearchException("Unable to create shape of type [" + st + "]");
         }
     }
 

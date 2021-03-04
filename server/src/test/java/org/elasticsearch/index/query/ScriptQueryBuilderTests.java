@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -137,7 +137,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
 
         ScriptQueryBuilder queryBuilder = doCreateTestQueryBuilder();
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+        OpenSearchException e = expectThrows(OpenSearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
         assertEquals("[script] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 e.getMessage());

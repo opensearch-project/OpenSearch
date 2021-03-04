@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -79,7 +79,7 @@ public class DebugTests extends ScriptTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeException(e);
             try (StreamInput in = out.bytes().streamInput()) {
-                ElasticsearchException read = (ScriptException) in.readException();
+                OpenSearchException read = (ScriptException) in.readException();
                 assertEquals(singletonList("jumped over the moon"), read.getMetadata("es.to_string"));
                 assertEquals(singletonList("java.lang.String"), read.getMetadata("es.java_class"));
                 assertEquals(singletonList("java.lang.String"), read.getMetadata("es.painless_class"));

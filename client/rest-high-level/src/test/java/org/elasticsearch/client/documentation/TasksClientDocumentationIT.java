@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -111,7 +111,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::list-tasks-response-calc
 
         // tag::list-tasks-response-failures
-        List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
+        List<OpenSearchException> nodeFailures = response.getNodeFailures(); // <1>
         List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
         // end::list-tasks-response-failures
 

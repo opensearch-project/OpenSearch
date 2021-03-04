@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -34,7 +34,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
         extends ActionRequestBuilder<Request, BulkByScrollResponse> {
     private final SearchRequestBuilder source;
 
-    protected AbstractBulkByScrollRequestBuilder(ElasticsearchClient client,
+    protected AbstractBulkByScrollRequestBuilder(OpenSearchClient client,
                                                  ActionType<BulkByScrollResponse> action, SearchRequestBuilder source, Request request) {
         super(client, action, request);
         this.source = source;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -175,7 +175,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
             builder.map(source);
             return mapping(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -207,7 +207,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
             builder.map(source);
             return aliases(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 

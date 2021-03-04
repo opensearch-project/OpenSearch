@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -50,7 +50,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
 
     private final RestStatus status;
     private final String error;
-    private final ElasticsearchException exception;
+    private final OpenSearchException exception;
 
     private final Map<String, Set<AliasMetadata>> aliases;
 
@@ -61,7 +61,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
         this.exception = null;
     }
 
-    private GetAliasesResponse(RestStatus status, ElasticsearchException exception) {
+    private GetAliasesResponse(RestStatus status, OpenSearchException exception) {
         this.status = status;
         this.error = null;
         this.aliases = Collections.emptyMap();
@@ -83,7 +83,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
     /**
      * Return the exception that may have been returned
      */
-    public ElasticsearchException getException() {
+    public OpenSearchException getException() {
         return exception;
     }
 
@@ -134,7 +134,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
         String currentFieldName;
         Token token;
         String error = null;
-        ElasticsearchException exception = null;
+        OpenSearchException exception = null;
         RestStatus status = RestStatus.OK;
 
         while (parser.nextToken() != Token.END_OBJECT) {
@@ -152,7 +152,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
                         error = parser.text();
                     } else if (token == Token.START_OBJECT) {
                         parser.nextToken();
-                        exception = ElasticsearchException.innerFromXContent(parser, true);
+                        exception = OpenSearchException.innerFromXContent(parser, true);
                     } else if (token == Token.START_ARRAY) {
                         parser.skipChildren();
                     }

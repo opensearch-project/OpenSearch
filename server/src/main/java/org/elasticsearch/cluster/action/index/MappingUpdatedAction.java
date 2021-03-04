@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
@@ -137,10 +137,10 @@ public class MappingUpdatedAction {
 
     // todo: this explicit unwrap should not be necessary, but is until guessRootCause is fixed to allow wrapped non-es exception.
     private static Exception unwrapException(Exception cause) {
-        return cause instanceof ElasticsearchException ? unwrapEsException((ElasticsearchException) cause) : cause;
+        return cause instanceof OpenSearchException ? unwrapEsException((OpenSearchException) cause) : cause;
     }
 
-    private static RuntimeException unwrapEsException(ElasticsearchException esEx) {
+    private static RuntimeException unwrapEsException(OpenSearchException esEx) {
         Throwable root = esEx.unwrapCause();
         if (root instanceof RuntimeException) {
             return (RuntimeException) root;

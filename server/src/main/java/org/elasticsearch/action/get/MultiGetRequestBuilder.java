@@ -20,7 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -28,7 +28,7 @@ import org.elasticsearch.common.Nullable;
  */
 public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest, MultiGetResponse> {
 
-    public MultiGetRequestBuilder(ElasticsearchClient client, MultiGetAction action) {
+    public MultiGetRequestBuilder(OpenSearchClient client, MultiGetAction action) {
         super(client, action, new MultiGetRequest());
     }
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.io.IOException;
  *
  *
  */
-public class SettingsException extends ElasticsearchException {
+public class SettingsException extends OpenSearchException {
 
     public SettingsException(String message) {
         super(message);

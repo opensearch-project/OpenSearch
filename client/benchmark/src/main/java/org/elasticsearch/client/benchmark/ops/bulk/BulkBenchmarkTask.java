@@ -20,7 +20,7 @@ package org.elasticsearch.client.benchmark.ops.bulk;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.client.benchmark.BenchmarkTask;
 import org.elasticsearch.client.benchmark.metrics.Sample;
 import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
@@ -122,7 +122,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
                     sendBulk(bulkData);
                 }
             } catch (IOException e) {
-                throw new ElasticsearchException(e);
+                throw new OpenSearchException(e);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.tasks;
 
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,14 +26,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 
-public class ElasticsearchExceptionTests extends AbstractResponseTestCase<org.elasticsearch.ElasticsearchException,
+public class ElasticsearchExceptionTests extends AbstractResponseTestCase<OpenSearchException,
     org.elasticsearch.client.tasks.ElasticsearchException> {
 
     @Override
-    protected org.elasticsearch.ElasticsearchException createServerTestInstance(XContentType xContentType) {
+    protected OpenSearchException createServerTestInstance(XContentType xContentType) {
         IllegalStateException ies = new IllegalStateException("illegal_state");
         IllegalArgumentException iae = new IllegalArgumentException("argument", ies);
-        org.elasticsearch.ElasticsearchException exception = new org.elasticsearch.ElasticsearchException("elastic_exception", iae);
+        OpenSearchException exception = new OpenSearchException("elastic_exception", iae);
         exception.addHeader("key","value");
         exception.addMetadata("es.meta","data");
         exception.addSuppressed(new NumberFormatException("3/0"));
@@ -46,7 +47,7 @@ public class ElasticsearchExceptionTests extends AbstractResponseTestCase<org.el
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.ElasticsearchException serverTestInstance, ElasticsearchException clientInstance) {
+    protected void assertInstances(OpenSearchException serverTestInstance, ElasticsearchException clientInstance) {
 
         IllegalArgumentException sCauseLevel1 = (IllegalArgumentException) serverTestInstance.getCause();
         ElasticsearchException cCauseLevel1 = clientInstance.getCause();

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 /**
  * Recovery information request builder.
@@ -30,7 +30,7 @@ public class RecoveryRequestBuilder extends BroadcastOperationRequestBuilder<Rec
     /**
      * Constructs a new recovery information request builder.
      */
-    public RecoveryRequestBuilder(ElasticsearchClient client, RecoveryAction action) {
+    public RecoveryRequestBuilder(OpenSearchClient client, RecoveryAction action) {
         super(client, action, new RecoveryRequest());
     }
 

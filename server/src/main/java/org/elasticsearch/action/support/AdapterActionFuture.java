@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,7 +35,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
     public T actionGet() {
         try {
             return FutureUtils.get(this);
-        } catch (ElasticsearchException e) {
+        } catch (OpenSearchException e) {
             throw unwrapEsException(e);
         }
     }
@@ -59,7 +59,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
     public T actionGet(long timeout, TimeUnit unit) {
         try {
             return FutureUtils.get(this, timeout, unit);
-        } catch (ElasticsearchException e) {
+        } catch (OpenSearchException e) {
             throw unwrapEsException(e);
         }
     }
@@ -76,7 +76,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
 
     protected abstract T convert(L listenerResponse);
 
-    private static RuntimeException unwrapEsException(ElasticsearchException esEx) {
+    private static RuntimeException unwrapEsException(OpenSearchException esEx) {
         Throwable root = esEx.unwrapCause();
         if (root instanceof RuntimeException) {
             return (RuntimeException) root;

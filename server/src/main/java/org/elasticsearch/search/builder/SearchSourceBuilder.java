@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -1688,7 +1688,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         try {
             return XContentHelper.toXContent(this, XContentType.JSON, params, true).utf8ToString();
         } catch (IOException e) {
-            throw new ElasticsearchException(e);
+            throw new OpenSearchException(e);
         }
     }
 

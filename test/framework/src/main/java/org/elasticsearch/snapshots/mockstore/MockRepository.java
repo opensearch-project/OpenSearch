@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -317,7 +317,7 @@ public class MockRepository extends FsRepository {
                     return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16)
                             | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
                 } catch (NoSuchAlgorithmException | UnsupportedEncodingException ex) {
-                    throw new ElasticsearchException("cannot calculate hashcode", ex);
+                    throw new OpenSearchException("cannot calculate hashcode", ex);
                 }
             }
 

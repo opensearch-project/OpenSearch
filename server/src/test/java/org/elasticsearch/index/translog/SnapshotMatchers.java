@@ -21,7 +21,7 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -86,7 +86,7 @@ public final class SnapshotMatchers {
                     count++;
                 }
             } catch (IOException ex) {
-                throw new ElasticsearchException("failed to advance snapshot", ex);
+                throw new OpenSearchException("failed to advance snapshot", ex);
             }
             return size == count;
         }
@@ -133,7 +133,7 @@ public final class SnapshotMatchers {
                 }
                 return true;
             } catch (IOException ex) {
-                throw new ElasticsearchException("failed to read snapshot content", ex);
+                throw new OpenSearchException("failed to read snapshot content", ex);
             }
         }
 
@@ -173,7 +173,7 @@ public final class SnapshotMatchers {
                     .collect(Collectors.toList());
                 return notFoundOps.isEmpty() && notExpectedOps.isEmpty();
             } catch (IOException ex) {
-                throw new ElasticsearchException("failed to read snapshot content", ex);
+                throw new OpenSearchException("failed to read snapshot content", ex);
             }
         }
 
@@ -225,7 +225,7 @@ public final class SnapshotMatchers {
                 }
                 return notFoundSeqNo.isEmpty();
             } catch (IOException ex) {
-                throw new ElasticsearchException("failed to read snapshot content", ex);
+                throw new OpenSearchException("failed to read snapshot content", ex);
             }
         }
 
