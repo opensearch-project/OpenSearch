@@ -27,7 +27,7 @@ import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -70,7 +70,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
+import org.elasticsearch.cluster.coordination.OpenSearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -1146,7 +1146,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
                 final Metadata loadedMetadata;
-                try (XContentParser parser = createParser(ElasticsearchNodeCommand.namedXContentRegistry,
+                try (XContentParser parser = createParser(OpenSearchNodeCommand.namedXContentRegistry,
                     SmileXContent.smileXContent, originalBytes)) {
                     loadedMetadata = Metadata.fromXContent(parser);
                 }
@@ -1180,7 +1180,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
                 final IndexMetadata loadedIndexMetadata;
-                try (XContentParser parser = createParser(ElasticsearchNodeCommand.namedXContentRegistry,
+                try (XContentParser parser = createParser(OpenSearchNodeCommand.namedXContentRegistry,
                     SmileXContent.smileXContent, originalBytes)) {
                     loadedIndexMetadata = IndexMetadata.fromXContent(parser);
                 }
@@ -1929,7 +1929,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
                 break;
             default:
-                throw new ElasticsearchException("Scope not supported: " + scope);
+                throw new OpenSearchException("Scope not supported: " + scope);
         }
 
 

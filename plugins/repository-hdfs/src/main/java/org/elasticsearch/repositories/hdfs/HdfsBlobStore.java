@@ -22,7 +22,7 @@ import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -84,7 +84,7 @@ final class HdfsBlobStore implements BlobStore {
             } catch (FileAlreadyExistsException ok) {
                 // behaves like Files.createDirectories
             } catch (IOException ex) {
-                throw new ElasticsearchException("failed to create blob container", ex);
+                throw new OpenSearchException("failed to create blob container", ex);
             }
         }
         return path;

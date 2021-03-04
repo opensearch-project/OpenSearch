@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.IntSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -798,7 +798,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * A helper exception to mark an incoming connection as potentially being HTTP
      * so an appropriate error code can be returned
      */
-    public static class HttpRequestOnTransportException extends ElasticsearchException {
+    public static class HttpRequestOnTransportException extends OpenSearchException {
 
         HttpRequestOnTransportException(String msg) {
             super(msg);

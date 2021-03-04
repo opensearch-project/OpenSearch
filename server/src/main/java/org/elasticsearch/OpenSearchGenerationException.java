@@ -16,32 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch;
+
+import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
 /**
- * This exception is thrown when Elasticsearch detects
- * an inconsistency in one of it's persistent files.
+ * A generic exception indicating failure to generate.
+ *
+ *
  */
-public class ElasticsearchCorruptionException extends IOException {
+public class OpenSearchGenerationException extends OpenSearchException {
 
-    /**
-     * Creates a new {@link ElasticsearchCorruptionException}
-     * @param message the exception message.
-     */
-    public ElasticsearchCorruptionException(String message) {
-        super(message);
+    public OpenSearchGenerationException(String msg) {
+        super(msg);
     }
 
-    /**
-     * Creates a new {@link ElasticsearchCorruptionException} with the given exceptions stacktrace.
-     * This constructor copies the stacktrace as well as the message from the given
-     * {@code Throwable} into this exception.
-     *
-     * @param ex the exception cause
-     */
-    public ElasticsearchCorruptionException(Throwable ex) {
-        super(ex);
+    public OpenSearchGenerationException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
+
+    public OpenSearchGenerationException(StreamInput in) throws IOException{
+        super(in);
     }
 }

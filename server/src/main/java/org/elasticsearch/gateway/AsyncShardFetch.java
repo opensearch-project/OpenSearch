@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -217,7 +217,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                         // if the request got rejected or timed out, we need to try it again next time...
                         if (unwrappedCause instanceof EsRejectedExecutionException ||
                             unwrappedCause instanceof ReceiveTimeoutTransportException ||
-                            unwrappedCause instanceof ElasticsearchTimeoutException) {
+                            unwrappedCause instanceof OpenSearchTimeoutException) {
                             nodeEntry.restartFetching();
                         } else {
                             logger.warn(() -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]",

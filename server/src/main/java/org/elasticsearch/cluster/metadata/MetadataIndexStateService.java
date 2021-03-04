@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -882,7 +882,7 @@ public class MetadataIndexStateService {
                 try {
                     indicesService.verifyIndexMetadata(updatedIndexMetadata, updatedIndexMetadata);
                 } catch (Exception e) {
-                    throw new ElasticsearchException("Failed to verify index " + index, e);
+                    throw new OpenSearchException("Failed to verify index " + index, e);
                 }
                 metadata.put(updatedIndexMetadata, true);
             }

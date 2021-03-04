@@ -23,8 +23,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.search.BaseRangeFieldQueryTestCase;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
+import org.opensearch.index.mapper.RangeFieldMapper;
+import org.opensearch.index.mapper.RangeType;
 
 import java.io.IOException;
 import java.util.Collections;

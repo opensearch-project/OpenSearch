@@ -19,7 +19,7 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -221,7 +221,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                 if (SnapshotsService.useIndexGenerations(minimumNodeVersion()) == false) {
                     assertThat(TEST_STEP, is(TestStep.STEP3_OLD_CLUSTER));
                     final List<Class<? extends Exception>> expectedExceptions =
-                        Arrays.asList(ResponseException.class, ElasticsearchStatusException.class);
+                        Arrays.asList(ResponseException.class, OpenSearchStatusException.class);
                     expectThrowsAnyOf(expectedExceptions, () -> listSnapshots(repoName));
                     expectThrowsAnyOf(expectedExceptions, () -> deleteSnapshot(client, repoName, "snapshot-1"));
                     expectThrowsAnyOf(expectedExceptions, () -> deleteSnapshot(client, repoName, "snapshot-2"));

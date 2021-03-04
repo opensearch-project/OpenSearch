@@ -23,7 +23,7 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.List;
@@ -593,7 +593,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+        OpenSearchException e = expectThrows(OpenSearchException.class,
                 () -> geoShapeFieldMapper.fieldType().geoShapeQuery(
                         new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, queryShardContext));
         assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +

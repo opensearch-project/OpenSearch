@@ -56,20 +56,20 @@ public final class ExceptionsHelper {
         if (e instanceof RuntimeException) {
             return (RuntimeException) e;
         }
-        return new ElasticsearchException(e);
+        return new OpenSearchException(e);
     }
 
-    public static ElasticsearchException convertToElastic(Exception e) {
-        if (e instanceof ElasticsearchException) {
-            return (ElasticsearchException) e;
+    public static OpenSearchException convertToElastic(Exception e) {
+        if (e instanceof OpenSearchException) {
+            return (OpenSearchException) e;
         }
-        return new ElasticsearchException(e);
+        return new OpenSearchException(e);
     }
 
     public static RestStatus status(Throwable t) {
         if (t != null) {
-            if (t instanceof ElasticsearchException) {
-                return ((ElasticsearchException) t).status();
+            if (t instanceof OpenSearchException) {
+                return ((OpenSearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof JsonParseException) {
@@ -166,7 +166,7 @@ public final class ExceptionsHelper {
             main = useOrSuppress(main, ex);
         }
         if (main != null) {
-            throw new ElasticsearchException(main);
+            throw new OpenSearchException(main);
         }
     }
 
@@ -331,8 +331,8 @@ public final class ExceptionsHelper {
             //which does not include the cluster alias.
             String indexName = failure.index();
             if (indexName == null) {
-                if (cause instanceof ElasticsearchException) {
-                    final Index index = ((ElasticsearchException) cause).getIndex();
+                if (cause instanceof OpenSearchException) {
+                    final Index index = ((OpenSearchException) cause).getIndex();
                     if (index != null) {
                         indexName = index.getName();
                     }

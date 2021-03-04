@@ -19,7 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -57,7 +57,7 @@ public class SuggestPhase {
             }
             context.queryResult().suggest(new Suggest(suggestions));
         } catch (IOException e) {
-            throw new ElasticsearchException("I/O exception during suggest phase", e);
+            throw new OpenSearchException("I/O exception during suggest phase", e);
         }
     }
 

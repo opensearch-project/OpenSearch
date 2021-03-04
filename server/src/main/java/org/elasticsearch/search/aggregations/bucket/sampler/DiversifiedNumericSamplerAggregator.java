@@ -25,7 +25,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -102,7 +102,7 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
                 try {
                     values = valuesSource.longValues(context);
                 } catch (IOException e) {
-                    throw new ElasticsearchException("Error reading values", e);
+                    throw new OpenSearchException("Error reading values", e);
                 }
                 return new AbstractNumericDocValues() {
 

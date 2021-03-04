@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -285,7 +285,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             mappings.put(type, Strings.toString(builder));
             return this;
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -307,7 +307,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             builder.map(source);
             return aliases(BytesReference.bytes(builder));
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 

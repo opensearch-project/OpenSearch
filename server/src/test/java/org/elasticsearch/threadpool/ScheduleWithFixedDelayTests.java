@@ -19,7 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
@@ -109,13 +109,13 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(scaledRandomIntBetween(2, 16));
         final Runnable countingRunnable = () -> {
             if (rarely()) {
-                throw new ElasticsearchException("sometimes we throw before counting down");
+                throw new OpenSearchException("sometimes we throw before counting down");
             }
 
             latch.countDown();
 
             if (randomBoolean()) {
-                throw new ElasticsearchException("this shouldn't cause the test to fail!");
+                throw new OpenSearchException("this shouldn't cause the test to fail!");
             }
         };
 

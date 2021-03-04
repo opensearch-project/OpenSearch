@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
@@ -299,7 +299,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 this.filter = new CompressedXContent(BytesReference.bytes(builder));
                 return this;
             } catch (IOException e) {
-                throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
+                throw new OpenSearchGenerationException("Failed to build json for alias request", e);
             }
         }
 

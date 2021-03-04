@@ -24,7 +24,7 @@ import joptsimple.OptionSpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -57,8 +57,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
-    private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
+public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
+    private static final Logger logger = LogManager.getLogger(OpenSearchNodeCommand.class);
     protected static final String DELIMITER = "------------------------------------------------------------------------\n";
     static final String STOP_WARNING_MSG =
             DELIMITER +
@@ -110,7 +110,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
     };
 
-    public ElasticsearchNodeCommand(String description) {
+    public OpenSearchNodeCommand(String description) {
         super(description);
         nodeOrdinalOption = parser.accepts("ordinal", "Optional node ordinal, 0 if not specified")
                 .withRequiredArg().ofType(Integer.class);
@@ -119,7 +119,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     public static PersistedClusterStateService createPersistedClusterStateService(Settings settings, Path[] dataPaths) throws IOException {
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
         if (nodeMetadata == null) {
-            throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
+            throw new OpenSearchException(NO_NODE_METADATA_FOUND_MSG);
         }
 
         String nodeId = nodeMetadata.nodeId();
@@ -138,7 +138,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                                                                     Environment env) throws IOException {
         final PersistedClusterStateService.OnDiskState bestOnDiskState = psf.loadBestOnDiskState();
         if (bestOnDiskState.empty()) {
-            throw new ElasticsearchException(CS_MISSING_MSG);
+            throw new OpenSearchException(CS_MISSING_MSG);
         }
         return Tuple.tuple(bestOnDiskState.currentTerm, clusterState(env, bestOnDiskState));
     }
@@ -153,11 +153,11 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             final Path[] dataPaths =
                     Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             if (dataPaths.length == 0) {
-                throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
+                throw new OpenSearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
             processNodePaths(terminal, dataPaths, nodeOrdinal, options, env);
         } catch (LockObtainFailedException e) {
-            throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
+            throw new OpenSearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
     }
 
@@ -165,7 +165,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         terminal.println(msg);
         String text = terminal.readText("Confirm [y/N] ");
         if (text.equalsIgnoreCase("y") == false) {
-            throw new ElasticsearchException(ABORTED_BY_USER_MSG);
+            throw new OpenSearchException(ABORTED_BY_USER_MSG);
         }
     }
 
@@ -199,14 +199,14 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         throws IOException, UserException;
 
     protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
-        return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
+        return Arrays.stream(dataPaths).map(OpenSearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
     }
 
     private static NodeEnvironment.NodePath createNodePath(Path path) {
         try {
             return new NodeEnvironment.NodePath(path);
         } catch (IOException e) {
-            throw new ElasticsearchException("Unable to investigate path [" + path + "]", e);
+            throw new OpenSearchException("Unable to investigate path [" + path + "]", e);
         }
     }
 

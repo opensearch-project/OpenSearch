@@ -32,7 +32,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -396,7 +396,7 @@ public class FunctionScoreQuery extends Query {
                   These scores are invalid for score based {@link org.apache.lucene.search.TopDocsCollector}s.
                   See {@link org.apache.lucene.search.TopScoreDocCollector} for details.
                  */
-                throw new ElasticsearchException("function score query returned an invalid score: " + finalScore + " for doc: " + docId);
+                throw new OpenSearchException("function score query returned an invalid score: " + finalScore + " for doc: " + docId);
             }
             return finalScore;
         }

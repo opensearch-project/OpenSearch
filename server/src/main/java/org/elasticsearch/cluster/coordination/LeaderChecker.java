@@ -22,8 +22,8 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
@@ -289,7 +289,7 @@ public class LeaderChecker {
                             logger.debug(new ParameterizedMessage(
                                 "leader [{}] has failed {} consecutive checks (limit [{}] is {}); last failure was:",
                                 leader, failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount), exp);
-                            leaderFailed(new ElasticsearchException(
+                            leaderFailed(new OpenSearchException(
                                 "node [" + leader + "] failed [" + failureCount + "] consecutive checks", exp));
                             return;
                         }

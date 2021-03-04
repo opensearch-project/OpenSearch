@@ -43,10 +43,10 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.opensearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.io.IOException;
 import java.util.Arrays;

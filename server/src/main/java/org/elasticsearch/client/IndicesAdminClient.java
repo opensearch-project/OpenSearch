@@ -128,7 +128,7 @@ import org.elasticsearch.common.Nullable;
  *
  * @see AdminClient#indices()
  */
-public interface IndicesAdminClient extends ElasticsearchClient {
+public interface IndicesAdminClient extends OpenSearchClient {
 
     /**
      * Indices Exists.

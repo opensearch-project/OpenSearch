@@ -20,8 +20,8 @@ package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -140,13 +140,13 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
 
                     @Override
                     public void onClusterServiceClose() {
-                        listener.onFailure(new ElasticsearchException("cluster service closed while waiting for voting config exclusions " +
+                        listener.onFailure(new OpenSearchException("cluster service closed while waiting for voting config exclusions " +
                             resolvedExclusions + " to take effect"));
                     }
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for voting config exclusions "
+                        listener.onFailure(new OpenSearchTimeoutException("timed out waiting for voting config exclusions "
                             + resolvedExclusions + " to take effect"));
                     }
                 };

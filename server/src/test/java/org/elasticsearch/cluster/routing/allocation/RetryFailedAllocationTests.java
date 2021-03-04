@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -75,7 +75,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         for (int i = 0; i < retries; i++) {
             List<FailedShard> failedShards = Collections.singletonList(
                 new FailedShard(getReplica(), "failing-shard::attempt-" + i,
-                    new ElasticsearchException("simulated"), randomBoolean()));
+                    new OpenSearchException("simulated"), randomBoolean()));
             clusterState = strategy.applyFailedShards(clusterState, failedShards);
             clusterState = strategy.reroute(clusterState, "allocation retry attempt-" + i);
         }

@@ -24,7 +24,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -228,7 +228,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
                 }
                 return new BytesRef(bytes, 0, out.getPosition());
             } catch (IOException e) {
-                throw new ElasticsearchException("Failed to get binary value", e);
+                throw new OpenSearchException("Failed to get binary value", e);
             }
 
         }

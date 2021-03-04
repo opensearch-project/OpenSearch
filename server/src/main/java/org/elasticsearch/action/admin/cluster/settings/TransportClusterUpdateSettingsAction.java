@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -165,7 +165,7 @@ public class TransportClusterUpdateSettingsAction extends
                     public void onFailure(String source, Exception e) {
                         //if the reroute fails we only log
                         logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", source), e);
-                        listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
+                        listener.onFailure(new OpenSearchException("reroute after update settings failed", e));
                     }
 
                     @Override
