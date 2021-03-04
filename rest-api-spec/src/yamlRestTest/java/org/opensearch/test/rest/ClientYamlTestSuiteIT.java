@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest;
+package org.opensearch.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 /** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
 
