@@ -38,7 +38,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
@@ -192,7 +192,7 @@ public abstract class MappedFieldType {
      *  boosted by {@link #boost()}.
      *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
      *      due to the way it is configured (eg. not indexed)
-     *  @throws ElasticsearchParseException if {@code value} cannot be converted to the expected data type
+     *  @throws OpenSearchParseException if {@code value} cannot be converted to the expected data type
      *  @throws UnsupportedOperationException if the field is not searchable regardless of options
      *  @throws QueryShardException if the field is not searchable regardless of options
      */

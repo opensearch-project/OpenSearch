@@ -19,7 +19,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -156,7 +156,7 @@ public class LeafFieldsLookup implements Map {
                 try {
                     reader.document(docId, visitor);
                 } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to load field [{}]", e, name);
+                    throw new OpenSearchParseException("failed to load field [{}]", e, name);
                 }
             }
             data.fields(singletonMap(data.fieldType().name(), values));

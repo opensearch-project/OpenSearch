@@ -20,7 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.OpenSearchCorruptionException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -70,7 +70,7 @@ public class BlobStoreFormatTests extends ESTestCase {
             if (token == XContentParser.Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token != XContentParser.Token.FIELD_NAME) {
-                        throw new ElasticsearchParseException("unexpected token [{}]", token);
+                        throw new OpenSearchParseException("unexpected token [{}]", token);
                     }
                     String currentFieldName = parser.currentName();
                     token = parser.nextToken();
@@ -78,15 +78,15 @@ public class BlobStoreFormatTests extends ESTestCase {
                         if ("text" .equals(currentFieldName)) {
                             text = parser.text();
                         } else {
-                            throw new ElasticsearchParseException("unexpected field [{}]", currentFieldName);
+                            throw new OpenSearchParseException("unexpected field [{}]", currentFieldName);
                         }
                     } else {
-                        throw new ElasticsearchParseException("unexpected token [{}]", token);
+                        throw new OpenSearchParseException("unexpected token [{}]", token);
                     }
                 }
             }
             if (text == null) {
-                throw new ElasticsearchParseException("missing mandatory parameter text");
+                throw new OpenSearchParseException("missing mandatory parameter text");
             }
             return new BlobObj(text);
         }

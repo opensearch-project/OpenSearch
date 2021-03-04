@@ -48,7 +48,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -1474,7 +1474,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     }
 
     public void testThatDateHistogramFailsFormatAfter() throws IOException {
-        ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class,
+        OpenSearchParseException exc = expectThrows(OpenSearchParseException.class,
             () -> testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date")), Collections.emptyList(),
                 () -> {
                     DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
@@ -1490,7 +1490,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exc.getCause().getMessage(), containsString("now() is not supported in [after] key"));
 
-        exc = expectThrows(ElasticsearchParseException.class,
+        exc = expectThrows(OpenSearchParseException.class,
             () -> testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date")), Collections.emptyList(),
                 () -> {
                     DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")

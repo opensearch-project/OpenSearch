@@ -24,7 +24,7 @@ import org.apache.lucene.search.suggest.document.ContextQuery;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -224,7 +224,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      *  [{"name": .., "type": .., ..}, {..}]
      *
      */
-    public static ContextMappings load(Object configuration, Version indexVersionCreated) throws ElasticsearchParseException {
+    public static ContextMappings load(Object configuration, Version indexVersionCreated) throws OpenSearchParseException {
         final List<ContextMapping<?>> contextMappings;
         if (configuration instanceof List) {
             contextMappings = new ArrayList<>();
@@ -233,12 +233,12 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
                 contextMappings.add(load((Map<String, Object>) contextConfig, indexVersionCreated));
             }
             if (contextMappings.size() == 0) {
-                throw new ElasticsearchParseException("expected at least one context mapping");
+                throw new OpenSearchParseException("expected at least one context mapping");
             }
         } else if (configuration instanceof Map) {
             contextMappings = Collections.singletonList(load(((Map<String, Object>) configuration), indexVersionCreated));
         } else {
-            throw new ElasticsearchParseException("expected a list or an entry of context mapping");
+            throw new OpenSearchParseException("expected a list or an entry of context mapping");
         }
         return new ContextMappings(contextMappings);
     }
@@ -255,7 +255,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
                 contextMapping = GeoContextMapping.load(name, contextConfig);
                 break;
             default:
-                throw new ElasticsearchParseException("unknown context type[" + type + "]");
+                throw new OpenSearchParseException("unknown context type[" + type + "]");
         }
         DocumentMapperParser.checkNoRemainingFields(name, contextConfig, indexVersionCreated);
         return contextMapping;
@@ -264,7 +264,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
     private static String extractRequiredValue(Map<String, Object> contextConfig, String paramName) {
         final Object paramValue = contextConfig.get(paramName);
         if (paramValue == null) {
-            throw new ElasticsearchParseException("missing [" + paramName + "] in context mapping");
+            throw new OpenSearchParseException("missing [" + paramName + "] in context mapping");
         }
         contextConfig.remove(paramName);
         return paramValue.toString();

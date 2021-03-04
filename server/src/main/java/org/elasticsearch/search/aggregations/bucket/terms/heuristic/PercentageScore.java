@@ -21,7 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -61,7 +61,7 @@ public class PercentageScore extends SignificanceHeuristic {
             throws IOException, QueryShardException {
         // move to the closing bracket
         if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
-            throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, " +
+            throw new OpenSearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, " +
                     "but got [{}] instead", parser.currentToken());
         }
         return new PercentageScore();

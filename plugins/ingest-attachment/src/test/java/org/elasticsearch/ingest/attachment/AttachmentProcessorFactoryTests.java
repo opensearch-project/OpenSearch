@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.attachment;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -102,7 +102,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("exception expected");
-        } catch (ElasticsearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), containsString("[properties] illegal field option [invalid]"));
             // ensure allowed fields are mentioned
             for (AttachmentProcessor.Property property : AttachmentProcessor.Property.values()) {
@@ -116,7 +116,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("exception expected");
-        } catch (ElasticsearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
         }
     }

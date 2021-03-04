@@ -27,17 +27,17 @@ import java.io.IOException;
 /**
  * Unchecked exception that is translated into a {@code 400 BAD REQUEST} error when it bubbles out over HTTP.
  */
-public class ElasticsearchParseException extends OpenSearchException {
+public class OpenSearchParseException extends OpenSearchException {
 
-    public ElasticsearchParseException(String msg, Object... args) {
+    public OpenSearchParseException(String msg, Object... args) {
         super(msg, args);
     }
 
-    public ElasticsearchParseException(String msg, Throwable cause, Object... args) {
+    public OpenSearchParseException(String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
     }
 
-    public ElasticsearchParseException(StreamInput in) throws IOException {
+    public OpenSearchParseException(StreamInput in) throws IOException {
         super(in);
     }
     @Override

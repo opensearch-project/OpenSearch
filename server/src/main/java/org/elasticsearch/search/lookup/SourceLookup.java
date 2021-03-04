@@ -20,7 +20,7 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -91,16 +91,16 @@ public class SourceLookup implements Map {
                 this.source = tuple.v2();
             }
         } catch (Exception e) {
-            throw new ElasticsearchParseException("failed to parse / load source", e);
+            throw new OpenSearchParseException("failed to parse / load source", e);
         }
         return this.source;
     }
 
-    private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
+    private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws OpenSearchParseException {
         return XContentHelper.convertToMap(source, false);
     }
 
-    public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticsearchParseException {
+    public static Map<String, Object> sourceAsMap(BytesReference source) throws OpenSearchParseException {
         return sourceAsMapAndType(source).v2();
     }
 

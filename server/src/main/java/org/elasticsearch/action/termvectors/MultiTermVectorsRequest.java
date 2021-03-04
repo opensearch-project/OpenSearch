@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -128,16 +128,16 @@ public class MultiTermVectorsRequest extends ActionRequest
                             ids.add(parser.text());
                         }
                     } else {
-                        throw new ElasticsearchParseException("no parameter named [{}] and type ARRAY", currentFieldName);
+                        throw new OpenSearchParseException("no parameter named [{}] and type ARRAY", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
                     if ("parameters".equals(currentFieldName)) {
                         TermVectorsRequest.parseRequest(template, parser);
                     } else {
-                        throw new ElasticsearchParseException("no parameter named [{}] and type OBJECT", currentFieldName);
+                        throw new OpenSearchParseException("no parameter named [{}] and type OBJECT", currentFieldName);
                     }
                 } else if (currentFieldName != null) {
-                    throw new ElasticsearchParseException("_mtermvectors: Parameter [{}] not supported", currentFieldName);
+                    throw new OpenSearchParseException("_mtermvectors: Parameter [{}] not supported", currentFieldName);
                 }
             }
         }

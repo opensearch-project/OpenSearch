@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -613,7 +613,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testIndentation() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
             Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
@@ -621,7 +621,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
             Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
@@ -631,7 +631,7 @@ public class SettingsTests extends ESTestCase {
     public void testMissingValue() throws Exception {
         Path tmp = createTempFile("test", ".yaml");
         Files.write(tmp, Collections.singletonList("foo: # missing value\n"), StandardCharsets.UTF_8);
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
             Settings.builder().loadFromPath(tmp);
         });
         assertTrue(
