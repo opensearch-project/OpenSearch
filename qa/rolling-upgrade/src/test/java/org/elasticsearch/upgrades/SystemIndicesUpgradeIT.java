@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.upgrades;
+package org.opensearch.upgrades;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.test.XContentTestUtils.JsonMapView;
+import org.opensearch.Version;
+import org.opensearch.client.Request;
+import org.opensearch.client.ResponseException;
+import org.opensearch.test.XContentTestUtils.JsonMapView;
 
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
+import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

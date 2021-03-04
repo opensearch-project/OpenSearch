@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.upgrades;
+package org.opensearch.upgrades;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.transport.RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
-import static org.elasticsearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.transport.RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
+import static org.opensearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {

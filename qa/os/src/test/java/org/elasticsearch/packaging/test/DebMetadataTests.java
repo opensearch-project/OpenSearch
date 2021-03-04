@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
 import junit.framework.TestCase;
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Shell;
+import org.opensearch.packaging.util.Distribution;
+import org.opensearch.packaging.util.FileUtils;
+import org.opensearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
+import static org.opensearch.packaging.util.FileUtils.getDistributionFile;
 import static org.junit.Assume.assumeTrue;
 
 public class DebMetadataTests extends PackagingTestCase {

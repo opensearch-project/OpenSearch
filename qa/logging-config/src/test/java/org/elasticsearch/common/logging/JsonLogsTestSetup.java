@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.logging;
+package org.opensearch.common.logging;
 
 public class JsonLogsTestSetup {
     private static boolean initialized = false;

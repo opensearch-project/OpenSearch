@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.BytesRestResponse;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.RestStatus;
 
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class TestResponseHeaderRestAction extends BaseRestHandler {
 

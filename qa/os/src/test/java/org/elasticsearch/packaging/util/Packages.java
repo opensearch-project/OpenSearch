@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.util;
+package org.opensearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.packaging.util.Shell.Result;
+import org.opensearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,17 +33,17 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
-import static org.elasticsearch.packaging.util.FileMatcher.file;
-import static org.elasticsearch.packaging.util.FileMatcher.p644;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileMatcher.p750;
-import static org.elasticsearch.packaging.util.FileMatcher.p755;
-import static org.elasticsearch.packaging.util.Platforms.isSysVInit;
-import static org.elasticsearch.packaging.util.Platforms.isSystemd;
-import static org.elasticsearch.packaging.util.ServerUtils.waitForElasticsearch;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.opensearch.packaging.util.FileMatcher.Fileness.Directory;
+import static org.opensearch.packaging.util.FileMatcher.Fileness.File;
+import static org.opensearch.packaging.util.FileMatcher.file;
+import static org.opensearch.packaging.util.FileMatcher.p644;
+import static org.opensearch.packaging.util.FileMatcher.p660;
+import static org.opensearch.packaging.util.FileMatcher.p750;
+import static org.opensearch.packaging.util.FileMatcher.p755;
+import static org.opensearch.packaging.util.Platforms.isSysVInit;
+import static org.opensearch.packaging.util.Platforms.isSystemd;
+import static org.opensearch.packaging.util.ServerUtils.waitForElasticsearch;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
@@ -309,7 +309,7 @@ public class Packages {
         REMOVE
     }
 
-    private static Map<PackageManagerCommand, String> RPM_OPTIONS = org.elasticsearch.common.collect.Map.of(
+    private static Map<PackageManagerCommand, String> RPM_OPTIONS = org.opensearch.common.collect.Map.of(
         PackageManagerCommand.QUERY,
         "-qe",
         PackageManagerCommand.INSTALL,
@@ -322,7 +322,7 @@ public class Packages {
         "-e"
     );
 
-    private static Map<PackageManagerCommand, String> DEB_OPTIONS = org.elasticsearch.common.collect.Map.of(
+    private static Map<PackageManagerCommand, String> DEB_OPTIONS = org.opensearch.common.collect.Map.of(
         PackageManagerCommand.QUERY,
         "-s",
         PackageManagerCommand.INSTALL,

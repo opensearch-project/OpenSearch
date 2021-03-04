@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.qa.custom_logging;
+package org.opensearch.qa.custom_logging;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.test.hamcrest.RegexMatcher;
+import org.opensearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

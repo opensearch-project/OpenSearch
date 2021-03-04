@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.http;
+package org.opensearch.http;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.entity.GzipDecompressingEntity;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
+import org.opensearch.client.Response;
+import org.opensearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 

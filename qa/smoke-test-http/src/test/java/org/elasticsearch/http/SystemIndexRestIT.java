@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
+import org.opensearch.client.Response;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SystemIndexPlugin;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
+import static org.opensearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -135,7 +135,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                                                  IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                                  IndexNameExpressionResolver indexNameExpressionResolver,
                                                  Supplier<DiscoveryNodes> nodesInCluster) {
-            return org.elasticsearch.common.collect.List.of(new AddDocRestHandler());
+            return org.opensearch.common.collect.List.of(new AddDocRestHandler());
         }
 
         @Override
@@ -156,7 +156,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
             @Override
             public List<Route> routes() {
-                return org.elasticsearch.common.collect.List.of(new Route(RestRequest.Method.POST, "/_sys_index_test/add_doc/{id}"));
+                return org.opensearch.common.collect.List.of(new Route(RestRequest.Method.POST, "/_sys_index_test/add_doc/{id}"));
             }
 
             @Override
@@ -164,7 +164,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 IndexRequest indexRequest = new IndexRequest(SYSTEM_INDEX_NAME);
                 indexRequest.id(request.param("id"));
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                indexRequest.source(org.elasticsearch.common.collect.Map.of("some_field", "some_value"));
+                indexRequest.source(org.opensearch.common.collect.Map.of("some_field", "some_value"));
                 return channel -> client.index(indexRequest,
                     new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
             }

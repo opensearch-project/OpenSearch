@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.upgrades;
+package org.opensearch.upgrades;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.Version;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 
 public class MappingIT extends AbstractRollingTestCase {
     /**
