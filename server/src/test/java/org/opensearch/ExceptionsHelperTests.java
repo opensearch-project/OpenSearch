@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.opensearch;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.commons.codec.DecoderException;
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteClusterAware;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.ShardOperationFailedException;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.index.Index;
+import org.opensearch.index.query.QueryShardException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Optional;
 
-import static org.elasticsearch.ExceptionsHelper.maybeError;
+import static org.opensearch.ExceptionsHelper.maybeError;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
