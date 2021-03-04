@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESTestCase;
 
 public class EvilSystemPropertyTests extends ESTestCase {
 

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.util;
+package org.opensearch.packaging.util;
 
 import java.nio.file.Paths;
 
-import static org.elasticsearch.packaging.util.FileUtils.slurp;
+import static org.opensearch.packaging.util.FileUtils.slurp;
 
 public class Platforms {
     public static final String OS_NAME = System.getProperty("os.name");

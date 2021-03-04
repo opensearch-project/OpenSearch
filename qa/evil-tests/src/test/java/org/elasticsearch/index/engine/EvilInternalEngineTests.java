@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
@@ -27,8 +27,8 @@ import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.opensearch.common.UUIDs;
+import org.opensearch.index.mapper.ParsedDocument;
 
 import java.io.IOException;
 import java.util.List;

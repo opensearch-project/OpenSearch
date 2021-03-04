@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.util;
+package org.opensearch.packaging.util;
 
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;

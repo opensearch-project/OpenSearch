@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.util;
+package org.opensearch.packaging.util;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.core.internal.io.IOUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 
@@ -55,9 +55,9 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
-import static org.elasticsearch.packaging.test.PackagingTestCase.getRootTempDir;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.opensearch.packaging.test.PackagingTestCase.getRootTempDir;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.opensearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.core.IsNot.not;
 import static org.junit.Assert.assertThat;
@@ -70,7 +70,7 @@ public class FileUtils {
     public static List<Path> lsGlob(Path directory, String glob) {
         List<Path> paths = new ArrayList<>();
         if (Files.exists(directory) == false) {
-            return org.elasticsearch.common.collect.List.of();
+            return org.opensearch.common.collect.List.of();
         }
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, glob)) {
 

@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
