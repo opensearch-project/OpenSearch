@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.state;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;

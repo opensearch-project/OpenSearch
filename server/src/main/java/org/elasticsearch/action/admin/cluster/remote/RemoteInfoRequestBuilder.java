@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.remote;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
 
 public final class RemoteInfoRequestBuilder extends ActionRequestBuilder<RemoteInfoRequest, RemoteInfoResponse> {

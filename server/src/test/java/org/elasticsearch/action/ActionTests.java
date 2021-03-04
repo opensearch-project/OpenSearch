@@ -20,6 +20,8 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
 
 public class ActionTests extends ESTestCase {
 

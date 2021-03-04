@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.CompoundProcessor;

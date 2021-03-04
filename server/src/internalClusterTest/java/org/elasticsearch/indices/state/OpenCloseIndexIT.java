@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.state;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.open.OpenIndexResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;

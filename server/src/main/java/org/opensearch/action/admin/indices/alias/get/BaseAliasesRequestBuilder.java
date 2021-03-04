@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;

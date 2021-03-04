@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.action.ActionRunnable;
+import org.opensearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;

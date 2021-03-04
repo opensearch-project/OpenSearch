@@ -18,8 +18,8 @@
  */
 package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;

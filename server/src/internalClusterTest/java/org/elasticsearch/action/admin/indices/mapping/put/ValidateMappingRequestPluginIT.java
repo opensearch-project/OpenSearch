@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.RequestValidators;
+import org.opensearch.action.RequestValidators;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.ActionPlugin;

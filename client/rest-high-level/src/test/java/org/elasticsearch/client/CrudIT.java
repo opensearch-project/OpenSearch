@@ -21,8 +21,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.OpenSearchStatusException;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;

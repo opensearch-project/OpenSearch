@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.morelikethis;
 
-import org.elasticsearch.action.RoutingMissingException;
+import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;

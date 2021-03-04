@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.alias.exists;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class AliasesExistAction extends ActionType<AliasesExistResponse> {
 
