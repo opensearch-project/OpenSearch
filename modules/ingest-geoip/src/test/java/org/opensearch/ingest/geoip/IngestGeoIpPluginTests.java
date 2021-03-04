@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.geoip;
+package org.opensearch.ingest.geoip;
 
 import com.maxmind.geoip2.model.AbstractResponse;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
+import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;
