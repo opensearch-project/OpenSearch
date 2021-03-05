@@ -166,7 +166,7 @@ public class DockerTests extends PackagingTestCase {
         Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
 
         // Restart the container
-        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/usr/share/elasticsearch/config"));
+        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/usr/share/opensearch/config"));
         final Map<String, String> envVars = singletonMap("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
         runContainer(distribution(), volumes, envVars);
 

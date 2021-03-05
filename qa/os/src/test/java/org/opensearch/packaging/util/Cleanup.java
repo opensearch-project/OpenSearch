@@ -36,7 +36,7 @@ import static org.opensearch.packaging.util.Platforms.isSystemd;
 public class Cleanup {
 
     private static final List<String> ELASTICSEARCH_FILES_LINUX = Arrays.asList(
-        "/usr/share/elasticsearch",
+        "/usr/share/opensearch",
         "/etc/elasticsearch/elasticsearch.keystore",
         "/etc/elasticsearch",
         "/var/lib/elasticsearch",

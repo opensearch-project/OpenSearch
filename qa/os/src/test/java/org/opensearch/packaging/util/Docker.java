@@ -492,7 +492,7 @@ public class Docker {
 
         final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
-        assertThat(homeDir, equalTo("/usr/share/elasticsearch"));
+        assertThat(homeDir, equalTo("/usr/share/opensearch"));
 
         Stream.of(es.home, es.data, es.logs, es.config).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
 

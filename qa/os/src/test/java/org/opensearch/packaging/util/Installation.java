@@ -95,19 +95,19 @@ public class Installation {
         return new Installation(
             sh,
             distribution,
-            Paths.get("/usr/share/elasticsearch"),
+            Paths.get("/usr/share/opensearch"),
             Paths.get("/etc/elasticsearch"),
             Paths.get("/var/lib/elasticsearch"),
             Paths.get("/var/log/elasticsearch"),
-            Paths.get("/usr/share/elasticsearch/plugins"),
-            Paths.get("/usr/share/elasticsearch/modules"),
+            Paths.get("/usr/share/opensearch/plugins"),
+            Paths.get("/usr/share/opensearch/modules"),
             Paths.get("/var/run/elasticsearch"),
             envFile
         );
     }
 
     public static Installation ofContainer(Shell sh, Distribution distribution) {
-        String root = "/usr/share/elasticsearch";
+        String root = "/usr/share/opensearch";
         return new Installation(
             sh,
             distribution,

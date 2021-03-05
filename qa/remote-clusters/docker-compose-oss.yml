@@ -18,7 +18,7 @@ services:
        - node.store.allow_mmap=false
     volumes:
        - ./build/oss-repo:/tmp/es-repo
-       - ./build/logs/oss-1:/usr/share/elasticsearch/logs
+       - ./build/logs/oss-1:/usr/share/opensearch/logs
     ports:
       - "9200"
       - "9300"
@@ -52,7 +52,7 @@ services:
        - node.store.allow_mmap=false
     volumes:
        - ./build/oss-repo:/tmp/es-repo
-       - ./build/logs/oss-2:/usr/share/elasticsearch/logs
+       - ./build/logs/oss-2:/usr/share/opensearch/logs
     ports:
       - "9200"
       - "9300"
