@@ -82,10 +82,10 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
-import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
-import org.elasticsearch.script.mustache.SearchTemplateRequest;
-import org.elasticsearch.script.mustache.SearchTemplateResponse;
+import org.opensearch.script.mustache.MultiSearchTemplateRequest;
+import org.opensearch.script.mustache.MultiSearchTemplateResponse;
+import org.opensearch.script.mustache.SearchTemplateRequest;
+import org.opensearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
@@ -224,8 +224,8 @@ import static java.util.stream.Collectors.toList;
  * {@link #RestHighLevelClient(RestClient, CheckedConsumer, List)} constructor can be used.
  * <p>
  *
- * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins,
- * or to add support for custom response sections, again added to Elasticsearch through plugins.
+ * This class can also be sub-classed to expose additional client methods that make use of endpoints added to OpenSearch through plugins,
+ * or to add support for custom response sections, again added to OpenSearch through plugins.
  * <p>
  *
  * The majority of the methods in this class come in two flavors, a blocking and an asynchronous version (e.g.
@@ -236,7 +236,7 @@ import static java.util.stream.Collectors.toList;
  *
  * <ul>
  * <li>an {@link IOException} is usually thrown in case of failing to parse the REST response in the high-level REST client, the request
- * times out or similar cases where there is no response coming back from the Elasticsearch server</li>
+ * times out or similar cases where there is no response coming back from the OpenSearch server</li>
  * <li>an {@link OpenSearchException} is usually thrown in case where the server returns a 4xx or 5xx error code. The high-level client
  * then tries to parse the response body error details into a generic OpenSearchException and suppresses the original
  * {@link ResponseException}</li>
@@ -265,7 +265,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
-     * {@link RestClient} to be used to perform requests and parsers for custom response sections added to Elasticsearch through plugins.
+     * {@link RestClient} to be used to perform requests and parsers for custom response sections added to OpenSearch through plugins.
      */
     protected RestHighLevelClient(RestClientBuilder restClientBuilder, List<NamedXContentRegistry.Entry> namedXContentEntries) {
         this(restClientBuilder.build(), RestClient::close, namedXContentEntries);
@@ -273,10 +273,10 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
-     * a list of entries that allow to parse custom response sections added to Elasticsearch through plugins.
+     * a list of entries that allow to parse custom response sections added to OpenSearch through plugins.
      * This constructor can be called by subclasses in case an externally created low-level REST client needs to be provided.
      * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
-     * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
+     * Also subclasses can provide parsers for custom response sections added to OpenSearch through plugins.
      */
     protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
                                   List<NamedXContentRegistry.Entry> namedXContentEntries) {
@@ -585,7 +585,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Pings the remote Elasticsearch cluster and returns true if the ping succeeded, false otherwise
+     * Pings the remote OpenSearch cluster and returns true if the ping succeeded, false otherwise
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the ping succeeded, false otherwise
      */
@@ -1719,7 +1719,7 @@ public class RestHighLevelClient implements Closeable {
             throw new IllegalStateException("Response body expected but not returned");
         }
         if (entity.getContentType() == null) {
-            throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
+            throw new IllegalStateException("OpenSearch didn't return the [Content-Type] header, unable to parse response body");
         }
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
         if (xContentType == null) {
@@ -1736,9 +1736,9 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Ignores deprecation warnings. This is appropriate because it is only
-     * used to parse responses from Elasticsearch. Any deprecation warnings
+     * used to parse responses from OpenSearch. Any deprecation warnings
      * emitted there just mean that you are talking to an old version of
-     * Elasticsearch. There isn't anything you can do about the deprecation.
+     * OpenSearch. There isn't anything you can do about the deprecation.
      */
     private static final DeprecationHandler DEPRECATION_HANDLER = DeprecationHandler.IGNORE_DEPRECATIONS;
 
