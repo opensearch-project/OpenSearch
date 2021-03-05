@@ -32,7 +32,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 
-public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
+public class OpenSearchCliTests extends ESElasticsearchCliTestCase {
 
     public void testVersion() throws Exception {
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "-d");

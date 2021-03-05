@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
+public class OpenSearchUncaughtExceptionHandlerTests extends ESTestCase {
 
     private Map<Class<? extends Error>, Integer> expectedStatus;
 

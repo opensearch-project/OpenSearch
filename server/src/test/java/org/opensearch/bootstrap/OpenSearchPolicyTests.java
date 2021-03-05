@@ -28,12 +28,12 @@ import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 
-/** 
- * Tests for ESPolicy
+/**
+ * Tests for OpenSearchPolicy
  */
-public class ESPolicyTests extends ESTestCase {
+public class OpenSearchPolicyTests extends ESTestCase {
 
-    /** 
+    /**
      * test restricting privileges to no permissions actually works
      */
     public void testRestrictPrivileges() {
