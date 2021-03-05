@@ -186,7 +186,7 @@ public class Archives {
         });
 
         if (distribution.packaging == Distribution.Packaging.ZIP) {
-            Stream.of("elasticsearch-service.bat", "elasticsearch-service-mgr.exe", "opensearch-service-x64.exe")
+            Stream.of("opensearch-service.bat", "elasticsearch-service-mgr.exe", "opensearch-service-x64.exe")
                 .forEach(executable -> assertThat(es.bin(executable), file(File, owner)));
         }
 

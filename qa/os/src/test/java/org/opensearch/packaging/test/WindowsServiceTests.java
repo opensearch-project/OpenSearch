@@ -103,7 +103,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test10InstallArchive() throws Exception {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
-        serviceScript = installation.bin("elasticsearch-service.bat").toString();
+        serviceScript = installation.bin("opensearch-service.bat").toString();
     }
 
     public void test11InstallServiceExeMissing() throws IOException {
