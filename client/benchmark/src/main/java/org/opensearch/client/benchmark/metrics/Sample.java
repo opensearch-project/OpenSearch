@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.metrics;
+package org.opensearch.client.benchmark.metrics;
 
 public final class Sample {
     private final String operation;

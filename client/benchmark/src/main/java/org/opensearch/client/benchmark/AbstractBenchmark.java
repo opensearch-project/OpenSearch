@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark;
+package org.opensearch.client.benchmark;
 
-import org.elasticsearch.client.benchmark.ops.bulk.BulkBenchmarkTask;
-import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
-import org.elasticsearch.client.benchmark.ops.search.SearchBenchmarkTask;
-import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
+import org.opensearch.client.benchmark.ops.bulk.BulkBenchmarkTask;
+import org.opensearch.client.benchmark.ops.bulk.BulkRequestExecutor;
+import org.opensearch.client.benchmark.ops.search.SearchBenchmarkTask;
+import org.opensearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.Closeable;

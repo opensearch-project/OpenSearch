@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.ops.bulk;
+package org.opensearch.client.benchmark.ops.bulk;
 
 import java.util.List;
 
