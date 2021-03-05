@@ -23,8 +23,8 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

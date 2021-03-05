@@ -18,12 +18,12 @@
  */
 package org.opensearch.env;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.gateway.MetadataStateFormat;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.gateway.MetadataStateFormat;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;

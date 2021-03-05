@@ -20,17 +20,17 @@ package org.opensearch.env;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.cli.MockTerminal;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.gateway.PersistedClusterStateService;
+import org.opensearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 

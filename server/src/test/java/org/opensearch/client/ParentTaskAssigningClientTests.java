@@ -19,16 +19,16 @@
 
 package org.opensearch.client;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.client.NoOpClient;
 
 public class ParentTaskAssigningClientTests extends ESTestCase {
     public void testSetsParentId() {

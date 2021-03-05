@@ -37,8 +37,8 @@ import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

@@ -18,7 +18,7 @@
  */
 package org.opensearch.env;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.file.FileStore;
 

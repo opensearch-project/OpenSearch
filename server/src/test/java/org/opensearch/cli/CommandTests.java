@@ -21,7 +21,7 @@ package org.opensearch.cli;
 
 import joptsimple.OptionException;
 import joptsimple.OptionSet;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class CommandTests extends ESTestCase {
 
