@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 esplugin {
   description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
-  classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
+  classname 'org.opensearch.ingest.common.IngestCommonPlugin'
   extendedPlugins = ['lang-painless']
 }
 
 dependencies {
   compileOnly project(':modules:lang-painless')
-  api project(':libs:elasticsearch-grok')
-  api project(':libs:elasticsearch-dissect')
+  api project(':libs:opensearch-grok')
+  api project(':libs:opensearch-dissect')
 }
 
 restResources {
