@@ -27,18 +27,13 @@ PUT /my-index-000001/_alias/f-alias
 
 PUT /_index_template/foo_data_stream
 {
-  "index_patterns": [ "foo" ],
-  "data_stream": { }
+  "index_patterns": [ "foo" ]
 }
-
-PUT /_data_stream/foo
 ----
 // TESTSETUP
 
 [source,console]
 ----
-DELETE /_data_stream/*
-
 DELETE /_index_template/foo_data_stream
 ----
 // TEARDOWN
@@ -122,13 +117,6 @@ The API returns the following response:
     }
   ],
   "data_streams": [                            <3>
-    {
-      "name": "foo",
-      "backing_indices": [
-        ".ds-foo-000001"
-      ],
-      "timestamp_field": "@timestamp"
-    }
   ]
 }
 ----
