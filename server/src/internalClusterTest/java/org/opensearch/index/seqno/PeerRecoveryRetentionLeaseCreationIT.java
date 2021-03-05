@@ -31,7 +31,7 @@ import org.opensearch.test.VersionUtils;
 
 import java.nio.file.Path;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0)

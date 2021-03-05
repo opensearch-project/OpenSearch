@@ -38,7 +38,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {

@@ -28,7 +28,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,7 +70,7 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
                     if (response.getHits().getTotalHits().value != numOfDocs) {
                         final String message =
                                 "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. " +
-                                        ElasticsearchAssertions.formatShardStatus(response);
+                                        OpenSearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }
@@ -86,7 +86,7 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
                     if (response.getHits().getTotalHits().value != numOfDocs) {
                         final String message =
                                 "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. " +
-                                        ElasticsearchAssertions.formatShardStatus(response);
+                                        OpenSearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }

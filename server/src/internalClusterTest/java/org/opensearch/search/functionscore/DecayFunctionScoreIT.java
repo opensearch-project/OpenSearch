@@ -59,10 +59,10 @@ import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.exp
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.linearDecayFunction;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;

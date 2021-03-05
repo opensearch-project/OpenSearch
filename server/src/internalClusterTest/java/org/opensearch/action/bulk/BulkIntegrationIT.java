@@ -53,7 +53,7 @@ import static org.opensearch.action.DocWriteResponse.Result.CREATED;
 import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

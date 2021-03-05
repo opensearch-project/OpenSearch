@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
 import static org.opensearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;

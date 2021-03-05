@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class StoredScriptsIT extends OpenSearchIntegTestCase {
 

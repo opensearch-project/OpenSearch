@@ -39,7 +39,7 @@ import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.QueryBuilders.termsQuery;
 import static org.opensearch.index.query.QueryBuilders.wrapperQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 

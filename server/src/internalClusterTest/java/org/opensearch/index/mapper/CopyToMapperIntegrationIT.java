@@ -33,7 +33,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {

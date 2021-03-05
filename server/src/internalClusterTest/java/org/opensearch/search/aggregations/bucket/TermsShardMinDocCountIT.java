@@ -38,8 +38,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SH
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TermsShardMinDocCountIT extends OpenSearchIntegTestCase {

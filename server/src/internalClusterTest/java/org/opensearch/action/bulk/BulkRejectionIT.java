@@ -32,7 +32,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2)
 public class BulkRejectionIT extends OpenSearchIntegTestCase {

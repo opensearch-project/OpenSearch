@@ -68,7 +68,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSuggestion;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSuggestionPhraseCollateMatchExists;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSuggestionSize;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -707,7 +707,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         Suggest suggest = searchSuggest( "foobar", "simple",
                 termSuggestion("field1")
                         .size(10).minDocFreq(0).suggestMode(SuggestMode.ALWAYS));
-        ElasticsearchAssertions.assertSuggestionSize(suggest, 0, 3, "simple");
+        OpenSearchAssertions.assertSuggestionSize(suggest, 0, 3, "simple");
     }
 
     // see #3469
@@ -756,8 +756,8 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
                         new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion("did_you_mean",
                                 phraseSuggestion("name").maxErrors(5.0f)))
             .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
+        OpenSearchAssertions.assertNoFailures(searchResponse);
+        OpenSearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
     }
 
     // see #3469

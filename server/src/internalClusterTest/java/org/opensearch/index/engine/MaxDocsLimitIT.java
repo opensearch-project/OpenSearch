@@ -32,7 +32,7 @@ import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,7 +43,7 @@ import java.util.Optional;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,7 +105,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh("test").get();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchAllQueryBuilder())
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0).get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        OpenSearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) maxDocs.get()));
         if (randomBoolean()) {
             client().admin().indices().prepareFlush("test").get();
@@ -115,7 +115,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
         ensureGreen("test");
         searchResponse = client().prepareSearch("test").setQuery(new MatchAllQueryBuilder())
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0).get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        OpenSearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) maxDocs.get()));
     }
 
@@ -129,7 +129,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh("test").get();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchAllQueryBuilder())
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0).get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        OpenSearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) indexingResult.numSuccess));
         int totalSuccess = indexingResult.numSuccess;
         while (totalSuccess < maxDocs.get()) {
@@ -144,7 +144,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh("test").get();
         searchResponse = client().prepareSearch("test").setQuery(new MatchAllQueryBuilder())
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0).get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        OpenSearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalSuccess));
     }
 

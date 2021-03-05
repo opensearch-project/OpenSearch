@@ -45,7 +45,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
 public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {

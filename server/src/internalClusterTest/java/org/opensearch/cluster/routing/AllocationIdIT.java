@@ -55,7 +55,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;

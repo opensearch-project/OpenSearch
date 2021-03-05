@@ -32,7 +32,7 @@ import org.locationtech.jts.geom.Coordinate;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {

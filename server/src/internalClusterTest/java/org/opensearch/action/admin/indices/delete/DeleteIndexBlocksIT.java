@@ -26,9 +26,9 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 
 public class DeleteIndexBlocksIT extends OpenSearchIntegTestCase {
     public void testDeleteIndexWithBlocks() {

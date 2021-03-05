@@ -30,8 +30,8 @@ import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope.SUITE;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
 @ClusterScope(scope = SUITE)
 public class StressSearchServiceReaperIT extends OpenSearchIntegTestCase {

@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.opensearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;

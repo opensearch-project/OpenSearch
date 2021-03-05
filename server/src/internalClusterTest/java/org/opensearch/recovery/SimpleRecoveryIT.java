@@ -30,7 +30,7 @@ import static org.opensearch.client.Requests.flushRequest;
 import static org.opensearch.client.Requests.getRequest;
 import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.client.Requests.refreshRequest;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleRecoveryIT extends OpenSearchIntegTestCase {

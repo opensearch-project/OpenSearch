@@ -60,7 +60,7 @@ import static org.opensearch.index.shard.IndexShardState.CREATED;
 import static org.opensearch.index.shard.IndexShardState.POST_RECOVERY;
 import static org.opensearch.index.shard.IndexShardState.RECOVERING;
 import static org.opensearch.index.shard.IndexShardState.STARTED;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;

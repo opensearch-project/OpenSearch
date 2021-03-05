@@ -34,7 +34,7 @@ import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -46,8 +46,8 @@ import java.util.List;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -117,7 +117,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
-        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
 
@@ -128,7 +128,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             // to ensure that query is executed even if it rewrites to match_no_docs
             .addAggregation(new GlobalAggregationBuilder("global"))
             .get();
-        ElasticsearchAssertions.assertAllSuccessful(r1);
+        OpenSearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 5);
 
@@ -136,7 +136,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
             .addAggregation(new GlobalAggregationBuilder("global"))
             .get();
-        ElasticsearchAssertions.assertAllSuccessful(r2);
+        OpenSearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 3, 7);
 
@@ -144,7 +144,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27"))
             .addAggregation(new GlobalAggregationBuilder("global"))
             .get();
-        ElasticsearchAssertions.assertAllSuccessful(r3);
+        OpenSearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 6, 9);
     }
@@ -168,7 +168,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
-        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
 
@@ -176,19 +176,19 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
 
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r1);
+        OpenSearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index", 0, 1);
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r2);
+        OpenSearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index", 1, 1);
 
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r3);
+        OpenSearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index", 2, 1);
     }
@@ -212,7 +212,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
-        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
 
@@ -224,7 +224,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             // to ensure that query is executed even if it rewrites to match_no_docs
             .addAggregation(new GlobalAggregationBuilder("global"))
             .get();
-        ElasticsearchAssertions.assertAllSuccessful(r1);
+        OpenSearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 0, 1);
 
@@ -233,7 +233,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
             .addAggregation(new GlobalAggregationBuilder("global"))
             .get();
-        ElasticsearchAssertions.assertAllSuccessful(r2);
+        OpenSearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 1, 1);
 
@@ -242,7 +242,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
             .addAggregation(new GlobalAggregationBuilder("global"))
             .get();
-        ElasticsearchAssertions.assertAllSuccessful(r3);
+        OpenSearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 2, 1);
     }
@@ -276,7 +276,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index-1", "index-2", "index-3").setFlush(true)
                 .get();
-        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index-1", "index-2", "index-3");
 
@@ -288,7 +288,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setSize(0)
             .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r1);
+        OpenSearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 0, 1);
         assertCacheState(client, "index-2", 0, 1);
@@ -302,7 +302,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now"))
             .get();
-        ElasticsearchAssertions.assertAllSuccessful(r2);
+        OpenSearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 1, 1);
         assertCacheState(client, "index-2", 1, 1);
@@ -313,7 +313,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now"))
             .get();
-        ElasticsearchAssertions.assertAllSuccessful(r3);
+        OpenSearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 2, 1);
         assertCacheState(client, "index-2", 2, 1);
@@ -342,7 +342,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
-        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
 
@@ -351,14 +351,14 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
         // If size > 0 we should no cache by default
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r1);
+        OpenSearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 0);
 
         // If search type is DFS_QUERY_THEN_FETCH we should not cache
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r2);
+        OpenSearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 0);
 
@@ -366,7 +366,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
         // the cache flag is explicitly set on the request
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(0)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r3);
+        OpenSearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 0);
 
@@ -374,14 +374,14 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
         final SearchResponse r5 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
                 .addAggregation(dateRange("foo").field("s").addRange("now-10y", "now")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r5);
+        OpenSearchAssertions.assertAllSuccessful(r5);
         assertThat(r5.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 0);
 
         // If size > 1 and cache flag is set on the request we should cache
         final SearchResponse r6 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r6);
+        OpenSearchAssertions.assertAllSuccessful(r6);
         assertThat(r6.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 2);
 
@@ -389,7 +389,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
         final SearchResponse r4 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
                 .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("now-10y").to("now"))).get();
-        ElasticsearchAssertions.assertAllSuccessful(r4);
+        OpenSearchAssertions.assertAllSuccessful(r4);
         assertThat(r4.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 4);
     }
@@ -407,30 +407,30 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
             DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
-        ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
 
         assertCacheState(client, "index", 0, 0);
 
         SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r1);
+        OpenSearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
         assertCacheState(client, "index", 0, 1);
 
         r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
-        ElasticsearchAssertions.assertAllSuccessful(r1);
+        OpenSearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
         assertCacheState(client, "index", 1, 1);
 
         r1 = client.prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
-        ElasticsearchAssertions.assertAllSuccessful(r1);
+        OpenSearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
         assertCacheState(client, "index", 1, 2);
 
         r1 = client.prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
-        ElasticsearchAssertions.assertAllSuccessful(r1);
+        OpenSearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
         assertCacheState(client, "index", 2, 2);
     }
@@ -461,7 +461,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.termQuery("k", "hello"))
                 .get();
             assertSearchResponse(resp);
-            ElasticsearchAssertions.assertAllSuccessful(resp);
+            OpenSearchAssertions.assertAllSuccessful(resp);
             assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
             if (profile == false) {
                 if (i == 1) {

@@ -64,9 +64,9 @@ import static org.opensearch.search.aggregations.AggregationBuilders.range;
 import static org.opensearch.search.aggregations.AggregationBuilders.stats;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 

@@ -51,7 +51,7 @@ import java.util.Objects;
 import static java.util.Collections.singletonList;
 import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)

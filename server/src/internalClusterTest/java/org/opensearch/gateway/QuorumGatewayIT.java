@@ -32,8 +32,8 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.client.Requests.clusterHealthRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class QuorumGatewayIT extends OpenSearchIntegTestCase {

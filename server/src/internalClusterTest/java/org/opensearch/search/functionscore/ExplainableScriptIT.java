@@ -41,7 +41,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -144,7 +144,7 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
                                             new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap())))
                                         .boostMode(CombineFunction.REPLACE)))).actionGet();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        OpenSearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
         assertThat(hits.getTotalHits().value, equalTo(20L));
         int idCounter = 19;

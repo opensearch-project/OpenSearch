@@ -51,8 +51,8 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

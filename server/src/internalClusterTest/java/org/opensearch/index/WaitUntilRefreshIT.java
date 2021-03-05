@@ -48,9 +48,9 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 
 /**
  * Tests that requests with RefreshPolicy.WAIT_UNTIL will be visible when they return.

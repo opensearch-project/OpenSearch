@@ -46,7 +46,7 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.filters;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;

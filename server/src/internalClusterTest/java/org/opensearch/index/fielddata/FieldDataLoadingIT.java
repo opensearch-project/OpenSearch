@@ -23,7 +23,7 @@ import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class FieldDataLoadingIT extends OpenSearchIntegTestCase {

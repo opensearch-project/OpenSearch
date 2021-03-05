@@ -29,7 +29,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.get.GetActionIT.indexOrAlias;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LegacyGetActionIT extends OpenSearchIntegTestCase {

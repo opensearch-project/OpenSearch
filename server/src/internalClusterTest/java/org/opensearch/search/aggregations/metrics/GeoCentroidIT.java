@@ -32,7 +32,7 @@ import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.geoCentroid;
 import static org.opensearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

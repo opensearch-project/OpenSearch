@@ -29,8 +29,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)

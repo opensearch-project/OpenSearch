@@ -47,8 +47,8 @@ import static org.opensearch.search.aggregations.AggregationBuilders.missing;
 import static org.opensearch.search.aggregations.AggregationBuilders.nested;
 import static org.opensearch.search.aggregations.AggregationBuilders.range;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

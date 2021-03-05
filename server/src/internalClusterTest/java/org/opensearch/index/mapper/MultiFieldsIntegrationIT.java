@@ -36,7 +36,7 @@ import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE
 import static org.opensearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;

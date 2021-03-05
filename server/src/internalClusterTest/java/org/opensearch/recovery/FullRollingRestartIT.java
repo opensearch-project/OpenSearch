@@ -36,7 +36,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartIT extends OpenSearchIntegTestCase {

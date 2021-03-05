@@ -34,7 +34,7 @@ import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.geoBounds;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;

@@ -36,7 +36,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

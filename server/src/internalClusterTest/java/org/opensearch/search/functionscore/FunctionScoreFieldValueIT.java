@@ -31,9 +31,9 @@ import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 
 /**
  * Tests for the {@code field_value_factor} function in a function_score query.

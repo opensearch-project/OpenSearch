@@ -43,7 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;

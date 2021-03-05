@@ -33,8 +33,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.index.query.QueryBuilders.matchPhraseQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class MatchPhraseQueryIT extends OpenSearchIntegTestCase {
     private static final String INDEX = "test";

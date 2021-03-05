@@ -41,13 +41,13 @@ import java.util.function.Function;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.scriptScoreQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.hasScore;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFirstHit;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSecondHit;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertThirdHit;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasScore;
 
 public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
 

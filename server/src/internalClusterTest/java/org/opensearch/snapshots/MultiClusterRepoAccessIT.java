@@ -39,7 +39,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Function;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 
 public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {

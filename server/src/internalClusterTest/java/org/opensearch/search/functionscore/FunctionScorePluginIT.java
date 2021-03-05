@@ -36,7 +36,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -89,7 +89,7 @@ public class FunctionScorePluginIT extends OpenSearchIntegTestCase {
                 searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value"), gfb))));
 
         SearchResponse sr = response.actionGet();
-        ElasticsearchAssertions.assertNoFailures(sr);
+        OpenSearchAssertions.assertNoFailures(sr);
         SearchHits sh = sr.getHits();
 
         assertThat(sh.getHits().length, equalTo(2));

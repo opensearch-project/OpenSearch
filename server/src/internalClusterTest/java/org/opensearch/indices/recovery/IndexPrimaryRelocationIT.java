@@ -32,7 +32,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -108,8 +108,8 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
         finished.set(true);
         indexingThread.join();
         refresh("test");
-        ElasticsearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true).get(), numAutoGenDocs.get());
-        ElasticsearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true)// extra paranoia ;)
+        OpenSearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true).get(), numAutoGenDocs.get());
+        OpenSearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true)// extra paranoia ;)
             .setQuery(QueryBuilders.termQuery("auto", true)).get(), numAutoGenDocs.get());
     }
 

@@ -34,7 +34,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 

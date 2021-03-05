@@ -34,7 +34,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope= Scope.SUITE, numDataNodes = 2)
