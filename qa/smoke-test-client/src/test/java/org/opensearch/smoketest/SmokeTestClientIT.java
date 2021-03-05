@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class SmokeTestClientIT extends ESSmokeClientTestCase {
 
     /**
-     * Check that we are connected to a cluster named "elasticsearch".
+     * Check that we are connected to a cluster named "opensearch".
      */
     public void testSimpleClient() {
         final Client client = getClient();

@@ -10,14 +10,14 @@ services:
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-       - path.repo=/tmp/es-repo
+       - path.repo=/tmp/opensearch-repo
        - node.attr.testattr=test
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/repo:/tmp/es-repo
+       - ./build/repo:/tmp/opensearch-repo
        - ./build/certs/testnode.jks:/usr/share/opensearch/config/testnode.jks
        - ./build/logs/default-1:/usr/share/opensearch/logs
        - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
@@ -47,14 +47,14 @@ services:
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-       - path.repo=/tmp/es-repo
+       - path.repo=/tmp/opensearch-repo
        - node.attr.testattr=test
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/repo:/tmp/es-repo
+       - ./build/repo:/tmp/opensearch-repo
        - ./build/certs/testnode.jks:/usr/share/opensearch/config/testnode.jks
        - ./build/logs/default-2:/usr/share/opensearch/logs
        - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh

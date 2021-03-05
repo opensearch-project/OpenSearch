@@ -145,7 +145,7 @@ public class ServerUtils {
                     if (response.getStatusLine().getStatusCode() >= 300) {
                         final String statusLine = response.getStatusLine().toString();
                         final String body = EntityUtils.toString(response.getEntity());
-                        throw new RuntimeException("Connecting to elasticsearch cluster health API failed:\n" + statusLine + "\n" + body);
+                        throw new RuntimeException("Connecting to opensearch cluster health API failed:\n" + statusLine + "\n" + body);
                     }
 
                     started = true;
@@ -169,7 +169,7 @@ public class ServerUtils {
                 FileUtils.logAllLogs(installation.logs, logger);
             }
 
-            throw new RuntimeException("Elasticsearch did not start", thrownException);
+            throw new RuntimeException("OpenSearch did not start", thrownException);
         }
 
         final String url;

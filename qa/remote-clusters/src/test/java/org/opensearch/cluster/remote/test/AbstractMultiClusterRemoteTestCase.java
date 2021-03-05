@@ -135,7 +135,7 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         String value = System.getProperty(key);
         if (value == null) {
             throw new IllegalStateException("Could not find system properties from test.fixtures. " +
-                "This test expects to run with the elasticsearch.test.fixtures Gradle plugin");
+                "This test expects to run with the opensearch.test.fixtures Gradle plugin");
         }
         return value;
     }

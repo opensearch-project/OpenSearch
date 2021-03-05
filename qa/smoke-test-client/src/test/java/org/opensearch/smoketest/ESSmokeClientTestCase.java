@@ -91,7 +91,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
         }
         TransportClient client = new PreBuiltTransportClient(builder.build(), plugins).addTransportAddresses(transportAddresses);
 
-        logger.info("--> Elasticsearch Java TransportClient started");
+        logger.info("--> OpenSearch Java TransportClient started");
 
         Exception clientException = null;
         try {
