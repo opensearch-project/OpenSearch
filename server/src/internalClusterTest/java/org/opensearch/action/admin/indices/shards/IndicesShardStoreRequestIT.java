@@ -37,7 +37,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.store.MockFSIndexStore;
 
 import java.util.Arrays;
@@ -57,8 +57,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class IndicesShardStoreRequestIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class IndicesShardStoreRequestIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

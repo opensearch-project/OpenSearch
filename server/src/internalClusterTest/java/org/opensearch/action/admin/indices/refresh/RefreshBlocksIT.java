@@ -20,8 +20,8 @@
 package org.opensearch.action.admin.indices.refresh;
 
 
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 
@@ -33,8 +33,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_AL
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class RefreshBlocksIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class RefreshBlocksIT extends OpenSearchIntegTestCase {
     public void testRefreshWithBlocks() {
         createIndex("test");
         ensureGreen("test");

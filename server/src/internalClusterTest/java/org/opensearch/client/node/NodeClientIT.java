@@ -20,14 +20,14 @@ package org.opensearch.client.node;
 
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.SUITE)
-public class NodeClientIT extends ESIntegTestCase {
+public class NodeClientIT extends OpenSearchIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(Client.CLIENT_TYPE_SETTING_S.getKey(), "anything").build();

@@ -29,9 +29,9 @@ import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.env.Environment;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.transport.MockTransportClient;
 import org.opensearch.transport.TransportService;
 
@@ -41,7 +41,7 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0, supportsDedicatedMasters = false)
-public class TransportClientRetryIT extends ESIntegTestCase {
+public class TransportClientRetryIT extends OpenSearchIntegTestCase {
     public void testRetry() throws IOException, ExecutionException, InterruptedException {
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);
         TransportAddress[] addresses = new TransportAddress[internalCluster().size()];

@@ -37,7 +37,7 @@ import org.opensearch.search.suggest.completion.context.ContextBuilder;
 import org.opensearch.search.suggest.completion.context.ContextMapping;
 import org.opensearch.search.suggest.completion.context.GeoContextMapping;
 import org.opensearch.search.suggest.completion.context.GeoQueryContext;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @SuppressCodecs("*") // requires custom completion format
-public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
+public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);

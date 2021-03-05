@@ -22,7 +22,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Set;
 
@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.equalTo;
  * An integration test for testing updating shard allocation/routing settings and
  * ensuring the updated settings take effect as expected.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class UpdateShardAllocationSettingsIT extends OpenSearchIntegTestCase {
 
     /**
      * Tests that updating the {@link EnableAllocationDecider} related settings works as expected.

@@ -51,7 +51,7 @@ import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -80,7 +80,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CancellableTasksIT extends ESIntegTestCase {
+public class CancellableTasksIT extends OpenSearchIntegTestCase {
 
     static int idGenerator = 0;
     static final Map<TestRequest, CountDownLatch> beforeSendLatches = ConcurrentCollections.newConcurrentMap();

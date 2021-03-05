@@ -23,17 +23,17 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.gateway.GatewayService;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.InternalTestCluster;
 
 import java.io.IOException;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0,
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0,
     autoManageMasterNodes = false)
-public class IndicesExistsIT extends ESIntegTestCase {
+public class IndicesExistsIT extends OpenSearchIntegTestCase {
 
     public void testIndexExistsWithBlocksInPlace() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);

@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 
@@ -33,8 +33,8 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class ForceMergeBlocksIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class ForceMergeBlocksIT extends OpenSearchIntegTestCase {
 
     public void testForceMergeWithBlocks() {
         createIndex("test");

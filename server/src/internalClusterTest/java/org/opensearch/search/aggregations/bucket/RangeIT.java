@@ -34,7 +34,7 @@ import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.range.Range.Bucket;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Sum;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -59,8 +59,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class RangeIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class RangeIT extends OpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static final String MULTI_VALUED_FIELD_NAME = "l_values";

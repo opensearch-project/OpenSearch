@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.indices.segments;
 
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 
@@ -32,8 +32,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_AL
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class IndicesSegmentsBlocksIT extends OpenSearchIntegTestCase {
     public void testIndicesSegmentsWithBlocks() {
         createIndex("test-blocks");
         ensureGreen("test-blocks");

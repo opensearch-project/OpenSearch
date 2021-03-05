@@ -40,7 +40,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.BackgroundIndexer;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
 import org.opensearch.transport.TransportService;
@@ -63,8 +63,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

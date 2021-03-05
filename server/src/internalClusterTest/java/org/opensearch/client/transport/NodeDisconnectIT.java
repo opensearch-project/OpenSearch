@@ -21,9 +21,9 @@ package org.opensearch.client.transport;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.transport.MockTransportClient;
 import org.opensearch.transport.TransportService;
 
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.client.transport.TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL;
 
 @ClusterScope(scope = Scope.TEST)
-public class NodeDisconnectIT  extends ESIntegTestCase {
+public class NodeDisconnectIT  extends OpenSearchIntegTestCase {
 
     public void testNotifyOnDisconnect() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);

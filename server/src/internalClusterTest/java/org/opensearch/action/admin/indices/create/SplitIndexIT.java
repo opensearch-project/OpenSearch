@@ -55,7 +55,7 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -75,7 +75,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailu
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SplitIndexIT extends ESIntegTestCase {
+public class SplitIndexIT extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

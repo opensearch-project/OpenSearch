@@ -58,7 +58,7 @@ import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskResult;
 import org.opensearch.tasks.TaskResultsService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.test.tasks.MockTaskManagerListener;
 import org.opensearch.test.transport.MockTransportService;
@@ -105,8 +105,8 @@ import static org.hamcrest.Matchers.startsWith;
  * <p>
  * We need at least 2 nodes so we have a master node a non-master node
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2, transportClientRatio = 0.0)
-public class TasksIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2, transportClientRatio = 0.0)
+public class TasksIT extends OpenSearchIntegTestCase {
 
     private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
 

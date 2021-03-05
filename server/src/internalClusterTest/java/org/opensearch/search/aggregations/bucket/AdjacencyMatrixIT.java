@@ -33,7 +33,7 @@ import org.opensearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.opensearch.search.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.metrics.Avg;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -54,8 +54,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class AdjacencyMatrixIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class AdjacencyMatrixIT extends OpenSearchIntegTestCase {
 
     static int numDocs, numSingleTag1Docs, numSingleTag2Docs, numTag1Docs, numTag2Docs, numMultiTagDocs;
     static final int MAX_NUM_FILTERS = 3;

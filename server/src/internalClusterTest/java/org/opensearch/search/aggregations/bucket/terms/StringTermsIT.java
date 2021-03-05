@@ -46,7 +46,7 @@ import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -79,7 +79,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
+@OpenSearchIntegTestCase.SuiteScopeTestCase
 public class StringTermsIT extends AbstractTermsTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";

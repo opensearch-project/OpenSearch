@@ -37,7 +37,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockLogAppender;
 
@@ -60,8 +60,8 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.CombinableMatcher.both;
 import static org.hamcrest.number.OrderingComparison.greaterThanOrEqualTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class RolloverIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class RolloverIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

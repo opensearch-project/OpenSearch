@@ -47,7 +47,7 @@ import org.opensearch.search.suggest.completion.FuzzyOptions;
 import org.opensearch.search.suggest.completion.context.CategoryContextMapping;
 import org.opensearch.search.suggest.completion.context.ContextMapping;
 import org.opensearch.search.suggest.completion.context.GeoContextMapping;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -81,7 +81,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressCodecs("*") // requires custom completion format
-public class CompletionSuggestSearchIT extends ESIntegTestCase {
+public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);

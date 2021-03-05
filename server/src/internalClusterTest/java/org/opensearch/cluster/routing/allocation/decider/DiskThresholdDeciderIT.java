@@ -51,7 +51,7 @@ import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -87,8 +87,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class DiskThresholdDeciderIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
 
     private static TestFileSystemProvider fileSystemProvider;
 

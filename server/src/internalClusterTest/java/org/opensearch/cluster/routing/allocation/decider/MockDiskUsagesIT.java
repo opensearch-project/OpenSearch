@@ -33,7 +33,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.env.Environment;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -60,8 +60,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class MockDiskUsagesIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

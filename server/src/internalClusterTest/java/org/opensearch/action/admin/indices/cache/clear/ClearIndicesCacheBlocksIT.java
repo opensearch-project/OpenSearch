@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.indices.cache.clear;
 
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 
@@ -33,8 +33,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class ClearIndicesCacheBlocksIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class ClearIndicesCacheBlocksIT extends OpenSearchIntegTestCase {
     public void testClearIndicesCacheWithBlocks() {
         createIndex("test");
         ensureGreen("test");

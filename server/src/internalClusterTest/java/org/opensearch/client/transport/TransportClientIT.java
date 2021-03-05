@@ -30,9 +30,9 @@ import org.opensearch.env.Environment;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.transport.MockTransportClient;
 import org.opensearch.transport.TransportService;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
-public class TransportClientIT extends ESIntegTestCase {
+public class TransportClientIT extends OpenSearchIntegTestCase {
 
     public void testPickingUpChangesInDiscoveryNode() {
         String nodeName = internalCluster().startNode(nonDataNode());

@@ -27,7 +27,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -38,8 +38,8 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
     @Override
     protected int maximumNumberOfReplicas() {
         return 1;

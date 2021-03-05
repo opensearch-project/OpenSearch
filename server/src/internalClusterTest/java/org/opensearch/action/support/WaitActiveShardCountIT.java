@@ -27,7 +27,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests setting the active shard count for replication operations (e.g. index) operates correctly.
  */
-public class WaitActiveShardCountIT extends ESIntegTestCase {
+public class WaitActiveShardCountIT extends OpenSearchIntegTestCase {
     public void testReplicationWaitsForActiveShardCount() throws Exception {
         CreateIndexResponse createIndexResponse =
             prepareCreate("test", 1, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).get();

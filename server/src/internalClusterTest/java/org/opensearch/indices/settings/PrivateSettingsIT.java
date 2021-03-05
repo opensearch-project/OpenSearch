@@ -23,7 +23,7 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class PrivateSettingsIT extends ESIntegTestCase {
+public class PrivateSettingsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
