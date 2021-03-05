@@ -22,7 +22,7 @@ package org.elasticsearch.routing;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.explain.ExplainResponse;

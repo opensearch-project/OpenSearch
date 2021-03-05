@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 
 import java.util.ArrayList;
 import java.util.HashSet;

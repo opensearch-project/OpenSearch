@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;

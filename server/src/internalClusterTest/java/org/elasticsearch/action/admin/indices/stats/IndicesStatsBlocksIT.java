@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 
 import java.util.Arrays;
 

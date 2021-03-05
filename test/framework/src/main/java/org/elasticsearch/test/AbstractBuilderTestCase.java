@@ -26,7 +26,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;

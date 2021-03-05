@@ -20,7 +20,7 @@
 package org.elasticsearch.document;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;

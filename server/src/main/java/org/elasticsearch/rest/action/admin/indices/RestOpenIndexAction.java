@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.opensearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;

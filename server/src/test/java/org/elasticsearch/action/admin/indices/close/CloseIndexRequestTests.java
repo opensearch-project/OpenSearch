@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.action.admin.indices.close.CloseIndexRequest;
 
 public class CloseIndexRequestTests extends ESTestCase {
 

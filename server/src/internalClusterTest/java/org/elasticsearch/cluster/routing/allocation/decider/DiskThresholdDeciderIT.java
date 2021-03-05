@@ -25,7 +25,7 @@ import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.InternalClusterInfoService;

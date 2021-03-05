@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 
 import java.util.Arrays;
 

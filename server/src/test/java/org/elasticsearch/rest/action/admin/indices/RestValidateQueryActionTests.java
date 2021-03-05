@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;

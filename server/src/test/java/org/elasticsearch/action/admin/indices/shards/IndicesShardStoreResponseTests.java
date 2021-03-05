@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

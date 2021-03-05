@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;

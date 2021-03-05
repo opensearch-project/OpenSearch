@@ -24,7 +24,7 @@ import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;

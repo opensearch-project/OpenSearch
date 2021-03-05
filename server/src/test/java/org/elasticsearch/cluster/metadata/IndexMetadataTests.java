@@ -20,10 +20,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
-import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;

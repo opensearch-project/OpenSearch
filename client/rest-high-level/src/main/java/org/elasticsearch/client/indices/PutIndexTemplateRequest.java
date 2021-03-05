@@ -22,7 +22,7 @@ import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;

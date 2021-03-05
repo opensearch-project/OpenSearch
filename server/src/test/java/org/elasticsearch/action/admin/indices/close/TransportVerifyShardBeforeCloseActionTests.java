@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
@@ -58,6 +58,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.mockito.ArgumentCaptor;
+import org.opensearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 
 import java.util.Collections;
 import java.util.List;

@@ -28,6 +28,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 
 import java.util.Collection;
 import java.util.List;

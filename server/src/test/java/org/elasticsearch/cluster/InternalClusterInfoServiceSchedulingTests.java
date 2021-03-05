@@ -25,7 +25,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
