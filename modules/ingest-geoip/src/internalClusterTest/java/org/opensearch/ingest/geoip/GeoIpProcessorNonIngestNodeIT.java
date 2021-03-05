@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.geoip;
+package org.opensearch.ingest.geoip;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.index.IndexRequest;

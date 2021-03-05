@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.geoip;
+package org.opensearch.ingest.geoip;
 
 import com.maxmind.db.Network;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
@@ -36,7 +36,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
+import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 
 import java.io.IOException;
 import java.net.InetAddress;

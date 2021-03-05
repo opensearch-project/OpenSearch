@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.geoip;
+package org.opensearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
