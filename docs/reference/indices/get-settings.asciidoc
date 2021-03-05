@@ -4,8 +4,7 @@
 <titleabbrev>Get index settings</titleabbrev>
 ++++
 
-Returns setting information for one or more indices. For data streams, the API
-returns setting information for the stream's backing indices.
+Returns setting information for one or more indices.
 
 [source,console]
 --------------------------------------------------
@@ -27,10 +26,10 @@ GET /my-index-000001/_settings
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 `<setting>`::
@@ -63,9 +62,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 [[get-index-settings-api-example]]
 ==== {api-examples-title}
 
-===== Multiple data streams and indices
+===== Multiple indices
 
-The get settings API can be used to get settings for more than one data stream or index with a
+The get settings API can be used to get settings for more than one index with a
 single call. To get settings for all indices in a cluster, you can use `_all` or `*` for `<target>`.
 Wildcard expressions are also supported. The following are some examples:
 

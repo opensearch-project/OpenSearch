@@ -5,11 +5,9 @@
 ++++
 
 Creates a new index for a rollover target when the target's existing index meets
-a condition you provide. A rollover target can be either an
-<<indices-aliases, index alias>> or a
-<<indices-create-data-stream, data stream>>. When targeting an alias, the alias
-is updated to point to the new index. When targeting a data stream, the new
-index becomes the data stream's write index and its generation is incremented.
+a condition you provide. A rollover target can be an
+<<indices-aliases, index alias>>. When targeting an alias, the alias
+is updated to point to the new index.
 
 [source,console]
 ----
@@ -64,12 +62,6 @@ In this case, the rollover request:
 . Sets `is_write_index` to `true` for the new index
 . Sets `is_write_index` to `false` for the original index
 
-If the specified rollover target is a data stream, the rollover request:
-
-. Creates a new index
-. Adds the new index as a backing index and the write index on the data stream
-. Increments the `generation` attribute of the data stream
-
 [[rollover-wait-active-shards]]
 ===== Wait for active shards
 
@@ -83,7 +75,7 @@ index creation applies to the rollover action.
 
 `<rollover-target>`::
 (Required*, string)
-Name of the existing index alias or data stream on which to
+Name of the existing index alias on which to
 to assign to the target index.	perform the rollover.
 
 
@@ -94,10 +86,6 @@ to assign to the target index.	perform the rollover.
 Name of the target index to create and assign the index alias.
 
 include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
-
-*This parameter is not permitted if `rollover-target` is a data stream. In
-that case, the new index name will be in the form `.ds-<rollover-target>-000001`
-where the zero-padded number of length 6 is the generation of the data stream.
 
 If `rollover-target` is an alias that is assigned to an index name that ends
 with `-` and a number such as `logs-000001`. In this case, the name of the new
@@ -222,83 +210,6 @@ The API returns the following response:
 <1> Whether the index was rolled over.
 <2> Whether the rollover was dry run.
 <3> The result of each condition.
-
-
-[[rollover-data-stream-ex]]
-===== Roll over a data stream
-
-[source,console]
------------------------------------
-PUT _index_template/template
-{
-  "index_patterns": ["my-data-stream*"],
-  "data_stream": { }
-}
------------------------------------
-
-[source,console]
---------------------------------------------------
-PUT /_data_stream/my-data-stream <1>
-
-# Add > 1000 documents to my-data-stream
-
-POST /my-data-stream/_rollover <2>
-{
-  "conditions" : {
-    "max_age": "7d",
-    "max_docs": 1000,
-    "max_size": "5gb"
-  }
-}
---------------------------------------------------
-// TEST[continued]
-// TEST[setup:my_index_huge]
-// TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{ "source": { "index": "my-index-000001" }, "dest": { "index": "my-data-stream", "op_type": "create" } }/]
-<1> Creates a data stream called `my-data-stream` with one initial backing index
-named `my-data-stream-000001`.
-<2> This request creates a new backing index, `my-data-stream-000002`, and adds
-it as the write index for `my-data-stream` if the current
-write index meets at least one of the following conditions:
-+
---
-* The index was created 7 or more days ago.
-* The index has an index size of 5GB or greater.
-* The index contains 1,000 or more documents.
---
-
-The API returns the following response:
-
-[source,console-result]
---------------------------------------------------
-{
-  "acknowledged": true,
-  "shards_acknowledged": true,
-  "old_index": ".ds-my-data-stream-000001", <1>
-  "new_index": ".ds-my-data-stream-000002", <2>
-  "rolled_over": true, <3>
-  "dry_run": false, <4>
-  "conditions": { <5>
-    "[max_age: 7d]": false,
-    "[max_docs: 1000]": true,
-    "[max_size: 5gb]": false,
-  }
-}
---------------------------------------------------
-
-<1> The previous write index for the data stream.
-<2> The new write index for the data stream.
-<3> Whether the index was rolled over.
-<4> Whether the rollover was dry run.
-<5> The result of each condition.
-
-////
-[source,console]
------------------------------------
-DELETE /_data_stream/my-data-stream
-DELETE /_index_template/template
------------------------------------
-// TEST[continued]
-////
 
 [[rollover-index-settings-ex]]
 ===== Specify settings for the target index

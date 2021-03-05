@@ -4,8 +4,7 @@
 <titleabbrev>Clear cache</titleabbrev>
 ++++
 
-Clears the caches of one or more indices. For data streams, the API clears the
-caches of the stream's backing indices.
+Clears the caches of one or more indices.
 
 [source,console]
 ----
@@ -27,10 +26,10 @@ POST /my-index-000001/_cache/clear
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 
@@ -134,7 +133,7 @@ POST /my-index-000001/_cache/clear?fields=foo,bar   <1>
 
 
 [[clear-cache-api-multi-ex]]
-===== Clear caches for several data streams and indices
+===== Clear caches for several indices
 
 [source,console]
 ----
@@ -144,7 +143,7 @@ POST /my-index-000001,my-index-000002/_cache/clear
 
 
 [[clear-cache-api-all-ex]]
-===== Clear caches for all data streams and indices
+===== Clear caches for all indices
 
 [source,console]
 ----
