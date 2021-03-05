@@ -190,9 +190,9 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         client().index(indexRequest("test").type("type1").id("2")
                 .source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
         client().index(indexRequest("test").type("type1").id("3")
-                .source(jsonBuilder().startObject().field("text", "elasticsearch beta").endObject())).actionGet();
+                .source(jsonBuilder().startObject().field("text", "opensearch beta").endObject())).actionGet();
         client().index(indexRequest("test").type("type1").id("4")
-                .source(jsonBuilder().startObject().field("text", "elasticsearch release").endObject())).actionGet();
+                .source(jsonBuilder().startObject().field("text", "opensearch release").endObject())).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis on index");
@@ -235,11 +235,11 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         client().index(indexRequest(indexName).type(typeName).id("1")
-                .source(jsonBuilder().startObject().field("text", "elasticsearch index").endObject())).actionGet();
+                .source(jsonBuilder().startObject().field("text", "opensearch index").endObject())).actionGet();
         client().index(indexRequest(indexName).type(typeName).id("2")
                 .source(jsonBuilder().startObject().field("text", "lucene index").endObject())).actionGet();
         client().index(indexRequest(indexName).type(typeName).id("3")
-                .source(jsonBuilder().startObject().field("text", "elasticsearch index").endObject())).actionGet();
+                .source(jsonBuilder().startObject().field("text", "opensearch index").endObject())).actionGet();
         refresh(indexName);
 
         SearchResponse response = client().prepareSearch().setQuery(
@@ -328,7 +328,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 .setSource(jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject())
                 .get();
         client().prepareIndex("test", "type", "2")
-                .setSource(jsonBuilder().startObject().field("string_value", "elasticsearch index").field("int_value", 42).endObject())
+                .setSource(jsonBuilder().startObject().field("string_value", "opensearch index").field("int_value", 42).endObject())
                 .get();
 
         refresh();
@@ -689,12 +689,12 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
                         .startObject()
                         .field("text", "hello world")
-                        .field("text1", "elasticsearch")
+                        .field("text1", "opensearch")
                         .endObject()),
                 client().prepareIndex("test", "type1", "2").setSource(jsonBuilder()
                         .startObject()
                         .field("text", "goodby moon")
-                        .field("text1", "elasticsearch")
+                        .field("text1", "opensearch")
                         .endObject()));
 
         MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery(new Item[] {new Item("test", "1")})

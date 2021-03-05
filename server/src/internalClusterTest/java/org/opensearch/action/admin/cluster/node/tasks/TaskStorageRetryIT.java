@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -41,7 +41,7 @@ import static java.util.Collections.singletonMap;
  * Makes sure that tasks that attempt to store themselves on completion retry if
  * they don't succeed at first.
  */
-public class TaskStorageRetryIT extends ESSingleNodeTestCase {
+public class TaskStorageRetryIT extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(TestTaskPlugin.class);

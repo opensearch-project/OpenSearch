@@ -29,13 +29,13 @@ import org.opensearch.index.query.WrapperQueryBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilters;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
+public class FiltersAggsRewriteIT extends OpenSearchSingleNodeTestCase {
 
     public void testWrapperQueryIsRewritten() throws IOException {
         createIndex("test", Settings.EMPTY, "test", "title", "type=text");

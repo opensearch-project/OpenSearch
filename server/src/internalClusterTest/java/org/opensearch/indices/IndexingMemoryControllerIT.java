@@ -31,7 +31,7 @@ import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,7 +41,7 @@ import java.util.Optional;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
+public class IndexingMemoryControllerIT extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {

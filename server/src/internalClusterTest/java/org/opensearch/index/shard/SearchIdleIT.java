@@ -28,7 +28,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -42,7 +42,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchIdleIT extends ESSingleNodeTestCase {
+public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
 
     public void testAutomaticRefreshSearch() throws InterruptedException {
         runTestAutomaticRefresh(numDocs -> client().prepareSearch("test").get().getHits().getTotalHits().value);

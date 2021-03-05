@@ -24,7 +24,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.After;
 
 import java.util.concurrent.CountDownLatch;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
+public class GlobalCheckpointListenersIT extends OpenSearchSingleNodeTestCase {
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 

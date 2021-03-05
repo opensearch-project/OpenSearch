@@ -88,7 +88,7 @@ public class SimpleThreadPoolIT extends OpenSearchIntegTestCase {
         logger.info("post node *new* threads are {}", threadNames);
         for (String threadName : threadNames) {
             // ignore some shared threads we know that are created within the same VM, like the shared discovery one
-            // or the ones that are occasionally come up from ESSingleNodeTestCase
+            // or the ones that are occasionally come up from OpenSearchSingleNodeTestCase
             if (threadName.contains("[node_s_0]") // TODO: this can't possibly be right! single node and integ test are unrelated!
                     || threadName.contains("Keep-Alive-Timer")) {
                 continue;

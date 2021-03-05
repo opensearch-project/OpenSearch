@@ -24,7 +24,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.Index;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,7 +36,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ValidateMappingRequestPluginIT extends ESSingleNodeTestCase {
+public class ValidateMappingRequestPluginIT extends OpenSearchSingleNodeTestCase {
     static final Map<String, Collection<String>> allowedOrigins = ConcurrentCollections.newConcurrentMap();
     public static class TestPlugin extends Plugin implements ActionPlugin {
         @Override

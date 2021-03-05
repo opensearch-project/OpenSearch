@@ -40,7 +40,7 @@ import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
  * executes asynchronously. The result of the operation should be the same and also the order in which the
  * bulk responses are returned should be the same as how the corresponding index requests were defined.
  */
-public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
+public class AsyncIngestProcessorIT extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

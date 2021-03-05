@@ -21,11 +21,11 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UpgradeIndexSettingsIT extends ESSingleNodeTestCase {
+public class UpgradeIndexSettingsIT extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

@@ -29,7 +29,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 
-public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
+public class ValidateIndicesAliasesRequestIT extends OpenSearchSingleNodeTestCase {
 
     public static class IndicesAliasopensearchplugin extends Plugin implements ActionPlugin {
 

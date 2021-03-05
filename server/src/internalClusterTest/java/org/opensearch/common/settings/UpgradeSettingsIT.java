@@ -23,7 +23,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.SniffConnectionStrategy;
 import org.junit.After;
@@ -37,7 +37,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UpgradeSettingsIT extends ESSingleNodeTestCase {
+public class UpgradeSettingsIT extends OpenSearchSingleNodeTestCase {
 
     @After
     public void cleanup() throws Exception {
