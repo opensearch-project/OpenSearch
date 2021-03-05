@@ -259,7 +259,7 @@ public class DockerTests extends PackagingTestCase {
 
         Map<String, String> envVars = new HashMap<>();
         envVars.put("ELASTIC_PASSWORD", "hunter2");
-        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+        envVars.put("OPENSEARCH_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
@@ -271,7 +271,7 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat(
             dockerLogs.stderr,
-            containsString("ERROR: Both ELASTIC_PASSWORD_FILE and ELASTIC_PASSWORD are set. These are mutually exclusive.")
+            containsString("ERROR: Both OPENSEARCH_PASSWORD_FILE and ELASTIC_PASSWORD are set. These are mutually exclusive.")
         );
     }
 
@@ -284,7 +284,7 @@ public class DockerTests extends PackagingTestCase {
 
         Files.write(tempDir.resolve(passwordFilename), "hunter2\n".getBytes(StandardCharsets.UTF_8));
 
-        Map<String, String> envVars = singletonMap("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+        Map<String, String> envVars = singletonMap("OPENSEARCH_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // Set invalid file permissions
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p660);
@@ -297,7 +297,7 @@ public class DockerTests extends PackagingTestCase {
         assertThat(
             dockerLogs.stderr,
             containsString(
-                "ERROR: File /run/secrets/" + passwordFilename + " from ELASTIC_PASSWORD_FILE must have file permissions 400 or 600"
+                "ERROR: File /run/secrets/" + passwordFilename + " from OPENSEARCH_PASSWORD_FILE must have file permissions 400 or 600"
             )
         );
     }
