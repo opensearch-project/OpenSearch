@@ -56,7 +56,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

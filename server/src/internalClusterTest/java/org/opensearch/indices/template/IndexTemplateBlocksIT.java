@@ -28,7 +28,7 @@ import org.opensearch.test.ESIntegTestCase.ClusterScope;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.hasSize;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)

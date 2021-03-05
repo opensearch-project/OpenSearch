@@ -66,7 +66,7 @@ import static org.opensearch.cluster.routing.allocation.decider.FilterAllocation
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.opensearch.test.InternalTestCluster.REMOVED_MINIMUM_MASTER_NODES;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

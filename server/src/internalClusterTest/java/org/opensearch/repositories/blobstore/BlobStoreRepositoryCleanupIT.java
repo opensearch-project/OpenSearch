@@ -32,7 +32,7 @@ import org.opensearch.test.ESIntegTestCase;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutionException;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)

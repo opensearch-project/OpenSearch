@@ -24,7 +24,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.ESIntegTestCase;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleAllocationIT extends ESIntegTestCase {

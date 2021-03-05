@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.ESIntegTestCase;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;

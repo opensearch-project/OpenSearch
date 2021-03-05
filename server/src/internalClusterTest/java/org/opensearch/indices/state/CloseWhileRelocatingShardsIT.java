@@ -59,7 +59,7 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.indices.state.CloseIndexIT.assertException;
 import static org.opensearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.opensearch.indices.state.CloseIndexIT.assertIndexIsOpened;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 

@@ -46,7 +46,7 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID;
 import static org.opensearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.opensearch.indices.state.CloseIndexIT.assertIndexIsOpened;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

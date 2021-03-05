@@ -37,7 +37,7 @@ import java.util.concurrent.CountDownLatch;
 import static java.util.Collections.singletonList;
 import static org.opensearch.persistent.decider.EnableAssignmentDecider.Allocation;
 import static org.opensearch.persistent.decider.EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 1)

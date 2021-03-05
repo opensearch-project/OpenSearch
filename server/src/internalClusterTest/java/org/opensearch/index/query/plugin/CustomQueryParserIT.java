@@ -27,7 +27,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class CustomQueryParserIT extends ESIntegTestCase {
     @Override

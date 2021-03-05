@@ -29,7 +29,7 @@ import org.opensearch.test.InternalTestCluster;
 
 import java.io.IOException;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0,
     autoManageMasterNodes = false)
