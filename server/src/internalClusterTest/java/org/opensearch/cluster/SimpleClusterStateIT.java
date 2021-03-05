@@ -51,7 +51,7 @@ import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.CollectionAssertions;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.is;
  * Checking simple filtering capabilities of the cluster state
  *
  */
-public class SimpleClusterStateIT extends ESIntegTestCase {
+public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

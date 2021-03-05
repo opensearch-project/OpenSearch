@@ -28,7 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.BackgroundIndexer;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DiskDisruptionIT extends AbstractDisruptionTestCase {
 
     private static DisruptTranslogFileSystemProvider disruptTranslogFileSystemProvider;

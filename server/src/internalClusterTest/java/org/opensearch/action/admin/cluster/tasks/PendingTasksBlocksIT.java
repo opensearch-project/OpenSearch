@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.tasks;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 
 import java.util.Arrays;
@@ -32,7 +32,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 
-public class PendingTasksBlocksIT extends ESIntegTestCase {
+public class PendingTasksBlocksIT extends OpenSearchIntegTestCase {
 
     public void testPendingTasksWithIndexBlocks() {
         createIndex("test");

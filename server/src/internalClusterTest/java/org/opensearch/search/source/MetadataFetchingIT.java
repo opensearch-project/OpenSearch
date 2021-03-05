@@ -28,7 +28,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collections;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MetadataFetchingIT extends ESIntegTestCase {
+public class MetadataFetchingIT extends OpenSearchIntegTestCase {
     public void testSimple() {
         assertAcked(prepareCreate("test"));
         ensureGreen();

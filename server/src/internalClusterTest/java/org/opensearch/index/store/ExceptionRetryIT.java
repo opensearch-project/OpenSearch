@@ -35,7 +35,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportService;
@@ -57,9 +57,9 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchR
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2,
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2,
     supportsDedicatedMasters = false, numClientNodes = 1, transportClientRatio = 0.0)
-public class ExceptionRetryIT extends ESIntegTestCase {
+public class ExceptionRetryIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

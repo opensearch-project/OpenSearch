@@ -33,13 +33,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.CorruptStateException;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
 @LuceneTestCase.SuppressCodecs("*")
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
-public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
+public class RecoveryWithUnsupportedIndicesIT extends OpenSearchIntegTestCase {
 
     /**
      * Return settings that could be used to start a node that has the given zipped home directory.

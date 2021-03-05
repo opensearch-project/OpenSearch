@@ -29,7 +29,7 @@ import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Percentile;
 import org.opensearch.search.aggregations.metrics.Sum;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,8 +48,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class PercentilesBucketIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class PercentilesBucketIT extends OpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static final double[] PERCENTS = {0.0, 1.0, 25.0, 50.0, 75.0, 99.0, 100.0};

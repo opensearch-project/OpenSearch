@@ -27,7 +27,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.range.Range;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,8 +40,8 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchR
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class IpRangeIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class IpRangeIT extends OpenSearchIntegTestCase {
 
     public static class DummyScriptPlugin extends MockScriptPlugin {
         @Override

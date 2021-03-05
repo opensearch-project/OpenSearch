@@ -22,12 +22,12 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
+public class CloseIndexDisableCloseAllIT extends OpenSearchIntegTestCase {
 
     @After
     public void afterTest() {

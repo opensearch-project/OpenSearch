@@ -24,9 +24,9 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ClusterScope(supportsDedicatedMasters = false, numDataNodes = 1, scope = Scope.SUITE)
-public class InternalEngineMergeIT extends ESIntegTestCase {
+public class InternalEngineMergeIT extends OpenSearchIntegTestCase {
 
     public void testMergesHappening() throws Exception {
         final int numOfShards = randomIntBetween(1, 5);

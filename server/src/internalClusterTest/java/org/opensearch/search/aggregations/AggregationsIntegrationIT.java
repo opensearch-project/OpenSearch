@@ -23,7 +23,7 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +33,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class AggregationsIntegrationIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
 
     static int numDocs;
 

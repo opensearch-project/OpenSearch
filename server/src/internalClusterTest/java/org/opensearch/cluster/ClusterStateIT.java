@@ -42,7 +42,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -60,7 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.opensearch.test.ESIntegTestCase.Scope.TEST;
+import static org.opensearch.test.OpenSearchIntegTestCase.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.hasItem;
@@ -72,8 +72,8 @@ import static org.hamcrest.Matchers.instanceOf;
  * check that the client can de-serialize a cluster state response based on the fact that the response should not contain customs that the
  * transport client does not understand based on the fact that it only presents the node-and-transport-client-feature.
  */
-@ESIntegTestCase.ClusterScope(scope = TEST)
-public class ClusterStateIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = TEST)
+public class ClusterStateIT extends OpenSearchIntegTestCase {
 
     public abstract static
     class Custom implements Metadata.Custom {

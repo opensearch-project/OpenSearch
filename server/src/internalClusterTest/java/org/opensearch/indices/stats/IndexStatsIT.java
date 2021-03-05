@@ -59,9 +59,9 @@ import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -98,7 +98,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0)
 @SuppressCodecs("*") // requires custom completion format
-public class IndexStatsIT extends ESIntegTestCase {
+public class IndexStatsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -431,7 +431,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
 
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
-        // when ESIntegTestCase.after tries to remove indices created by the test:
+        // when OpenSearchIntegTestCase.after tries to remove indices created by the test:
         logger.info("test: now optimize");
         client().admin().indices().prepareForceMerge("test").get();
         flush();

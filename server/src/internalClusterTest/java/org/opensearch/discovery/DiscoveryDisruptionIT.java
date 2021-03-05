@@ -29,7 +29,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.zen.MembershipAction;
 import org.opensearch.discovery.zen.PublishClusterStateAction;
 import org.opensearch.discovery.zen.ZenDiscovery;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.disruption.SlowClusterStateProcessing;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Tests for discovery during disruptions.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
     /**

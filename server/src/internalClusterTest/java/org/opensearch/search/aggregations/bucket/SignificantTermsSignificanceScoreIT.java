@@ -47,7 +47,7 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.GND;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.search.aggregations.bucket.SharedSignificantTermsTestMethods;
 
 import java.io.IOException;
@@ -75,8 +75,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
-public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
+public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase {
 
     static final String INDEX_NAME = "testidx";
     static final String DOC_TYPE = "_doc";

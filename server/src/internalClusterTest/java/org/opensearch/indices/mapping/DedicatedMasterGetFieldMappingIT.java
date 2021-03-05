@@ -21,8 +21,8 @@ package org.opensearch.indices.mapping;
 
 import org.junit.Before;
 
-import static org.opensearch.test.ESIntegTestCase.ClusterScope;
-import static org.opensearch.test.ESIntegTestCase.Scope;
+import static org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import static org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class DedicatedMasterGetFieldMappingIT extends SimpleGetFieldMappingsIT {

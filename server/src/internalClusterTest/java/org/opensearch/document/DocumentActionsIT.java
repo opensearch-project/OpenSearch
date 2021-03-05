@@ -34,7 +34,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Integration test for document action like index, bulk, and get. It has a very long history: it was in the second commit of Elasticsearch.
  */
-public class DocumentActionsIT extends ESIntegTestCase {
+public class DocumentActionsIT extends OpenSearchIntegTestCase {
     protected void createIndex() {
         OpenSearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).addMapping("type1", "name", "type=keyword,store=true"));
     }

@@ -34,7 +34,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
-public class UpdateSettingsIT extends ESIntegTestCase {
+public class UpdateSettingsIT extends OpenSearchIntegTestCase {
     public void testInvalidUpdateOnClosedIndex() {
         createIndex("test");
         assertAcked(client().admin().indices().prepareClose("test").get());

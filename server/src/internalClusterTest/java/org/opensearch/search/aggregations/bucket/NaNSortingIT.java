@@ -33,7 +33,7 @@ import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilde
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
@@ -44,8 +44,8 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class NaNSortingIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class NaNSortingIT extends OpenSearchIntegTestCase {
 
     private enum SubAggregation {
         AVG("avg") {

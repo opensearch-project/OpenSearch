@@ -25,7 +25,7 @@ import org.opensearch.common.time.DateFormatters;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -46,9 +46,9 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * DateHistogramTests so the AssertingLocalTransport for these tests can be set to only use versions 1.4 onwards while keeping the other
  * tests using all versions
  */
-@ESIntegTestCase.SuiteScopeTestCase
-@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
-public class DateHistogramOffsetIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+@OpenSearchIntegTestCase.ClusterScope(scope= OpenSearchIntegTestCase.Scope.SUITE)
+public class DateHistogramOffsetIT extends OpenSearchIntegTestCase {
 
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
     private static final DateFormatter FORMATTER = DateFormatter.forPattern(DATE_FORMAT);

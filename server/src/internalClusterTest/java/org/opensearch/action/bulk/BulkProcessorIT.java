@@ -36,7 +36,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.env.Environment;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.MockTransportClient;
 
 import java.util.Arrays;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class BulkProcessorIT extends ESIntegTestCase {
+public class BulkProcessorIT extends OpenSearchIntegTestCase {
     public void testThatBulkProcessorCountIsCorrect() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);

@@ -49,7 +49,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSecondH
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 
-public class ScriptScoreQueryIT extends ESIntegTestCase {
+public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -25,7 +25,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.test.BackgroundIndexer;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 
 import java.util.Locale;
@@ -35,8 +35,8 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCoun
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 2)
-public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 2)
+public class ReplicaToPrimaryPromotionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int numberOfReplicas() {

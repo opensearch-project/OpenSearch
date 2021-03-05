@@ -23,18 +23,18 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.opensearch.test.OpenSearchIntegTestCase.Scope.SUITE;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 @ClusterScope(scope = SUITE)
-public class StressSearchServiceReaperIT extends ESIntegTestCase {
+public class StressSearchServiceReaperIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

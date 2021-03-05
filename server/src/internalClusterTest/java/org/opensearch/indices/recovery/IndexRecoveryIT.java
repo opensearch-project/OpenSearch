@@ -100,9 +100,9 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.BackgroundIndexer;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.engine.MockEngineSupport;
@@ -156,7 +156,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class IndexRecoveryIT extends ESIntegTestCase {
+public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX_NAME = "test-idx-1";
     private static final String INDEX_TYPE = "test-type-1";

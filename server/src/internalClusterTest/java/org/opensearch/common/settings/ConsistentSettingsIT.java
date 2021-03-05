@@ -23,7 +23,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting.AffixSetting;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,8 +33,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class ConsistentSettingsIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class ConsistentSettingsIT extends OpenSearchIntegTestCase {
 
     static final Setting<SecureString> DUMMY_STRING_CONSISTENT_SETTING = SecureSetting
             .secureString("dummy.consistent.secure.string.setting", null, Setting.Property.Consistent);

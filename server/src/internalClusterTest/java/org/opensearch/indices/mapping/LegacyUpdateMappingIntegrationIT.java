@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Map;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
-public class LegacyUpdateMappingIntegrationIT extends ESIntegTestCase {
+public class LegacyUpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

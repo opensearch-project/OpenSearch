@@ -30,14 +30,14 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ComposableTemplateIT extends ESIntegTestCase {
+public class ComposableTemplateIT extends OpenSearchIntegTestCase {
 
     // See: https://github.com/elastic/elasticsearch/issues/58643
     public void testComponentTemplatesCanBeUpdatedAfterRestart() throws Exception {

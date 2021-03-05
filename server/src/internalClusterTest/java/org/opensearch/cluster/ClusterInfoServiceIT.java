@@ -45,7 +45,7 @@ import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
@@ -71,8 +71,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Integration tests for the ClusterInfoService collecting information
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class ClusterInfoServiceIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
 
     private static final String TEST_SYSTEM_INDEX_NAME = ".test-cluster-info-system-index";
 

@@ -27,8 +27,8 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -38,8 +38,8 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class RejectionActionIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
+public class RejectionActionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

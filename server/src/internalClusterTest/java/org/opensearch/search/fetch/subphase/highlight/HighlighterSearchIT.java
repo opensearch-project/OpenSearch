@@ -59,7 +59,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryS
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockKeywordPlugin;
 import org.hamcrest.Matcher;
@@ -113,7 +113,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class HighlighterSearchIT extends ESIntegTestCase {
+public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     // TODO as we move analyzers out of the core we need to move some of these into HighlighterWithAnalyzersTests
     private static final String[] ALL_TYPES = new String[] {"plain", "fvh", "unified"};
 

@@ -25,7 +25,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.util.Arrays;
@@ -34,8 +34,8 @@ import java.util.Collections;
 
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2)
-public class BulkRejectionIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2)
+public class BulkRejectionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

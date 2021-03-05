@@ -41,7 +41,7 @@ import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.engine.MockEngineSupport;
 import org.opensearch.test.engine.ThrowingLeafReaderWrapper;
 
@@ -55,7 +55,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
+public class SearchWithRandomExceptionsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -194,7 +194,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
+                final long seed = OpenSearchIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
                 this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
                 this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
                 this.random = new Random(seed);

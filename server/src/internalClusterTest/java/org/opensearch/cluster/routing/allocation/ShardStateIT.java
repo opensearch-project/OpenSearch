@@ -29,7 +29,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShardStateIT extends ESIntegTestCase {
+public class ShardStateIT extends OpenSearchIntegTestCase {
 
     public void testPrimaryFailureIncreasesTerm() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);

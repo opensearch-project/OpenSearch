@@ -24,7 +24,7 @@ import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Tests for noop updates.
  */
-public class UpdateNoopIT extends ESIntegTestCase {
+public class UpdateNoopIT extends OpenSearchIntegTestCase {
     public void testSingleField() throws Exception {
         updateAndCheckSource(0, 1, fields("bar", "baz"));
         updateAndCheckSource(0, 1, fields("bar", "baz"));

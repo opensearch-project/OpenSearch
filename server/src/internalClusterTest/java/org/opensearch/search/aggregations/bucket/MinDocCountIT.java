@@ -39,7 +39,7 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -63,7 +63,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 
-@ESIntegTestCase.SuiteScopeTestCase
+@OpenSearchIntegTestCase.SuiteScopeTestCase
 public class MinDocCountIT extends AbstractTermsTestCase {
 
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);

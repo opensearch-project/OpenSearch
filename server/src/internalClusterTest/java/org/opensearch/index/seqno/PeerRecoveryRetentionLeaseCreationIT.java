@@ -25,7 +25,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.VersionUtils;
 
@@ -34,8 +34,8 @@ import java.nio.file.Path;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 0)
-public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0)
+public class PeerRecoveryRetentionLeaseCreationIT extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

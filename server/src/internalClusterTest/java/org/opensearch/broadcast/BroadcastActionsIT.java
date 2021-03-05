@@ -22,7 +22,7 @@ package org.opensearch.broadcast;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
@@ -31,7 +31,7 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BroadcastActionsIT extends ESIntegTestCase {
+public class BroadcastActionsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int maximumNumberOfReplicas() {

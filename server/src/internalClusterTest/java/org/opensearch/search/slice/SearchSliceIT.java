@@ -34,7 +34,7 @@ import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortBuilders;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,7 +48,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SearchSliceIT extends ESIntegTestCase {
+public class SearchSliceIT extends OpenSearchIntegTestCase {
     private void setupIndex(int numDocs, int numberOfShards) throws IOException, ExecutionException, InterruptedException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
             startObject()

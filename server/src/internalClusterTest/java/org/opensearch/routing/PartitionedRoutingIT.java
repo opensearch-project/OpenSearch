@@ -25,7 +25,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.mockito.internal.util.collections.Sets;
 
 import java.util.HashMap;
@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class PartitionedRoutingIT extends ESIntegTestCase {
+public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
 
     public void testVariousPartitionSizes() throws Exception {
         for (int shards = 1; shards <= 4; shards++) {

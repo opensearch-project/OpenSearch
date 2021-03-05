@@ -25,7 +25,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.HashMap;
@@ -34,7 +34,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexRequestBuilderIT extends ESIntegTestCase {
+public class IndexRequestBuilderIT extends OpenSearchIntegTestCase {
     public void testSetSource() throws InterruptedException, ExecutionException {
         createIndex("test");
         Map<String, Object> map = new HashMap<>();

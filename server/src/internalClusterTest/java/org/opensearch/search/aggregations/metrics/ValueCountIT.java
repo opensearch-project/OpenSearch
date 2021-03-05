@@ -28,7 +28,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -53,8 +53,8 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchR
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class ValueCountIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class ValueCountIT extends OpenSearchIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");

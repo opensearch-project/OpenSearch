@@ -24,7 +24,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.pipeline.InternalBucketMetricValue;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.HashMap;
 import java.util.List;
@@ -38,7 +38,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 
-public class MetadataIT extends ESIntegTestCase {
+public class MetadataIT extends OpenSearchIntegTestCase {
 
     public void testMetadataSetOnAggregationResult() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")

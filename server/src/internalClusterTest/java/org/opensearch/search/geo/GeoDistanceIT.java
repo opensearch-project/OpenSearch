@@ -40,7 +40,7 @@ import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.bucket.range.InternalGeoDistance;
 import org.opensearch.search.aggregations.bucket.range.Range;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 import org.junit.Before;
 
@@ -56,7 +56,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.closeTo;
 
-public class GeoDistanceIT extends ESIntegTestCase {
+public class GeoDistanceIT extends OpenSearchIntegTestCase {
 
     private static final double src_lat = 32.798;
     private static final double src_lon = -117.151;

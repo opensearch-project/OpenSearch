@@ -29,7 +29,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ForceMergeIT extends ESIntegTestCase {
+public class ForceMergeIT extends OpenSearchIntegTestCase {
 
     public void testForceMergeUUIDConsistent() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);

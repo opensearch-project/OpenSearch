@@ -22,7 +22,7 @@ package org.opensearch.indices.settings;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.mapper.FieldMapper;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 
@@ -36,7 +36,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class GetSettingsBlocksIT extends ESIntegTestCase {
+public class GetSettingsBlocksIT extends OpenSearchIntegTestCase {
     public void testGetSettingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder()

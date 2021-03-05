@@ -38,7 +38,7 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.fs.FsRepository;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -48,7 +48,7 @@ import java.util.function.Function;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
-public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
+public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

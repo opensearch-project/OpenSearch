@@ -21,7 +21,7 @@ package org.opensearch.similarity;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -29,7 +29,7 @@ import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimilarityIT extends ESIntegTestCase {
+public class SimilarityIT extends OpenSearchIntegTestCase {
     public void testCustomBM25Similarity() throws Exception {
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();

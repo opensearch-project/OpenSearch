@@ -22,8 +22,8 @@ package org.opensearch.indices.template;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,8 +31,8 @@ import java.util.Collections;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.hasSize;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class IndexTemplateBlocksIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class IndexTemplateBlocksIT extends OpenSearchIntegTestCase {
     public void testIndexTemplatesWithBlocks() throws IOException {
         // creates a simple index template
         client().admin().indices().preparePutTemplate("template_blocks")

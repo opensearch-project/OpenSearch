@@ -44,14 +44,14 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SimpleRoutingIT extends ESIntegTestCase {
+public class SimpleRoutingIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int minimumNumberOfShards() {

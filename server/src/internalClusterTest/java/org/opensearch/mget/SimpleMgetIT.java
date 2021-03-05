@@ -29,7 +29,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SimpleMgetIT extends ESIntegTestCase {
+public class SimpleMgetIT extends OpenSearchIntegTestCase {
 
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");

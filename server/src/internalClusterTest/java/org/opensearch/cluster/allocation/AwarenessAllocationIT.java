@@ -32,8 +32,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 import java.util.List;
@@ -45,8 +45,8 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope= ESIntegTestCase.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
-public class AwarenessAllocationIT extends ESIntegTestCase {
+@ClusterScope(scope= OpenSearchIntegTestCase.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
+public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
 
     private final Logger logger = LogManager.getLogger(AwarenessAllocationIT.class);
 

@@ -24,7 +24,7 @@ import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 1)
-public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 1)
+public class PersistentTasksExecutorFullRestartIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

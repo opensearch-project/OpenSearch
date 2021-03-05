@@ -28,7 +28,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test aliases with routing.
  */
-public class AliasRoutingIT extends ESIntegTestCase {
+public class AliasRoutingIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int minimumNumberOfShards() {

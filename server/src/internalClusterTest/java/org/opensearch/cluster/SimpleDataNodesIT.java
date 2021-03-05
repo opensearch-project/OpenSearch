@@ -29,9 +29,9 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import static org.opensearch.client.Requests.createIndexRequest;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
@@ -40,7 +40,7 @@ import static org.opensearch.test.NodeRoles.nonDataNode;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class SimpleDataNodesIT extends ESIntegTestCase {
+public class SimpleDataNodesIT extends OpenSearchIntegTestCase {
 
     private static final String SOURCE = "{\"type1\":{\"id\":\"1\",\"name\":\"test\"}}";
 

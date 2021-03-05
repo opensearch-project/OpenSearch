@@ -29,7 +29,7 @@ import org.opensearch.persistent.TestPersistentTasksPlugin;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
@@ -40,8 +40,8 @@ import static org.opensearch.persistent.decider.EnableAssignmentDecider.CLUSTER_
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 1)
-public class EnableAssignmentDeciderIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 1)
+public class EnableAssignmentDeciderIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

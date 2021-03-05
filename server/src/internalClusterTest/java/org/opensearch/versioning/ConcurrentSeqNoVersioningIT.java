@@ -36,7 +36,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.AbstractDisruptionTestCase;
 import org.opensearch.index.engine.VersionConflictEngineException;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -121,7 +121,7 @@ import static org.hamcrest.Matchers.greaterThan;
  *     stale or dirty, i.e., come from a stale primary or belong to a write that ends up being discarded.</li>
  * </ul>
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 4, maxNumDataNodes = 6,
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 4, maxNumDataNodes = 6,
     transportClientRatio = 0)
 public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 

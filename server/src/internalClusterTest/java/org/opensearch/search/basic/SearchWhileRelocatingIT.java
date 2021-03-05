@@ -26,7 +26,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.SearchHits;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +39,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.formatShardStatus;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchWhileRelocatingIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class SearchWhileRelocatingIT extends OpenSearchIntegTestCase {
 
     public void testSearchAndRelocateConcurrentlyRandomReplicas() throws Exception {
         testSearchAndRelocateConcurrently(randomIntBetween(0, 1));

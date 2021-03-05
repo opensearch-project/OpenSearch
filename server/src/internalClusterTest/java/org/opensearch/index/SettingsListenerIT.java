@@ -24,19 +24,19 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import static org.opensearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.opensearch.test.OpenSearchIntegTestCase.Scope.SUITE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @ClusterScope(scope = SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
-public class SettingsListenerIT extends ESIntegTestCase {
+public class SettingsListenerIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

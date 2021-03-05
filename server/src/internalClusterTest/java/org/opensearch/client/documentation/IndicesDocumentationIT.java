@@ -24,7 +24,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * include-tagged::{client-tests}/IndicesDocumentationIT.java[your-example-tag-here]
  * --------------------------------------------------
  */
-public class IndicesDocumentationIT extends ESIntegTestCase {
+public class IndicesDocumentationIT extends OpenSearchIntegTestCase {
 
     /**
      * This test method is used to generate the Put Mapping Java Indices API documentation

@@ -31,7 +31,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 import org.junit.Before;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class MaxDocsLimitIT extends ESIntegTestCase {
+public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
 
     private static final AtomicInteger maxDocs = new AtomicInteger();
 

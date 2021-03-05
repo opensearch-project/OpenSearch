@@ -32,7 +32,7 @@ import org.opensearch.search.aggregations.bucket.missing.Missing;
 import org.opensearch.search.aggregations.bucket.nested.Nested;
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -57,8 +57,8 @@ import static org.hamcrest.Matchers.equalTo;
  * compute empty buckets, its {@code reduce()} method must be called. So by adding the date histogram under other buckets,
  * we can make sure that the reduce is properly propagated by checking that empty buckets were created.
  */
-@ESIntegTestCase.SuiteScopeTestCase
-public class ShardReduceIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class ShardReduceIT extends OpenSearchIntegTestCase {
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
         return client().prepareIndex("idx", "type").setSource(jsonBuilder()

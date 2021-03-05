@@ -42,9 +42,9 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.NetworkDisruption.IsolateAllNodes;
 import org.opensearch.test.transport.MockTransportService;
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class NoMasterNodeIT extends ESIntegTestCase {
+public class NoMasterNodeIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int numberOfReplicas() {

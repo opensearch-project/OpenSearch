@@ -32,7 +32,7 @@ import org.opensearch.search.aggregations.bucket.range.DateRangeAggregationBuild
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.range.Range.Bucket;
 import org.opensearch.search.aggregations.metrics.Sum;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.time.ZoneId;
@@ -62,8 +62,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class DateRangeIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class DateRangeIT extends OpenSearchIntegTestCase {
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
         return client().prepareIndex("idx", "type").setSource(jsonBuilder()

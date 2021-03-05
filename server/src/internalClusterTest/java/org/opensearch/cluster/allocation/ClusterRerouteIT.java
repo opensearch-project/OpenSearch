@@ -53,9 +53,9 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockLogAppender;
 
@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.hasSize;
 // testDelayWithALargeAmountOfShards does a lot of cluster state updates, and WindowsFS slows it down too much (#52000)
 @LuceneTestCase.SuppressFileSystems(value = "WindowsFS")
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class ClusterRerouteIT extends ESIntegTestCase {
+public class ClusterRerouteIT extends OpenSearchIntegTestCase {
     private final Logger logger = LogManager.getLogger(ClusterRerouteIT.class);
 
     public void testRerouteWithCommands_disableAllocationSettings() throws Exception {

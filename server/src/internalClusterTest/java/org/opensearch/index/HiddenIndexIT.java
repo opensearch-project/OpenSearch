@@ -31,7 +31,7 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.InvalidIndexTemplateException;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class HiddenIndexIT extends ESIntegTestCase {
+public class HiddenIndexIT extends OpenSearchIntegTestCase {
 
     public void testHiddenIndexSearch() {
         assertAcked(client().admin().indices().prepareCreate("hidden-index")

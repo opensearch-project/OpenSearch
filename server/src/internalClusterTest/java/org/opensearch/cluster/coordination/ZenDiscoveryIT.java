@@ -35,7 +35,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.discovery.zen.FaultDetection;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.TestCustomMetadata;
 import org.opensearch.transport.RemoteTransportException;
 
@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class ZenDiscoveryIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
 
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
         Settings defaultSettings = Settings.builder()

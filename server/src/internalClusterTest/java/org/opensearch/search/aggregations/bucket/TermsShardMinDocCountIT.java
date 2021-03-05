@@ -28,7 +28,7 @@ import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,7 +42,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermsShardMinDocCountIT extends ESIntegTestCase {
+public class TermsShardMinDocCountIT extends OpenSearchIntegTestCase {
     private static final String index = "someindex";
     private static final String type = "testtype";
 

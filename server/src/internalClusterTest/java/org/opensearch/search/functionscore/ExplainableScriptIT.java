@@ -38,9 +38,9 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
-public class ExplainableScriptIT extends ESIntegTestCase {
+public class ExplainableScriptIT extends OpenSearchIntegTestCase {
 
     public static class ExplainableScriptPlugin extends Plugin implements ScriptPlugin {
         @Override

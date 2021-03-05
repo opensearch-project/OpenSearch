@@ -33,9 +33,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.HashSet;
 import java.util.List;
@@ -45,7 +45,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
-public class FilteringAllocationIT extends ESIntegTestCase {
+public class FilteringAllocationIT extends OpenSearchIntegTestCase {
 
     public void testDecommissionNodeNoReplicas() {
         logger.info("--> starting 2 nodes");

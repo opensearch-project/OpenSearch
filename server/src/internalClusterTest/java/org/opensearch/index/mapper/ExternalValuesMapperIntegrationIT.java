@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.util.Collection;
@@ -35,7 +35,7 @@ import java.util.Collections;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
+public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(ExternalMapperPlugin.class);

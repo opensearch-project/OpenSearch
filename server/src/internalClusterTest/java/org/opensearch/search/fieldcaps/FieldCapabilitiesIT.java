@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -41,7 +41,7 @@ import java.util.function.Predicate;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-public class FieldCapabilitiesIT extends ESIntegTestCase {
+public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
 
     @Before
     public void setUp() throws Exception {

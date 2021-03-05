@@ -29,7 +29,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoverySettings;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.MockLogAppender;
@@ -45,13 +45,13 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-@ESIntegTestCase.ClusterScope(
-        scope = ESIntegTestCase.Scope.TEST,
+@OpenSearchIntegTestCase.ClusterScope(
+        scope = OpenSearchIntegTestCase.Scope.TEST,
         numDataNodes = 1,
         numClientNodes = 0,
         supportsDedicatedMasters = false,
         autoManageMasterNodes = false)
-public class SingleNodeDiscoveryIT extends ESIntegTestCase {
+public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

@@ -34,7 +34,7 @@ import org.opensearch.persistent.TestPersistentTasksPlugin.TestTasksRequestBuild
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,8 +51,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
-public class PersistentTasksExecutorIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
+public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

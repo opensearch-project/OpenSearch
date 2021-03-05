@@ -23,9 +23,9 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.Arrays;
 
@@ -38,7 +38,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope= Scope.SUITE, numDataNodes = 2)
-public class ClusterSearchShardsIT extends ESIntegTestCase {
+public class ClusterSearchShardsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

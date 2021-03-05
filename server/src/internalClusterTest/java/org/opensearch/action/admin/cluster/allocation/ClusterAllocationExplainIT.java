@@ -46,7 +46,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 
 import java.io.IOException;
@@ -70,8 +70,8 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests for the cluster allocation explanation
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public final class ClusterAllocationExplainIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public final class ClusterAllocationExplainIT extends OpenSearchIntegTestCase {
 
     public void testUnassignedPrimaryWithExistingIndex() throws Exception {
         logger.info("--> starting 2 nodes");

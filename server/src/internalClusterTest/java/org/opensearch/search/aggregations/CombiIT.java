@@ -27,7 +27,7 @@ import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.missing.Missing;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.List;
@@ -41,7 +41,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-public class CombiIT extends ESIntegTestCase {
+public class CombiIT extends OpenSearchIntegTestCase {
 
     /**
      * Making sure that if there are multiple aggregations, working on the same field, yet require different

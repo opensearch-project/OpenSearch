@@ -24,7 +24,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.Priority;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,7 +37,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCoun
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class AliasResolveRoutingIT extends ESIntegTestCase {
+public class AliasResolveRoutingIT extends OpenSearchIntegTestCase {
 
     // see https://github.com/elastic/elasticsearch/issues/13278
     public void testSearchClosedWildcardIndex() throws ExecutionException, InterruptedException {

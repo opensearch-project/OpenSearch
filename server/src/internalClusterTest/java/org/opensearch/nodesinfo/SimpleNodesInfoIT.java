@@ -25,9 +25,9 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.EsExecutors;
 import org.opensearch.monitor.os.OsInfo;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.List;
 
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope= Scope.TEST, numDataNodes = 0)
-public class SimpleNodesInfoIT extends ESIntegTestCase {
+public class SimpleNodesInfoIT extends OpenSearchIntegTestCase {
 
     public void testNodesInfos() throws Exception {
         List<String> nodesIds = internalCluster().startNodes(2);

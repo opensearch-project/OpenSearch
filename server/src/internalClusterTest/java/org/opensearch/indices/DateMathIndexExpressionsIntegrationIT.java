@@ -29,7 +29,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
+public class DateMathIndexExpressionsIntegrationIT extends OpenSearchIntegTestCase {
 
     public void testIndexNameDateMathExpressions() {
         DateTime now = new DateTime(DateTimeZone.UTC);

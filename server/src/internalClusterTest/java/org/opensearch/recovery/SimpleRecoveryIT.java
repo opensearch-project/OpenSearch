@@ -24,7 +24,7 @@ import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.client.Requests.flushRequest;
 import static org.opensearch.client.Requests.getRequest;
@@ -33,7 +33,7 @@ import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimpleRecoveryIT extends ESIntegTestCase {
+public class SimpleRecoveryIT extends OpenSearchIntegTestCase {
     @Override
     public Settings indexSettings() {
         return Settings.builder().put(super.indexSettings()).put(recoverySettings()).build();

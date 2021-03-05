@@ -27,7 +27,7 @@ import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiFieldsIntegrationIT extends ESIntegTestCase {
+public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testMultiFields() throws Exception {
         assertAcked(

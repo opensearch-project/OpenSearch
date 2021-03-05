@@ -42,7 +42,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.BackgroundIndexer;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,7 +61,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSucc
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
-public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
+public class RecoveryWhileUnderLoadIT extends OpenSearchIntegTestCase {
     private final Logger logger = LogManager.getLogger(RecoveryWhileUnderLoadIT.class);
 
     public static final class RetentionLeaseSyncIntervalSettingPlugin extends Plugin {

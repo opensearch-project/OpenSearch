@@ -24,7 +24,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.Collection;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-public class DiscoveryNodeRoleIT extends ESIntegTestCase {
+public class DiscoveryNodeRoleIT extends OpenSearchIntegTestCase {
 
     public static class AdditionalRolePlugin extends Plugin {
 

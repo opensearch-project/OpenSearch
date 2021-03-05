@@ -24,12 +24,12 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.client.transport.TransportClient;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class ListenerActionIT extends ESIntegTestCase {
+public class ListenerActionIT extends OpenSearchIntegTestCase {
     public void testThreadedListeners() throws Throwable {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();

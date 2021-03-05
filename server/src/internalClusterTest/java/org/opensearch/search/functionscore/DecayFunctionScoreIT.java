@@ -39,7 +39,7 @@ import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder.Filter
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchHits;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.time.ZoneOffset;
@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
-public class DecayFunctionScoreIT extends ESIntegTestCase {
+public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

@@ -28,9 +28,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.InternalTestCluster.RestartCallback;
 
@@ -44,7 +44,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class MetadataNodesIT extends ESIntegTestCase {
+public class MetadataNodesIT extends OpenSearchIntegTestCase {
     public void testMetaWrittenAlsoOnDataNode() throws Exception {
         // this test checks that index state is written on data only nodes if they have a shard allocated
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);

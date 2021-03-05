@@ -39,7 +39,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class OpenCloseIndexIT extends ESIntegTestCase {
+public class OpenCloseIndexIT extends OpenSearchIntegTestCase {
     public void testSimpleCloseOpen() {
         Client client = client();
         createIndex("test1");

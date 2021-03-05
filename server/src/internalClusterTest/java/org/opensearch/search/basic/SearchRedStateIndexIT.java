@@ -30,7 +30,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 
 import java.util.List;
@@ -41,8 +41,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchRedStateIndexIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class SearchRedStateIndexIT extends OpenSearchIntegTestCase {
 
 
     public void testAllowPartialsWithRedState() throws Exception {

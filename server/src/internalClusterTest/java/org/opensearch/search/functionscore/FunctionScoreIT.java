@@ -31,7 +31,7 @@ import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchR
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FunctionScoreIT extends ESIntegTestCase {
+public class FunctionScoreIT extends OpenSearchIntegTestCase {
 
     static final String TYPE = "type";
     static final String INDEX = "index";

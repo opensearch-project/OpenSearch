@@ -31,9 +31,9 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.TermsLookup;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.SUITE)
-public class SimpleValidateQueryIT extends ESIntegTestCase {
+public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
     public void testSimpleValidateQuery() throws Exception {
         createIndex("test");
         ensureGreen();

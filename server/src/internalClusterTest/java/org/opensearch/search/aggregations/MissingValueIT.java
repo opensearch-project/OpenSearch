@@ -30,7 +30,7 @@ import org.opensearch.search.aggregations.metrics.GeoBounds;
 import org.opensearch.search.aggregations.metrics.GeoCentroid;
 import org.opensearch.search.aggregations.metrics.Percentiles;
 import org.opensearch.search.aggregations.metrics.Stats;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -44,8 +44,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class MissingValueIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class MissingValueIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int maximumNumberOfShards() {

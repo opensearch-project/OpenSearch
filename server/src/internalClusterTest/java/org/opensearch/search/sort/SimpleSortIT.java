@@ -34,7 +34,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimpleSortIT extends ESIntegTestCase {
+public class SimpleSortIT extends OpenSearchIntegTestCase {
 
     private static final String DOUBLE_APOSTROPHE = "\u0027\u0027";
 

@@ -33,7 +33,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 
-public class QueryProfilerIT extends ESIntegTestCase {
+public class QueryProfilerIT extends OpenSearchIntegTestCase {
 
     /**
      * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,
@@ -111,7 +111,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * to make sure the profiling doesn't interfere with the hits being returned
      */
     public void testProfileMatchesRegular() throws Exception {
-        createIndex("test", Settings.builder() 
+        createIndex("test", Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0).build());
         ensureGreen();

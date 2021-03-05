@@ -44,7 +44,7 @@ import org.opensearch.rest.RestStatus;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.util.ArrayList;
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class UpdateIT extends ESIntegTestCase {
+public class UpdateIT extends OpenSearchIntegTestCase {
 
     private static final String UPDATE_SCRIPTS = "update_scripts";
     private static final String PUT_VALUES_SCRIPT = "put_values";

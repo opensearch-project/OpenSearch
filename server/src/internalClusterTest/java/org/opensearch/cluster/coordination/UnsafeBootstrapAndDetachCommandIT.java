@@ -33,7 +33,7 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 
 import java.io.IOException;
@@ -51,8 +51,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     private MockTerminal executeCommand(OpenSearchNodeCommand command, Environment environment, int nodeOrdinal, boolean abort)
             throws Exception {

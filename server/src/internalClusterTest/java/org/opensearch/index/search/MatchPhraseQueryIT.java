@@ -25,7 +25,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.search.MatchQuery.ZeroTermsQuery;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ import static org.opensearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class MatchPhraseQueryIT extends ESIntegTestCase {
+public class MatchPhraseQueryIT extends OpenSearchIntegTestCase {
     private static final String INDEX = "test";
 
     @Before

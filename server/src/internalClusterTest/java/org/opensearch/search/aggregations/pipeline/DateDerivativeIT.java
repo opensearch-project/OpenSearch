@@ -30,7 +30,7 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.support.AggregationPath;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -55,8 +55,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class DateDerivativeIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class DateDerivativeIT extends OpenSearchIntegTestCase {
 
     // some index names used during these tests
     private static final String IDX_DST_START = "idx_dst_start";

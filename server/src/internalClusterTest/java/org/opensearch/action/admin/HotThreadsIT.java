@@ -24,7 +24,7 @@ import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.Map;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 
-public class HotThreadsIT extends ESIntegTestCase {
+public class HotThreadsIT extends OpenSearchIntegTestCase {
 
     public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {
         /**

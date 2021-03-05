@@ -30,7 +30,7 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -54,8 +54,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class BucketSortIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class BucketSortIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX = "bucket-sort-it-data-index";
     private static final String INDEX_WITH_GAPS = "bucket-sort-it-data-index-with-gaps";

@@ -20,13 +20,13 @@
 package org.opensearch.search.source;
 
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class SourceFetchingIT extends ESIntegTestCase {
+public class SourceFetchingIT extends OpenSearchIntegTestCase {
     public void testSourceDefaultBehavior() {
         createIndex("test");
         ensureGreen();

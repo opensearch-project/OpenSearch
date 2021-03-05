@@ -41,9 +41,9 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.HashMap;
 import java.util.concurrent.CountDownLatch;
@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
-public class CreateIndexIT extends ESIntegTestCase {
+public class CreateIndexIT extends OpenSearchIntegTestCase {
 
     public void testCreationDateGivenFails() {
         try {

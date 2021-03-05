@@ -26,8 +26,8 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRespo
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.junit.Before;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
@@ -42,8 +42,8 @@ import static org.hamcrest.Matchers.hasSize;
  *
  * The @NodeScope TEST is needed because this class updates the cluster setting "cluster.blocks.read_only".
  */
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class SnapshotBlocksIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class SnapshotBlocksIT extends OpenSearchIntegTestCase {
 
     protected static final String INDEX_NAME = "test-blocks-1";
     protected static final String OTHER_INDEX_NAME = "test-blocks-2";

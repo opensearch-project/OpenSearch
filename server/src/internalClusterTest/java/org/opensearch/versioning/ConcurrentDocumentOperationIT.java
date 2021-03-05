@@ -22,7 +22,7 @@ package org.opensearch.versioning;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -32,7 +32,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
+public class ConcurrentDocumentOperationIT extends OpenSearchIntegTestCase {
     public void testConcurrentOperationOnSameDoc() throws Exception {
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
         assertAcked(prepareCreate("test")

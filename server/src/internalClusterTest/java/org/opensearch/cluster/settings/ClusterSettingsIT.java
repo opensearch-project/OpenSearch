@@ -31,7 +31,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ClusterSettingsIT extends ESIntegTestCase {
+public class ClusterSettingsIT extends OpenSearchIntegTestCase {
 
     @After
     public void cleanup() throws Exception {

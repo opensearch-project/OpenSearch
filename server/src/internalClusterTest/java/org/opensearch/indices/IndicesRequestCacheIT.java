@@ -33,7 +33,7 @@ import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.time.ZoneId;
@@ -51,7 +51,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchR
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class IndicesRequestCacheIT extends ESIntegTestCase {
+public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
 
     // One of the primary purposes of the query cache is to cache aggs results
     public void testCacheAggs() throws Exception {

@@ -22,9 +22,9 @@ package org.opensearch.threadpool;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
@@ -39,7 +39,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class SimpleThreadPoolIT extends ESIntegTestCase {
+public class SimpleThreadPoolIT extends OpenSearchIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().build();
@@ -94,8 +94,8 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 continue;
             }
             String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +
-                    Pattern.quote(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) + "|" +
-                    Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX) +")";
+                    Pattern.quote(OpenSearchIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) + "|" +
+                    Pattern.quote(OpenSearchIntegTestCase.TEST_CLUSTER_NODE_PREFIX) +")";
             assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
         }
     }

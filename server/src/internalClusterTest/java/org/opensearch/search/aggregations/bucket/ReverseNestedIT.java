@@ -30,7 +30,7 @@ import org.opensearch.search.aggregations.bucket.nested.ReverseNested;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.ValueCount;
 import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class ReverseNestedIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class ReverseNestedIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {

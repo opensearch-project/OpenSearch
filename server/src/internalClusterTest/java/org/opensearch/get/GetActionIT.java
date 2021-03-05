@@ -40,7 +40,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class GetActionIT extends ESIntegTestCase {
+public class GetActionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

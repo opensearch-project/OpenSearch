@@ -29,7 +29,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.List;
@@ -44,7 +44,7 @@ import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchAfterIT extends ESIntegTestCase {
+public class SearchAfterIT extends OpenSearchIntegTestCase {
     private static final String INDEX_NAME = "test";
     private static final String TYPE_NAME = "type1";
     private static final int NUM_DOCS = 100;

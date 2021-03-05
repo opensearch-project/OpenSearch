@@ -70,7 +70,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhaseProcessor;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -83,7 +83,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransportSearchIT extends ESIntegTestCase {
+public class TransportSearchIT extends OpenSearchIntegTestCase {
     public static class TestPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<AggregationSpec> getAggregations() {

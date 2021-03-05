@@ -23,7 +23,7 @@ import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFirstHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -31,7 +31,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiSearchIT extends ESIntegTestCase {
+public class MultiSearchIT extends OpenSearchIntegTestCase {
 
     public void testSimpleMultiSearch() {
         createIndex("test");

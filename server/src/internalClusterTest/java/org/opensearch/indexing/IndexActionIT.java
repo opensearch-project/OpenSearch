@@ -27,7 +27,7 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.InvalidIndexNameException;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class IndexActionIT extends ESIntegTestCase {
+public class IndexActionIT extends OpenSearchIntegTestCase {
     /**
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.

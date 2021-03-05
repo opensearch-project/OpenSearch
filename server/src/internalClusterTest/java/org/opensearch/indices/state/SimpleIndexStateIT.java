@@ -32,14 +32,14 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexClosedException;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SimpleIndexStateIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class SimpleIndexStateIT extends OpenSearchIntegTestCase {
     private final Logger logger = LogManager.getLogger(SimpleIndexStateIT.class);
 
     public void testSimpleOpenClose() {

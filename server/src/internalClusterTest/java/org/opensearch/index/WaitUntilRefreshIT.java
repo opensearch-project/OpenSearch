@@ -35,7 +35,7 @@ import org.opensearch.rest.RestStatus;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -55,7 +55,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchH
 /**
  * Tests that requests with RefreshPolicy.WAIT_UNTIL will be visible when they return.
  */
-public class WaitUntilRefreshIT extends ESIntegTestCase {
+public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
 
     @Override
     public Settings indexSettings() {

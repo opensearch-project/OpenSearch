@@ -24,7 +24,7 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
@@ -63,7 +63,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
             }
-        }, 0, "leader", Arrays.asList(ESIntegTestCase.TestSeedPlugin.class,
+        }, 0, "leader", Arrays.asList(OpenSearchIntegTestCase.TestSeedPlugin.class,
                 MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class,
                 MockNioTransportPlugin.class, InternalSettingsPlugin.class, MockRepository.Plugin.class), Function.identity());
         secondCluster.beforeTest(random(), 0);

@@ -23,8 +23,8 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
@@ -36,8 +36,8 @@ import static org.hamcrest.Matchers.hasSize;
  *
  * The @NodeScope TEST is needed because this class updates the cluster setting "cluster.blocks.read_only".
  */
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class RepositoryBlocksIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class RepositoryBlocksIT extends OpenSearchIntegTestCase {
     public void testPutRepositoryWithBlocks() {
         logger.info("-->  registering a repository is blocked when the cluster is read only");
         try {

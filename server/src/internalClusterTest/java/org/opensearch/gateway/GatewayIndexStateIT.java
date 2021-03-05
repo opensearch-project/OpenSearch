@@ -48,9 +48,9 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.ShardLimitValidator;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.InternalTestCluster.RestartCallback;
 
 import java.io.IOException;
@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class GatewayIndexStateIT extends ESIntegTestCase {
+public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
 
     private final Logger logger = LogManager.getLogger(GatewayIndexStateIT.class);
 

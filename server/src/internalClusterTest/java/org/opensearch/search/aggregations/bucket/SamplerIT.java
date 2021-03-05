@@ -30,7 +30,7 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
@@ -49,8 +49,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  * Tests the Sampler aggregation
  */
-@ESIntegTestCase.SuiteScopeTestCase
-public class SamplerIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class SamplerIT extends OpenSearchIntegTestCase {
 
     public static final int NUM_SHARDS = 2;
 

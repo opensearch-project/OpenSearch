@@ -25,14 +25,14 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexSortIT extends ESIntegTestCase {
+public class IndexSortIT extends OpenSearchIntegTestCase {
     private static final XContentBuilder TEST_MAPPING = createTestMapping();
 
     private static XContentBuilder createTestMapping() {

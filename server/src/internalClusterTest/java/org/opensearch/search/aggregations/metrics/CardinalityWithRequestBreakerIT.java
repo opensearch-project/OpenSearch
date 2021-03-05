@@ -27,14 +27,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.stream.IntStream;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
-public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
+public class CardinalityWithRequestBreakerIT extends OpenSearchIntegTestCase {
 
     /**
      * Test that searches using cardinality aggregations returns all request breaker memory.

@@ -20,13 +20,13 @@
 package org.opensearch.index.fielddata;
 
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class FieldDataLoadingIT extends ESIntegTestCase {
+public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
 
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
         assertAcked(prepareCreate("test")

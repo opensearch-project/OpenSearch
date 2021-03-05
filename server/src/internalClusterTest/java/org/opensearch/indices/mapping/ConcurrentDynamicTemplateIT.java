@@ -24,7 +24,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +36,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
-public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
+public class ConcurrentDynamicTemplateIT extends OpenSearchIntegTestCase {
     private final String mappingType = "test-mapping";
 
     // see #3544

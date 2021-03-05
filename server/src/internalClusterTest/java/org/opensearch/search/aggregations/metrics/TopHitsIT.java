@@ -53,7 +53,7 @@ import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -91,8 +91,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-@ESIntegTestCase.SuiteScopeTestCase()
-public class TopHitsIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase()
+public class TopHitsIT extends OpenSearchIntegTestCase {
 
     private static final String TERMS_AGGS_FIELD = "terms";
     private static final String SORT_FIELD = "sort";

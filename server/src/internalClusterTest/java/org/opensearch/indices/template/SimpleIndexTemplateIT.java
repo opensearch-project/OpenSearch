@@ -39,7 +39,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.junit.After;
 
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SimpleIndexTemplateIT extends ESIntegTestCase {
+public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

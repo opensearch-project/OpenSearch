@@ -21,8 +21,8 @@ package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 
@@ -31,8 +31,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class IndicesStatsBlocksIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class IndicesStatsBlocksIT extends OpenSearchIntegTestCase {
 
     public void testIndicesStatsWithBlocks() {
         createIndex("ro");

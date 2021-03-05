@@ -28,7 +28,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
@@ -36,7 +36,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CopyToMapperIntegrationIT extends ESIntegTestCase {
+public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
     public void testDynamicTemplateCopyTo() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("test-idx")

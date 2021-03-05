@@ -22,7 +22,7 @@ package org.opensearch.search.functionscore;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
@@ -38,7 +38,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertOrdered
 /**
  * Tests for the {@code field_value_factor} function in a function_score query.
  */
-public class FunctionScoreFieldValueIT extends ESIntegTestCase {
+public class FunctionScoreFieldValueIT extends OpenSearchIntegTestCase {
     public void testFieldValueFactor() throws IOException {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",

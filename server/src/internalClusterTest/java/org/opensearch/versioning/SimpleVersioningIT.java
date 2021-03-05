@@ -32,7 +32,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.VersionConflictEngineException;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,7 +51,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBui
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class SimpleVersioningIT extends ESIntegTestCase {
+public class SimpleVersioningIT extends OpenSearchIntegTestCase {
     public void testExternalVersioningInitialDelete() throws Exception {
         createIndex("test");
         ensureGreen();

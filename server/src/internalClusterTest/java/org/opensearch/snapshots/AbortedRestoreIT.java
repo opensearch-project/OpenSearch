@@ -26,7 +26,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.hamcrest.Matcher;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
 
     public void testAbortedRestoreAlsoAbortFileRestores() throws Exception {

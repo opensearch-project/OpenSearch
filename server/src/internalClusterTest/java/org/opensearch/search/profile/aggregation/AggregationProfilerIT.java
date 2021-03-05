@@ -27,7 +27,7 @@ import org.opensearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsSamp
 import org.opensearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,8 +48,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class AggregationProfilerIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class AggregationProfilerIT extends OpenSearchIntegTestCase {
     private static final String BUILD_LEAF_COLLECTOR = AggregationTimingType.BUILD_LEAF_COLLECTOR.toString();
     private static final String COLLECT = AggregationTimingType.COLLECT.toString();
     private static final String POST_COLLECTION = AggregationTimingType.POST_COLLECTION.toString();

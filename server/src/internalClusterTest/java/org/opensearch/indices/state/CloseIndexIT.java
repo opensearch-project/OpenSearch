@@ -42,7 +42,7 @@ import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.BackgroundIndexer;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CloseIndexIT extends ESIntegTestCase {
+public class CloseIndexIT extends OpenSearchIntegTestCase {
 
     private static final int MAX_DOCS = 25_000;
 

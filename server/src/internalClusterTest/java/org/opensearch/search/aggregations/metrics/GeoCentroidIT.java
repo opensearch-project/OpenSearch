@@ -24,7 +24,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.opensearch.search.aggregations.bucket.global.Global;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Integration Test for GeoCentroid metric aggregator
  */
-@ESIntegTestCase.SuiteScopeTestCase
+@OpenSearchIntegTestCase.SuiteScopeTestCase
 public class GeoCentroidIT extends AbstractGeoTestCase {
     private static final String aggName = "geoCentroid";
 
