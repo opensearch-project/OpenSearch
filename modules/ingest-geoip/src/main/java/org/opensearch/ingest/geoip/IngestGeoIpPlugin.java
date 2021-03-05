@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.geoip;
+package org.opensearch.ingest.geoip;
 
 import com.maxmind.db.NoCache;
 import com.maxmind.db.NodeCache;
