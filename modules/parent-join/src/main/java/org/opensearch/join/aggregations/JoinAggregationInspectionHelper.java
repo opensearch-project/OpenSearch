@@ -16,17 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
+package org.opensearch.join.aggregations;
 
-esplugin {
-  description 'This module adds the support parent-child queries and aggregations'
-  classname 'org.opensearch.join.ParentJoinPlugin'
-  hasClientJar = true
-}
+/**
+ * Counterpart to {@link org.opensearch.search.aggregations.support.AggregationInspectionHelper}, providing
+ * helpers for some aggs in the Join package
+ */
+public class JoinAggregationInspectionHelper {
 
-restResources {
-  restApi {
-    includeCore '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'search'
-  }
+    public static boolean hasValue(InternalParent agg) {
+        return agg.getDocCount() > 0;
+    }
+
+    public static boolean hasValue(InternalChildren agg) {
+        return agg.getDocCount() > 0;
+    }
 }
