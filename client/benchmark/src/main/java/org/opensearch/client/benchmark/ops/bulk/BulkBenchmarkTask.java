@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.ops.bulk;
+package org.opensearch.client.benchmark.ops.bulk;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.client.benchmark.BenchmarkTask;
-import org.elasticsearch.client.benchmark.metrics.Sample;
-import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
+import org.opensearch.client.benchmark.BenchmarkTask;
+import org.opensearch.client.benchmark.metrics.Sample;
+import org.opensearch.client.benchmark.metrics.SampleRecorder;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 

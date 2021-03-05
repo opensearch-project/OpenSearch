@@ -16,14 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark;
+package org.opensearch.client.benchmark.metrics;
 
-import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-public interface BenchmarkTask {
-    void setUp(SampleRecorder sampleRecorder) throws Exception;
+/**
+ * Stores measurement samples.
+ *
+ * This class is NOT threadsafe.
+ */
+public final class SampleRecorder {
+    private final List<Sample> samples;
 
-    void run() throws Exception;
+    public SampleRecorder(int iterations) {
+        this.samples = new ArrayList<>(iterations);
+    }
 
-    void tearDown() throws Exception;
+    public void addSample(Sample sample) {
+        samples.add(sample);
+    }
+
+    public List<Sample> getSamples() {
+        return Collections.unmodifiableList(samples);
+    }
 }
