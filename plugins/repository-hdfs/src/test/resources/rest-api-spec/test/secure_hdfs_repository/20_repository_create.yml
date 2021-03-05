@@ -11,9 +11,9 @@
             type: hdfs
             settings:
               uri: "hdfs://localhost:9998"
-              path: "/user/elasticsearch/test/repository_create"
+              path: "/user/opensearch/test/repository_create"
               security:
-                principal: "elasticsearch@BUILD.ELASTIC.CO"
+                principal: "opensearch@BUILD.OPENSEARCH.CO"
 
     # Get repository
     - do:
