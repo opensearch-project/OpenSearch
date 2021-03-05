@@ -37,10 +37,10 @@ public class VerifyVersionConstantsIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final String opensearchVersionString = objectPath.evaluate("version.number").toString();
-        final Version elasticsearchVersion = Version.fromString(opensearchVersionString.replace("-SNAPSHOT", ""));
+        final Version opensearchVersion = Version.fromString(opensearchVersionString.replace("-SNAPSHOT", ""));
         final String luceneVersionString = objectPath.evaluate("version.lucene_version").toString();
         final org.apache.lucene.util.Version luceneVersion = org.apache.lucene.util.Version.parse(luceneVersionString);
-        assertThat(elasticsearchVersion.luceneVersion, equalTo(luceneVersion));
+        assertThat(opensearchVersion.luceneVersion, equalTo(luceneVersion));
     }
 
     @Override
