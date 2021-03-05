@@ -8,9 +8,6 @@ Returns low-level information about the https://lucene.apache.org/core/[Lucene]
 segments in index shards, similar to the <<indices-segments, indices segments>>
 API.
 
-For data streams, the API returns information about the stream's backing
-indices.
-
 [[cat-segments-api-request]]
 ==== {api-request-title}
 
@@ -23,10 +20,10 @@ indices.
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 [[cat-segments-query-params]]
