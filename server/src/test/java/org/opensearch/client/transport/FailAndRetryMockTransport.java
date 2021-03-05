@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport;
+package org.opensearch.client.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

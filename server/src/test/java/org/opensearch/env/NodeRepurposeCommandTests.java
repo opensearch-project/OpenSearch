@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.env;
+package org.opensearch.env;
 
 import joptsimple.OptionSet;
 import org.elasticsearch.OpenSearchException;

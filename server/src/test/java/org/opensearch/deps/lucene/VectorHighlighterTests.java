@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.deps.lucene;
+package org.opensearch.deps.lucene;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;

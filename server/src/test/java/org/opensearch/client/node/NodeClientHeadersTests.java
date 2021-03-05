@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.node;
+package org.opensearch.client.node;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;

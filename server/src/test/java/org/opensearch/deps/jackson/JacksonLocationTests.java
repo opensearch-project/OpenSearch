@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.deps.jackson;
+package org.opensearch.deps.jackson;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
