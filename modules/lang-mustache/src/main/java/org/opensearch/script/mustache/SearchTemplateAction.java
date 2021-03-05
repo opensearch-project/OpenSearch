@@ -16,23 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.java-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'Mustache scripting integration for OpenSearch'
-  classname 'org.opensearch.script.mustache.MustachePlugin'
-  hasClientJar = true // For the template apis and query
-}
+package org.opensearch.script.mustache;
 
-dependencies {
-  api "com.github.spullara.mustache.java:compiler:0.9.6"
-}
+import org.elasticsearch.action.ActionType;
 
-restResources {
-  restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk',
-      'put_script', 'render_search_template', 'search_template', 'msearch_template', 'lang_mustache'
-  }
+public class SearchTemplateAction extends ActionType<SearchTemplateResponse> {
+
+    public static final SearchTemplateAction INSTANCE = new SearchTemplateAction();
+    public static final String NAME = "indices:data/read/search/template";
+
+    private SearchTemplateAction() {
+        super(NAME, SearchTemplateResponse::new);
+    }
 }
