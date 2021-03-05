@@ -39,7 +39,7 @@ import static org.opensearch.client.Requests.clusterHealthRequest;
 import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

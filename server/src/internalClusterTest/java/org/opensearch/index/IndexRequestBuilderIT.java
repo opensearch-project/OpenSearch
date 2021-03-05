@@ -26,7 +26,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -50,7 +50,7 @@ public class IndexRequestBuilderIT extends ESIntegTestCase {
         };
         indexRandom(true, builders);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")).get();
-        ElasticsearchAssertions.assertHitCount(searchResponse, builders.length);
+        OpenSearchAssertions.assertHitCount(searchResponse, builders.length);
     }
 
     public void testOddNumberOfSourceObjects() {

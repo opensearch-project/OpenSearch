@@ -33,7 +33,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHighlight;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

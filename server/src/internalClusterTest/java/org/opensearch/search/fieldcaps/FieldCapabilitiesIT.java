@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class FieldCapabilitiesIT extends ESIntegTestCase {
 

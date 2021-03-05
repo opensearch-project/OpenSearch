@@ -45,7 +45,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.ESIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.After;
 
 import java.io.IOException;
@@ -57,13 +57,13 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -471,7 +471,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
             SearchResponse response = builder.get();
             try {
-                ElasticsearchAssertions.assertHitCount(response, 1L);
+                OpenSearchAssertions.assertHitCount(response, 1L);
             } finally {
                 String scrollId = response.getScrollId();
                 if (scrollId != null) {

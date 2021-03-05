@@ -42,9 +42,9 @@ import java.util.concurrent.ExecutionException;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.sort.SortBuilders.fieldSort;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSortValues;
 import static org.hamcrest.Matchers.closeTo;
 
 public class GeoDistanceSortBuilderIT extends ESIntegTestCase {

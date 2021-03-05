@@ -26,7 +26,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.ESIntegTestCase;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**

@@ -31,8 +31,8 @@ import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;

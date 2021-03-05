@@ -34,9 +34,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.formatShardStatus;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.formatShardStatus;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)

@@ -38,7 +38,7 @@ import java.util.Comparator;
 import java.util.Collections;
 import java.util.Arrays;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;

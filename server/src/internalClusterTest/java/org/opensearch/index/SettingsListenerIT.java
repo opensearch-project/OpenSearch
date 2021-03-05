@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @ClusterScope(scope = SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
 public class SettingsListenerIT extends ESIntegTestCase {

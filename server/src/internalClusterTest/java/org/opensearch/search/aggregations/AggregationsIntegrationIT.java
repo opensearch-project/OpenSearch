@@ -29,8 +29,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 
 @ESIntegTestCase.SuiteScopeTestCase

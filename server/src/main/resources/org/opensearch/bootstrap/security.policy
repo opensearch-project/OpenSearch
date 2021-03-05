@@ -24,13 +24,13 @@
 //// SecurityManager impl:
 //// Must have all permissions to properly perform access checks
 
-grant codeBase "${codebase.elasticsearch-secure-sm}" {
+grant codeBase "${codebase.opensearch-secure-sm}" {
   permission java.security.AllPermission;
 };
 
-//// Elasticsearch core:
+//// Opensearch core:
 //// These are only allowed inside the server jar, not in plugins
-grant codeBase "${codebase.elasticsearch}" {
+grant codeBase "${codebase.opensearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
 };
@@ -54,7 +54,7 @@ grant codeBase "${codebase.lucene-misc}" {
   permission java.nio.file.LinkPermission "hard";
 };
 
-grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
+grant codeBase "${codebase.opensearch-plugin-classloader}" {
   // needed to create the classloader which allows plugins to extend other plugins
   permission java.lang.RuntimePermission "createClassLoader";
 };
@@ -72,7 +72,7 @@ grant {
 
   // checked by scripting engines, and before hacks and other issues in
   // third party code, to safeguard these against unprivileged code like scripts.
-  permission org.elasticsearch.SpecialPermission;
+  permission org.opensearch.SpecialPermission;
 
   // Allow host/ip name service lookups
   permission java.net.SocketPermission "*", "resolve";

@@ -64,7 +64,7 @@ import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;

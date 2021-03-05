@@ -36,7 +36,7 @@ import java.io.IOException;
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
 import static org.opensearch.test.NodeRoles.masterNode;
 import static org.opensearch.test.NodeRoles.nonDataNode;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 

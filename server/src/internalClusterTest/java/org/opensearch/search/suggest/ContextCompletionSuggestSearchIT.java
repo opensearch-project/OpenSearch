@@ -50,8 +50,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @SuppressCodecs("*") // requires custom completion format

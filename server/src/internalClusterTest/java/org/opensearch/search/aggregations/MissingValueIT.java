@@ -40,8 +40,8 @@ import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.opensearch.search.aggregations.AggregationBuilders.stats;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 
 @ESIntegTestCase.SuiteScopeTestCase

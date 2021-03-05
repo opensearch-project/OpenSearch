@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
-    public static class IndicesAliasesPlugin extends Plugin implements ActionPlugin {
+    public static class IndicesAliasopensearchplugin extends Plugin implements ActionPlugin {
 
         static final Setting<List<String>> ALLOWED_ORIGINS_SETTING = Setting.listSetting(
                 "index.aliases.allowed_origins",
@@ -82,12 +82,12 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(IndicesAliasesPlugin.class);
+        return Collections.singletonList(IndicesAliasopensearchplugin.class);
     }
 
     public void testAllowed() {
         final Settings settings = Settings.builder()
-                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
+                .putList(IndicesAliasopensearchplugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
                 .build();
         createIndex("index", settings);
         final IndicesAliasesRequest request = new IndicesAliasesRequest().origin("allowed");
@@ -103,7 +103,7 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     public void testNotAllowed() {
         final Settings settings = Settings.builder()
-                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
+                .putList(IndicesAliasopensearchplugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
                 .build();
         createIndex("index", settings);
         final String origin = randomFrom("", "not-allowed");
@@ -115,11 +115,11 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     public void testSomeAllowed() {
         final Settings fooIndexSettings = Settings.builder()
-                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("foo_allowed"))
+                .putList(IndicesAliasopensearchplugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("foo_allowed"))
                 .build();
         createIndex("foo", fooIndexSettings);
         final Settings barIndexSettings = Settings.builder()
-                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("bar_allowed"))
+                .putList(IndicesAliasopensearchplugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("bar_allowed"))
                 .build();
         createIndex("bar", barIndexSettings);
         final String origin = randomFrom("foo_allowed", "bar_allowed");

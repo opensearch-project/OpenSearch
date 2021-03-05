@@ -66,10 +66,10 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.hasScore;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasScore;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

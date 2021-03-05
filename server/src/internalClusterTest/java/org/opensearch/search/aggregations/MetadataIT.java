@@ -34,8 +34,8 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.aggregations.PipelineAggregatorBuilders.maxBucket;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 
 public class MetadataIT extends ESIntegTestCase {

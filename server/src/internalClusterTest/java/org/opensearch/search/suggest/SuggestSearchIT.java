@@ -43,7 +43,7 @@ import org.opensearch.search.suggest.phrase.StupidBackoff;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -63,11 +63,11 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SH
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.opensearch.search.suggest.SuggestBuilders.termSuggestion;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionPhraseCollateMatchExists;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSuggestion;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSuggestionPhraseCollateMatchExists;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.endsWith;

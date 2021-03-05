@@ -44,8 +44,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
 public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
 
