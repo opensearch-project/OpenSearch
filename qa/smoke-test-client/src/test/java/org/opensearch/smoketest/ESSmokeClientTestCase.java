@@ -51,7 +51,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLen
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * An abstract base class to run integration tests against an Elasticsearch cluster running outside of the test process.
+ * An abstract base class to run integration tests against an OpenSearch cluster running outside of the test process.
  * <p>
  * You can define a list of transport addresses from where you can reach your cluster by setting "tests.cluster" system
  * property. It defaults to "localhost:9300". If you run this from `gradle integTest` then it will start the clsuter for

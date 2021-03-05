@@ -155,7 +155,7 @@ public class ArchiveTests extends PackagingTestCase {
         stopOpenSearch();
 
         String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"), containsString(systemJavaHome1));
     }
 
     public void test52BundledJdkRemoved() throws Exception {
@@ -178,7 +178,7 @@ public class ArchiveTests extends PackagingTestCase {
             stopOpenSearch();
 
             String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
-            assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
+            assertThat(FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"), containsString(systemJavaHome1));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
         }

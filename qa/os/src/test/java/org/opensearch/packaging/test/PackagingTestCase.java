@@ -178,16 +178,16 @@ public abstract class PackagingTestCase extends Assert {
     public void teardown() throws Exception {
         if (installation != null && failed == false) {
             if (Files.exists(installation.logs)) {
-                Path logFile = installation.logs.resolve("elasticsearch.log");
+                Path logFile = installation.logs.resolve("opensearch.log");
                 if (Files.exists(logFile)) {
-                    logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+                    logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"));
                 }
 
                 // move log file so we can avoid false positives when grepping for
                 // messages in logs during test
                 String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
                 if (Files.exists(logFile)) {
-                    Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
+                    Path newFile = installation.logs.resolve(prefix + ".opensearch.log");
                     FileUtils.mv(logFile, newFile);
                 }
                 for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
@@ -245,8 +245,8 @@ public abstract class PackagingTestCase extends Assert {
                 logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
                 sh.runIgnoreExitCode("jstack " + pid);
             }
-            if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
-                logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+            if (Files.exists(installation.logs.resolve("opensearch.log"))) {
+                logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"));
             }
             if (Files.exists(installation.logs.resolve("output.out"))) {
                 logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
@@ -260,7 +260,7 @@ public abstract class PackagingTestCase extends Assert {
         try {
             assertions.run();
         } catch (Exception e) {
-            logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+            logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"));
             throw e;
         }
         stopOpenSearch();
@@ -355,12 +355,12 @@ public abstract class PackagingTestCase extends Assert {
     public void assertOpenSearchFailure(Shell.Result result, List<String> expectedMessages, Packages.JournaldWrapper journaldWrapper) {
         @SuppressWarnings("unchecked")
         Matcher<String>[] stringMatchers = expectedMessages.stream().map(CoreMatchers::containsString).toArray(Matcher[]::new);
-        if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
+        if (Files.exists(installation.logs.resolve("opensearch.log"))) {
 
             // If log file exists, then we have bootstrapped our logging and the
             // error should be in the logs
-            assertThat(installation.logs.resolve("elasticsearch.log"), fileExists());
-            String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
+            assertThat(installation.logs.resolve("opensearch.log"), fileExists());
+            String logfile = FileUtils.slurp(installation.logs.resolve("opensearch.log"));
 
             assertThat(logfile, anyOf(stringMatchers));
 

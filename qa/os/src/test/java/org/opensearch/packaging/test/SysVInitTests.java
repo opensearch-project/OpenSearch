@@ -82,7 +82,7 @@ public class SysVInitTests extends PackagingTestCase {
 
         sh.run("rm -rf " + installation.pidDir);
         startOpenSearch();
-        assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
+        assertPathsExist(installation.pidDir.resolve("opensearch.pid"));
         stopOpenSearch();
     }
 

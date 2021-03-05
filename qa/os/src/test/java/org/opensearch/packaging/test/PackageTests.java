@@ -88,7 +88,7 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test31InstallDoesNotStartServer() {
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.opensearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout, not(containsString("org.opensearch.bootstrap.OpenSearch")));
     }
 
     private void assertRunsWithJavaHome() throws Exception {
@@ -102,7 +102,7 @@ public class PackageTests extends PackagingTestCase {
             Files.write(installation.envFile, originalEnvFile);
         }
 
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "elasticsearch*.log.gz"), containsString(systemJavaHome));
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "elasticsearch*.log.gz"), containsString(systemJavaHome));
     }
 
     public void test32JavaHomeOverride() throws Exception {
