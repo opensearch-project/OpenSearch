@@ -108,7 +108,7 @@ List of indices included in the snapshot.
 
 `data_streams`::
 (array)
-List of <<data-streams,data streams>> included in the snapshot.
+List of data streams included in the snapshot.
 
 `include_global_state`::
 (Boolean)
