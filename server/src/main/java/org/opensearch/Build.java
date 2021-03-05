@@ -186,7 +186,10 @@ public class Build {
         final Type type;
         // The following block is kept for existing BWS tests to pass.
         // TODO - clean up this code when we remove all v6 bwc tests.
-        if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.getVersion().onOrBefore(Version.V_7_0_0)) {
+        // TODO - clean this up when OSS flavor is removed in all of the code base
+        //        (Integ test zip still write OSS as distribution)
+        // See issue: https://github.com/opendistro-for-elasticsearch/search/issues/159
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             flavor = in.readString();
         }
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
@@ -211,7 +214,9 @@ public class Build {
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         // The following block is kept for existing BWS tests to pass.
         // TODO - clean up this code when we remove all v6 bwc tests.
-        if (out.getVersion().onOrAfter(Version.V_6_3_0) && out.getVersion().onOrBefore(Version.V_7_0_0)) {
+        // TODO - clean this up when OSS flavor is removed in all of the code base
+        // See issue: https://github.com/opendistro-for-elasticsearch/search/issues/159
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeString("oss");
         }
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
