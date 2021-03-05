@@ -16,17 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.java-rest-test'
 
-esplugin {
-  description 'Adds advanced field mappers'
-  classname 'org.opensearch.index.mapper.MapperExtrasPlugin'
-  hasClientJar = true
-}
+package org.opensearch.index.mapper;
 
-restResources {
-  restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get'
-  }
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
+
+import java.util.Collections;
+
+public class RankFeaturesFieldTypeTests extends FieldTypeTestCase {
+
+    public void testIsNotAggregatable() {
+        MappedFieldType fieldType = new RankFeaturesFieldMapper.RankFeaturesFieldType("field", Collections.emptyMap());
+        assertFalse(fieldType.isAggregatable());
+    }
 }
