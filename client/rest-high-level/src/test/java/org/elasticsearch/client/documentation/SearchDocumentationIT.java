@@ -75,11 +75,11 @@ import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RatedSearchHit;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
-import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
-import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
-import org.elasticsearch.script.mustache.SearchTemplateRequest;
-import org.elasticsearch.script.mustache.SearchTemplateResponse;
+import org.opensearch.script.mustache.MultiSearchTemplateRequest;
+import org.opensearch.script.mustache.MultiSearchTemplateResponse;
+import org.opensearch.script.mustache.MultiSearchTemplateResponse.Item;
+import org.opensearch.script.mustache.SearchTemplateRequest;
+import org.opensearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -345,8 +345,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     // end::search-request-aggregations-get-wrongCast
                 } catch (ClassCastException ex) {
                     String message = ex.getMessage();
-                    assertThat(message, containsString("org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms"));
-                    assertThat(message, containsString("org.elasticsearch.search.aggregations.bucket.range.Range"));
+                    assertThat(message, containsString("org.opensearch.search.aggregations.bucket.terms.ParsedStringTerms"));
+                    assertThat(message, containsString("org.opensearch.search.aggregations.bucket.range.Range"));
                 }
                 assertEquals(3, elasticBucket.getDocCount());
                 assertEquals(30, avg, 0.0);
@@ -426,13 +426,13 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             BulkRequest request = new BulkRequest();
             request.add(new IndexRequest("posts").id("1")
-                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
+                    .source(XContentType.JSON, "title", "In which order are my OpenSearch queries executed?", "user",
                             Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
             request.add(new IndexRequest("posts").id("2")
-                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
+                    .source(XContentType.JSON, "title", "Current status and upcoming changes in OpenSearch", "user",
                             Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
             request.add(new IndexRequest("posts").id("3")
-                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
+                    .source(XContentType.JSON, "title", "The Future of Federated Search in OpenSearch", "user",
                             Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
@@ -489,7 +489,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             IndexRequest request = new IndexRequest("posts").id("1")
-                    .source(XContentType.JSON, "tags", "elasticsearch", "comments", 123);
+                    .source(XContentType.JSON, "tags", "opensearch", "comments", 123);
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
             IndexResponse indexResponse = client.index(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
@@ -500,7 +500,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             searchSourceBuilder.profile(true);
             // end::search-request-profiling
-            searchSourceBuilder.query(QueryBuilders.termQuery("tags", "elasticsearch"));
+            searchSourceBuilder.query(QueryBuilders.termQuery("tags", "opensearch"));
             searchSourceBuilder.aggregation(AggregationBuilders.histogram("by_comments").field("comments").interval(100));
             searchRequest.source(searchSourceBuilder);
 
@@ -561,11 +561,11 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             BulkRequest request = new BulkRequest();
             request.add(new IndexRequest("posts").id("1")
-                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?"));
+                    .source(XContentType.JSON, "title", "In which order are my OpenSearch queries executed?"));
             request.add(new IndexRequest("posts").id("2")
-                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch"));
+                    .source(XContentType.JSON, "title", "Current status and upcoming changes in OpenSearch"));
             request.add(new IndexRequest("posts").id("3")
-                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch"));
+                    .source(XContentType.JSON, "title", "The Future of Federated Search in OpenSearch"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -576,7 +576,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::search-scroll-init
             SearchRequest searchRequest = new SearchRequest("posts");
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-            searchSourceBuilder.query(matchQuery("title", "Elasticsearch"));
+            searchSourceBuilder.query(matchQuery("title", "OpenSearch"));
             searchSourceBuilder.size(size); // <1>
             searchRequest.source(searchSourceBuilder);
             searchRequest.scroll(TimeValue.timeValueMinutes(1L)); // <2>
@@ -708,7 +708,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchRequest searchRequest = new SearchRequest("posts");
             searchRequest.scroll(scroll);
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-            searchSourceBuilder.query(matchQuery("title", "Elasticsearch"));
+            searchSourceBuilder.query(matchQuery("title", "OpenSearch"));
             searchRequest.source(searchSourceBuilder);
 
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT); // <1>
@@ -750,7 +750,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("field", "title");
-        scriptParams.put("value", "elasticsearch");
+        scriptParams.put("value", "opensearch");
         scriptParams.put("size", 5);
         request.setScriptParams(scriptParams); // <3>
         // end::search-template-request-inline
@@ -774,7 +774,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         assertNotNull(source);
         assertEquals(
-            ("{  \"size\" : \"5\",  \"query\": { \"match\" : { \"title\" : \"elasticsearch\" } }}").replaceAll("\\s+", ""),
+            ("{  \"size\" : \"5\",  \"query\": { \"match\" : { \"title\" : \"opensearch\" } }}").replaceAll("\\s+", ""),
             source.utf8ToString()
         );
     }
@@ -795,7 +795,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         Map<String, Object> params = new HashMap<>();
         params.put("field", "title");
-        params.put("value", "elasticsearch");
+        params.put("value", "opensearch");
         params.put("size", 5);
         request.setScriptParams(params);
         // end::search-template-request-stored
@@ -1280,13 +1280,13 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("posts").id("1")
-                .source(XContentType.JSON, "id", 1, "title", "In which order are my Elasticsearch queries executed?", "user",
+                .source(XContentType.JSON, "id", 1, "title", "In which order are my OpenSearch queries executed?", "user",
                         Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("posts").id("2")
-                .source(XContentType.JSON, "id", 2, "title", "Current status and upcoming changes in Elasticsearch", "user",
+                .source(XContentType.JSON, "id", 2, "title", "Current status and upcoming changes in OpenSearch", "user",
                         Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
         bulkRequest.add(new IndexRequest("posts").id("3")
-                .source(XContentType.JSON, "id", 3, "title", "The Future of Federated Search in Elasticsearch", "user",
+                .source(XContentType.JSON, "id", 3, "title", "The Future of Federated Search in OpenSearch", "user",
                         Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
 
         bulkRequest.add(new IndexRequest("authors").id("1")

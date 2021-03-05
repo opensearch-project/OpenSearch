@@ -16,23 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.java-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'Mustache scripting integration for OpenSearch'
-  classname 'org.opensearch.script.mustache.MustachePlugin'
-  hasClientJar = true // For the template apis and query
+package org.opensearch.script.mustache;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+
+public class LangMustacheClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    public LangMustacheClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }
 
-dependencies {
-  api "com.github.spullara.mustache.java:compiler:0.9.6"
-}
-
-restResources {
-  restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk',
-      'put_script', 'render_search_template', 'search_template', 'msearch_template', 'lang_mustache'
-  }
-}
