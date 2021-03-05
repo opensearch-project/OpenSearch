@@ -27,7 +27,7 @@ import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,7 +38,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 
-public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase {
+public abstract class AbstractMultiClusterRemoteTestCase extends OpenSearchRestTestCase {
 
     @Override
     protected boolean preserveClusterUponCompletion() {

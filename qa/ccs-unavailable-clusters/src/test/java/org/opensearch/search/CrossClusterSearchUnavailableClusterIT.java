@@ -54,7 +54,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -71,7 +71,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
+public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCase {
 
     private static RestHighLevelClient restHighLevelClient;
 

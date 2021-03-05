@@ -21,7 +21,7 @@ package org.opensearch.qa.custom_logging;
 
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.test.hamcrest.RegexMatcher;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import java.util.List;
  * <code>ESJsonLayout</code>
  * The intention is to confirm that users can still run their Elasticsearch instances with previous configurations.
  */
-public class CustomLoggingConfigIT extends ESRestTestCase {
+public class CustomLoggingConfigIT extends OpenSearchRestTestCase {
     private static final String NODE_STARTED = ".*integTest-0.*cluster.uuid.*node.id.*recovered.*cluster_state.*";
 
     public void testSuccessfulStartupWithCustomConfig() throws Exception {

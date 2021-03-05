@@ -22,7 +22,7 @@ package org.opensearch.qa.die_with_dignity;
 import org.opensearch.client.Request;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -36,7 +36,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class DieWithDignityIT extends ESRestTestCase {
+public class DieWithDignityIT extends OpenSearchRestTestCase {
     public void testDieWithDignity() throws Exception {
         expectThrows(
             IOException.class,
@@ -114,7 +114,7 @@ public class DieWithDignityIT extends ESRestTestCase {
             // increase the timeout here to 90 seconds to handle long waits for a green
             // cluster health. the waits for green need to be longer than a minute to
             // account for delayed shards
-            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "1s")
+            .put(OpenSearchRestTestCase.CLIENT_SOCKET_TIMEOUT, "1s")
             .build();
     }
 

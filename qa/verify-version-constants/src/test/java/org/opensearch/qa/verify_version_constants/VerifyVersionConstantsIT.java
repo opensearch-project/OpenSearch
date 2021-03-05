@@ -22,7 +22,7 @@ package org.opensearch.qa.verify_version_constants;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.text.ParseException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class VerifyVersionConstantsIT extends ESRestTestCase {
+public class VerifyVersionConstantsIT extends OpenSearchRestTestCase {
 
     public void testLuceneVersionConstant() throws IOException, ParseException {
         final Response response = client().performRequest(new Request("GET", "/"));

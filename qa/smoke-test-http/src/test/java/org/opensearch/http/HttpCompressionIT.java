@@ -24,7 +24,7 @@ import org.apache.http.util.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
 
@@ -33,7 +33,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 
-public class HttpCompressionIT extends ESRestTestCase {
+public class HttpCompressionIT extends OpenSearchRestTestCase {
 
     private static final String GZIP_ENCODING = "gzip";
     private static final String SAMPLE_DOCUMENT = "{\n" +

@@ -43,7 +43,7 @@ import org.opensearch.rest.action.document.RestUpdateAction;
 import org.opensearch.rest.action.search.RestExplainAction;
 import org.opensearch.test.NotEqualMessageBuilder;
 import org.opensearch.test.XContentTestUtils;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
@@ -1311,7 +1311,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     /**
      * Wait for an index to have green health, waiting longer than
-     * {@link ESRestTestCase#ensureGreen}.
+     * {@link OpenSearchRestTestCase#ensureGreen}.
      */
     protected void ensureGreenLongWait(String index) throws IOException {
         Request request = new Request("GET", "/_cluster/health/" + index);

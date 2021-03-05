@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.opensearch.test.rest.ESRestTestCase.entityAsMap;
+import static org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;

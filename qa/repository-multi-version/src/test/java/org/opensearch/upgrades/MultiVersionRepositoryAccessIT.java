@@ -37,7 +37,7 @@ import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.snapshots.SnapshotsService;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
  */
-public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
+public class MultiVersionRepositoryAccessIT extends OpenSearchRestTestCase {
 
     private enum TestStep {
         STEP1_OLD_CLUSTER("step1"),

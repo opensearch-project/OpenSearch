@@ -21,7 +21,7 @@ import org.apache.http.util.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.util.Arrays;
 import java.util.List;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.is;
  * methods on REST endpoints should respond with status code 405</a> for more
  * information.
  */
-public class RestHttpResponseHeadersIT extends ESRestTestCase {
+public class RestHttpResponseHeadersIT extends OpenSearchRestTestCase {
 
     /**
      * For an OPTIONS request to a valid REST endpoint, verify that a 200 HTTP

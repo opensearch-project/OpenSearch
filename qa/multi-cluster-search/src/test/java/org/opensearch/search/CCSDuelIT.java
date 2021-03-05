@@ -85,7 +85,7 @@ import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.opensearch.search.suggest.term.TermSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 import org.opensearch.test.NotEqualMessageBuilder;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -120,7 +120,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * such parameter, hence we want to verify that results are the same in both scenarios.
  */
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
-public class CCSDuelIT extends ESRestTestCase {
+public class CCSDuelIT extends OpenSearchRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";
     private static final String REMOTE_INDEX_NAME = "my_remote_cluster:" + INDEX_NAME;
