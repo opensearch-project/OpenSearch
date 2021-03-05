@@ -19,7 +19,7 @@
 
 package org.opensearch.gateway;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOError;
 import java.io.UncheckedIOException;

@@ -19,12 +19,12 @@
 
 package org.opensearch.discovery.zen;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ElectMasterService.MasterCandidate;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.zen.ElectMasterService.MasterCandidate;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;

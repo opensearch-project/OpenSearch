@@ -21,31 +21,31 @@ package org.opensearch.http;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.network.NetworkUtils;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.network.NetworkUtils;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.tasks.Task;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -57,7 +57,7 @@ import java.util.List;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
-import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishPort;
+import static org.opensearch.http.AbstractHttpServerTransport.resolvePublishPort;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -174,7 +174,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.http.HttpTracer:trace",
+        value = "org.opensearch.http.HttpTracer:trace",
         reason = "to ensure we log REST requests on TRACE level")
     public void testTracerLog() throws Exception {
         final String includeSettings;
@@ -225,7 +225,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                 .build());
             MockLogAppender appender = new MockLogAppender();
-            final String traceLoggerName = "org.elasticsearch.http.HttpTracer";
+            final String traceLoggerName = "org.opensearch.http.HttpTracer";
             try {
                 appender.start();
                 Loggers.addAppender(LogManager.getLogger(traceLoggerName), appender);

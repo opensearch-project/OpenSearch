@@ -22,13 +22,13 @@ package org.opensearch.http;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Map;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.test.ESTestCase;
 
 public class HttpInfoTests extends ESTestCase {
 

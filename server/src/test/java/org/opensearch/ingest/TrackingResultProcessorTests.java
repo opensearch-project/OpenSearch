@@ -19,14 +19,14 @@
 
 package org.opensearch.ingest;
 
-import org.elasticsearch.action.ingest.SimulateProcessorResult;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.ingest.SimulateProcessorResult;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -37,11 +37,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_MESSAGE_FIELD;
-import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD;
-import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD;
-import static org.elasticsearch.ingest.PipelineProcessorTests.createIngestService;
-import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
+import static org.opensearch.ingest.CompoundProcessor.ON_FAILURE_MESSAGE_FIELD;
+import static org.opensearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD;
+import static org.opensearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD;
+import static org.opensearch.ingest.PipelineProcessorTests.createIngestService;
+import static org.opensearch.ingest.TrackingResultProcessor.decorate;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;

@@ -23,26 +23,26 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportService.HandshakeResponse;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
+import org.opensearch.test.transport.MockTransport;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.TransportService.HandshakeResponse;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,9 +51,9 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
-import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
+import static org.opensearch.discovery.HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
@@ -144,7 +144,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         assertEquals(remoteNode, receivedNode.get());
     }
 
-    @TestLogging(reason="ensure logging happens", value="org.elasticsearch.discovery.HandshakingTransportAddressConnector:INFO")
+    @TestLogging(reason="ensure logging happens", value="org.opensearch.discovery.HandshakingTransportAddressConnector:INFO")
     public void testLogsFullConnectionFailureAfterSuccessfulHandshake() throws Exception {
 
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);

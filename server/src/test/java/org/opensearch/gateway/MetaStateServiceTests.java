@@ -18,16 +18,16 @@
  */
 package org.opensearch.gateway;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Manifest;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Manifest;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.Index;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;

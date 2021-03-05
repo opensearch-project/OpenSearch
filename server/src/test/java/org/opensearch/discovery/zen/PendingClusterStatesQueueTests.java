@@ -19,15 +19,15 @@
 
 package org.opensearch.discovery.zen;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.PendingClusterStatesQueue.ClusterStateContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.zen.PendingClusterStatesQueue.ClusterStateContext;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;

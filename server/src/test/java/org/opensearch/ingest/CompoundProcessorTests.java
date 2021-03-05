@@ -19,8 +19,8 @@
 
 package org.opensearch.ingest;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;

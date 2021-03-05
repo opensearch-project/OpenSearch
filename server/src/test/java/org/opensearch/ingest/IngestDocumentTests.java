@@ -19,7 +19,7 @@
 
 package org.opensearch.ingest;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -455,7 +455,7 @@ public class IngestDocumentTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
         assertThat(list.size(), equalTo(3));
-        assertThat(list, equalTo(org.elasticsearch.common.collect.List.of("foo", "bar", "baz")));
+        assertThat(list, equalTo(org.opensearch.common.collect.List.of("foo", "bar", "baz")));
     }
 
     public void testListAppendFieldValueWithoutDuplicate() {
@@ -465,7 +465,7 @@ public class IngestDocumentTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
         assertThat(list.size(), equalTo(4));
-        assertThat(list, equalTo(org.elasticsearch.common.collect.List.of("foo", "bar", "baz", "foo2")));
+        assertThat(list, equalTo(org.opensearch.common.collect.List.of("foo", "bar", "baz", "foo2")));
     }
 
     public void testListAppendFieldValues() {
@@ -483,7 +483,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListAppendFieldValuesWithoutDuplicates() {
-        ingestDocument.appendFieldValue("list2", org.elasticsearch.common.collect.List.of("foo", "bar", "baz", "foo2"), false);
+        ingestDocument.appendFieldValue("list2", org.opensearch.common.collect.List.of("foo", "bar", "baz", "foo2"), false);
         Object object = ingestDocument.getSourceAndMetadata().get("list2");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")

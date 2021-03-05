@@ -19,15 +19,15 @@
 
 package org.opensearch.gateway;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.MetadataUpgrader;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.MetadataUpgrader;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.TestCustomMetadata;
 
 import java.util.Arrays;
 import java.util.Collections;

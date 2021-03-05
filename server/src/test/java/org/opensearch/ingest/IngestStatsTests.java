@@ -19,12 +19,12 @@
 
 package org.opensearch.ingest;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;

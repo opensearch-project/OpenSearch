@@ -19,12 +19,12 @@
 
 package org.opensearch.discovery;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.coordination.PeersResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.opensearch.Version;
+import org.opensearch.cluster.coordination.PeersResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
 
 import java.util.ArrayList;
 import java.util.Arrays;

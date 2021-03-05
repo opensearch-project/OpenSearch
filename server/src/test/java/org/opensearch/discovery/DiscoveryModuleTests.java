@@ -18,25 +18,25 @@
  */
 package org.opensearch.discovery;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.GatewayMetaState;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.Version;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.Coordinator;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.RerouteService;
+import org.opensearch.cluster.service.ClusterApplier;
+import org.opensearch.cluster.service.MasterService;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.gateway.GatewayMetaState;
+import org.opensearch.plugins.DiscoveryPlugin;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 

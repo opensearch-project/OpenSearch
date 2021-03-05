@@ -20,39 +20,39 @@
 package org.opensearch.gateway;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.opensearch.Version;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.health.ClusterStateHealth;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingNodes;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.env.ShardLockObtainFailedException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -61,9 +61,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.CLUSTER_RECOVERED;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.INDEX_CREATED;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.INDEX_REOPENED;
+import static org.opensearch.cluster.routing.UnassignedInfo.Reason.CLUSTER_RECOVERED;
+import static org.opensearch.cluster.routing.UnassignedInfo.Reason.INDEX_CREATED;
+import static org.opensearch.cluster.routing.UnassignedInfo.Reason.INDEX_REOPENED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -423,7 +423,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT,
                     new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))))
             .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
@@ -457,7 +457,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             default:
                 throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
         }
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(routingTableBuilder.build())
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();

@@ -19,17 +19,17 @@
 
 package org.opensearch.ingest;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.IngestConditionalScript;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.MockScriptService;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.StoredScriptSource;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.script.IngestConditionalScript;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.MockScriptService;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
+import org.opensearch.script.StoredScriptSource;
+import org.opensearch.test.ESTestCase;
 
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -207,9 +207,9 @@ public class ConditionalProcessorTests extends ESTestCase {
     public void testPrecompiledError() {
         ScriptService scriptService = MockScriptService.singleContext(IngestConditionalScript.CONTEXT, code -> {
             throw new ScriptException("bad script", new ParseException("error", 0),
-                org.elasticsearch.common.collect.List.of(), "", "lang", null);
-        }, org.elasticsearch.common.collect.Map.of());
-        Script script = new Script(ScriptType.INLINE, "lang", "foo", org.elasticsearch.common.collect.Map.of());
+                org.opensearch.common.collect.List.of(), "", "lang", null);
+        }, org.opensearch.common.collect.Map.of());
+        Script script = new Script(ScriptType.INLINE, "lang", "foo", org.opensearch.common.collect.Map.of());
         ScriptException e = expectThrows(ScriptException.class, () ->
             new ConditionalProcessor(null, null, script, scriptService, null));
         assertThat(e.getMessage(), equalTo("bad script"));
@@ -218,11 +218,11 @@ public class ConditionalProcessorTests extends ESTestCase {
     public void testRuntimeCompileError() {
         AtomicBoolean fail = new AtomicBoolean(false);
         Map<String, StoredScriptSource> storedScripts = new HashMap<>();
-        storedScripts.put("foo", new StoredScriptSource("lang", "", org.elasticsearch.common.collect.Map.of()));
+        storedScripts.put("foo", new StoredScriptSource("lang", "", org.opensearch.common.collect.Map.of()));
         ScriptService scriptService = MockScriptService.singleContext(IngestConditionalScript.CONTEXT, code -> {
             if (fail.get()) {
                 throw new ScriptException("bad script", new ParseException("error", 0),
-                    org.elasticsearch.common.collect.List.of(), "", "lang", null);
+                    org.opensearch.common.collect.List.of(), "", "lang", null);
             } else {
                 return params -> new IngestConditionalScript(params) {
                     @Override
@@ -232,13 +232,13 @@ public class ConditionalProcessorTests extends ESTestCase {
                 };
             }
         }, storedScripts);
-        Script script = new Script(ScriptType.STORED, null, "foo", org.elasticsearch.common.collect.Map.of());
+        Script script = new Script(ScriptType.STORED, null, "foo", org.opensearch.common.collect.Map.of());
         ConditionalProcessor processor = new ConditionalProcessor(null, null, script, scriptService, null);
         fail.set(true);
         // must change the script source or the cached version will be used
-        storedScripts.put("foo", new StoredScriptSource("lang", "changed", org.elasticsearch.common.collect.Map.of()));
-        IngestDocument ingestDoc = new IngestDocument(org.elasticsearch.common.collect.Map.of(),
-            org.elasticsearch.common.collect.Map.of());
+        storedScripts.put("foo", new StoredScriptSource("lang", "changed", org.opensearch.common.collect.Map.of()));
+        IngestDocument ingestDoc = new IngestDocument(org.opensearch.common.collect.Map.of(),
+            org.opensearch.common.collect.Map.of());
         processor.execute(ingestDoc, (doc, e) -> {
             assertThat(e.getMessage(), equalTo("bad script"));
         });
@@ -251,11 +251,11 @@ public class ConditionalProcessorTests extends ESTestCase {
                 public boolean execute(Map<String, Object> ctx) {
                     throw new IllegalArgumentException("runtime problem");
                 }
-            }, org.elasticsearch.common.collect.Map.of());
-        Script script = new Script(ScriptType.INLINE, "lang", "foo", org.elasticsearch.common.collect.Map.of());
+            }, org.opensearch.common.collect.Map.of());
+        Script script = new Script(ScriptType.INLINE, "lang", "foo", org.opensearch.common.collect.Map.of());
         ConditionalProcessor processor = new ConditionalProcessor(null, null, script, scriptService, null);
-        IngestDocument ingestDoc = new IngestDocument(org.elasticsearch.common.collect.Map.of(),
-            org.elasticsearch.common.collect.Map.of());
+        IngestDocument ingestDoc = new IngestDocument(org.opensearch.common.collect.Map.of(),
+            org.opensearch.common.collect.Map.of());
         processor.execute(ingestDoc, (doc, e) -> {
             assertThat(e.getMessage(), equalTo("runtime problem"));
         });

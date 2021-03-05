@@ -19,13 +19,13 @@
 
 package org.opensearch.http;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,13 +37,13 @@ import java.util.Set;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.Strings.collectionToDelimitedString;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
+import static org.opensearch.common.Strings.collectionToDelimitedString;
+import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
+import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

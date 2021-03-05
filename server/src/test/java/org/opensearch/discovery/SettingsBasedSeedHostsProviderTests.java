@@ -18,12 +18,12 @@
  */
 package org.opensearch.discovery;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.discovery.SeedHostsProvider.HostsResolver;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.discovery.SeedHostsProvider.HostsResolver;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.List;
