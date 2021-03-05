@@ -16,29 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'Lucene expressions integration for OpenSearch'
-  classname 'org.opensearch.script.expression.ExpressionPlugin'
-}
+package org.opensearch.script.expression;
 
-dependencies {
-  api "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  api 'org.antlr:antlr4-runtime:4.5.1-1'
-  api 'org.ow2.asm:asm:5.0.4'
-  api 'org.ow2.asm:asm-commons:5.0.4'
-  api 'org.ow2.asm:asm-tree:5.0.4'
-}
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'search'
-  }
-}
+import org.apache.lucene.search.DoubleValues;
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /lucene-.*/, to: 'lucene'
-  mapping from: /asm-.*/, to: 'asm'
-}
+/**
+ * A support class for an executable expression script that allows the double returned
+ * by a {@link DoubleValues} to be modified.
+ */
+final class ReplaceableConstDoubleValues extends DoubleValues {
+    private double value = 0;
 
+    void setValue(double value) {
+        this.value = value;
+    }
+
+    @Override
+    public double doubleValue() {
+        return value;
+    }
+
+    @Override
+    public boolean advanceExact(int doc) {
+        return true;
+    }
+}
