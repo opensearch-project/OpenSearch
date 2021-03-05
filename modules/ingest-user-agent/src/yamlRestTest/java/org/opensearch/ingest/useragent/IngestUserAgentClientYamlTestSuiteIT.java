@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.useragent;
+package org.opensearch.ingest.useragent;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;

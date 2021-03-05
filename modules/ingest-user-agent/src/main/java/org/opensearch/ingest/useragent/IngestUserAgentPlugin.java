@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.useragent;
+package org.opensearch.ingest.useragent;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.ingest.Processor;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.useragent;
+package org.opensearch.ingest.useragent;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Strings;
