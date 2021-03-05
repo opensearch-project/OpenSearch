@@ -28,17 +28,12 @@ PUT /my-index-000001/_alias/f-alias
 PUT /_index_template/foo_data_stream
 {
   "index_patterns": [ "foo" ],
-  "data_stream": { }
 }
-
-PUT /_data_stream/foo
 ----
 // TESTSETUP
 
 [source,console]
 ----
-DELETE /_data_stream/*
-
 DELETE /_index_template/foo_data_stream
 ----
 // TEARDOWN
@@ -120,19 +115,9 @@ The API returns the following response:
         "my-index-000001"
       ]
     }
-  ],
-  "data_streams": [                            <3>
-    {
-      "name": "foo",
-      "backing_indices": [
-        ".ds-foo-000001"
-      ],
-      "timestamp_field": "@timestamp"
-    }
   ]
 }
 ----
 // TESTRESPONSE[s/remoteCluster1:/remotecluster-/]
 <1> All indices matching the supplied names or expressions
 <2> All aliases matching the supplied names or expressions
-<3> All data streams matching the supplied names or expressions
