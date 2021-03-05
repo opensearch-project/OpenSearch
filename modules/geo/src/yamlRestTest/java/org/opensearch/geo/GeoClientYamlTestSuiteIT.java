@@ -17,20 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.geo;
+package org.opensearch.geo;
 
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import java.util.Collections;
-import java.util.Map;
+/** Runs yaml rest tests */
+public class GeoClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-public class GeoPlugin extends Plugin implements MapperPlugin {
+    public GeoClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
 
-    @Override
-    public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 }
