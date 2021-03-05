@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.percolator;
+package org.opensearch.percolator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.elasticsearch.percolator.PercolatorHighlightSubFetchPhase.locatePercolatorQuery;
+import static org.opensearch.percolator.PercolatorHighlightSubFetchPhase.locatePercolatorQuery;
 
 /**
  * Adds a special field to a percolator query hit to indicate which documents matched with the percolator query.
