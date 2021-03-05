@@ -27,7 +27,7 @@ import org.opensearch.nio.NioSelector;
 import org.opensearch.nio.NioServerSocketChannel;
 import org.opensearch.nio.NioSocketChannel;
 import org.opensearch.nio.ServerChannelContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -36,7 +36,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
 
-public class NioGroupFactoryTests extends ESTestCase {
+public class NioGroupFactoryTests extends OpenSearchTestCase {
 
     public void testSharedGroupStillWorksWhenOneInstanceClosed() throws IOException {
         NioGroupFactory groupFactory = new NioGroupFactory(Settings.EMPTY, logger);

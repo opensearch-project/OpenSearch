@@ -29,13 +29,13 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class AzureRepositorySettingsTests extends ESTestCase {
+public class AzureRepositorySettingsTests extends OpenSearchTestCase {
 
     private AzureRepository azureRepository(Settings settings) {
         Settings internalSettings = Settings.builder()

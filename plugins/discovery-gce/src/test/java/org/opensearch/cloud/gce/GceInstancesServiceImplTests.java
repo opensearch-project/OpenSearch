@@ -26,14 +26,14 @@ import com.google.api.client.testing.http.MockHttpTransport;
 import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-public class GceInstancesServiceImplTests extends ESTestCase {
+public class GceInstancesServiceImplTests extends OpenSearchTestCase {
 
     public void testHeaderContainsMetadataFlavor() throws Exception {
         final AtomicBoolean addMetdataFlavor = new AtomicBoolean();

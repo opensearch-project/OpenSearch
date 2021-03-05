@@ -20,7 +20,7 @@
 package org.opensearch.example.resthandler;
 
 import org.opensearch.mocksocket.MockSocket;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -35,7 +35,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.hasItems;
 
-public class ExampleFixtureIT extends ESTestCase {
+public class ExampleFixtureIT extends OpenSearchTestCase {
 
     public void testExample() throws Exception {
         final String externalAddress = System.getProperty("external.address");

@@ -32,7 +32,7 @@ import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.snapshots.SnapshotState;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collection;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
-public class HdfsTests extends ESSingleNodeTestCase {
+public class HdfsTests extends OpenSearchSSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

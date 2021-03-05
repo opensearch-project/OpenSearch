@@ -27,14 +27,14 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.opensearch.nio.FlushOperation;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class NettyAdaptorTests extends ESTestCase {
+public class NettyAdaptorTests extends OpenSearchTestCase {
 
     public void testBasicRead() {
         TenIntsToStringsHandler handler = new TenIntsToStringsHandler();

@@ -34,7 +34,7 @@ import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.plugin.mapper.MapperSizePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import static org.hamcrest.Matchers.is;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 import org.apache.lucene.index.IndexableField;
 
-public class SizeMappingTests extends ESSingleNodeTestCase {
+public class SizeMappingTests extends OpenSearchSSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(MapperSizePlugin.class, InternalSettingsPlugin.class);

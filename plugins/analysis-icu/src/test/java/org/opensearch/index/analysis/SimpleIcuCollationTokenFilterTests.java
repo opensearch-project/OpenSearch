@@ -29,7 +29,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -37,7 +37,7 @@ import java.io.StringReader;
 import static org.hamcrest.Matchers.equalTo;
 
 // Tests borrowed from Solr's Icu collation key filter factory test.
-public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
+public class SimpleIcuCollationTokenFilterTests extends OpenSearchTestCase {
     /*
      * Tests usage where we do not provide a language or locale
      */

@@ -23,7 +23,7 @@ import org.opensearch.cloud.gce.network.GceNameResolver;
 import org.opensearch.common.Strings;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.containsString;
  * Test for GCE network.host settings.
  * Related to https://github.com/elastic/elasticsearch/issues/13605
  */
-public class GceNetworkTests extends ESTestCase {
+public class GceNetworkTests extends OpenSearchTestCase {
     /**
      * Test for network.host: _gce_
      */

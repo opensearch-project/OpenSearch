@@ -25,7 +25,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import org.junit.Before;
 
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class AttachmentProcessorTests extends ESTestCase {
+public class AttachmentProcessorTests extends OpenSearchTestCase {
 
     private AttachmentProcessor processor;
 

@@ -22,13 +22,13 @@ package org.opensearch.index.mapper.annotatedtext;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AnnotatedTextParsingTests extends ESTestCase {
+public class AnnotatedTextParsingTests extends OpenSearchTestCase {
 
     private void checkParsing(String markup, String expectedPlainText, AnnotationToken... expectedTokens) {
         AnnotatedText at = AnnotatedText.parse(markup);

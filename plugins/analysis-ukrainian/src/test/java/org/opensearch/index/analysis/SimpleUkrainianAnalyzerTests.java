@@ -25,13 +25,13 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimpleUkrainianAnalyzerTests extends ESTestCase {
+public class SimpleUkrainianAnalyzerTests extends OpenSearchTestCase {
 
     public void testBasicUsage() throws Exception {
         testAnalyzer("чергу", "черга");

@@ -28,7 +28,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.AnalysisPhoneticPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Before;
 
@@ -37,7 +37,7 @@ import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SimplePhoneticAnalysisTests extends ESTestCase {
+public class SimplePhoneticAnalysisTests extends OpenSearchTestCase {
 
     private TestAnalysis analysis;
 

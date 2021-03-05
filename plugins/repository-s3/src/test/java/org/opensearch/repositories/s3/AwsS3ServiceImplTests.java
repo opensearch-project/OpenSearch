@@ -26,7 +26,7 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Locale;
 import java.util.Map;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AwsS3ServiceImplTests extends ESTestCase {
+public class AwsS3ServiceImplTests extends OpenSearchTestCase {
 
     public void testAWSCredentialsDefaultToInstanceProviders() {
         final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);

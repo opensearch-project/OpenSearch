@@ -22,13 +22,13 @@ package org.opensearch.index.analysis;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SimpleIcuAnalysisTests extends ESTestCase {
+public class SimpleIcuAnalysisTests extends OpenSearchTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisICUPlugin());
 

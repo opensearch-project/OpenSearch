@@ -29,7 +29,7 @@ import com.google.cloud.storage.StorageException;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -45,7 +45,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
+public class GoogleCloudStorageBlobStoreContainerTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDeleteBlobsIgnoringIfNotExistsThrowsIOException() throws Exception {

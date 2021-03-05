@@ -47,7 +47,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.URLEncoder;
 import java.text.BreakIterator;
@@ -57,7 +57,7 @@ import java.util.Locale;
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class AnnotatedTextHighlighterTests extends ESTestCase {
+public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
 
     private void assertHighlightOneDoc(String fieldName, String []markedUpInputs,
             Query query, Locale locale, BreakIterator breakIterator,

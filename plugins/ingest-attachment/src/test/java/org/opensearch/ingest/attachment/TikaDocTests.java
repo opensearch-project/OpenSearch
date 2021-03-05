@@ -23,7 +23,7 @@ import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -35,7 +35,7 @@ import java.nio.file.Path;
  * comes back and no exception.
  */
 @SuppressFileSystems("ExtrasFS") // don't try to parse extraN
-public class TikaDocTests extends ESTestCase {
+public class TikaDocTests extends OpenSearchTestCase {
 
     /** some test files from tika test suite, zipped up */
     static final String TIKA_FILES = "/org.opensearch.ingest/attachment/test/tika-files/";

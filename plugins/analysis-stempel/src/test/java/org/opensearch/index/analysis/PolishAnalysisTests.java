@@ -25,14 +25,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.analysis.pl.PolishStemTokenFilterFactory;
 import org.opensearch.plugin.analysis.stempel.AnalysisStempelPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class PolishAnalysisTests extends ESTestCase {
+public class PolishAnalysisTests extends OpenSearchTestCase {
     public void testDefaultsPolishAnalysis() throws IOException {
         final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY,
                 new AnalysisStempelPlugin());

@@ -40,7 +40,7 @@ import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSSingleNodeTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.security.AccessController;
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressForbidden(reason = "test requires to set a System property to allow insecure settings when running in IDE")
-public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
+public class RepositoryCredentialsTests extends OpenSearchSSingleNodeTestCase {
 
     static {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {

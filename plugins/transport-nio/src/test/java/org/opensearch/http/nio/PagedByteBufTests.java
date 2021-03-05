@@ -21,13 +21,13 @@ package org.opensearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
 import org.opensearch.nio.Page;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class PagedByteBufTests extends ESTestCase {
+public class PagedByteBufTests extends OpenSearchTestCase {
 
     public void testReleasingPage() {
         AtomicInteger integer = new AtomicInteger(0);

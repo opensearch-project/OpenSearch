@@ -31,7 +31,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class KuromojiAnalysisTests extends ESTestCase {
+public class KuromojiAnalysisTests extends OpenSearchTestCase {
     public void testDefaultsKuromojiAnalysis() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
 

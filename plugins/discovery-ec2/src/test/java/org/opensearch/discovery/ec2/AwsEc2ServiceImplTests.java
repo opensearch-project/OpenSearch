@@ -28,12 +28,12 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AwsEc2ServiceImplTests extends ESTestCase {
+public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
         final AWSCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(logger,

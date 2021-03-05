@@ -26,7 +26,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.mocksocket.MockHttpServer;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
  * They aren't.
  */
 @SuppressForbidden(reason = "use http server")
-public class Ec2NetworkTests extends ESTestCase {
+public class Ec2NetworkTests extends OpenSearchTestCase {
 
     private static HttpServer httpServer;
 

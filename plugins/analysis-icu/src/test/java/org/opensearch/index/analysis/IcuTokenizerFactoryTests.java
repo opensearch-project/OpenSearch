@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +37,7 @@ import java.nio.file.Path;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
-public class IcuTokenizerFactoryTests extends ESTestCase {
+public class IcuTokenizerFactoryTests extends OpenSearchTestCase {
 
     public void testSimpleIcuTokenizer() throws IOException {
         TestAnalysis analysis = createTestAnalysis();

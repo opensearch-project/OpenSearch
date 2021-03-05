@@ -29,7 +29,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.plugin.analysis.nori.AnalysisNoriPlugin;
-import org.opensearch.test.ESTestCase.TestAnalysis;
+import org.opensearch.test.OpenSearchTestCase.TestAnalysis;
 import org.opensearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;

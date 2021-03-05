@@ -38,7 +38,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
@@ -59,7 +59,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 
-public class S3BlobStoreContainerTests extends ESTestCase {
+public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
     public void testExecuteSingleUploadBlobSizeTooLarge() {
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(6, 10));

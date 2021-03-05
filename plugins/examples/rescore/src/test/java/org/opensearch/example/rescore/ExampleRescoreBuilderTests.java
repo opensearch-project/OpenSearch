@@ -25,7 +25,7 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -48,7 +48,7 @@ public class ExampleRescoreBuilderTests extends AbstractWireSerializingTestCase<
         Supplier<ExampleRescoreBuilder> supplier = randomFrom(
                 () -> new ExampleRescoreBuilder(instance.factor(), instance.factorField())
                         .windowSize(randomValueOtherThan(instance.windowSize(), () -> between(0, Integer.MAX_VALUE))),
-                () -> new ExampleRescoreBuilder(randomValueOtherThan(instance.factor(), ESTestCase::randomFloat), instance.factorField())
+                () -> new ExampleRescoreBuilder(randomValueOtherThan(instance.factor(), OpenSearchTestCase::randomFloat), instance.factorField())
                         .windowSize(instance.windowSize()),
                 () -> new ExampleRescoreBuilder(
                             instance.factor(), randomValueOtherThan(instance.factorField(), () -> randomAlphaOfLength(5)))

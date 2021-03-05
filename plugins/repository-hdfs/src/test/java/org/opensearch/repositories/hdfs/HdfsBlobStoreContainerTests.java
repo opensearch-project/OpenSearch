@@ -29,7 +29,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import javax.security.auth.Subject;
 
@@ -48,7 +48,7 @@ import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTe
 import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.writeBlob;
 
 @ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
-public class HdfsBlobStoreContainerTests extends ESTestCase {
+public class HdfsBlobStoreContainerTests extends OpenSearchTestCase {
 
     private FileContext createTestContext() {
         FileContext fileContext;

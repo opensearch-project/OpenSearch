@@ -29,7 +29,7 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -40,7 +40,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class Ec2DiscoveryPluginTests extends ESTestCase {
+public class Ec2DiscoveryPluginTests extends OpenSearchTestCase {
 
     private Settings getNodeAttributes(Settings settings, String url) {
         final Settings realSettings = Settings.builder()

@@ -22,14 +22,14 @@ package org.opensearch.index.analysis;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SimpleSmartChineseAnalysisTests extends ESTestCase {
+public class SimpleSmartChineseAnalysisTests extends OpenSearchTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
         final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY,
                 new AnalysisSmartChinesePlugin());

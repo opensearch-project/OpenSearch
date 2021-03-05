@@ -27,14 +27,14 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.stempel.AnalysisStempelPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimplePolishTokenFilterTests extends ESTestCase {
+public class SimplePolishTokenFilterTests extends OpenSearchTestCase {
     public void testBasicUsage() throws Exception {
         testToken("kwiaty", "kwć");
         testToken("canona", "ć");

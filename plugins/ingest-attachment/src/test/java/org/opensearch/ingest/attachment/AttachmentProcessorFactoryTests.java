@@ -20,7 +20,7 @@
 package org.opensearch.ingest.attachment;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 
-public class AttachmentProcessorFactoryTests extends ESTestCase {
+public class AttachmentProcessorFactoryTests extends OpenSearchTestCase {
 
     private AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory();
 

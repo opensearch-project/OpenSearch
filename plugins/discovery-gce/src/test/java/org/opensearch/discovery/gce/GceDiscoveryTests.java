@@ -25,7 +25,7 @@ import org.opensearch.cloud.gce.GceMetadataService;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.not;
  *  compute/v1/projects/mynewawesometest/zones/europe-west1-b/instances.json
  *
  */
-public class GceDiscoveryTests extends ESTestCase {
+public class GceDiscoveryTests extends OpenSearchTestCase {
 
     protected static ThreadPool threadPool;
     protected MockTransportService transportService;

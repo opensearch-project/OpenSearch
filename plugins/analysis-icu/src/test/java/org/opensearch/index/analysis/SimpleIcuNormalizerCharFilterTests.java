@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.CharFilter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.StringReader;
 
@@ -32,7 +32,7 @@ import java.io.StringReader;
 /**
  * Test
  */
-public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
+public class SimpleIcuNormalizerCharFilterTests extends OpenSearchTestCase {
     public void testDefaultSetting() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")

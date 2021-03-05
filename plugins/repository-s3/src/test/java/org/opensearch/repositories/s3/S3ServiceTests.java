@@ -21,9 +21,9 @@ package org.opensearch.repositories.s3;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class S3ServiceTests extends ESTestCase {
+public class S3ServiceTests extends OpenSearchTestCase {
 
     public void testCachedClientsAreReleased() {
         final S3Service s3Service = new S3Service();

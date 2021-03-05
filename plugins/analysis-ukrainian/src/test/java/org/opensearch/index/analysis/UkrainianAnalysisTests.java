@@ -24,14 +24,14 @@ import org.apache.lucene.analysis.uk.UkrainianMorfologikAnalyzer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class UkrainianAnalysisTests extends ESTestCase {
+public class UkrainianAnalysisTests extends OpenSearchTestCase {
 
     public void testDefaultsUkranianAnalysis() throws IOException {
         final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY,

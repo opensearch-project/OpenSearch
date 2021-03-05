@@ -19,9 +19,9 @@ package org.opensearch.ingest.attachment;
  * under the License.
  */
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class TikaImplTests extends ESTestCase {
+public class TikaImplTests extends OpenSearchTestCase {
 
   public void testTikaLoads() throws Exception {
     Class.forName("org.opensearch.ingest.attachment.TikaImpl");

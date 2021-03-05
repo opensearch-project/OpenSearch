@@ -26,7 +26,7 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -49,7 +49,7 @@ import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.R
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
 
-public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
+public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
 
     public void testLoadWithEmptySettings() {
         final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(Settings.EMPTY);

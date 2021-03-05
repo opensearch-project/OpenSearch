@@ -50,7 +50,7 @@ import org.opensearch.nio.SocketChannelContext;
 import org.opensearch.nio.TaskScheduler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -71,7 +71,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class HttpReadWriteHandlerTests extends ESTestCase {
+public class HttpReadWriteHandlerTests extends OpenSearchTestCase {
 
     private HttpReadWriteHandler handler;
     private NioHttpChannel channel;

@@ -26,7 +26,7 @@ import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import org.apache.http.client.methods.HttpGet;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.Streams;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -37,7 +37,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class S3RetryingInputStreamTests extends ESTestCase {
+public class S3RetryingInputStreamTests extends OpenSearchTestCase {
 
     public void testInputStreamFullyConsumed() throws IOException {
         final byte[] expectedBytes = randomByteArrayOfLength(randomIntBetween(1, 512));

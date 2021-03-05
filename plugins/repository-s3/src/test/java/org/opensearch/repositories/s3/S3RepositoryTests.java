@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Map;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class S3RepositoryTests extends ESTestCase {
+public class S3RepositoryTests extends OpenSearchTestCase {
 
     private static class DummyS3Client extends AbstractAmazonS3 {
 

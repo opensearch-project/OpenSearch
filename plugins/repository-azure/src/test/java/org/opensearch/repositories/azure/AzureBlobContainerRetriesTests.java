@@ -45,7 +45,7 @@ import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.mocksocket.MockHttpServer;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -93,7 +93,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * This class tests how a {@link AzureBlobContainer} and its underlying SDK client are retrying requests when reading or writing blobs.
  */
 @SuppressForbidden(reason = "use a http server")
-public class AzureBlobContainerRetriesTests extends ESTestCase {
+public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
 
     private static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1L;
 

@@ -35,14 +35,14 @@ import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import com.google.api.client.testing.util.MockSleeper;
 import com.google.api.services.compute.Compute;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class RetryHttpInitializerWrapperTests extends ESTestCase {
+public class RetryHttpInitializerWrapperTests extends OpenSearchTestCase {
 
     private static class FailThenSuccessBackoffTransport extends MockHttpTransport {
 

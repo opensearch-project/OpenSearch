@@ -28,7 +28,7 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.mocksocket.MockHttpServer;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -49,7 +49,7 @@ import java.util.UUID;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 @SuppressForbidden(reason = "use a http server")
-public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
+public abstract class AbstractEC2MockAPITestCase extends OpenSearchTestCase {
 
     protected HttpServer httpServer;
 

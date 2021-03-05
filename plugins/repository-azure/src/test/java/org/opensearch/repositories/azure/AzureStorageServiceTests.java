@@ -26,7 +26,7 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.settings.SettingsModule;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class AzureStorageServiceTests extends ESTestCase {
+public class AzureStorageServiceTests extends OpenSearchTestCase {
 
     public void testReadSecuredSettings() {
         final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings())
