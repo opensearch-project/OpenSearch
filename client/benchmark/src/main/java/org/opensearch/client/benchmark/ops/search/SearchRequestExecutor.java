@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.ops.search;
+package org.opensearch.client.benchmark.ops.search;
 
 public interface SearchRequestExecutor {
     boolean search(String source);

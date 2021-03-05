@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark;
+package org.opensearch.client.benchmark;
 
-import org.elasticsearch.client.benchmark.metrics.Metrics;
-import org.elasticsearch.client.benchmark.metrics.MetricsCalculator;
-import org.elasticsearch.client.benchmark.metrics.Sample;
-import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
+import org.opensearch.client.benchmark.metrics.Metrics;
+import org.opensearch.client.benchmark.metrics.MetricsCalculator;
+import org.opensearch.client.benchmark.metrics.Sample;
+import org.opensearch.client.benchmark.metrics.SampleRecorder;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.util.Arrays;

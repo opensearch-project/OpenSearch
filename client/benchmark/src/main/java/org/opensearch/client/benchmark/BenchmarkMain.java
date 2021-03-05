@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark;
+package org.opensearch.client.benchmark;
 
-import org.elasticsearch.client.benchmark.rest.RestClientBenchmark;
-import org.elasticsearch.client.benchmark.transport.TransportClientBenchmark;
+import org.opensearch.client.benchmark.rest.RestClientBenchmark;
+import org.opensearch.client.benchmark.transport.TransportClientBenchmark;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.util.Arrays;
