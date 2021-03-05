@@ -100,7 +100,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("type", "deprecation"),
                             hasEntry("level", "DEPRECATION"),
                             hasEntry("component", "d.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
+                            hasEntry("cluster.name", "opensearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "deprecated message1"),
                             hasEntry("x-opaque-id", "someId")
@@ -133,7 +133,7 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
                     hasEntry("component", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("cluster.name", "opensearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
                     hasEntry("x-opaque-id", "someId")),
@@ -141,7 +141,7 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
                     hasEntry("component", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("cluster.name", "opensearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message2"),
                     not(hasKey("x-opaque-id"))
@@ -150,7 +150,7 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
                     hasEntry("component", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("cluster.name", "opensearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message4"),
                     not(hasKey("x-opaque-id"))
@@ -294,7 +294,7 @@ public class JsonLoggerTests extends ESTestCase {
                         hasEntry("type", "deprecation"),
                         hasEntry("level", "DEPRECATION"),
                         hasEntry("component", "d.test"),
-                        hasEntry("cluster.name", "elasticsearch"),
+                        hasEntry("cluster.name", "opensearch"),
                         hasEntry("node.name", "sample-name"),
                         hasEntry("message", "message1"),
                         hasEntry("x-opaque-id", "ID1"))
@@ -325,7 +325,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("type", "deprecation"),
                             hasEntry("level", "DEPRECATION"),
                             hasEntry("component", "d.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
+                            hasEntry("cluster.name", "opensearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "message1"),
                             hasEntry("x-opaque-id", "ID1")
@@ -334,7 +334,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("type", "deprecation"),
                             hasEntry("level", "DEPRECATION"),
                             hasEntry("component", "d.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
+                            hasEntry("cluster.name", "opensearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "message1"),
                             hasEntry("x-opaque-id", "ID2")
