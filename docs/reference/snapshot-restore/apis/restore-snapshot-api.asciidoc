@@ -73,8 +73,6 @@ you are restoring. Existing indices can only be restored if they are
 the snapshot. The restore operation automatically opens restored indices if
 they were closed and creates new indices if they do not exist in the cluster.
 
-include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=index-settings-data-stream-warning]
-
 [[restore-snapshot-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -163,8 +161,6 @@ The rename pattern is applied as defined by the regular expression that
 supports referencing the original text, according to the https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[`appendReplacement`] logic.
 +
 The request will fail if two or more indices will be renamed into the same name.
-+
-include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=rename-restored-data-stream-tag]
 
 [[restore-snapshot-api-rename-replacement]]
 `rename_replacement`::

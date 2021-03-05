@@ -15,7 +15,7 @@ API, unless otherwise specified.
 [[multi-index]]
 === Multi-target syntax
 
-Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
+Most APIs that accept a `<index>` or `<target>` request path
 parameter also support _multi-target syntax_.
 
 In multi-target syntax, you can use a comma-separated list to run a request on

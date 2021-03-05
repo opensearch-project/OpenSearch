@@ -26,8 +26,6 @@ include::analysis.asciidoc[]
 
 include::indices/index-templates.asciidoc[]
 
-include::data-streams/data-streams.asciidoc[]
-
 include::ingest.asciidoc[]
 
 include::search/search-your-data/search-your-data.asciidoc[]
