@@ -16,22 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'The Rank Eval module adds APIs to evaluate ranking quality.'
-  classname 'org.opensearch.index.rankeval.RankEvalPlugin'
-  hasClientJar = true
-}
+package org.opensearch.index.rankeval;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'rank_eval'
-  }
-}
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-testClusters.all {
-  // Modules who's integration is explicitly tested in integration tests
-  module ':modules:lang-mustache'
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+
+public class RankEvalYamlIT extends ESClientYamlSuiteTestCase {
+    public RankEvalYamlIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }
