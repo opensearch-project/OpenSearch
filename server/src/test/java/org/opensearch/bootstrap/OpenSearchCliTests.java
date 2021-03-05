@@ -32,7 +32,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 
-public class OpenSearchCliTests extends ESElasticsearchCliTestCase {
+public class OpenSearchCliTests extends ESOpenSearchCliTestCase {
 
     public void testVersion() throws Exception {
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "-d");
@@ -149,7 +149,7 @@ public class OpenSearchCliTests extends ESElasticsearchCliTestCase {
                 args);
     }
 
-    public void testElasticsearchSettings() throws Exception {
+    public void testOpenSearchSettings() throws Exception {
         runTest(
                 ExitCodes.OK,
                 true,
@@ -162,7 +162,7 @@ public class OpenSearchCliTests extends ESElasticsearchCliTestCase {
                 "-Efoo=bar", "-E", "baz=qux");
     }
 
-    public void testElasticsearchSettingCanNotBeEmpty() throws Exception {
+    public void testOpenSearchSettingCanNotBeEmpty() throws Exception {
         runTest(
                 ExitCodes.USAGE,
                 false,
@@ -171,7 +171,7 @@ public class OpenSearchCliTests extends ESElasticsearchCliTestCase {
                 "-E", "foo=");
     }
 
-    public void testElasticsearchSettingCanNotBeDuplicated() throws Exception {
+    public void testOpenSsearchSettingCanNotBeDuplicated() throws Exception {
         runTest(
                 ExitCodes.USAGE,
                 false,

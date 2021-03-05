@@ -65,7 +65,7 @@ public class OpenSearchUncaughtExceptionHandlerTests extends ESTestCase {
         final AtomicInteger observedStatus = new AtomicInteger();
         final AtomicReference<String> threadNameReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
-        thread.setUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler() {
+        thread.setUncaughtExceptionHandler(new OpenSearchUncaughtExceptionHandler() {
 
             @Override
             void halt(int status) {
@@ -106,7 +106,7 @@ public class OpenSearchUncaughtExceptionHandlerTests extends ESTestCase {
         thread.setName(name);
         final AtomicReference<String> threadNameReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
-        thread.setUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler() {
+        thread.setUncaughtExceptionHandler(new OpenSearchUncaughtExceptionHandler() {
             @Override
             void halt(int status) {
                 fail();
@@ -140,11 +140,11 @@ public class OpenSearchUncaughtExceptionHandlerTests extends ESTestCase {
     }
 
     private void assertFatal(Throwable cause) {
-        assertTrue(ElasticsearchUncaughtExceptionHandler.isFatalUncaught(cause));
+        assertTrue(OpenSearchUncaughtExceptionHandler.isFatalUncaught(cause));
     }
 
     private void assertNonFatal(Throwable cause) {
-        assertFalse(ElasticsearchUncaughtExceptionHandler.isFatalUncaught(cause));
+        assertFalse(OpenSearchUncaughtExceptionHandler.isFatalUncaught(cause));
     }
 
 }
