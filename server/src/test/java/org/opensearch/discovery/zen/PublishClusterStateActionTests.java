@@ -414,7 +414,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
 
         assertWarnings(
-            "[discovery.zen.publish_diff.enable] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "[discovery.zen.publish_diff.enable] setting was deprecated in OpenSearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.");
     }
 
@@ -469,7 +469,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         assertWarnings(
-            "[discovery.zen.publish_diff.enable] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "[discovery.zen.publish_diff.enable] setting was deprecated in OpenSearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.");
     }
 
@@ -634,9 +634,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         assertWarnings(
-            "[discovery.zen.publish_timeout] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "[discovery.zen.publish_timeout] setting was deprecated in OpenSearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.",
-            "[discovery.zen.commit_timeout] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "[discovery.zen.commit_timeout] setting was deprecated in OpenSearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.");
     }
 
@@ -722,7 +722,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         assertWarnings(
-            "[discovery.zen.commit_timeout] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "[discovery.zen.commit_timeout] setting was deprecated in OpenSearch and will be removed in a future release! " +
                 "See the breaking changes documentation for the next major version.");
     }
 

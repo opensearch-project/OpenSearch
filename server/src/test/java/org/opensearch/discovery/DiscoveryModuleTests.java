@@ -127,7 +127,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         });
         newModule(settings, Collections.singletonList(plugin));
         assertTrue(created.get());
-        assertWarnings("[discovery.zen.hosts_provider] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+        assertWarnings("[discovery.zen.hosts_provider] setting was deprecated in OpenSearch and will be removed in a future release! " +
             "See the breaking changes documentation for the next major version.");
     }
 

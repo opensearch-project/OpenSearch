@@ -228,9 +228,9 @@ public class ZenFaultDetectionTests extends ESTestCase {
         assertThat(failureReason[0], matcher);
 
         assertWarnings(
-            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in Elasticsearch and will be removed in a future " +
+            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in OpenSearch and will be removed in a future " +
                 "release! See the breaking changes documentation for the next major version.",
-            "[discovery.zen.fd.ping_interval] setting was deprecated in Elasticsearch and will be removed in a future " +
+            "[discovery.zen.fd.ping_interval] setting was deprecated in OpenSearch and will be removed in a future " +
                 "release! See the breaking changes documentation for the next major version.");
     }
 
@@ -273,9 +273,9 @@ public class ZenFaultDetectionTests extends ESTestCase {
         assertThat(failureReason[0], matcher);
 
         assertWarnings(
-            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in Elasticsearch and will be removed in a future " +
+            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in OpenSearch and will be removed in a future " +
                 "release! See the breaking changes documentation for the next major version.",
-            "[discovery.zen.fd.ping_interval] setting was deprecated in Elasticsearch and will be removed in a future " +
+            "[discovery.zen.fd.ping_interval] setting was deprecated in OpenSearch and will be removed in a future " +
                 "release! See the breaking changes documentation for the next major version.");
     }
 
@@ -318,9 +318,9 @@ public class ZenFaultDetectionTests extends ESTestCase {
         assertThat(pingProbeB.completedPings(), greaterThanOrEqualTo(minExpectedPings));
 
         assertWarnings(
-            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in Elasticsearch and will be removed in a future " +
+            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in OpenSearch and will be removed in a future " +
                 "release! See the breaking changes documentation for the next major version.",
-            "[discovery.zen.fd.ping_interval] setting was deprecated in Elasticsearch and will be removed in a future " +
+            "[discovery.zen.fd.ping_interval] setting was deprecated in OpenSearch and will be removed in a future " +
                 "release! See the breaking changes documentation for the next major version.");
     }
 

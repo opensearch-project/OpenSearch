@@ -82,7 +82,7 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
             .putList(SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), "foo", "bar")
             .build(), null).getSeedAddresses(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
-        assertWarnings("[discovery.zen.ping.unicast.hosts] setting was deprecated in Elasticsearch and will be removed in a future " +
+        assertWarnings("[discovery.zen.ping.unicast.hosts] setting was deprecated in OpenSearch and will be removed in a future " +
             "release! See the breaking changes documentation for the next major version.");
     }
 
