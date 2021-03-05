@@ -96,7 +96,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     public static void assumeNotJava8() {
         assumeFalse("This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used " +
             "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, " +
-            "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 " +
+            "https://github.com/opensearch/opensearch/pull/51933 and https://github.com/opensearch/opensearch/issues/52906 " +
             "for more background on this issue.", JavaVersion.current().equals(JavaVersion.parse("8")));
     }
 

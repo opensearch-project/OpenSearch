@@ -41,7 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 0, numClientNodes = 0)
 public class GceDiscoverTests extends ESIntegTestCase {

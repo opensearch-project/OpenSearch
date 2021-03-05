@@ -57,7 +57,7 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
                 }
             } else {
                 throw new IllegalStateException(
-                        "to run integration tests, you need to set -Dtests.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
+                        "to run integration tests, you need to set -Dtests.thirdparty=true and -Dtests.config=/path/to/opensearch.yml");
             }
         } catch (SettingsException exception) {
             throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);

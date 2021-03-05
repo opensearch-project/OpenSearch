@@ -17,8 +17,8 @@
  * under the License.
  */
 
-grant codeBase "${codebase.elasticsearch-nio}" {
-  // elasticsearch-nio makes and accepts socket connections
+grant codeBase "${codebase.opensearch-nio}" {
+  // opensearch-nio makes and accepts socket connections
   permission java.net.SocketPermission "*", "accept,connect";
 };
 

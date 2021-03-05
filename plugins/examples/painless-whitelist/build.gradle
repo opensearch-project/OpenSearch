@@ -29,7 +29,7 @@ opensearchplugin {
 }
 
 dependencies {
-  compileOnly "org.opensearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
+  compileOnly "org.opensearch.plugin:opensearch-scripting-painless-spi:${versions.opensearch}"
 }
 
 testClusters.all {

@@ -66,7 +66,7 @@ public interface AzureComputeService {
         public static final Setting<AzureSeedHostsProvider.HostType> HOST_TYPE_SETTING =
             new Setting<>("discovery.azure.host.type", AzureSeedHostsProvider.HostType.PRIVATE_IP.name(),
                 AzureSeedHostsProvider.HostType::fromString, Property.NodeScope);
-        public static final Setting<String> ENDPOINT_NAME_SETTING = new Setting<>("discovery.azure.endpoint.name", "elasticsearch",
+        public static final Setting<String> ENDPOINT_NAME_SETTING = new Setting<>("discovery.azure.endpoint.name", "opensearch",
             Function.identity(), Property.NodeScope);
         public static final Setting<String> DEPLOYMENT_NAME_SETTING = Setting.simpleString("discovery.azure.deployment.name",
             Property.NodeScope);

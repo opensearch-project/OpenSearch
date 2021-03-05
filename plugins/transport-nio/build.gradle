@@ -18,7 +18,7 @@ import org.opensearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "elasticsearch.publish"
+apply plugin: "opensearch.publish"
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
@@ -28,7 +28,7 @@ opensearchplugin {
 }
 
 dependencies {
-  api project(':libs:elasticsearch-nio')
+  api project(':libs:opensearch-nio')
 
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"

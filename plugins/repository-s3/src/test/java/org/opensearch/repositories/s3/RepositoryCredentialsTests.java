@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.repositories.s3.S3ClientSettings.ACCESS_KEY_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.SECRET_KEY_SETTING;
-import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -123,7 +123,7 @@ public class RepositoryCredentialsTests extends OpenSearchSSingleNodeTestCase {
             "[secret_key] setting was deprecated in Opensearch and will be removed in a future release!"
                 + " See the breaking changes documentation for the next major version.",
             "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the elasticsearch keystore for secure settings.",
+                + " the opensearch keystore for secure settings.",
             "[access_key] setting was deprecated in Opensearch and will be removed in a future release!"
                 + " See the breaking changes documentation for the next major version.");
     }
@@ -208,7 +208,7 @@ public class RepositoryCredentialsTests extends OpenSearchSSingleNodeTestCase {
                 "[secret_key] setting was deprecated in Opensearch and will be removed in a future release!"
                     + " See the breaking changes documentation for the next major version.",
                 "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                    + " the elasticsearch keystore for secure settings.",
+                    + " the opensearch keystore for secure settings.",
                 "[access_key] setting was deprecated in Opensearch and will be removed in a future release!"
                     + " See the breaking changes documentation for the next major version.");
         }
@@ -248,7 +248,7 @@ public class RepositoryCredentialsTests extends OpenSearchSSingleNodeTestCase {
 
         assertWarnings(
             "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the elasticsearch keystore for secure settings.");
+                + " the opensearch keystore for secure settings.");
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {

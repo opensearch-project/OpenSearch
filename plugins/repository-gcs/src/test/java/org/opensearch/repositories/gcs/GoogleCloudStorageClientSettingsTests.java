@@ -141,8 +141,8 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
 
         String endpoint;
         if (randomBoolean()) {
-            endpoint = randomFrom("http://www.elastic.co", "http://metadata.google.com:88/oauth", "https://www.googleapis.com",
-                    "https://www.elastic.co:443", "http://localhost:8443", "https://www.googleapis.com/oauth/token");
+            endpoint = randomFrom("http://www.opensearch.co", "http://metadata.google.com:88/oauth", "https://www.googleapis.com",
+                    "https://www.opensearch.co:443", "http://localhost:8443", "https://www.googleapis.com/oauth/token");
             settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         } else {
             endpoint = ENDPOINT_SETTING.getDefault(Settings.EMPTY);

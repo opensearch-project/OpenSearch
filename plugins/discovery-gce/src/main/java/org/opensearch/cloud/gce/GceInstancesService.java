@@ -33,9 +33,9 @@ import java.util.function.Function;
 public interface GceInstancesService extends Closeable {
 
     /**
-     * GCE API Version: Elasticsearch/GceCloud/1.0
+     * GCE API Version: Opensearch/GceCloud/1.0
      */
-    String VERSION = "Elasticsearch/GceCloud/1.0";
+    String VERSION = "Opensearch/GceCloud/1.0";
 
     // cloud.gce settings
 

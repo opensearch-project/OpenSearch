@@ -218,7 +218,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
       systemProperty "java.security.krb5.conf", krb5conf
       extraConfigFile(
         "repository-hdfs/krb5.keytab",
-        file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"), IGNORE_VALUE
+        file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "opensearch.keytab")}"), IGNORE_VALUE
       )
     }
   }
