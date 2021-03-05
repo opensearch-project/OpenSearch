@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
+package org.opensearch.search.aggregations;
 
-esplugin {
-  description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
-  classname 'org.opensearch.search.aggregations.matrix.MatrixAggregationPlugin'
-  hasClientJar = true
-}
+import org.opensearch.search.aggregations.matrix.stats.MatrixStats;
+import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
-  }
+public class MatrixStatsAggregationBuilders {
+    /**
+     * Create a new {@link MatrixStats} aggregation with the given name.
+     */
+    public static MatrixStatsAggregationBuilder matrixStats(String name) {
+        return new MatrixStatsAggregationBuilder(name);
+    }
 }
