@@ -283,7 +283,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
 
-        doc = mapper.parse(source(b -> b.field("field", "elasticsearch")));
+        doc = mapper.parse(source(b -> b.field("field", "opensearch")));
         fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
     }
@@ -291,7 +291,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
     public void testUpdateIgnoreAbove() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         merge(mapperService, fieldMapping(b -> b.field("type", FIELD_TYPE).field("ignore_above", 5)));
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "elasticsearch")));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "opensearch")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
     }

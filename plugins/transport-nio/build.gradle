@@ -21,7 +21,7 @@ import org.opensearch.gradle.info.BuildParams
 apply plugin: "elasticsearch.publish"
 apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'The nio transport.'
   classname 'org.opensearch.transport.nio.NioTransportPlugin'
   hasClientJar = true

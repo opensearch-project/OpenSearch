@@ -22,7 +22,7 @@ apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 
-esplugin {
+opensearchplugin {
   name 'rest-handler'
   description 'An example plugin showing how to register a REST handler'
   classname 'org.opensearch.example.resthandler.ExampleRestHandlerPlugin'

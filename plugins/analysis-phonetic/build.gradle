@@ -18,7 +18,7 @@
  */
 apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
+opensearchplugin {
   description 'The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.'
   classname 'org.opensearch.plugin.analysis.AnalysisPhoneticPlugin'
 }

@@ -188,7 +188,7 @@ public class AttachmentProcessorTests extends OpenSearchTestCase {
         assertThat(attachmentData.get("content"), is(notNullValue()));
         assertThat(attachmentData.get("content_length"), is(notNullValue()));
         assertThat(attachmentData.get("author"), is("kimchy"));
-        assertThat(attachmentData.get("keywords"), is("elasticsearch,cool,bonsai"));
+        assertThat(attachmentData.get("keywords"), is("opensearch,cool,bonsai"));
         assertThat(attachmentData.get("title"), is("Hello"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/html"));
     }

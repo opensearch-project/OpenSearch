@@ -33,7 +33,7 @@ import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
   classname 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
 }

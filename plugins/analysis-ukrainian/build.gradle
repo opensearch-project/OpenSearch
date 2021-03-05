@@ -18,7 +18,7 @@
  */
 apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
+opensearchplugin {
   description 'The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.'
   classname 'org.opensearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin'
 }

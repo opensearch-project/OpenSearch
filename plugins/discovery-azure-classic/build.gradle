@@ -22,7 +22,7 @@ import org.opensearch.gradle.info.BuildParams
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
   classname 'org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
 }

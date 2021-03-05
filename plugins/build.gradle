@@ -26,7 +26,7 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.opensearch.plugin'
   apply plugin: 'opensearch.opensearchplugin'
 
-  esplugin {
+  opensearchplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
     name project.name
 

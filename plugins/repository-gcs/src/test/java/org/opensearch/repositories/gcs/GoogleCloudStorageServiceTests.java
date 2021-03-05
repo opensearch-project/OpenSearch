@@ -50,7 +50,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         final TimeValue readTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
         final String applicationName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final String endpoint = randomFrom("http://", "https://")
-                + randomFrom("www.elastic.co", "www.googleapis.com", "localhost/api", "google.com/oauth")
+                + randomFrom("www.opensearch.co", "www.googleapis.com", "localhost/api", "google.com/oauth")
                 + ":" + randomIntBetween(1, 65535);
         final String projectIdName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final Settings settings = Settings.builder()

@@ -19,7 +19,7 @@
 apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
+opensearchplugin {
   name 'painless-whitelist'
   description 'An example whitelisting additional classes and methods in painless'
   classname 'org.opensearch.example.painlesswhitelist.MyWhitelistPlugin'

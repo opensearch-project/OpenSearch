@@ -18,7 +18,7 @@
  */
 apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
+opensearchplugin {
   description 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.'
   classname 'org.opensearch.plugin.analysis.nori.AnalysisNoriPlugin'
 }

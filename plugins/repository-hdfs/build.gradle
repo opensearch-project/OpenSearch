@@ -31,7 +31,7 @@ apply plugin: 'opensearch.test.fixtures'
 apply plugin: 'opensearch.rest-resources'
 apply plugin: 'opensearch.rest-test'
 
-esplugin {
+opensearchplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
   classname 'org.opensearch.repositories.hdfs.HdfsPlugin'
 }

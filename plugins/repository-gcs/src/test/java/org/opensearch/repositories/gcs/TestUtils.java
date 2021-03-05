@@ -48,7 +48,7 @@ final class TestUtils {
                     builder.field("project_id", "test");
                     builder.field("private_key_id", UUID.randomUUID().toString());
                     builder.field("private_key", "-----BEGIN PRIVATE KEY-----\n" + privateKey + "\n-----END PRIVATE KEY-----\n");
-                    builder.field("client_email", "elastic@appspot.gserviceaccount.com");
+                    builder.field("client_email", "opensearch@appspot.gserviceaccount.com");
                     builder.field("client_id", String.valueOf(Math.abs(random.nextLong())));
                 }
                 builder.endObject();
