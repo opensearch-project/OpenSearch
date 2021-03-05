@@ -44,7 +44,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class WindowsServiceTests extends PackagingTestCase {
 
     private static final String DEFAULT_ID = "opensearch-service-x64";
-    private static final String DEFAULT_DISPLAY_NAME = "Elasticsearch " + FileUtils.getCurrentVersion() + " (opensearch-service-x64)";
+    private static final String DEFAULT_DISPLAY_NAME = "OpenSearch " + FileUtils.getCurrentVersion() + " (opensearch-service-x64)";
     private static String serviceScript;
 
     @BeforeClass
@@ -86,7 +86,7 @@ public class WindowsServiceTests extends PackagingTestCase {
             Result logs = sh.run(
                 "$files = Get-ChildItem \""
                     + installation.logs
-                    + "\\elasticsearch.log\"; "
+                    + "\\opensearch.log\"; "
                     + "Write-Output $files; "
                     + "foreach ($file in $files) {"
                     + "    Write-Output \"$file\"; "
@@ -249,10 +249,10 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     public void test60Manager() throws IOException {
-        Path serviceMgr = installation.bin("elasticsearch-service-mgr.exe");
+        Path serviceMgr = installation.bin("opensearch-service-mgr.exe");
         Path tmpServiceMgr = serviceMgr.getParent().resolve(serviceMgr.getFileName() + ".tmp");
         Files.move(serviceMgr, tmpServiceMgr);
-        Path fakeServiceMgr = serviceMgr.getParent().resolve("elasticsearch-service-mgr.bat");
+        Path fakeServiceMgr = serviceMgr.getParent().resolve("opensearch-service-mgr.bat");
         Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI\""));
         Shell sh = new Shell();
         Result result = sh.run(serviceScript + " manager");

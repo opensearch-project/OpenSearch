@@ -33,13 +33,13 @@ public final class RestHighLevelClientProducer {
 
     @Produces
     public RestHighLevelClient createRestHighLevelClient() {
-        String httpUri = System.getProperty("elasticsearch.uri");
+        String httpUri = System.getProperty("opensearch.uri");
 
         return new RestHighLevelClient(RestClient.builder(HttpHost.create(httpUri)));
     }
 
     @SuppressForbidden(reason = "get path not configured in environment")
-    private Path getPath(final String elasticsearchProperties) {
-        return PathUtils.get(elasticsearchProperties);
+    private Path getPath(final String OpenSearchProperties) {
+        return PathUtils.get(OpenSearchProperties);
     }
 }

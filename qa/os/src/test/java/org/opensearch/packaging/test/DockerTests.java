@@ -258,7 +258,7 @@ public class DockerTests extends PackagingTestCase {
         Files.write(tempDir.resolve(passwordFilename), "other_hunter2\n".getBytes(StandardCharsets.UTF_8));
 
         Map<String, String> envVars = new HashMap<>();
-        envVars.put("ELASTIC_PASSWORD", "hunter2");
+        envVars.put("OPENSEARCH_PASSWORD", "hunter2");
         envVars.put("OPENSEARCH_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
         // File permissions need to be secured in order for the ES wrapper to accept
@@ -271,7 +271,7 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat(
             dockerLogs.stderr,
-            containsString("ERROR: Both OPENSEARCH_PASSWORD_FILE and ELASTIC_PASSWORD are set. These are mutually exclusive.")
+            containsString("ERROR: Both OPENSEARCH_PASSWORD_FILE and OPENSEARCH_PASSWORD are set. These are mutually exclusive.")
         );
     }
 
@@ -361,10 +361,10 @@ public class DockerTests extends PackagingTestCase {
         final Map<String, String> staticLabels = new HashMap<>();
         staticLabels.put("name", "Opensearch");
         staticLabels.put("schema-version", "1.0");
-        staticLabels.put("url", "https://www.opensearch.co/products/opensearch.");
+        staticLabels.put("url", "https://www.opensearch.co/products/opensearch");
         staticLabels.put("usage", "https://www.opensearch.co/guide/en/opensearch./reference/index.html");
-        staticLabels.put("vcs-url", "https://github.com/elastic/opensearch.");
-        staticLabels.put("vendor", "Elastic");
+        staticLabels.put("vcs-url", "https://github.com/opensearch/opensearch");
+        staticLabels.put("vendor", "OpenSearch");
 
         staticLabels.put("license", "Apache-2.0");
 
@@ -474,7 +474,7 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that Elasticsearch reports per-node cgroup information.
+     * Check that Opensearch reports per-node cgroup information.
      */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForOpenSearch(installation);

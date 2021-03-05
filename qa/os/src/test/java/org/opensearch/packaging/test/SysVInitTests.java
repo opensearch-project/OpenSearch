@@ -42,14 +42,14 @@ public class SysVInitTests extends PackagingTestCase {
 
     @Override
     public void startOpenSearch() throws Exception {
-        sh.run("service elasticsearch start");
+        sh.run("service opensearch start");
         ServerUtils.waitForOpenSearch(installation);
-        sh.run("service elasticsearch status");
+        sh.run("service opensearch status");
     }
 
     @Override
     public void stopOpenSearch() {
-        sh.run("service elasticsearch stop");
+        sh.run("service opensearch stop");
     }
 
     public void test10Install() throws Exception {
@@ -60,17 +60,17 @@ public class SysVInitTests extends PackagingTestCase {
         startOpenSearch();
         assertThat(installation.logs, fileWithGlobExist("gc.log*"));
         ServerUtils.runOpenSearchTests();
-        sh.run("service elasticsearch status"); // returns 0 exit status when ok
+        sh.run("service opensearch status"); // returns 0 exit status when ok
     }
 
     public void test21Restart() throws Exception {
-        sh.run("service elasticsearch restart");
-        sh.run("service elasticsearch status"); // returns 0 exit status when ok
+        sh.run("service opensearch restart");
+        sh.run("service opensearch status"); // returns 0 exit status when ok
     }
 
     public void test22Stop() throws Exception {
         stopOpenSearch();
-        Shell.Result status = sh.runIgnoreExitCode("service elasticsearch status");
+        Shell.Result status = sh.runIgnoreExitCode("service opensearch status");
         assertThat(status.exitCode, anyOf(equalTo(3), equalTo(4)));
     }
 
@@ -91,7 +91,7 @@ public class SysVInitTests extends PackagingTestCase {
         startOpenSearch();
         Shell.Result result = sh.run("sysctl -n vm.max_map_count");
         String maxMapCount = result.stdout.trim();
-        sh.run("service elasticsearch stop");
+        sh.run("service opensearch stop");
         assertThat(maxMapCount, equalTo("262144"));
     }
 
@@ -102,7 +102,7 @@ public class SysVInitTests extends PackagingTestCase {
         startOpenSearch();
         Shell.Result result = sh.run("sysctl -n vm.max_map_count");
         String maxMapCount = result.stdout.trim();
-        sh.run("service elasticsearch stop");
+        sh.run("service opensearch stop");
         assertThat(maxMapCount, equalTo("262145"));
     }
 

@@ -59,7 +59,7 @@ public class WildflyIT extends LuceneTestCase {
             throw new IllegalStateException(
                 "Could not find system property "
                     + propertyName
-                    + ". This test expects to run with the elasticsearch.test.fixtures Gradle plugin"
+                    + ". This test expects to run with the opensearch.test.fixtures Gradle plugin"
             );
         }
         return "http://localhost:" + port + "/example-app/transport";

@@ -86,11 +86,11 @@ public class ESPolicyUnitTests extends ESTestCase {
     public void testDataPathPermissionIsChecked() {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         final PermissionCollection dataPathPermission = new Permissions();
-        dataPathPermission.add(new FilePermission("/home/elasticsearch/data/-", "read"));
+        dataPathPermission.add(new FilePermission("/home/opensearch/data/-", "read"));
         final ESPolicy policy = new ESPolicy(Collections.emptyMap(), new Permissions(), Collections.emptyMap(), true, dataPathPermission);
         assertTrue(
             policy.implies(
                     new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions()),
-                    new FilePermission("/home/elasticsearch/data/index/file.si", "read")));
+                    new FilePermission("/home/opensearch/data/index/file.si", "read")));
     }
 }

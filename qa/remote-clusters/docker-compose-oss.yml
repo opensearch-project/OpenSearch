@@ -1,12 +1,12 @@
 # Only used for testing the docker images
 version: '3.7'
 services:
-  elasticsearch-oss-1:
+  opensearch-oss-1:
     image: elasticsearch:test
     environment:
-       - node.name=elasticsearch-oss-1
-       - cluster.initial_master_nodes=elasticsearch-oss-1
-       - cluster.name=elasticsearch-oss-1
+       - node.name=opensearch-oss-1
+       - cluster.initial_master_nodes=opensearch-oss-1
+       - cluster.name=opensearch-oss-1
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -35,12 +35,12 @@ services:
       interval: 10s
       timeout: 2s
       retries: 5
-  elasticsearch-oss-2:
+  opensearch-oss-2:
     image: elasticsearch:test
     environment:
-       - node.name=elasticsearch-oss-2
-       - cluster.initial_master_nodes=elasticsearch-oss-2
-       - cluster.name=elasticsearch-oss-2
+       - node.name=opensearch-oss-2
+       - cluster.initial_master_nodes=opensearch-oss-2
+       - cluster.name=opensearch-oss-2
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"

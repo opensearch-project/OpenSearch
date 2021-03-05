@@ -52,7 +52,7 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
 
     @Override
     protected String getTestRestCluster() {
-        return "localhost:" + getProperty("test.fixtures.elasticsearch-oss-1.tcp.9200");
+        return "localhost:" + getProperty("test.fixtures.opensearch-oss-1.tcp.9200");
     }
 
     @Before
@@ -61,8 +61,8 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
             return;
         }
 
-        cluster1Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-oss-1.tcp.9200"));
-        cluster2Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-oss-2.tcp.9200"));
+        cluster1Client = buildClient("localhost:" + getProperty("test.fixtures.opensearch-oss-1.tcp.9200"));
+        cluster2Client = buildClient("localhost:" + getProperty("test.fixtures.opensearch-oss-2.tcp.9200"));
 
         cluster1Client().cluster().health(new ClusterHealthRequest().waitForNodes("1").waitForYellowStatus(), RequestOptions.DEFAULT);
         cluster2Client().cluster().health(new ClusterHealthRequest().waitForNodes("1").waitForYellowStatus(), RequestOptions.DEFAULT);

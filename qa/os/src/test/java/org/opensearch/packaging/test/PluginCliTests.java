@@ -76,7 +76,7 @@ public class PluginCliTests extends PackagingTestCase {
         Files.delete(stashedPluginsDir); // delete so we can replace it
         Files.move(pluginsDir, stashedPluginsDir);
         Path linkedPlugins = createTempDir("symlinked-plugins");
-        Platforms.onLinux(() -> sh.run("chown elasticsearch:elasticsearch " + linkedPlugins.toString()));
+        Platforms.onLinux(() -> sh.run("chown opensearch:opensearch " + linkedPlugins.toString()));
         Files.createSymbolicLink(pluginsDir, linkedPlugins);
         assertWithExamplePlugin(installResult -> {
             assertWhileRunning(() -> {
@@ -103,17 +103,17 @@ public class PluginCliTests extends PackagingTestCase {
         assertWithPlugin(installation.executables().pluginTool, plugin, EXAMPLE_PLUGIN_NAME, installResult -> {});
     }
 
-    public void test23ElasticsearchWithSpace() throws Exception {
+    public void test23OpenSearchWithSpace() throws Exception {
         assumeTrue(distribution.isArchive());
 
         Path spacedDir = createTempDir("spaced dir");
-        Path elasticsearch = spacedDir.resolve("elasticsearch");
-        Files.move(installation.home, elasticsearch);
-        Installation spacedInstallation = Installation.ofArchive(sh, distribution, elasticsearch);
+        Path opensearch = spacedDir.resolve("opensearch");
+        Files.move(installation.home, opensearch);
+        Installation spacedInstallation = Installation.ofArchive(sh, distribution, opensearch);
 
         assertWithPlugin(spacedInstallation.executables().pluginTool, EXAMPLE_PLUGIN_ZIP, EXAMPLE_PLUGIN_NAME, installResult -> {});
 
-        Files.move(elasticsearch, installation.home);
+        Files.move(opensearch, installation.home);
     }
 
     public void test24JavaOpts() throws Exception {

@@ -233,7 +233,7 @@ public class Packages {
             sh.run("systemctl is-enabled opensearch.service");
             return sh.runIgnoreExitCode("systemctl start opensearch.service");
         }
-        return sh.runIgnoreExitCode("service elasticsearch start");
+        return sh.runIgnoreExitCode("service opensearch start");
     }
 
     public static void assertElasticsearchStarted(Shell sh, Installation installation) throws Exception {
@@ -243,7 +243,7 @@ public class Packages {
             sh.run("systemctl is-active opensearch.service");
             sh.run("systemctl status opensearch.service");
         } else {
-            sh.run("service elasticsearch status");
+            sh.run("service opensearch status");
         }
     }
 
@@ -251,7 +251,7 @@ public class Packages {
         if (isSystemd()) {
             sh.run("systemctl stop opensearch.service");
         } else {
-            sh.run("service elasticsearch stop");
+            sh.run("service opensearch stop");
         }
     }
 
@@ -259,7 +259,7 @@ public class Packages {
         if (isSystemd()) {
             sh.run("systemctl restart opensearch.service");
         } else {
-            sh.run("service elasticsearch restart");
+            sh.run("service opensearch restart");
         }
         assertElasticsearchStarted(sh, installation);
     }
