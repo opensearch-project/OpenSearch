@@ -315,7 +315,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the elasticsearch-node tool is shipped in the Docker image and is executable.
      */
-    public void test092OpensearchNodeCliPackaging() {
+    public void test092OpenSearchNodeCliPackaging() {
         final Installation.Executables bin = installation.executables();
 
         final Result result = sh.run(bin.nodeTool + " -h");
