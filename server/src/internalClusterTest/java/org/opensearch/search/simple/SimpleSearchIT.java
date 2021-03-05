@@ -35,7 +35,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -55,7 +55,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimpleSearchIT extends ESIntegTestCase {
+public class SimpleSearchIT extends OpenSearchIntegTestCase {
 
     public void testSearchNullIndex() {
         expectThrows(NullPointerException.class,

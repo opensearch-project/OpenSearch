@@ -43,7 +43,7 @@ import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.After;
@@ -73,7 +73,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Tests for scrolling.
  */
-public class SearchScrollIT extends ESIntegTestCase {
+public class SearchScrollIT extends OpenSearchIntegTestCase {
     @After
     public void cleanup() throws Exception {
         assertAcked(client().admin().cluster().prepareUpdateSettings()

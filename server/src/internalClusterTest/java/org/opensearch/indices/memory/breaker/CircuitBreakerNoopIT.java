@@ -24,7 +24,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,8 +35,8 @@ import static org.opensearch.search.aggregations.AggregationBuilders.cardinality
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /** Tests for the noop breakers, which are non-dynamic settings */
-@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE, numDataNodes=0)
-public class CircuitBreakerNoopIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope= OpenSearchIntegTestCase.Scope.SUITE, numDataNodes=0)
+public class CircuitBreakerNoopIT extends OpenSearchIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()

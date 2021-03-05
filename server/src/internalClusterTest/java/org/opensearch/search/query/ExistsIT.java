@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,7 +43,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
-public class ExistsIT extends ESIntegTestCase {
+public class ExistsIT extends OpenSearchIntegTestCase {
 
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {

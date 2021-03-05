@@ -21,7 +21,7 @@ package org.opensearch.index.query.plugin;
 
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -29,7 +29,7 @@ import java.util.Collection;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
-public class CustomQueryParserIT extends ESIntegTestCase {
+public class CustomQueryParserIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(DummyQueryParserPlugin.class);

@@ -43,7 +43,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.engine.MockEngineSupport;
 import org.opensearch.test.engine.ThrowingLeafReaderWrapper;
 
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for the circuit breaker while random exceptions are happening
  */
-public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
+public class RandomExceptionCircuitBreakerIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
@@ -241,7 +241,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
+                final long seed = OpenSearchIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
                 this.topLevelRatio = EXCEPTION_TOP_LEVEL_RATIO_SETTING.get(settings);
                 this.lowLevelRatio = EXCEPTION_LOW_LEVEL_RATIO_SETTING.get(settings);
                 this.random = new Random(seed);

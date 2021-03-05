@@ -37,7 +37,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class BulkIntegrationIT extends ESIntegTestCase {
+public class BulkIntegrationIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(IngestTestPlugin.class);

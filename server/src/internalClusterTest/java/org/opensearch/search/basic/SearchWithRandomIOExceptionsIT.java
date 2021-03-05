@@ -36,7 +36,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.store.MockFSDirectoryFactory;
 import org.opensearch.test.store.MockFSIndexStore;
 import java.io.IOException;
@@ -47,7 +47,7 @@ import java.util.concurrent.ExecutionException;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
-public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
+public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -151,7 +151,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             }
 
         }
-        ESIntegTestCase.NumShards numShards = getNumShards("test");
+        OpenSearchIntegTestCase.NumShards numShards = getNumShards("test");
         logger.info("Start Refresh");
         // don't assert on failures here
         final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get();

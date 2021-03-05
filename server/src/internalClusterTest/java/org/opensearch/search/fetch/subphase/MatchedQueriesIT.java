@@ -28,7 +28,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.constantScoreQuery;
@@ -43,7 +43,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCoun
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 
-public class MatchedQueriesIT extends ESIntegTestCase {
+public class MatchedQueriesIT extends OpenSearchIntegTestCase {
     public void testSimpleMatchedQueryFromFilteredQuery() throws Exception {
         createIndex("test");
         ensureGreen();

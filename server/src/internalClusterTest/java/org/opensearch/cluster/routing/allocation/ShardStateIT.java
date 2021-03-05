@@ -25,7 +25,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 

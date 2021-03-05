@@ -23,7 +23,7 @@ import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 
@@ -34,7 +34,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_AL
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class IndicesExistsIT extends ESIntegTestCase {
+public class IndicesExistsIT extends OpenSearchIntegTestCase {
     // Indices exists never throws IndexMissingException, the indices options control its behaviour (return true or false)
     public void testIndicesExists() throws Exception {
         assertFalse(client().admin().indices().prepareExists("foo").get().isExists());

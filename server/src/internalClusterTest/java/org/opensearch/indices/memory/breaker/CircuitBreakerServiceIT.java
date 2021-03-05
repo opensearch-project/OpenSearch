@@ -45,8 +45,8 @@ import org.opensearch.indices.breaker.CircuitBreakerStats;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.junit.After;
 import org.junit.Before;
 
@@ -61,7 +61,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.test.ESIntegTestCase.Scope.TEST;
+import static org.opensearch.test.OpenSearchIntegTestCase.Scope.TEST;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Integration tests for InternalCircuitBreakerService
  */
 @ClusterScope(scope = TEST, numClientNodes = 0, maxNumDataNodes = 1)
-public class CircuitBreakerServiceIT extends ESIntegTestCase {
+public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
     /** Reset all breaker settings back to their defaults */
     private void reset() {
         logger.info("--> resetting breaker settings");

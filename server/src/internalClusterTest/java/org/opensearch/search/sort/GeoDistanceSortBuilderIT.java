@@ -29,7 +29,7 @@ import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.query.GeoValidationMethod;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSea
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSortValues;
 import static org.hamcrest.Matchers.closeTo;
 
-public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
+public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
 
     private static final String LOCATION_FIELD = "location";
 

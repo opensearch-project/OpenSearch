@@ -45,7 +45,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for the {@code simple_query_string} query
  */
-public class SimpleQueryStringIT extends ESIntegTestCase {
+public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     private static int CLUSTER_MAX_CLAUSE_COUNT;
 

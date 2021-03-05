@@ -33,7 +33,7 @@ import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -47,8 +47,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SuggestStatsIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class SuggestStatsIT extends OpenSearchIntegTestCase {
     @Override
     protected int numberOfReplicas() {
         return 0;

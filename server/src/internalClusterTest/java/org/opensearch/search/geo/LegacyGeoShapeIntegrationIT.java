@@ -34,7 +34,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
@@ -44,7 +44,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
+public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
     /**
      * Test that orientation parameter correctly persists across cluster restart

@@ -43,7 +43,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster.RestartCallback;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
@@ -70,8 +70,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class Zen1IT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class Zen1IT extends OpenSearchIntegTestCase {
 
     private static Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(true, Settings.builder()
         .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.ZEN_DISCOVERY_TYPE)

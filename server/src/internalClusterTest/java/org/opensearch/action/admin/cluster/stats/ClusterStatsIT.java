@@ -33,9 +33,9 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.node.NodeRoleSettings;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class ClusterStatsIT extends ESIntegTestCase {
+public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, Map<String, Integer> roles) {
         assertThat(counts.getTotal(), equalTo(total));

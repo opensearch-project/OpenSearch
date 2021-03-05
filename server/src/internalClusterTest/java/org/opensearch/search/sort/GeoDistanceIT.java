@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class GeoDistanceIT extends ESIntegTestCase {
+public class GeoDistanceIT extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

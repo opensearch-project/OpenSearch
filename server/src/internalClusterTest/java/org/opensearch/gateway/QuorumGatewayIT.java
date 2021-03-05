@@ -22,9 +22,9 @@ package org.opensearch.gateway;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.InternalTestCluster.RestartCallback;
 
 import java.util.concurrent.TimeUnit;
@@ -36,7 +36,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCoun
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
-public class QuorumGatewayIT extends ESIntegTestCase {
+public class QuorumGatewayIT extends OpenSearchIntegTestCase {
 
     @Override
     protected int numberOfReplicas() {

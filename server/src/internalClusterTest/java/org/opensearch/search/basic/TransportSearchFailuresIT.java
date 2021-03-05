@@ -31,7 +31,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class TransportSearchFailuresIT extends ESIntegTestCase {
+public class TransportSearchFailuresIT extends OpenSearchIntegTestCase {
     @Override
     protected int maximumNumberOfReplicas() {
         return 1;

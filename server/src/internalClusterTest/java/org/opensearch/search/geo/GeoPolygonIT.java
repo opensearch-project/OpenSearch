@@ -25,7 +25,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
@@ -39,8 +39,8 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCoun
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public class GeoPolygonIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public class GeoPolygonIT extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

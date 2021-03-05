@@ -27,7 +27,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotState;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutionException;
@@ -35,7 +35,7 @@ import java.util.concurrent.ExecutionException;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase {
 
     public void testMasterFailoverDuringCleanup() throws Exception {

@@ -30,7 +30,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;

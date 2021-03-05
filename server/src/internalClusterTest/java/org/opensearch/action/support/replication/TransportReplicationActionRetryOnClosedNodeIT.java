@@ -39,7 +39,7 @@ import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
@@ -63,8 +63,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

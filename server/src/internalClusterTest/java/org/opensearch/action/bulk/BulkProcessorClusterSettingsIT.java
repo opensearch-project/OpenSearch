@@ -21,12 +21,12 @@ package org.opensearch.action.bulk;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
+public class BulkProcessorClusterSettingsIT extends OpenSearchIntegTestCase {
     public void testBulkProcessorAutoCreateRestrictions() throws Exception {
         // See issue #8125
         Settings settings = Settings.builder().put("action.auto_create_index", false).build();

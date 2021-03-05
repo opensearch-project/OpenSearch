@@ -23,7 +23,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
 
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
 
     @Override

@@ -24,7 +24,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * This test basically verifies that search with a single shard active (cause we indexed to it) and other
  * shards possibly not active at all (cause they haven't allocated) will still work.
  */
-public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
+public class SearchWhileCreatingIndexIT extends OpenSearchIntegTestCase {
     public void testIndexCausesIndexCreation() throws Exception {
         searchWhileCreatingIndex(false, 1); // 1 replica in our default...
     }

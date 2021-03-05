@@ -32,7 +32,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeIntegrationIT extends ESIntegTestCase {
+public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

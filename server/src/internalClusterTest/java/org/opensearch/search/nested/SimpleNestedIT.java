@@ -40,7 +40,7 @@ import org.opensearch.search.sort.NestedSortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SimpleNestedIT extends ESIntegTestCase {
+public class SimpleNestedIT extends OpenSearchIntegTestCase {
     public void testSimpleNested() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "nested1", "type=nested"));
