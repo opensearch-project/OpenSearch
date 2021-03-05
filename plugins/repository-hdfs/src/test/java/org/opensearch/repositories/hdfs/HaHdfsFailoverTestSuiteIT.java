@@ -116,7 +116,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
                     "\"type\":\"hdfs\"," +
                     "\"settings\":{" +
                         "\"uri\": \"hdfs://ha-hdfs/\",\n" +
-                        "\"path\": \"/user/elasticsearch/existing/readonly-repository\"," +
+                        "\"path\": \"/user/opensearch/existing/readonly-repository\"," +
                         "\"readonly\": \"true\"," +
                         securityCredentials(securityEnabled, esKerberosPrincipal) +
                         "\"conf.dfs.nameservices\": \"ha-hdfs\"," +

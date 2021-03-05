@@ -21,7 +21,7 @@
           repository: test_repo_hdfs_1
 
     - is_true: test_repo_hdfs_1
-    - match: {test_repo_hdfs_1.settings.path : "/user/elasticsearch/foo/bar"}
+    - match: {test_repo_hdfs_1.settings.path : "/user/opensearch/foo/bar"}
 
     # Delete repository
     - do:

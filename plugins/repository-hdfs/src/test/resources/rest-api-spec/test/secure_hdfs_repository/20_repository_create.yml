@@ -21,7 +21,7 @@
           repository: test_repository_create
 
     - is_true: test_repository_create
-    - match: {test_repository_create.settings.path : "/user/elasticsearch/test/repository_create"}
+    - match: {test_repository_create.settings.path : "/user/opensearch/test/repository_create"}
 
     # Remove our repository
     - do:
