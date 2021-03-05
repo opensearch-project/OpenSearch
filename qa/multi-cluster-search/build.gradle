@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'

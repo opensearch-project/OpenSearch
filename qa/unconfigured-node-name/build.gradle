@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.OS
+import org.opensearch.gradle.OS
 
 /*
  * Licensed to Elasticsearch under one or more contributor

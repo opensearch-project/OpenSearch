@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.test.RestIntegTestTask
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -47,7 +47,7 @@ testingConventions {
   naming.clear()
   naming {
     IT {
-      baseClass 'org.elasticsearch.smoketest.ESSmokeClientTestCase'
+      baseClass 'org.opensearch.smoketest.ESSmokeClientTestCase'
     }
   }
 }

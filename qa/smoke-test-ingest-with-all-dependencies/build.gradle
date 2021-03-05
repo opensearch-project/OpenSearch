@@ -33,7 +33,7 @@ dependencies {
 testingConventions {
   naming {
     IT {
-      baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
+      baseClass 'org.opensearch.ingest.AbstractScriptTestCase'
     }
   }
 }

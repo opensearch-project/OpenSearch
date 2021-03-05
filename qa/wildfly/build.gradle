@@ -17,8 +17,8 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.VersionProperties
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.VersionProperties
 
 apply plugin: 'war'
 apply plugin: 'elasticsearch.build'
