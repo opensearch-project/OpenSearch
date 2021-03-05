@@ -190,7 +190,7 @@ public class Archives {
                 .forEach(executable -> assertThat(es.bin(executable), file(File, owner)));
         }
 
-        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
+        Stream.of("opensearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
 
         Stream.of("NOTICE.txt", "LICENSE.txt", "README.asciidoc")

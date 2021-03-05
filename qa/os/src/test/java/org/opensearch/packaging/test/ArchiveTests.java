@@ -321,7 +321,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test80RelativePathConf() throws Exception {
 
         withCustomConfig(tempConf -> {
-            append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
+            append(tempConf.resolve("opensearch.yml"), "node.name: relative");
 
             startElasticsearch();
 
@@ -352,7 +352,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test93OpenSearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
         Path relativeDataPath = installation.data.relativize(installation.home);
-        append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
+        append(installation.config("opensearch.yml"), "path.data: " + relativeDataPath);
 
         sh.setWorkingDirectory(getRootTempDir());
 

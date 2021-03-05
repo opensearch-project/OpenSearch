@@ -150,7 +150,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the default config can be overridden using a bind mount, and that env vars are respected
      */
     public void test070BindMountCustomPathConfAndJvmOptions() throws Exception {
-        copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
+        copyFromContainer(installation.config("opensearch.yml"), tempDir.resolve("opensearch.yml"));
         copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
 
         // we have to disable Log4j from using JMX lest it will hit a security
@@ -162,7 +162,7 @@ public class DockerTests extends PackagingTestCase {
         // Make the temp directory and contents accessible when bind-mounted.
         Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
         // These permissions are necessary to run the tests under Vagrant
-        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.yml"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("opensearch.yml"), p644);
         Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
 
         // Restart the container
@@ -229,7 +229,7 @@ public class DockerTests extends PackagingTestCase {
         Files.createDirectory(tempEsDataDir);
         Files.createDirectory(tempEsLogsDir);
 
-        copyFromContainer(installation.config("elasticsearch.yml"), tempEsConfigDir);
+        copyFromContainer(installation.config("opensearch.yml"), tempEsConfigDir);
         copyFromContainer(installation.config("jvm.options"), tempEsConfigDir);
         copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
 

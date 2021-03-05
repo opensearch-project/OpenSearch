@@ -44,7 +44,7 @@ public class ConfigurationTests extends PackagingTestCase {
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
-            FileUtils.append(confPath.resolve("elasticsearch.yml"), "node.name: ${HOSTNAME}");
+            FileUtils.append(confPath.resolve("opensearch.yml"), "node.name: ${HOSTNAME}");
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }

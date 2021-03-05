@@ -59,7 +59,7 @@ public class DebPreservationTests extends PackagingTestCase {
         // some config files were not removed
         assertPathsExist(
             installation.config,
-            installation.config("elasticsearch.yml"),
+            installation.config("opensearch.yml"),
             installation.config("jvm.options"),
             installation.config("log4j2.properties"),
             installation.config(Paths.get("jvm.options.d", "heap.options"))

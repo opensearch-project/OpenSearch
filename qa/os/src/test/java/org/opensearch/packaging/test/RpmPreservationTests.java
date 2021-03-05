@@ -78,7 +78,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), sh);
 
         sh.run("echo foobar | " + installation.executables().keystoreTool + " add --stdin foo.bar");
-        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
+        Stream.of("opensearch.yml", "jvm.options", "log4j2.properties")
             .map(each -> installation.config(each))
             .forEach(path -> append(path, "# foo"));
         append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
@@ -105,7 +105,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         assertThat(installation.config, fileExists());
         assertThat(installation.config("elasticsearch.keystore"), fileExists());
 
-        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
+        Stream.of("opensearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
         assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
     }
 
