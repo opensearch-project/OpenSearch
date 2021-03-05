@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.percolator;
+package org.opensearch.percolator;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;

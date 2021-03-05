@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.percolator;
+package org.opensearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.DoublePoint;
@@ -116,9 +116,9 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsLookupQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
-import static org.elasticsearch.percolator.PercolatorFieldMapper.EXTRACTION_COMPLETE;
-import static org.elasticsearch.percolator.PercolatorFieldMapper.EXTRACTION_FAILED;
-import static org.elasticsearch.percolator.PercolatorFieldMapper.EXTRACTION_PARTIAL;
+import static org.opensearch.percolator.PercolatorFieldMapper.EXTRACTION_COMPLETE;
+import static org.opensearch.percolator.PercolatorFieldMapper.EXTRACTION_FAILED;
+import static org.opensearch.percolator.PercolatorFieldMapper.EXTRACTION_PARTIAL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
