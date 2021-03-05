@@ -19,7 +19,7 @@ PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
 ////
 
 Use the <<restore-snapshot-api,restore snapshot API>> to restore
-a snapshot of a cluster or specified data streams and indices:
+a snapshot of a cluster or specified indices:
 
 [source,console]
 -----------------------------------
@@ -33,7 +33,7 @@ supports <<multi-index,multi-target syntax>>. To include the global cluster stat
 `include_global_state` to `true` in the restore request body.
 
 The `rename_pattern`
-and `rename_replacement` options can be also used to rename data streams and indices on restore
+and `rename_replacement` options can be also used to rename indices on restore
 using regular expression that supports referencing the original text, according to the https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[`appendReplacement`] logic.
 
 Set `include_aliases` to `false` to prevent aliases from being restored together
@@ -113,10 +113,10 @@ The topology of the new cluster does not have to match the cluster where the sna
 
 If the new cluster has a smaller capacity, consider the following changes:
 
-* Ensure that the new cluster has enough capacity to store all data streams and indices in the snapshot.
+* Ensure that the new cluster has enough capacity to store all indices in the snapshot.
 * Change the index settings during the restore operation to reduce the
 <<dynamic-index-number-of-replicas,number of replicas>>.
-* Use the `indices` parameter to choose only specific data streams or indices to restore.
+* Use the `indices` parameter to choose only specific indices to restore.
 
 If indices in the original cluster were assigned to particular nodes using
 <<shard-allocation-filtering,shard allocation filtering>>, the same rules will be enforced in the new cluster. If the new cluster does not contain nodes with appropriate attributes that a restored index can be allocated on, the
