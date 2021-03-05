@@ -69,7 +69,7 @@ public class DieWithDignityIT extends ESRestTestCase {
                 final String line = it.next();
                 if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*javaRestTest-0.*fatal error.*")) {
                     fatalError = true;
-                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*javaRestTest-0.*"
+                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.OpenSearchUncaughtExceptionHandler.*javaRestTest-0.*"
                     + "fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
                     fatalErrorInThreadExiting = true;
                     assertTrue(it.hasNext());

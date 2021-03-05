@@ -43,8 +43,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class WindowsServiceTests extends PackagingTestCase {
 
-    private static final String DEFAULT_ID = "elasticsearch-service-x64";
-    private static final String DEFAULT_DISPLAY_NAME = "Elasticsearch " + FileUtils.getCurrentVersion() + " (elasticsearch-service-x64)";
+    private static final String DEFAULT_ID = "opensearch-service-x64";
+    private static final String DEFAULT_DISPLAY_NAME = "Elasticsearch " + FileUtils.getCurrentVersion() + " (opensearch-service-x64)";
     private static String serviceScript;
 
     @BeforeClass
@@ -107,12 +107,12 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     public void test11InstallServiceExeMissing() throws IOException {
-        Path serviceExe = installation.bin("elasticsearch-service-x64.exe");
+        Path serviceExe = installation.bin("opensearch-service-x64.exe");
         Path tmpServiceExe = serviceExe.getParent().resolve(serviceExe.getFileName() + ".tmp");
         Files.move(serviceExe, tmpServiceExe);
         Result result = sh.runIgnoreExitCode(serviceScript + " install");
         assertThat(result.exitCode, equalTo(1));
-        assertThat(result.stdout, containsString("elasticsearch-service-x64.exe was not found..."));
+        assertThat(result.stdout, containsString("opensearch-service-x64.exe was not found..."));
         Files.move(tmpServiceExe, serviceExe);
     }
 
@@ -155,7 +155,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         try {
             mv(installation.bundledJdk, relocatedJdk);
             Result result = sh.run(serviceScript + " install");
-            assertThat(result.stdout, containsString("The service 'elasticsearch-service-x64' has been installed."));
+            assertThat(result.stdout, containsString("The service 'opensearch-service-x64' has been installed."));
         } finally {
             sh.runIgnoreExitCode(serviceScript + " remove");
             mv(relocatedJdk, installation.bundledJdk);
@@ -188,10 +188,10 @@ public class WindowsServiceTests extends PackagingTestCase {
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
         // the process is stopped async, and can become a zombie process, so we poll for the process actually being gone
         assertCommand(
-            "$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"
+            "$p = Get-Service -Name \"opensearch-service-x64\" -ErrorAction SilentlyContinue;"
                 + "$i = 0;"
                 + "do {"
-                + "  $p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"
+                + "  $p = Get-Process -Name \"opensearch-service-x64\" -ErrorAction SilentlyContinue;"
                 + "  echo \"$p\";"
                 + "  if ($p -eq $Null) {"
                 + "    Write-Host \"exited after $i seconds\";"
@@ -205,7 +205,7 @@ public class WindowsServiceTests extends PackagingTestCase {
 
         assertCommand(serviceScript + " remove");
         assertCommand(
-            "$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"
+            "$p = Get-Service -Name \"opensearch-service-x64\" -ErrorAction SilentlyContinue;"
                 + "echo \"$p\";"
                 + "if ($p -eq $Null) {"
                 + "  exit 0;"

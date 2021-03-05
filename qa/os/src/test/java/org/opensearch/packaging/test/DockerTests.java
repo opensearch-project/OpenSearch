@@ -305,7 +305,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the elasticsearch-shard tool is shipped in the Docker image and is executable.
      */
-    public void test091ElasticsearchShardCliPackaging() {
+    public void test091OpenSearchShardCliPackaging() {
         final Installation.Executables bin = installation.executables();
 
         final Result result = sh.run(bin.shardTool + " -h");
