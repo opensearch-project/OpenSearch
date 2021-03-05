@@ -21,21 +21,22 @@ package org.opensearch.ingest.useragent;
 
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.opensearch.ingest.useragent.UserAgentParser.Details;
 
 import java.util.Objects;
 
 class UserAgentCache {
-    private final Cache<CompositeCacheKey, UserAgentParser.Details> cache;
+    private final Cache<CompositeCacheKey, Details> cache;
 
     UserAgentCache(long cacheSize) {
-        cache = CacheBuilder.<CompositeCacheKey, UserAgentParser.Details>builder().setMaximumWeight(cacheSize).build();
+        cache = CacheBuilder.<CompositeCacheKey, Details>builder().setMaximumWeight(cacheSize).build();
     }
 
-    public UserAgentParser.Details get(String parserName, String userAgent) {
+    public Details get(String parserName, String userAgent) {
         return cache.get(new CompositeCacheKey(parserName, userAgent));
     }
 
-    public void put(String parserName, String userAgent, UserAgentParser.Details details) {
+    public void put(String parserName, String userAgent, Details details) {
         cache.put(new CompositeCacheKey(parserName, userAgent), details);
     }
 
