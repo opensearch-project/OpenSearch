@@ -16,29 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'Lucene expressions integration for OpenSearch'
-  classname 'org.opensearch.script.expression.ExpressionPlugin'
-}
+package org.opensearch.script.expression;
 
-dependencies {
-  api "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  api 'org.antlr:antlr4-runtime:4.5.1-1'
-  api 'org.ow2.asm:asm:5.0.4'
-  api 'org.ow2.asm:asm-commons:5.0.4'
-  api 'org.ow2.asm:asm-tree:5.0.4'
-}
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'search'
-  }
-}
+import java.util.Collection;
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /lucene-.*/, to: 'lucene'
-  mapping from: /asm-.*/, to: 'asm'
-}
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 
+public class ExpressionPlugin extends Plugin implements ScriptPlugin {
+
+    @Override
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+        return new ExpressionScriptEngine();
+    }
+}
