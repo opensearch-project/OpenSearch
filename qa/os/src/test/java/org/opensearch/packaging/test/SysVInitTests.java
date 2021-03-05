@@ -59,7 +59,7 @@ public class SysVInitTests extends PackagingTestCase {
     public void test20Start() throws Exception {
         startElasticsearch();
         assertThat(installation.logs, fileWithGlobExist("gc.log*"));
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
         sh.run("service elasticsearch status"); // returns 0 exit status when ok
     }
 

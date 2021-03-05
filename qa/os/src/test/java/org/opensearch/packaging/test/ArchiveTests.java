@@ -135,7 +135,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         List<Path> gcLogs = FileUtils.lsGlob(installation.logs, "gc.log*");
         assertThat(gcLogs, is(not(empty())));
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
 
         stopElasticsearch();
     }
@@ -151,7 +151,7 @@ public class ArchiveTests extends PackagingTestCase {
         });
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
         stopElasticsearch();
 
         String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
@@ -174,7 +174,7 @@ public class ArchiveTests extends PackagingTestCase {
             });
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests();
+            ServerUtils.runOpenSearchTests();
             stopElasticsearch();
 
             String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
@@ -240,7 +240,7 @@ public class ArchiveTests extends PackagingTestCase {
         sh.getEnv().put("JAVA_HOME", "");
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
         stopElasticsearch();
     }
 

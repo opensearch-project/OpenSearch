@@ -52,7 +52,7 @@ import static org.opensearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.opensearch.packaging.util.Platforms.getOsRelease;
 import static org.opensearch.packaging.util.Platforms.isSystemd;
 import static org.opensearch.packaging.util.ServerUtils.makeRequest;
-import static org.opensearch.packaging.util.ServerUtils.runElasticsearchTests;
+import static org.opensearch.packaging.util.ServerUtils.runOpenSearchTests;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -96,7 +96,7 @@ public class PackageTests extends PackagingTestCase {
         try {
             Files.write(installation.envFile, singletonList("JAVA_HOME=" + systemJavaHome), APPEND);
             startElasticsearch();
-            runElasticsearchTests();
+            runOpenSearchTests();
             stopElasticsearch();
         } finally {
             Files.write(installation.envFile, originalEnvFile);
@@ -123,7 +123,7 @@ public class PackageTests extends PackagingTestCase {
 
         try {
             startElasticsearch();
-            runElasticsearchTests();
+            runOpenSearchTests();
             stopElasticsearch();
         } finally {
             if (Files.exists(Paths.get(backupPath))) {
@@ -175,7 +175,7 @@ public class PackageTests extends PackagingTestCase {
         assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
         assertPathsExist(installation.logs.resolve("elasticsearch_server.json"));
 
-        runElasticsearchTests();
+        runOpenSearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
         stopElasticsearch();
     }
@@ -245,7 +245,7 @@ public class PackageTests extends PackagingTestCase {
 
             startElasticsearch();
             restartElasticsearch(sh, installation);
-            runElasticsearchTests();
+            runOpenSearchTests();
             stopElasticsearch();
         } finally {
             cleanup();

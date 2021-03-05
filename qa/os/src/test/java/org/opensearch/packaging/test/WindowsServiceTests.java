@@ -182,7 +182,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     // NOTE: service description is not attainable through any powershell api, so checking it is not possible...
     public void assertStartedAndStop() throws Exception {
         ServerUtils.waitForOpenSearch(installation);
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);

@@ -183,7 +183,7 @@ public class ServerUtils {
         assertThat("cluster health response must contain desired status", body, containsString(status));
     }
 
-    public static void runElasticsearchTests() throws Exception {
+    public static void runOpenSearchTests() throws Exception {
         makeRequest(
             Request.Post("http://localhost:9200/library/book/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON)

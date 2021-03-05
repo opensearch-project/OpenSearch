@@ -162,7 +162,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, false));
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
         stopElasticsearch();
     }
 
@@ -193,7 +193,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(password, false, true));
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
         stopElasticsearch();
     }
 
@@ -212,7 +212,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
         stopElasticsearch();
     }
 
@@ -265,7 +265,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Files.write(esKeystorePassphraseFile, singletonList(password));
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests();
+            ServerUtils.runOpenSearchTests();
             stopElasticsearch();
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
@@ -314,7 +314,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         envVars.put("KEYSTORE_PASSWORD", password);
         runContainer(distribution(), volumes, envVars);
         waitForOpenSearch(installation);
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
     }
 
     /**
@@ -348,7 +348,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             runContainer(distribution(), volumes, envVars);
 
             waitForOpenSearch(installation);
-            ServerUtils.runElasticsearchTests();
+            ServerUtils.runOpenSearchTests();
         } finally {
             if (tempDir != null) {
                 rm(tempDir);

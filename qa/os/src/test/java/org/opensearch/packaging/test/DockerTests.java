@@ -143,7 +143,7 @@ public class DockerTests extends PackagingTestCase {
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runOpenSearchTests();
     }
 
     /**
