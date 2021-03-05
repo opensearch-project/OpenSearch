@@ -1,8 +1,8 @@
 [[search]]
 == Search APIs
 
-Search APIs are used to search and aggregate data stored in {es} indices and
-data streams. For an overview and related tutorials, see <<search-your-data>>.
+Search APIs are used to search and aggregate data stored in {es} indices. 
+For an overview and related tutorials, see <<search-your-data>>.
 
 Most search APIs support <<multi-index,multi-target syntax>>, with the
 exception of the <<search-explain,explain API>>.

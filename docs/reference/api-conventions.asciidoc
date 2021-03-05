@@ -19,7 +19,7 @@ Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
 parameter also support _multi-target syntax_.
 
 In multi-target syntax, you can use a comma-separated list to run a request on
-multiple resources, such as data streams, indices, or index aliases:
+multiple resources, such as indices or index aliases:
 `test1,test2,test3`. You can also use {wikipedia}/Glob_(programming)[glob-like]
 wildcard (`*`) expressions to target resources that match a pattern: `test*` or
 `*test` or `te*t` or `*test*`.
@@ -58,8 +58,7 @@ Indices that are configured to be hidden with the <<index-hidden,index.hidden>> 
 excluded from mult-target queries by default. 
 To include hidden indices, you must specify the `expand_wildcards` parameter.
 
-The backing indices for data streams are hidden indices, 
-and some features like {ml} store information in hidden indices. 
+Some features like {ml} store information in hidden indices. 
 
 Global index templates that match all indices are not applied to hidden indices.
 
@@ -688,14 +687,14 @@ string parameter.
 === URL-based access control
 
 Many users use a proxy with URL-based access control to secure access to
-{es} data streams and indices. For <<search-multi-search,multi-search>>,
+{es} indices. For <<search-multi-search,multi-search>>,
 <<docs-multi-get,multi-get>>, and <<docs-bulk,bulk>> requests, the user has
-the choice of specifying a data stream or  index in the URL and on each individual request
+the choice of specifying an index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 
-To prevent the user from overriding the data stream or index specified in the
+To prevent the user from overriding the index specified in the
 URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.yml`.
 
 
 This causes  {es} to
-reject requests that explicitly specify a data stream or index in the request body.
+reject requests that explicitly specify an index in the request body.
