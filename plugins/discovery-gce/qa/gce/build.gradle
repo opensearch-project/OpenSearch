@@ -24,7 +24,7 @@ import org.opensearch.gradle.test.AntFixture
 
 import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
 final int gceNumberOfNodes = 3
 

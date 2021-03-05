@@ -19,7 +19,7 @@ import org.opensearch.gradle.info.BuildParams
  * under the License.
  */
 apply plugin: "elasticsearch.publish"
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 esplugin {
   description 'The nio transport.'

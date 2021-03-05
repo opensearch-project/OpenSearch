@@ -26,7 +26,7 @@ import org.opensearch.gradle.test.rest.YamlRestTestPlugin
 
 import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(':plugins:discovery-ec2')

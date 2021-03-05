@@ -18,13 +18,13 @@
  */
 
 subprojects {
-  apply plugin: 'elasticsearch.testclusters'
+  apply plugin: 'opensearch.testclusters'
 }
 
 // only configure immediate children of plugins dir
 configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.opensearch.plugin'
-  apply plugin: 'elasticsearch.esplugin'
+  apply plugin: 'opensearch.opensearchplugin'
 
   esplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
