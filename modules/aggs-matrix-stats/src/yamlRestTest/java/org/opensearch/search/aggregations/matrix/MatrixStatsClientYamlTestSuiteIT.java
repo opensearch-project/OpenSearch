@@ -16,16 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
+package org.opensearch.search.aggregations.matrix;
 
-esplugin {
-  description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
-  classname 'org.opensearch.search.aggregations.matrix.MatrixAggregationPlugin'
-  hasClientJar = true
-}
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
-  }
+public class MatrixStatsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    public MatrixStatsClientYamlTestSuiteIT(@Name("yaml")ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }
