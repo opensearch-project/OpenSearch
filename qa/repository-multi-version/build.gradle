@@ -21,8 +21,8 @@ import org.opensearch.gradle.Version
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
