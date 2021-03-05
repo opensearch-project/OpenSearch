@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.percolator;
+package org.opensearch.percolator;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.mapper.Mapper;

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.percolator;
+package org.opensearch.percolator;
 
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
@@ -62,8 +62,8 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
-import org.elasticsearch.percolator.QueryAnalyzer.QueryExtraction;
-import org.elasticsearch.percolator.QueryAnalyzer.Result;
+import org.opensearch.percolator.QueryAnalyzer.QueryExtraction;
+import org.opensearch.percolator.QueryAnalyzer.Result;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -76,8 +76,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
-import static org.elasticsearch.percolator.QueryAnalyzer.selectBestResult;
+import static org.opensearch.percolator.QueryAnalyzer.analyze;
+import static org.opensearch.percolator.QueryAnalyzer.selectBestResult;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
