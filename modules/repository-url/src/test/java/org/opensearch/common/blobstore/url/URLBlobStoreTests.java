@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.url;
+package org.opensearch.common.blobstore.url;
 
 import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.SuppressForbidden;
