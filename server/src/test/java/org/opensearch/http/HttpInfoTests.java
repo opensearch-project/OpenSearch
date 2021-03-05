@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
 import java.io.IOException;
 import java.net.InetAddress;

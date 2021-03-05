@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.opensearch.ingest;
 
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.Metadata;

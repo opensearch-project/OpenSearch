@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.opensearch.discovery;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;

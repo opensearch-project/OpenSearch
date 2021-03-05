@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.opensearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.OpenSearchException;

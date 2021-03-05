@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.ingest;
+package org.opensearch.ingest;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.script.ScriptService;

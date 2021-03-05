@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestStatus;

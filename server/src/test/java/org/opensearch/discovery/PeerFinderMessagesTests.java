@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.opensearch.discovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.PeersResponse;

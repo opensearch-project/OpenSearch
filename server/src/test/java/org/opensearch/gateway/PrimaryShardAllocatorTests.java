@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.Version;

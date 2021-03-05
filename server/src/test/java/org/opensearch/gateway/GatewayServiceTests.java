@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
