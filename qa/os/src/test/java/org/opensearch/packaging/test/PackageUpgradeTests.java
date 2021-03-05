@@ -53,7 +53,7 @@ public class PackageUpgradeTests extends PackagingTestCase {
     }
 
     public void test12SetupBwcVersion() throws Exception {
-        startElasticsearch();
+        startOpenSearch();
 
         // create indexes explicitly with 0 replicas so when restarting we can reach green state
         makeRequest(
@@ -81,7 +81,7 @@ public class PackageUpgradeTests extends PackagingTestCase {
 
         assertDocsExist();
 
-        stopElasticsearch();
+        stopOpenSearch();
     }
 
     public void test20InstallUpgradedVersion() throws Exception {

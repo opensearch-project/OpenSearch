@@ -123,7 +123,7 @@ public class ArchiveTests extends PackagingTestCase {
         rm(installation.config("opensearch.keystore"));
 
         try {
-            startElasticsearch();
+            startOpenSearch();
         } catch (Exception e) {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
@@ -137,7 +137,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(gcLogs, is(not(empty())));
         ServerUtils.runOpenSearchTests();
 
-        stopElasticsearch();
+        stopOpenSearch();
     }
 
     public void test51JavaHomeOverride() throws Exception {
@@ -150,9 +150,9 @@ public class ArchiveTests extends PackagingTestCase {
             sh.getEnv().put("JAVA_HOME", systemJavaHome1);
         });
 
-        startElasticsearch();
+        startOpenSearch();
         ServerUtils.runOpenSearchTests();
-        stopElasticsearch();
+        stopOpenSearch();
 
         String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
@@ -173,9 +173,9 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("JAVA_HOME", systemJavaHome1);
             });
 
-            startElasticsearch();
+            startOpenSearch();
             ServerUtils.runOpenSearchTests();
-            stopElasticsearch();
+            stopOpenSearch();
 
             String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
             assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
@@ -194,11 +194,11 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
                 // verify ES can start, stop and run plugin list
-                startElasticsearch();
+                startOpenSearch();
 
-                stopElasticsearch();
+                stopOpenSearch();
 
-                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+                String pluginListCommand = installation.bin + "/opensearch-plugin list";
                 Result result = sh.run(pluginListCommand);
                 assertThat(result.exitCode, equalTo(0));
 
@@ -219,11 +219,11 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("JAVA_HOME", testJavaHome);
 
                 // verify ES can start, stop and run plugin list
-                startElasticsearch();
+                startOpenSearch();
 
-                stopElasticsearch();
+                stopOpenSearch();
 
-                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+                String pluginListCommand = installation.bin + "/opensearch-plugin list";
                 Result result = sh.run(pluginListCommand);
                 assertThat(result.exitCode, equalTo(0));
             } finally {
@@ -239,9 +239,9 @@ public class ArchiveTests extends PackagingTestCase {
 
         sh.getEnv().put("JAVA_HOME", "");
 
-        startElasticsearch();
+        startOpenSearch();
         ServerUtils.runOpenSearchTests();
-        stopElasticsearch();
+        stopOpenSearch();
     }
 
     public void test70CustomPathConfAndJvmOptions() throws Exception {
@@ -252,13 +252,13 @@ public class ArchiveTests extends PackagingTestCase {
 
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
 
-            startElasticsearch();
+            startOpenSearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
-            stopElasticsearch();
+            stopOpenSearch();
         });
     }
 
@@ -267,12 +267,12 @@ public class ArchiveTests extends PackagingTestCase {
         try {
             append(heapOptions, "-Xms512m\n-Xmx512m\n");
 
-            startElasticsearch();
+            startOpenSearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
-            stopElasticsearch();
+            stopOpenSearch();
         } finally {
             rm(heapOptions);
         }
@@ -289,13 +289,13 @@ public class ArchiveTests extends PackagingTestCase {
             append(firstOptions, "-Xms384m\n-Xmx384m\n-XX:-UseCompressedOops\n");
             append(secondOptions, "-Xms512m\n-Xmx512m\n");
 
-            startElasticsearch();
+            startOpenSearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
-            stopElasticsearch();
+            stopOpenSearch();
         } finally {
             rm(firstOptions);
             rm(secondOptions);
@@ -307,12 +307,12 @@ public class ArchiveTests extends PackagingTestCase {
         try {
             append(jvmOptionsIgnored, "-Xms512\n-Xmx512m\n");
 
-            startElasticsearch();
+            startOpenSearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
 
-            stopElasticsearch();
+            stopOpenSearch();
         } finally {
             rm(jvmOptionsIgnored);
         }
@@ -323,12 +323,12 @@ public class ArchiveTests extends PackagingTestCase {
         withCustomConfig(tempConf -> {
             append(tempConf.resolve("opensearch.yml"), "node.name: relative");
 
-            startElasticsearch();
+            startOpenSearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"name\":\"relative\""));
 
-            stopElasticsearch();
+            stopOpenSearch();
         });
     }
 
@@ -356,8 +356,8 @@ public class ArchiveTests extends PackagingTestCase {
 
         sh.setWorkingDirectory(getRootTempDir());
 
-        startElasticsearch();
-        stopElasticsearch();
+        startOpenSearch();
+        stopOpenSearch();
 
         Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));

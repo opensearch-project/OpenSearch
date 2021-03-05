@@ -172,10 +172,10 @@ public class Archives {
         Stream.of(
             "elasticsearch",
             "elasticsearch-env",
-            "elasticsearch-keystore",
-            "elasticsearch-plugin",
-            "elasticsearch-shard",
-            "elasticsearch-node"
+            "opensearch-keystore",
+            "opensearch-plugin",
+            "opensearch-shard",
+            "opensearch-shard"
         ).forEach(executable -> {
 
             assertThat(es.bin(executable), file(File, owner, owner, p755));
@@ -197,11 +197,11 @@ public class Archives {
             .forEach(doc -> assertThat(es.home.resolve(doc), file(File, owner, owner, p644)));
     }
 
-    public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
-        return runElasticsearchStartCommand(installation, sh, null, true);
+    public static Shell.Result startOpenSearch(Installation installation, Shell sh) {
+        return runOpenSearchStartCommand(installation, sh, null, true);
     }
 
-    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
+    public static Shell.Result startOpenSearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
         throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
@@ -237,7 +237,7 @@ public class Archives {
         return sh.runIgnoreExitCode(script);
     }
 
-    public static Shell.Result runElasticsearchStartCommand(
+    public static Shell.Result runOpenSearchStartCommand(
         Installation installation,
         Shell sh,
         String keystorePassword,
@@ -357,7 +357,7 @@ public class Archives {
         assertThat(pid, is(not(emptyOrNullString())));
     }
 
-    public static void stopElasticsearch(Installation installation) throws Exception {
+    public static void stopOpenSearch(Installation installation) throws Exception {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
         assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();

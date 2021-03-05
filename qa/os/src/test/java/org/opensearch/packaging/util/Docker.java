@@ -223,7 +223,7 @@ public class Docker {
      * This is called every time a container is started.
      */
     public static void waitForOpenSearchToStart() {
-        boolean isElasticsearchRunning = false;
+        boolean isOpenSearchRunning = false;
         int attempt = 0;
 
         String psOutput = null;
@@ -236,7 +236,7 @@ public class Docker {
                 psOutput = dockerShell.run("ps -ww ax").stdout;
 
                 if (psOutput.contains("org.opensearch.bootstrap.Elasticsearch")) {
-                    isElasticsearchRunning = true;
+                    isOpenSearchRunning = true;
                     break;
                 }
             } catch (Exception e) {
@@ -244,7 +244,7 @@ public class Docker {
             }
         } while (attempt++ < STARTUP_ATTEMPTS_MAX);
 
-        if (isElasticsearchRunning == false) {
+        if (isOpenSearchRunning == false) {
             final Shell.Result dockerLogs = getContainerLogs();
             fail(
                 "Elasticsearch container did not start successfully.\n\nps output:\n"
@@ -261,7 +261,7 @@ public class Docker {
      * Waits for the Elasticsearch container to exit.
      */
     private static void waitForOpenSearchToExit() {
-        boolean isElasticsearchRunning = true;
+        boolean isOpenSearchRunning = true;
         int attempt = 0;
 
         do {
@@ -270,7 +270,7 @@ public class Docker {
                 Thread.sleep(1000);
 
                 if (sh.run("docker ps --quiet --no-trunc").stdout.contains(containerId) == false) {
-                    isElasticsearchRunning = false;
+                    isOpenSearchRunning = false;
                     break;
                 }
             } catch (Exception e) {
@@ -278,7 +278,7 @@ public class Docker {
             }
         } while (attempt++ < 5);
 
-        if (isElasticsearchRunning) {
+        if (isOpenSearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
             fail("Elasticsearch container did exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
         }
@@ -501,7 +501,7 @@ public class Docker {
         Stream.of("opensearch.keystore", "opensearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
 
-        assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
+        assertThat(dockerShell.run(es.bin("opensearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
         Stream.of(es.bin, es.lib).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
@@ -509,10 +509,10 @@ public class Docker {
             "elasticsearch",
             "elasticsearch-cli",
             "elasticsearch-env",
-            "elasticsearch-keystore",
-            "elasticsearch-node",
-            "elasticsearch-plugin",
-            "elasticsearch-shard"
+            "opensearch-keystore",
+            "opensearch-shard",
+            "opensearch-plugin",
+            "opensearch-shard"
         ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));

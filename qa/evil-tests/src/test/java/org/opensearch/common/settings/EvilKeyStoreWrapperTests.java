@@ -53,7 +53,7 @@ public class EvilKeyStoreWrapperTests extends ESTestCase {
             final UserException e = expectThrows(UserException.class, () -> wrapper.save(configDir, new char[0]));
             final String expected = String.format(
                 Locale.ROOT,
-                "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
+                "unable to create temporary keystore at [%s], write permissions required for [%s] or run [opensearch-keystore upgrade]",
                 configDir.resolve("opensearch.keystore.tmp"),
                 configDir);
             assertThat(e, hasToString(containsString(expected)));

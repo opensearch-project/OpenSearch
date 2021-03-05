@@ -238,7 +238,7 @@ public abstract class PackagingTestCase extends Assert {
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
-            awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
+            awaitElasticsearchStartup(runOpenSearchStartCommand(null, true, false));
         } catch (Exception e) {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
@@ -263,13 +263,13 @@ public abstract class PackagingTestCase extends Assert {
             logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
             throw e;
         }
-        stopElasticsearch();
+        stopOpenSearch();
     }
 
     /**
      * Run the command to start Elasticsearch, but don't wait or test for success.
      * This method is useful for testing failure conditions in startup. To await success,
-     * use {@link #startElasticsearch()}.
+     * use {@link #startOpenSearch()}.
      * @param password Password for password-protected keystore, null for no password;
      *                 this option will fail for non-archive distributions
      * @param daemonize Run Elasticsearch in the background
@@ -278,7 +278,7 @@ public abstract class PackagingTestCase extends Assert {
      * @return Shell results of the startup command.
      * @throws Exception when command fails immediately.
      */
-    public Shell.Result runElasticsearchStartCommand(String password, boolean daemonize, boolean useTty) throws Exception {
+    public Shell.Result runOpenSearchStartCommand(String password, boolean daemonize, boolean useTty) throws Exception {
         if (password != null) {
             assertTrue("Only archives support user-entered passwords", distribution().isArchive());
         }
@@ -287,13 +287,13 @@ public abstract class PackagingTestCase extends Assert {
             case TAR:
             case ZIP:
                 if (useTty) {
-                    return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+                    return Archives.startOpenSearchWithTty(installation, sh, password, daemonize);
                 } else {
-                    return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
+                    return Archives.runOpenSearchStartCommand(installation, sh, password, daemonize);
                 }
             case DEB:
             case RPM:
-                return Packages.runElasticsearchStartCommand(sh);
+                return Packages.runOpenSearchStartCommand(sh);
             case DOCKER:
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
@@ -302,15 +302,15 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
-    public void stopElasticsearch() throws Exception {
+    public void stopOpenSearch() throws Exception {
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                Archives.stopElasticsearch(installation);
+                Archives.stopOpenSearch(installation);
                 break;
             case DEB:
             case RPM:
-                Packages.stopElasticsearch(sh);
+                Packages.stopOpenSearch(sh);
                 break;
             case DOCKER:
                 // nothing, "installing" docker image is running it
@@ -341,18 +341,18 @@ public abstract class PackagingTestCase extends Assert {
 
     /**
      * Start Elasticsearch and wait until it's up and running. If you just want to run
-     * the start command, use {@link #runElasticsearchStartCommand(String, boolean, boolean)}.
+     * the start command, use {@link #runOpenSearchStartCommand(String, boolean, boolean)}.
      * @throws Exception if Elasticsearch can't start
      */
-    public void startElasticsearch() throws Exception {
-        awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
+    public void startOpenSearch() throws Exception {
+        awaitElasticsearchStartup(runOpenSearchStartCommand(null, true, false));
     }
 
-    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
-        assertElasticsearchFailure(result, Collections.singletonList(expectedMessage), journaldWrapper);
+    public void assertOpenSearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
+        assertOpenSearchFailure(result, Collections.singletonList(expectedMessage), journaldWrapper);
     }
 
-    public void assertElasticsearchFailure(Shell.Result result, List<String> expectedMessages, Packages.JournaldWrapper journaldWrapper) {
+    public void assertOpenSearchFailure(Shell.Result result, List<String> expectedMessages, Packages.JournaldWrapper journaldWrapper) {
         @SuppressWarnings("unchecked")
         Matcher<String>[] stringMatchers = expectedMessages.stream().map(CoreMatchers::containsString).toArray(Matcher[]::new);
         if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
@@ -367,7 +367,7 @@ public abstract class PackagingTestCase extends Assert {
         } else if (distribution().isPackage() && Platforms.isSystemd()) {
 
             // For systemd, retrieve the error from journalctl
-            assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
+            assertThat(result.stderr, containsString("Job for opensearch.service failed"));
             Shell.Result error = journaldWrapper.getLogs();
             assertThat(error.stdout, anyOf(stringMatchers));
 
@@ -420,7 +420,7 @@ public abstract class PackagingTestCase extends Assert {
      * Run the given action with a temporary copy of the config directory.
      *
      * Files under the path passed to the action may be modified as necessary for the
-     * test to execute, and running Elasticsearch with {@link #startElasticsearch()} will
+     * test to execute, and running Elasticsearch with {@link #startOpenSearch()} will
      * use the temporary directory.
      */
     public void withCustomConfig(CheckedConsumer<Path, Exception> action) throws Exception {

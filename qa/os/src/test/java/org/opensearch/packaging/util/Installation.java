@@ -189,9 +189,9 @@ public class Installation {
     public class Executables {
 
         public final Executable elasticsearch = new Executable("elasticsearch");
-        public final Executable pluginTool = new Executable("elasticsearch-plugin");
-        public final Executable keystoreTool = new Executable("elasticsearch-keystore");
-        public final Executable shardTool = new Executable("elasticsearch-shard");
-        public final Executable nodeTool = new Executable("elasticsearch-node");
+        public final Executable pluginTool = new Executable("opensearch-plugin");
+        public final Executable keystoreTool = new Executable("opensearch-keystore");
+        public final Executable shardTool = new Executable("opensearch-shard");
+        public final Executable nodeTool = new Executable("opensearch-shard");
     }
 }

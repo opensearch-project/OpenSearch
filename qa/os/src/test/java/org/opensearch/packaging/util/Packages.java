@@ -56,7 +56,7 @@ public class Packages {
     private static final Logger logger = LogManager.getLogger(Packages.class);
 
     public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
-    public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/elasticsearch.service");
+    public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/opensearch.service");
 
     public static void assertInstalled(Distribution distribution) throws Exception {
         final Result status = packageStatus(distribution);
@@ -188,11 +188,11 @@ public class Packages {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
         assertThat(es.config(".opensearch.keystore.initial_md5sum"), file(File, "root", "elasticsearch", p644));
 
-        assertThat(sh.run("sudo -u elasticsearch " + es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
+        assertThat(sh.run("sudo -u elasticsearch " + es.bin("opensearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
         Stream.of(es.bin, es.lib).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
 
-        Stream.of("elasticsearch", "elasticsearch-plugin", "elasticsearch-keystore", "elasticsearch-shard", "elasticsearch-node")
+        Stream.of("elasticsearch", "opensearch-plugin", "opensearch-keystore", "opensearch-shard", "opensearch-shard")
             .forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
 
         Stream.of("NOTICE.txt", "README.asciidoc").forEach(doc -> assertThat(es.home.resolve(doc), file(File, "root", "root", p644)));
@@ -226,12 +226,12 @@ public class Packages {
     /**
      * Starts Elasticsearch, without checking that startup is successful.
      */
-    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
+    public static Shell.Result runOpenSearchStartCommand(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
-            sh.run("systemctl enable elasticsearch.service");
-            sh.run("systemctl is-enabled elasticsearch.service");
-            return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+            sh.run("systemctl enable opensearch.service");
+            sh.run("systemctl is-enabled opensearch.service");
+            return sh.runIgnoreExitCode("systemctl start opensearch.service");
         }
         return sh.runIgnoreExitCode("service elasticsearch start");
     }
@@ -240,24 +240,24 @@ public class Packages {
         waitForOpenSearch(installation);
 
         if (isSystemd()) {
-            sh.run("systemctl is-active elasticsearch.service");
-            sh.run("systemctl status elasticsearch.service");
+            sh.run("systemctl is-active opensearch.service");
+            sh.run("systemctl status opensearch.service");
         } else {
             sh.run("service elasticsearch status");
         }
     }
 
-    public static void stopElasticsearch(Shell sh) {
+    public static void stopOpenSearch(Shell sh) {
         if (isSystemd()) {
-            sh.run("systemctl stop elasticsearch.service");
+            sh.run("systemctl stop opensearch.service");
         } else {
             sh.run("service elasticsearch stop");
         }
     }
 
-    public static void restartElasticsearch(Shell sh, Installation installation) throws Exception {
+    public static void restartOpenSearch(Shell sh, Installation installation) throws Exception {
         if (isSystemd()) {
-            sh.run("systemctl restart elasticsearch.service");
+            sh.run("systemctl restart opensearch.service");
         } else {
             sh.run("service elasticsearch restart");
         }
@@ -288,7 +288,7 @@ public class Packages {
          * for Elasticsearch logs and storing it in class state.
          */
         public void clear() {
-            final String script = "sudo journalctl --unit=elasticsearch.service --lines=0 --show-cursor -o cat | sed -e 's/-- cursor: //'";
+            final String script = "sudo journalctl --unit=opensearch.service --lines=0 --show-cursor -o cat | sed -e 's/-- cursor: //'";
             cursor = sh.run(script).stdout.trim();
         }
 
@@ -297,7 +297,7 @@ public class Packages {
          * @return Recent journald logs for the Elasticsearch service.
          */
         public Result getLogs() {
-            return sh.run("journalctl -u elasticsearch.service --after-cursor='" + this.cursor + "'");
+            return sh.run("journalctl -u opensearch.service --after-cursor='" + this.cursor + "'");
         }
     }
 

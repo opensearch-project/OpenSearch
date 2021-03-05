@@ -41,14 +41,14 @@ public class SysVInitTests extends PackagingTestCase {
     }
 
     @Override
-    public void startElasticsearch() throws Exception {
+    public void startOpenSearch() throws Exception {
         sh.run("service elasticsearch start");
         ServerUtils.waitForOpenSearch(installation);
         sh.run("service elasticsearch status");
     }
 
     @Override
-    public void stopElasticsearch() {
+    public void stopOpenSearch() {
         sh.run("service elasticsearch stop");
     }
 
@@ -57,7 +57,7 @@ public class SysVInitTests extends PackagingTestCase {
     }
 
     public void test20Start() throws Exception {
-        startElasticsearch();
+        startOpenSearch();
         assertThat(installation.logs, fileWithGlobExist("gc.log*"));
         ServerUtils.runOpenSearchTests();
         sh.run("service elasticsearch status"); // returns 0 exit status when ok
@@ -69,7 +69,7 @@ public class SysVInitTests extends PackagingTestCase {
     }
 
     public void test22Stop() throws Exception {
-        stopElasticsearch();
+        stopOpenSearch();
         Shell.Result status = sh.runIgnoreExitCode("service elasticsearch status");
         assertThat(status.exitCode, anyOf(equalTo(3), equalTo(4)));
     }
@@ -81,14 +81,14 @@ public class SysVInitTests extends PackagingTestCase {
         // see https://github.com/elastic/elasticsearch/issues/11594
 
         sh.run("rm -rf " + installation.pidDir);
-        startElasticsearch();
+        startOpenSearch();
         assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
-        stopElasticsearch();
+        stopOpenSearch();
     }
 
     public void test31MaxMapTooSmall() throws Exception {
         sh.run("sysctl -q -w vm.max_map_count=262140");
-        startElasticsearch();
+        startOpenSearch();
         Shell.Result result = sh.run("sysctl -n vm.max_map_count");
         String maxMapCount = result.stdout.trim();
         sh.run("service elasticsearch stop");
@@ -99,7 +99,7 @@ public class SysVInitTests extends PackagingTestCase {
         // Ensures that if $MAX_MAP_COUNT is greater than the set
         // value on the OS we do not attempt to update it.
         sh.run("sysctl -q -w vm.max_map_count=262145");
-        startElasticsearch();
+        startOpenSearch();
         Shell.Result result = sh.run("sysctl -n vm.max_map_count");
         String maxMapCount = result.stdout.trim();
         sh.run("service elasticsearch stop");
