@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
