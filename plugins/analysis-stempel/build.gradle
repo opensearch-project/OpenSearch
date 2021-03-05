@@ -20,7 +20,7 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin'
+  classname 'org.opensearch.plugin.analysis.stempel.AnalysisStempelPlugin'
 }
 
 dependencies {

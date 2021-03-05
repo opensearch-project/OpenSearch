@@ -1,10 +1,10 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.opensearch.gradle.MavenFilteringHack
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.test.rest.YamlRestTestPlugin
+import org.opensearch.gradle.test.InternalClusterTestPlugin
 
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -29,7 +29,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
-  classname 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
+  classname 'org.opensearch.repositories.s3.S3RepositoryPlugin'
 }
 
 versions << [

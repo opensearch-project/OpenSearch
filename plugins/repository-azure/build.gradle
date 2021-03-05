@@ -1,9 +1,9 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.opensearch.gradle.MavenFilteringHack
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.InternalClusterTestPlugin
 
-import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+import static org.opensearch.gradle.PropertyNormalization.DEFAULT
+import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -28,7 +28,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
-  classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
+  classname 'org.opensearch.repositories.azure.AzureRepositoryPlugin'
 }
 
 dependencies {

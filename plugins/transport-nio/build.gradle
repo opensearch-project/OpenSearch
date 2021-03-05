@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -23,7 +23,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The nio transport.'
-  classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
+  classname 'org.opensearch.transport.nio.NioTransportPlugin'
   hasClientJar = true
 }
 

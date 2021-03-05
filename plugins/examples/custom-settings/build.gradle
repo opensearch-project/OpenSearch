@@ -22,7 +22,7 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 esplugin {
   name 'custom-settings'
   description 'An example plugin showing how to register custom settings'
-  classname 'org.elasticsearch.example.customsettings.ExampleCustomSettingsPlugin'
+  classname 'org.opensearch.example.customsettings.ExampleCustomSettingsPlugin'
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }

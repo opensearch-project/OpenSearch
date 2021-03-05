@@ -23,7 +23,7 @@ subprojects {
 
 // only configure immediate children of plugins dir
 configure(subprojects.findAll { it.parent.path == project.path }) {
-  group = 'org.elasticsearch.plugin'
+  group = 'org.opensearch.plugin'
   apply plugin: 'elasticsearch.esplugin'
 
   esplugin {

@@ -21,7 +21,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.'
-  classname 'org.elasticsearch.plugin.mapper.AnnotatedTextPlugin'
+  classname 'org.opensearch.plugin.mapper.AnnotatedTextPlugin'
 }
 
 restResources {

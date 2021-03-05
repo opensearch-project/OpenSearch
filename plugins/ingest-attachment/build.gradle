@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -22,7 +22,7 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Ingest processor that uses Apache Tika to extract contents'
-  classname 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
+  classname 'org.opensearch.ingest.attachment.IngestAttachmentPlugin'
 }
 
 versions << [

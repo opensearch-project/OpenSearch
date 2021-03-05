@@ -22,14 +22,14 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 esplugin {
   name 'painless-whitelist'
   description 'An example whitelisting additional classes and methods in painless'
-  classname 'org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
+  classname 'org.opensearch.example.painlesswhitelist.MyWhitelistPlugin'
   extendedPlugins = ['lang-painless']
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 
 dependencies {
-  compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
+  compileOnly "org.opensearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
 }
 
 testClusters.all {
