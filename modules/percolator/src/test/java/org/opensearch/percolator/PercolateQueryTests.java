@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.percolator;
+package org.opensearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Field;
