@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.geoip;
+package org.opensearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
+import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.junit.AfterClass;
