@@ -43,7 +43,7 @@ import static org.opensearch.packaging.util.FileMatcher.p750;
 import static org.opensearch.packaging.util.FileMatcher.p755;
 import static org.opensearch.packaging.util.Platforms.isSysVInit;
 import static org.opensearch.packaging.util.Platforms.isSystemd;
-import static org.opensearch.packaging.util.ServerUtils.waitForElasticsearch;
+import static org.opensearch.packaging.util.ServerUtils.waitForOpenSearch;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
@@ -237,7 +237,7 @@ public class Packages {
     }
 
     public static void assertElasticsearchStarted(Shell sh, Installation installation) throws Exception {
-        waitForElasticsearch(installation);
+        waitForOpenSearch(installation);
 
         if (isSystemd()) {
             sh.run("systemctl is-active elasticsearch.service");

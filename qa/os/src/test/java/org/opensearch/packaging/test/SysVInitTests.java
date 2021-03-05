@@ -43,7 +43,7 @@ public class SysVInitTests extends PackagingTestCase {
     @Override
     public void startElasticsearch() throws Exception {
         sh.run("service elasticsearch start");
-        ServerUtils.waitForElasticsearch(installation);
+        ServerUtils.waitForOpenSearch(installation);
         sh.run("service elasticsearch status");
     }
 

@@ -53,7 +53,7 @@ import static org.opensearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.opensearch.packaging.util.Docker.runContainer;
 import static org.opensearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.opensearch.packaging.util.Docker.verifyContainerInstallation;
-import static org.opensearch.packaging.util.Docker.waitForElasticsearch;
+import static org.opensearch.packaging.util.Docker.waitForOpenSearch;
 import static org.opensearch.packaging.util.FileMatcher.p600;
 import static org.opensearch.packaging.util.FileMatcher.p644;
 import static org.opensearch.packaging.util.FileMatcher.p660;
@@ -139,7 +139,7 @@ public class DockerTests extends PackagingTestCase {
      * is minimally functional.
      */
     public void test050BasicApiTests() throws Exception {
-        waitForElasticsearch(installation);
+        waitForOpenSearch(installation);
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
@@ -170,7 +170,7 @@ public class DockerTests extends PackagingTestCase {
         final Map<String, String> envVars = singletonMap("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
         runContainer(distribution(), volumes, envVars);
 
-        waitForElasticsearch(installation);
+        waitForOpenSearch(installation);
 
         final JsonNode nodes = getJson("_nodes").get("nodes");
         final String nodeId = nodes.fieldNames().next();
@@ -198,7 +198,7 @@ public class DockerTests extends PackagingTestCase {
 
             runContainer(distribution(), volumes, null);
 
-            waitForElasticsearch(installation);
+            waitForOpenSearch(installation);
 
             final JsonNode nodes = getJson("_nodes");
 
@@ -246,7 +246,7 @@ public class DockerTests extends PackagingTestCase {
         // Restart the container
         runContainer(distribution(), volumes, null, 501, 501);
 
-        waitForElasticsearch(installation);
+        waitForOpenSearch(installation);
     }
 
     /**
@@ -428,7 +428,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the container logs contain the expected content for Elasticsearch itself.
      */
     public void test120DockerLogsIncludeElasticsearchLogs() throws Exception {
-        waitForElasticsearch(installation);
+        waitForOpenSearch(installation);
         final Result containerLogs = getContainerLogs();
 
         assertThat("Container logs don't contain abbreviated class names", containerLogs.stdout, containsString("o.e.n.Node"));
@@ -477,7 +477,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that Elasticsearch reports per-node cgroup information.
      */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
-        waitForElasticsearch(installation);
+        waitForOpenSearch(installation);
 
         final JsonNode nodes = getJson("_nodes/stats/os").get("nodes");
 

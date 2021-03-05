@@ -332,7 +332,7 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.assertElasticsearchStarted(sh, installation);
                 break;
             case DOCKER:
-                Docker.waitForElasticsearchToStart();
+                Docker.waitForOpenSearchToStart();
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");

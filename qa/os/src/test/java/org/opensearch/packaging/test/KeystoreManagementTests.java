@@ -47,7 +47,7 @@ import static org.opensearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.opensearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.opensearch.packaging.util.Docker.runContainer;
 import static org.opensearch.packaging.util.Docker.runContainerExpectingFailure;
-import static org.opensearch.packaging.util.Docker.waitForElasticsearch;
+import static org.opensearch.packaging.util.Docker.waitForOpenSearch;
 import static org.opensearch.packaging.util.Docker.waitForPathToExist;
 import static org.opensearch.packaging.util.FileMatcher.Fileness.File;
 import static org.opensearch.packaging.util.FileMatcher.file;
@@ -313,7 +313,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Map<String, String> envVars = new HashMap<>();
         envVars.put("KEYSTORE_PASSWORD", password);
         runContainer(distribution(), volumes, envVars);
-        waitForElasticsearch(installation);
+        waitForOpenSearch(installation);
         ServerUtils.runElasticsearchTests();
     }
 
@@ -347,7 +347,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             runContainer(distribution(), volumes, envVars);
 
-            waitForElasticsearch(installation);
+            waitForOpenSearch(installation);
             ServerUtils.runElasticsearchTests();
         } finally {
             if (tempDir != null) {

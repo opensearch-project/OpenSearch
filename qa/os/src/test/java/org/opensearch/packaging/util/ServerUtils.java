@@ -61,8 +61,8 @@ public class ServerUtils {
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(30);
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
 
-    public static void waitForElasticsearch(Installation installation) throws Exception {
-        waitForElasticsearch("green", null, installation, null, null);
+    public static void waitForOpenSearch(Installation installation) throws Exception {
+        waitForOpenSearch("green", null, installation, null, null);
     }
 
     /**
@@ -112,7 +112,7 @@ public class ServerUtils {
         return executor.execute(request).returnResponse();
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
+    public static void waitForOpenSearch(String status, String index, Installation installation, String username, String password)
         throws Exception {
 
         Objects.requireNonNull(status);

@@ -127,7 +127,7 @@ public class Docker {
     ) {
         executeDockerRun(distribution, volumes, envVars, uid, gid);
 
-        waitForElasticsearchToStart();
+        waitForOpenSearchToStart();
 
         return Installation.ofContainer(dockerShell, distribution);
     }
@@ -148,7 +148,7 @@ public class Docker {
     ) {
         executeDockerRun(distribution, volumes, envVars, null, null);
 
-        waitForElasticsearchToExit();
+        waitForOpenSearchToExit();
 
         return getContainerLogs();
     }
@@ -222,7 +222,7 @@ public class Docker {
      * Waits for the Elasticsearch process to start executing in the container.
      * This is called every time a container is started.
      */
-    public static void waitForElasticsearchToStart() {
+    public static void waitForOpenSearchToStart() {
         boolean isElasticsearchRunning = false;
         int attempt = 0;
 
@@ -260,7 +260,7 @@ public class Docker {
     /**
      * Waits for the Elasticsearch container to exit.
      */
-    private static void waitForElasticsearchToExit() {
+    private static void waitForOpenSearchToExit() {
         boolean isElasticsearchRunning = true;
         int attempt = 0;
 
@@ -526,13 +526,13 @@ public class Docker {
         });
     }
 
-    public static void waitForElasticsearch(Installation installation) throws Exception {
-        withLogging(() -> ServerUtils.waitForElasticsearch(installation));
+    public static void waitForOpenSearch(Installation installation) throws Exception {
+        withLogging(() -> ServerUtils.waitForOpenSearch(installation));
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
+    public static void waitForOpenSearch(String status, String index, Installation installation, String username, String password)
         throws Exception {
-        withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
+        withLogging(() -> ServerUtils.waitForOpenSearch(status, index, installation, username, password));
     }
 
     /**
