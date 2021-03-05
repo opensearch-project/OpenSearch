@@ -167,7 +167,7 @@ public class Archives {
 
         assertThat(es.bin, file(Directory, owner, owner, p755));
         assertThat(es.lib, file(Directory, owner, owner, p755));
-        assertThat(Files.exists(es.config("elasticsearch.keystore")), is(false));
+        assertThat(Files.exists(es.config("opensearch.keystore")), is(false));
 
         Stream.of(
             "elasticsearch",

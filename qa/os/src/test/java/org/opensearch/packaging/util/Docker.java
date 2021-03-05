@@ -498,7 +498,7 @@ public class Docker {
 
         Stream.of(es.plugins, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
-        Stream.of("elasticsearch.keystore", "opensearch.yml", "jvm.options", "log4j2.properties")
+        Stream.of("opensearch.keystore", "opensearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));

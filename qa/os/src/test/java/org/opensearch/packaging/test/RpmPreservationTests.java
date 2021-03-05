@@ -103,7 +103,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         );
 
         assertThat(installation.config, fileExists());
-        assertThat(installation.config("elasticsearch.keystore"), fileExists());
+        assertThat(installation.config("opensearch.keystore"), fileExists());
 
         Stream.of("opensearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
         assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());

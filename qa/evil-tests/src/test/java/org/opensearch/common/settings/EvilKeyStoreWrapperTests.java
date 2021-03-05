@@ -54,7 +54,7 @@ public class EvilKeyStoreWrapperTests extends ESTestCase {
             final String expected = String.format(
                 Locale.ROOT,
                 "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
-                configDir.resolve("elasticsearch.keystore.tmp"),
+                configDir.resolve("opensearch.keystore.tmp"),
                 configDir);
             assertThat(e, hasToString(containsString(expected)));
             assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));

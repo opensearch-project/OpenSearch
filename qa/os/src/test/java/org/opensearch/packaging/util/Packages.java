@@ -184,9 +184,9 @@ public class Packages {
         assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
         assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
-        Stream.of("elasticsearch.keystore", "opensearch.yml", "jvm.options", "log4j2.properties")
+        Stream.of("opensearch.keystore", "opensearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
-        assertThat(es.config(".elasticsearch.keystore.initial_md5sum"), file(File, "root", "elasticsearch", p644));
+        assertThat(es.config(".opensearch.keystore.initial_md5sum"), file(File, "root", "elasticsearch", p644));
 
         assertThat(sh.run("sudo -u elasticsearch " + es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 

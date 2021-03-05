@@ -120,7 +120,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test50StartAndStop() throws Exception {
         // cleanup from previous test
-        rm(installation.config("elasticsearch.keystore"));
+        rm(installation.config("opensearch.keystore"));
 
         try {
             startElasticsearch();
@@ -235,7 +235,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test54ForceBundledJdkEmptyJavaHome() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
         // cleanup from previous test
-        rm(installation.config("elasticsearch.keystore"));
+        rm(installation.config("opensearch.keystore"));
 
         sh.getEnv().put("JAVA_HOME", "");
 

@@ -110,7 +110,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = Docker.runContainer(distribution());
 
         try {
-            waitForPathToExist(installation.config("elasticsearch.keystore"));
+            waitForPathToExist(installation.config("opensearch.keystore"));
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -141,7 +141,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         startElasticsearch();
         stopElasticsearch();
 
-        Platforms.onWindows(() -> sh.chown(installation.config("elasticsearch.keystore")));
+        Platforms.onWindows(() -> sh.chown(installation.config("opensearch.keystore")));
 
         verifyKeystorePermissions();
 
@@ -303,7 +303,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test60DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
         String password = "password";
-        Path dockerKeystore = installation.config("elasticsearch.keystore");
+        Path dockerKeystore = installation.config("opensearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
@@ -333,7 +333,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Files.write(tempDir.resolve(passwordFilename), singletonList(password));
             Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
-            Path dockerKeystore = installation.config("elasticsearch.keystore");
+            Path dockerKeystore = installation.config("opensearch.keystore");
 
             Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
@@ -363,7 +363,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test62DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
         String password = "password";
-        Path dockerKeystore = installation.config("elasticsearch.keystore");
+        Path dockerKeystore = installation.config("opensearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
@@ -417,12 +417,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         // copy keystore to temp file to make it available to docker host
         sh.run("cp " + dockerKeystore + " " + dockerTemp);
-        return tempDirectory.resolve("elasticsearch.keystore");
+        return tempDirectory.resolve("opensearch.keystore");
     }
 
     /** Create a keystore. Provide a password to password-protect it, otherwise use null */
     private void createKeystore(String password) throws Exception {
-        Path keystore = installation.config("elasticsearch.keystore");
+        Path keystore = installation.config("opensearch.keystore");
         final Installation.Executables bin = installation.executables();
         bin.keystoreTool.run("create");
 
@@ -446,7 +446,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     private void rmKeystoreIfExists() {
-        Path keystore = installation.config("elasticsearch.keystore");
+        Path keystore = installation.config("opensearch.keystore");
         if (distribution().isDocker()) {
             try {
                 waitForPathToExist(keystore);
@@ -480,7 +480,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     private void verifyKeystorePermissions() {
-        Path keystore = installation.config("elasticsearch.keystore");
+        Path keystore = installation.config("opensearch.keystore");
         switch (distribution.packaging) {
             case TAR:
             case ZIP:

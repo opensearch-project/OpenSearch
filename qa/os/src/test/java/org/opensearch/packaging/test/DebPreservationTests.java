@@ -67,7 +67,7 @@ public class DebPreservationTests extends PackagingTestCase {
 
         // keystore was removed
 
-        assertPathsDoNotExist(installation.config("elasticsearch.keystore"), installation.config(".elasticsearch.keystore.initial_md5sum"));
+        assertPathsDoNotExist(installation.config("opensearch.keystore"), installation.config(".opensearch.keystore.initial_md5sum"));
 
         // sysvinit service file was not removed
         assertThat(SYSVINIT_SCRIPT, fileExists());

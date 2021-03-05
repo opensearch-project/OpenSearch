@@ -361,8 +361,8 @@ public class DockerTests extends PackagingTestCase {
         final Map<String, String> staticLabels = new HashMap<>();
         staticLabels.put("name", "Elasticsearch");
         staticLabels.put("schema-version", "1.0");
-        staticLabels.put("url", "https://www.elastic.co/products/elasticsearch");
-        staticLabels.put("usage", "https://www.elastic.co/guide/en/elasticsearch/reference/index.html");
+        staticLabels.put("url", "https://www.opensearch.co/products/elasticsearch");
+        staticLabels.put("usage", "https://www.opensearch.co/guide/en/elasticsearch/reference/index.html");
         staticLabels.put("vcs-url", "https://github.com/elastic/elasticsearch");
         staticLabels.put("vendor", "Elastic");
 
@@ -397,8 +397,8 @@ public class DockerTests extends PackagingTestCase {
 
         final Map<String, String> staticLabels = new HashMap<>();
         staticLabels.put("title", "Elasticsearch");
-        staticLabels.put("url", "https://www.elastic.co/products/elasticsearch");
-        staticLabels.put("documentation", "https://www.elastic.co/guide/en/elasticsearch/reference/index.html");
+        staticLabels.put("url", "https://www.opensearch.co/products/elasticsearch");
+        staticLabels.put("documentation", "https://www.opensearch.co/guide/en/elasticsearch/reference/index.html");
         staticLabels.put("source", "https://github.com/elastic/elasticsearch");
         staticLabels.put("vendor", "Elastic");
 
