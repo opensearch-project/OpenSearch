@@ -58,7 +58,7 @@ on a traditional database.
 
 Scrolling is not intended for real time user requests, but rather for
 processing large amounts of data, e.g. in order to reindex the contents of one
-data stream or index into a new data stream or index with a different
+index into a new index with a different
 configuration.
 
 .Client support for scrolling and reindexing
@@ -83,7 +83,7 @@ JavaScript::
 *********************************************
 
 NOTE: The results that are returned from a scroll request reflect the state of
-the data stream or index at the time that the initial `search` request was  made, like a
+the index at the time that the initial `search` request was  made, like a
 snapshot in time. Subsequent changes to documents (index, update or delete)
 will only affect later search requests.
 

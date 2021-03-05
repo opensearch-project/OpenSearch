@@ -55,12 +55,12 @@ this endpoint the `Content-Type` header should be set to `application/x-ndjson`.
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases to search.
+Comma-separated list of indices and index aliases to search.
 +
 This list acts as a fallback if a search in the request body does not specify an
 `index` target.
 +
-Wildcard (`*`) expressions are supported. To search all data streams and indices
+Wildcard (`*`) expressions are supported. To search all indices
 in a cluster, omit this parameter or use `_all` or `*`.
 
 [[search-multi-search-api-query-params]]
@@ -98,7 +98,7 @@ Maximum number of concurrent shard requests that each sub-search request
 executes per node.  Defaults to `5`.
 
 You can use this parameter to prevent a request from overloading a cluster. For
-example, a default request hits all data streams and indices in a cluster. This
+example, a default request hits all indices in a cluster. This
 could cause shard request rejections if the number of shards per node is high.
 
 In certain scenarios, parallelism isn't achieved through concurrent requests. In
@@ -189,7 +189,7 @@ included in the response. Defaults to `false`.
 
 `index`:::
 (Optional, string or array of strings)
-Data streams, indices, and index aliases to search. Wildcard (`*`) expressions
+Indices and index aliases to search. Wildcard (`*`) expressions
 are supported. You can specify multiple targets as an array.
 +
 If this parameter is not specified, the `<target>` request path parameter
@@ -262,7 +262,7 @@ Number of hits to return. Defaults to `10`.
 [[search-multi-search-api-example]]
 ==== {api-examples-title}
 
-The header part includes which data streams, indices, and index aliases to
+The header part includes which indices, and index aliases to
 search. The header also indicates the `search_type`,
 `preference`, and `routing`. The body includes the typical search body request
 (including the `query`, `aggregations`, `from`, `size`, and so on).
@@ -293,7 +293,7 @@ Note, the above includes an example of an empty header (can also be just
 without any content) which is supported as well.
 
 
-The endpoint also allows you to search against data streams, indices, and index
+The endpoint also allows you to search against indices and index
 aliases in the request path. In this case, it will be used as the default target
 unless explicitly specified in the header's `index` parameter. For example:
 
