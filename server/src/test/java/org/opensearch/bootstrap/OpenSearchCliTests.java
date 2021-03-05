@@ -19,10 +19,10 @@
 
 package org.opensearch.bootstrap;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.Build;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
 import java.util.Locale;

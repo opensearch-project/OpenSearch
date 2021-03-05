@@ -19,7 +19,7 @@
 
 package org.opensearch.bootstrap;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
