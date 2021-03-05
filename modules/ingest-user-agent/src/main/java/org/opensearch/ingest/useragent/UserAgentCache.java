@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.useragent;
+package org.opensearch.ingest.useragent;
 
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.ingest.useragent.UserAgentParser.Details;
+import org.opensearch.ingest.useragent.UserAgentParser.Details;
 
 import java.util.Objects;
 
