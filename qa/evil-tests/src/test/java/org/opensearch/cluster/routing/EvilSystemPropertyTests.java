@@ -21,11 +21,11 @@ package org.opensearch.cluster.routing;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class EvilSystemPropertyTests extends ESTestCase {
+public class EvilSystemPropertyTests extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testDisableSearchAllocationAwareness() {

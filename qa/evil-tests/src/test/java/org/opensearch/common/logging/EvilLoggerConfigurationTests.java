@@ -30,7 +30,7 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class EvilLoggerConfigurationTests extends ESTestCase {
+public class EvilLoggerConfigurationTests extends OpenSearchTestCase {
 
     @Override
     public void setUp() throws Exception {

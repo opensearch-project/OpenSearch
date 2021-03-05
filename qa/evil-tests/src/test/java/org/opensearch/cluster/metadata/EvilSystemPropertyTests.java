@@ -20,9 +20,9 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class EvilSystemPropertyTests extends ESTestCase {
+public class EvilSystemPropertyTests extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testMaxNumShards() {

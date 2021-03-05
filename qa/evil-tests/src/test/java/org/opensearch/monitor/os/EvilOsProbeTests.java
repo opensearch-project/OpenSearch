@@ -21,7 +21,7 @@ package org.opensearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class EvilOsProbeTests extends ESTestCase {
+public class EvilOsProbeTests extends OpenSearchTestCase {
 
     public void testOsPrettyName() throws IOException  {
         final OsInfo osInfo = OsProbe.getInstance().osInfo(randomLongBetween(1, 100), randomIntBetween(1, 8));

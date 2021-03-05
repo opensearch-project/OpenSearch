@@ -20,10 +20,10 @@
 package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 /** Simple tests system call filter is working. */
-public class SystemCallFilterTests extends ESTestCase {
+public class SystemCallFilterTests extends OpenSearchTestCase {
 
     /** command to try to run in tests */
     static final String EXECUTABLE = Constants.WINDOWS ? "calc" : "ls";

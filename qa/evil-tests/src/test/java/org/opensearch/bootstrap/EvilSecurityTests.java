@@ -25,7 +25,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
 @SuppressForbidden(reason = "modifies system properties and attempts to create symbolic links intentionally")
-public class EvilSecurityTests extends ESTestCase {
+public class EvilSecurityTests extends OpenSearchTestCase {
 
     /** test generated permissions */
     public void testGeneratedPermissions() throws Exception {

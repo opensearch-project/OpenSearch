@@ -163,7 +163,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     public void test20CustomizeServiceId() {
-        String serviceId = "my-es-service";
+        String serviceId = "my-opensearch-service";
         String displayName = DEFAULT_DISPLAY_NAME.replace(DEFAULT_ID, serviceId);
         sh.getEnv().put("SERVICE_ID", serviceId);
         sh.run(serviceScript + " install");

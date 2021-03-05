@@ -25,7 +25,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.EsExecutors;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class EvilThreadPoolTests extends ESTestCase {
+public class EvilThreadPoolTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
 

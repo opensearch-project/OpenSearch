@@ -20,7 +20,7 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.FilePermission;
 import java.net.SocketPermission;
@@ -37,7 +37,7 @@ import java.util.Collections;
  * Unit tests for ESPolicy: these cannot run with security manager,
  * we don't allow messing with the policy
  */
-public class ESPolicyUnitTests extends ESTestCase {
+public class ESPolicyUnitTests extends OpenSearchTestCase {
     /**
      * Test policy with null codesource.
      * <p>

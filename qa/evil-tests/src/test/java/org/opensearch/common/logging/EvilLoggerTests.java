@@ -38,7 +38,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.node.Node;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
-public class EvilLoggerTests extends ESTestCase {
+public class EvilLoggerTests extends OpenSearchTestCase {
 
     @Override
     public void setUp() throws Exception {

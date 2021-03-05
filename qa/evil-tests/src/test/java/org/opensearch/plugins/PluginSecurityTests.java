@@ -19,7 +19,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.Set;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /** Tests plugin manager security check */
-public class PluginSecurityTests extends ESTestCase {
+public class PluginSecurityTests extends OpenSearchTestCase {
 
     /** Test that we can parse the set of permissions correctly for a simple policy */
     public void testParsePermissions() throws Exception {

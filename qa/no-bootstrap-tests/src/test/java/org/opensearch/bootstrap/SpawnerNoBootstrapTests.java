@@ -53,9 +53,9 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Create a simple "daemon controller", put it in the right place and check that it runs.
  *
- * Extends LuceneTestCase rather than ESTestCase as ESTestCase installs a system call filter, and
+ * Extends LuceneTestCase rather than OpenSearchTestCase as OpenSearchTestCase installs a system call filter, and
  * that prevents the Spawner class from doing its job. Also needs to run in a separate JVM to other
- * tests that extend ESTestCase for the same reason.
+ * tests that extend OpenSearchTestCase for the same reason.
  */
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 

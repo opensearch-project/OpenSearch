@@ -23,14 +23,14 @@ import joptsimple.OptionSet;
 import org.apache.lucene.util.TestRuleRestoreSystemProperties;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.env.Environment;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
-public class EvilEnvironmentAwareCommandTests extends ESTestCase {
+public class EvilEnvironmentAwareCommandTests extends OpenSearchTestCase {
 
     @Rule
     public TestRule restoreSystemProperties = new TestRuleRestoreSystemProperties("es.path.conf");

@@ -32,7 +32,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.tasks.Task;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.not;
  * This test confirms JSON log structure is properly formatted and can be parsed.
  * It has to be in a <code>org.opensearch.common.logging</code> package to use <code>PrefixLogger</code>
  */
-public class JsonLoggerTests extends ESTestCase {
+public class JsonLoggerTests extends OpenSearchTestCase {
 
     private static final String LINE_SEPARATOR = System.lineSeparator();
 

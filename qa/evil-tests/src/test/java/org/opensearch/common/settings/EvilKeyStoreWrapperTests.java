@@ -23,7 +23,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class EvilKeyStoreWrapperTests extends ESTestCase {
+public class EvilKeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testWritePermissions() throws Exception {
         assumeFalse("requires POSIX file permissions", Constants.WINDOWS);

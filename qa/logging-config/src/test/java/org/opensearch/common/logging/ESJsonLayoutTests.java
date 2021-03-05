@@ -19,12 +19,12 @@
 package org.opensearch.common.logging;
 
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 
-public class ESJsonLayoutTests extends ESTestCase {
+public class ESJsonLayoutTests extends OpenSearchTestCase {
     @BeforeClass
     public static void initNodeName() {
         JsonLogsTestSetup.init();

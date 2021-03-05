@@ -21,7 +21,7 @@ package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class EvilJNANativesTests extends ESTestCase {
+public class EvilJNANativesTests extends OpenSearchTestCase {
 
     public void testSetMaximumNumberOfThreads() throws IOException {
         if (Constants.LINUX) {

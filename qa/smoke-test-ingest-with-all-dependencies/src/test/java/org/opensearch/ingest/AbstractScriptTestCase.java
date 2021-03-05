@@ -27,7 +27,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.TemplateScript;
 import org.opensearch.script.mustache.MustacheScriptEngine;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -35,7 +35,7 @@ import java.util.Map;
 
 import static org.opensearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
-public abstract class AbstractScriptTestCase extends ESTestCase {
+public abstract class AbstractScriptTestCase extends OpenSearchTestCase {
 
     protected ScriptService scriptService;
 

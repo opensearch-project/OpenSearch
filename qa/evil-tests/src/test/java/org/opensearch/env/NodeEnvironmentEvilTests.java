@@ -20,7 +20,7 @@ package org.opensearch.env;
 
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.PosixPermissionsResetter;
 import org.junit.BeforeClass;
 
@@ -32,7 +32,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Arrays;
 import java.util.HashSet;
 
-public class NodeEnvironmentEvilTests extends ESTestCase {
+public class NodeEnvironmentEvilTests extends OpenSearchTestCase {
 
     private static boolean isPosix;
 

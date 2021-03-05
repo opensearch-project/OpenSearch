@@ -20,7 +20,7 @@
 package org.opensearch.cli;
 
 import joptsimple.OptionSet;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,7 +29,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 
-public class EvilCommandTests extends ESTestCase {
+public class EvilCommandTests extends OpenSearchTestCase {
 
     public void testCommandShutdownHook() throws Exception {
         final AtomicBoolean closed = new AtomicBoolean();
