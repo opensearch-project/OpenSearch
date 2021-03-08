@@ -29,6 +29,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
+import static org.opensearch.analysis.common.FingerprintAnalyzerProvider.DEFAULT_MAX_OUTPUT_SIZE;
+import static org.opensearch.analysis.common.FingerprintAnalyzerProvider.MAX_OUTPUT_SIZE;
+
 public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(FingerprintTokenFilterFactory.class);
@@ -39,7 +42,7 @@ public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
     FingerprintTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.separator = FingerprintAnalyzerProvider.parseSeparator(settings);
-        this.maxOutputSize = settings.getAsInt(FingerprintAnalyzerProvider.MAX_OUTPUT_SIZE.getPreferredName(), FingerprintAnalyzerProvider.DEFAULT_MAX_OUTPUT_SIZE);
+        this.maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(), DEFAULT_MAX_OUTPUT_SIZE);
     }
 
     @Override

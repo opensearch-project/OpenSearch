@@ -45,6 +45,7 @@ import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.SPLIT_ON_NUMERICS;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE;
+import static org.opensearch.analysis.common.WordDelimiterTokenFilterFactory.parseTypes;
 
 public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -70,7 +71,7 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
         if (charTypeTableValues == null) {
             this.charTypeTable = WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE;
         } else {
-            this.charTypeTable = WordDelimiterTokenFilterFactory.parseTypes(charTypeTableValues);
+            this.charTypeTable = parseTypes(charTypeTableValues);
         }
         int flags = 0;
         // If set, causes parts of words to be generated: "PowerShot" => "Power" "Shot"

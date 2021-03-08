@@ -27,6 +27,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
+import static org.opensearch.analysis.common.NGramTokenizerFactory.parseTokenChars;
+
 public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int minGram;
@@ -37,7 +39,7 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
         super(indexSettings, settings, name);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-        this.matcher = NGramTokenizerFactory.parseTokenChars(settings);
+        this.matcher = parseTokenChars(settings);
     }
 
     @Override
