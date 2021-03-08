@@ -60,7 +60,7 @@ On top of this, fields from the source are always accessible via the `_source` p
 [[accessing-metadata-fields]]
 === Accessing Metadata Fields
 You can access metadata fields in the same way that you access fields in the source. This
-is possible because Elasticsearch doesn't allow fields in the source that have the
+is possible because {opensearch} doesn't allow fields in the source that have the
 same name as metadata fields.
 
 The following metadata fields are accessible by a processor:
@@ -96,7 +96,7 @@ assigns auto-generated `_id` values after ingest.
 === Accessing Ingest Metadata Fields
 Beyond metadata fields and source fields, ingest also adds ingest metadata to the documents that it processes.
 These metadata properties are accessible under the `_ingest` key. Currently ingest adds the ingest timestamp
-under the `_ingest.timestamp` key of the ingest metadata. The ingest timestamp is the time when Elasticsearch
+under the `_ingest.timestamp` key of the ingest metadata. The ingest timestamp is the time when {opensearch}
 received the index or bulk request to pre-process the document.
 
 Any processor can add ingest-related metadata during document processing. Ingest metadata is transient
@@ -115,7 +115,7 @@ The following example adds a field with the name `received`. The value is the in
 --------------------------------------------------
 // NOTCONSOLE
 
-Unlike Elasticsearch metadata fields, the ingest metadata field name `_ingest` can be used as a valid field name
+Unlike {opensearch} metadata fields, the ingest metadata field name `_ingest` can be used as a valid field name
 in the source of a document. Use `_source._ingest` to refer to the field in the source document. Otherwise, `_ingest`
 will be interpreted as an ingest metadata field.
 
@@ -693,7 +693,7 @@ within the scope of an `on_failure` statement, you can nest failure handling.
 The following example defines a pipeline that renames the `foo` field in
 the processed document to `bar`. If the document does not contain the `foo` field, the processor
 attaches an error message to the document for later analysis within
-Elasticsearch.
+{opensearch}.
 
 [source,js]
 --------------------------------------------------
@@ -866,7 +866,7 @@ pipeline basis. Useful to find out which pipelines are used the most or spent th
 [discrete]
 === Ingest Processor Plugins
 
-Additional ingest processors can be implemented and installed as Elasticsearch {plugins}/intro.html[plugins].
+Additional ingest processors can be implemented and installed as {opensearch} {plugins}/intro.html[plugins].
 See {plugins}/ingest.html[Ingest plugins] for information about the available ingest plugins.
 
 include::processors/append.asciidoc[]

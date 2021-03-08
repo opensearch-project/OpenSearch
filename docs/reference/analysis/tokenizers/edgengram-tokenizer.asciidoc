@@ -88,7 +88,7 @@ See <<max-gram-limits>>.
 
 `token_chars`::
 
-    Character classes that should be included in a token.  Elasticsearch
+    Character classes that should be included in a token.  {opensearch}
     will split on characters that don't belong to the classes specified.
     Defaults to `[]` (keep all characters).
 +

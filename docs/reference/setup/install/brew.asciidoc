@@ -33,7 +33,7 @@ and data directory are stored in the following locations.
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `$OPENSEARCH_HOME`
+  | {opensearch} home directory or `$OPENSEARCH_HOME`
   | /usr/local/var/homebrew/linked/opensearch-full
  d|
 

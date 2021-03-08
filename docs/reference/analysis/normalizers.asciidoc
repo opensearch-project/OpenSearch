@@ -13,7 +13,7 @@ following: `arabic_normalization`, `asciifolding`, `bengali_normalization`,
 `persian_normalization`, `scandinavian_folding`, `serbian_normalization`,
 `sorani_normalization`, `uppercase`.
 
-Elasticsearch ships with a `lowercase` built-in normalizer. For other forms of
+{opensearch} ships with a `lowercase` built-in normalizer. For other forms of
 normalization a custom configuration is required.
 
 [discrete]

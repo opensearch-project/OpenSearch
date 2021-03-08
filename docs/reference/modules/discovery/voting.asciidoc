@@ -40,7 +40,7 @@ where the most resilient configuration includes unavailable nodes or does not
 include some available nodes. In these situations, the voting configuration
 differs from the set of available master-eligible nodes in the cluster.
 
-Larger voting configurations are usually more resilient, so Elasticsearch
+Larger voting configurations are usually more resilient, so {opensearch}
 normally prefers to add master-eligible nodes to the voting configuration after
 they join the cluster. Similarly, if a node in the voting configuration
 leaves the cluster and there is another master-eligible node in the cluster that
@@ -57,7 +57,7 @@ shrinks by using the
 
 NOTE: If `cluster.auto_shrink_voting_configuration` is set to `true` (which is
 the default and recommended value) and there are at least three master-eligible
-nodes in the cluster, Elasticsearch remains capable of processing cluster state
+nodes in the cluster, {opensearch} remains capable of processing cluster state
 updates as long as all but one of its master-eligible nodes are healthy.
 
 There are situations in which Elasticsearch might tolerate the loss of multiple

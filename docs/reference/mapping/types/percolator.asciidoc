@@ -109,7 +109,7 @@ PUT queries/_doc/1?refresh
     don't need to be changed to know that the percolator queries are now in a different index.
 
 Lets say you're going to upgrade to a new major version and in order for the new {opensearch} version to still be able
-to read your queries you need to reindex your queries into a new index on the current Elasticsearch version:
+to read your queries you need to reindex your queries into a new index on the current {opensearch} version:
 
 [source,console]
 --------------------------------------------------

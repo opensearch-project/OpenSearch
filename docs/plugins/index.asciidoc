@@ -1,11 +1,11 @@
-= Elasticsearch Plugins and Integrations
+= {opensearch} Plugins and Integrations
 
 include::../Versions.asciidoc[]
 
 [[intro]]
 == Introduction to plugins
 
-Plugins are a way to enhance the core Elasticsearch functionality in a custom
+Plugins are a way to enhance the core {opensearch} functionality in a custom
 manner. They range from adding custom mapping types, custom analyzers, native
 scripts, custom discovery and more.
 
@@ -27,7 +27,7 @@ open source plugins). Issues and bug reports can be reported on the
 https://github.com/elastic/elasticsearch[Github project page].
 
 Community contributed::    This category identifies plugins that are external to
-the Elasticsearch project. They are provided by individual developers or private
+the {opensearch} project. They are provided by individual developers or private
 companies and have their own licenses as well as their own versioning system.
 Issues and bug reports can usually be reported on the community plugin's web site.
 

@@ -646,7 +646,7 @@ to
 [[explicit-field-order]]
 [discrete]
 == Explicitly order highlighted fields
-Elasticsearch highlights the fields in the order that they are sent, but per the
+{opensearch} highlights the fields in the order that they are sent, but per the
 JSON spec, objects are unordered.  If you need to be explicit about the order
 in which fields are highlighted specify the `fields` as an array:
 
@@ -664,7 +664,7 @@ GET /_search
 --------------------------------------------------
 // TEST[setup:my_index]
 
-None of the highlighters built into Elasticsearch care about the order that the
+None of the highlighters built into {opensearch} care about the order that the
 fields are highlighted but a plugin might.
 
 

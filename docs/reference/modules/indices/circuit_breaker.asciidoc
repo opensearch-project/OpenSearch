@@ -56,7 +56,7 @@ operation and returns an error.
 [discrete]
 ==== Request circuit breaker
 
-The request circuit breaker allows Elasticsearch to prevent per-request data
+The request circuit breaker allows {opensearch} to prevent per-request data
 structures (for example, memory used for calculating aggregations during a
 request) from exceeding a certain amount of memory.
 
@@ -79,7 +79,7 @@ request) from exceeding a certain amount of memory.
 [discrete]
 ==== In flight requests circuit breaker
 
-The in flight requests circuit breaker allows Elasticsearch to limit the memory usage of all
+The in flight requests circuit breaker allows {opensearch} to limit the memory usage of all
 currently active incoming requests on transport or HTTP level from exceeding a certain amount of
 memory on a node. The memory usage is based on the content length of the request itself. This
 circuit breaker also considers that memory is not only needed for representing the raw request but
@@ -99,7 +99,7 @@ also as a structured object which is reflected by default overhead.
 [discrete]
 ==== Accounting requests circuit breaker
 
-The accounting circuit breaker allows Elasticsearch to limit the memory
+The accounting circuit breaker allows {opensearch} to limit the memory
 usage of things held in memory that are not released when a request is
 completed. This includes things like the Lucene segment memory.
 
