@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.systemd;
+package org.opensearch.systemd;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
