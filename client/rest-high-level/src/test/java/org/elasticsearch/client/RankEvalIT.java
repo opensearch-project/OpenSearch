@@ -22,19 +22,19 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
-import org.elasticsearch.index.rankeval.EvalQueryQuality;
-import org.elasticsearch.index.rankeval.EvaluationMetric;
-import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;
-import org.elasticsearch.index.rankeval.MeanReciprocalRank;
-import org.elasticsearch.index.rankeval.PrecisionAtK;
-import org.elasticsearch.index.rankeval.RecallAtK;
-import org.elasticsearch.index.rankeval.RankEvalRequest;
-import org.elasticsearch.index.rankeval.RankEvalResponse;
-import org.elasticsearch.index.rankeval.RankEvalSpec;
-import org.elasticsearch.index.rankeval.RatedDocument;
-import org.elasticsearch.index.rankeval.RatedRequest;
-import org.elasticsearch.index.rankeval.RatedSearchHit;
+import org.opensearch.index.rankeval.DiscountedCumulativeGain;
+import org.opensearch.index.rankeval.EvalQueryQuality;
+import org.opensearch.index.rankeval.EvaluationMetric;
+import org.opensearch.index.rankeval.ExpectedReciprocalRank;
+import org.opensearch.index.rankeval.MeanReciprocalRank;
+import org.opensearch.index.rankeval.PrecisionAtK;
+import org.opensearch.index.rankeval.RecallAtK;
+import org.opensearch.index.rankeval.RankEvalRequest;
+import org.opensearch.index.rankeval.RankEvalResponse;
+import org.opensearch.index.rankeval.RankEvalSpec;
+import org.opensearch.index.rankeval.RatedDocument;
+import org.opensearch.index.rankeval.RatedRequest;
+import org.opensearch.index.rankeval.RatedSearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
@@ -47,7 +47,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
+import static org.opensearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
 
 public class RankEvalIT extends ESRestHighLevelClientTestCase {
 
