@@ -4,7 +4,7 @@
 Dynamic templates allow you to define custom mappings that can be applied to
 dynamically added fields based on:
 
-* the <<dynamic-mapping,data type>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
+* the <<dynamic-mapping,data type>> detected by {opensearch}, with <<match-mapping-type,`match_mapping_type`>>.
 * the name of the field, with <<match-unmatch,`match` and `unmatch`>> or <<match-pattern,`match_pattern`>>.
 * the full dotted path to the field, with <<path-match-unmatch,`path_match` and `path_unmatch`>>.
 
@@ -296,9 +296,9 @@ Here are some examples of potentially useful dynamic templates:
 
 ===== Structured search
 
-By default Elasticsearch will map string fields as a `text` field with a sub
+By default {opensearch} will map string fields as a `text` field with a sub
 `keyword` field. However if you are only indexing structured content and not
-interested in full text search, you can make Elasticsearch map your fields
+interested in full text search, you can make {opensearch} map your fields
 only as `keyword`s. Note that this means that in order to search those fields,
 you will have to search on the exact same value that was indexed.
 
@@ -327,8 +327,7 @@ PUT my-index-000001
 On the contrary to the previous example, if the only thing that you care about
 on your string fields is full-text search, and if you don't plan on running
 aggregations, sorting or exact search on your string fields, you could tell
-Elasticsearch to map it only as a text field (which was the default behaviour
-before 5.0):
+{opensearch} to map it only as a text field:
 
 [source,console]
 --------------------------------------------------
@@ -388,7 +387,7 @@ remove it as described in the previous section.
 
 ===== Time series
 
-When doing time series analysis with Elasticsearch, it is common to have many
+When doing time series analysis with {opensearch}, it is common to have many
 numeric fields that you will often aggregate on but never filter on. In such a
 case, you could disable indexing on those fields to save disk space and also
 maybe gain some indexing speed:

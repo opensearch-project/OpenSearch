@@ -1,7 +1,7 @@
 [[consistent-scoring]]
 === Getting consistent scoring
 
-The fact that Elasticsearch operates with shards and replicas adds challenges
+The fact that {opensearch} operates with shards and replicas adds challenges
 when it comes to having good scoring.
 
 [discrete]
@@ -10,7 +10,7 @@ when it comes to having good scoring.
 Say the same user runs the same request twice in a row and documents do not come
 back in the same order both times, this is a pretty bad experience isn't it?
 Unfortunately this is something that can happen if you have replicas
-(`index.number_of_replicas` is greater than 0). The reason is that Elasticsearch
+(`index.number_of_replicas` is greater than 0). The reason is that {opensearch}
 selects the shards that the query should go to in a round-robin fashion, so it
 is quite likely if you run the same query twice in a row that it will go to
 different copies of the same shard.
@@ -44,7 +44,7 @@ consistent ordering of documents that have the same scores.
 
 If you notice that two documents with the same content get different scores or
 that an exact match is not ranked first, then the issue might be related to
-sharding. By default, Elasticsearch makes each shard responsible for producing
+sharding. By default, {opensearch} makes each shard responsible for producing
 its own scores. However since index statistics are an important contributor to
 the scores, this only works well if shards have similar index statistics. The
 assumption is that since documents are routed evenly to shards by default, then
@@ -65,7 +65,7 @@ will be the same for all documents and scores will be consistent.
 
 Otherwise the recommended way to work around this issue is to use the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type. This will make
-Elasticsearch perform an initial round trip to all involved shards, asking
+{opensearch} perform an initial round trip to all involved shards, asking
 them for their index statistics relatively to the query, then the coordinating
 node will merge those statistics and send the merged statistics alongside the
 request when asking shards to perform the `query` phase, so that shards can

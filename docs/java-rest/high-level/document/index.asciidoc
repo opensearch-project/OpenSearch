@@ -35,7 +35,7 @@ to JSON format
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-xcontent]
 --------------------------------------------------
-<1> Document source provided as an `XContentBuilder` object, the Elasticsearch
+<1> Document source provided as an `XContentBuilder` object, the {opensearch}
 built-in helpers to generate JSON content
 
 ["source","java",subs="attributes,callouts,macros"]

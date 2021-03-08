@@ -31,7 +31,7 @@ documents not present in the index:
 include-tagged::{doc-tests-file}[{api}-request-artificial]
 --------------------------------------------------
 <1> An artificial document is provided as an `XContentBuilder` object,
-the Elasticsearch built-in helper to generate JSON content.
+the {opensearch} built-in helper to generate JSON content.
 
 ===== Optional arguments
 

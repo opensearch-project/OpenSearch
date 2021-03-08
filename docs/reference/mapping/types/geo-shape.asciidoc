@@ -33,7 +33,7 @@ for QuadPrefixTree. Note: This parameter is only relevant for `term` and
 |`precision` |deprecated[6.6, PrefixTrees no longer used] This parameter may
 be used instead of `tree_levels` to set an appropriate value for the
 `tree_levels` parameter. The value specifies the desired precision and
-Elasticsearch will calculate the best tree_levels value to honor this
+{opensearch} will calculate the best tree_levels value to honor this
 precision. The value should be a number followed by an optional distance
 unit. Valid distance units include: `in`, `inch`, `yd`, `yard`, `mi`,
 `miles`, `km`, `kilometers`, `m`,`meters`, `cm`,`centimeters`, `mm`,
@@ -47,7 +47,7 @@ precision of shape representations andtherefore how many terms are
 indexed. Defaults to the default value of the chosen PrefixTree
 implementation. Since this parameter requires a certain level of
 understanding of the underlying implementation, users may use the
-`precision` parameter instead. However, Elasticsearch only uses the
+`precision` parameter instead. However, {opensearch} only uses the
 tree_levels parameter internally and this is what is returned via the
 mapping API even if you use the precision parameter. Note: This parameter
 is only relevant for `term` and `recursive` strategies.
@@ -56,7 +56,7 @@ is only relevant for `term` and `recursive` strategies.
 |`strategy` |deprecated[6.6, PrefixTrees no longer used] The strategy
 parameter defines the approach for how to represent shapes at indexing
 and search time. It also influences the capabilities available so it
-is recommended to let Elasticsearch set this parameter automatically.
+is recommended to let {opensearch} set this parameter automatically.
 There are two strategies available: `recursive`, and `term`.
 Recursive and Term strategies are deprecated and will be removed in a
 future version. While they are still available, the Term strategy
@@ -177,13 +177,13 @@ longitude interleaved. So the longer the hash, the more precise it is.
 Each character added to the geohash represents another tree level and
 adds 5 bits of precision to the geohash. A geohash represents a
 rectangular area and has 32 sub rectangles. The maximum number of levels
-in Elasticsearch is 24; the default is 9.
+in {opensearch} is 24; the default is 9.
 * QuadPrefixTree - Uses a
 {wikipedia}/Quadtree[quadtree] for grid squares.
 Similar to geohash, quad trees interleave the bits of the latitude and
 longitude the resulting hash is a bit set. A tree level in a quad tree
 represents 2 bits in this bit set, one for each coordinate. The maximum
-number of levels for the quad trees in Elasticsearch is 29; the default is 21.
+number of levels for the quad trees in {opensearch} is 29; the default is 21.
 
 [[spatial-strategy]]
 [discrete]
@@ -246,7 +246,7 @@ approximately 1e-7 decimal degree precision.
 ===== Performance considerations with Prefix Trees
 
 deprecated[6.6, PrefixTrees no longer used] With prefix trees,
-Elasticsearch uses the paths in the tree as terms in the inverted index
+{opensearch} uses the paths in the tree as terms in the inverted index
 and in queries. The higher the level (and thus the precision), the more
 terms are generated. Of course, calculating the terms, keeping them in
 memory, and storing them on disk all have a price. Especially with higher
@@ -256,7 +256,7 @@ polygons can take up a lot of space at higher tree levels. Which setting
 is right depends on the use case. Generally one trades off accuracy against
 index size and query performance.
 
-The defaults in Elasticsearch for both implementations are a compromise
+The defaults in {opensearch} for both implementations are a compromise
 between index size and a reasonable level of precision of 50m at the
 equator. This allows for indexing tens of millions of shapes without
 overly bloating the resulting index too much relative to the input size.
@@ -272,13 +272,13 @@ Geo-shape queries on geo-shapes implemented with PrefixTrees will not be execute
 Shapes can be represented using either the http://geojson.org[GeoJSON]
 or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 (WKT) format. The following table provides a mapping of GeoJSON and WKT
-to Elasticsearch types:
+to {opensearch} types:
 
 [cols="<,<,<,<",options="header",]
 |=======================================================================
-|GeoJSON Type |WKT Type |Elasticsearch Type |Description
+|GeoJSON Type |WKT Type |{opensearch} Type |Description
 
-|`Point` |`POINT` |`point` |A single geographic coordinate. Note: Elasticsearch uses WGS-84 coordinates only.
+|`Point` |`POINT` |`point` |A single geographic coordinate. Note: {opensearch} uses WGS-84 coordinates only.
 |`LineString` |`LINESTRING` |`linestring` |An arbitrary line given two or more points.
 |`Polygon` |`POLYGON` |`polygon` |A _closed_ polygon whose first and last point
 must match, thus requiring `n + 1` vertices to create an `n`-sided
@@ -301,7 +301,7 @@ units, which default to `METERS`.
 For all types, both the inner `type` and `coordinates` fields are
 required.
 
-In GeoJSON and WKT, and therefore Elasticsearch, the correct *coordinate
+In GeoJSON and WKT, and therefore {opensearch}, the correct *coordinate
 order is longitude, latitude (X, Y)* within coordinate arrays. This
 differs from many Geospatial APIs (e.g., Google Maps) that generally
 use the colloquial latitude, longitude (Y, X).
@@ -436,14 +436,14 @@ which agrees with the Open Geospatial Consortium (OGC)
 https://www.opengeospatial.org/standards/sfa[Simple Feature Access]
 specification for vertex ordering.
 
-Elasticsearch accepts both clockwise and counterclockwise polygons if they
+{opensearch} accepts both clockwise and counterclockwise polygons if they
 appear not to cross the dateline (i.e. they cross less than 180° of longitude),
 but for polygons that do cross the dateline (or for other polygons wider than
-180°) Elasticsearch requires the vertex ordering to comply with the OGC and
+180°) {opensearch} requires the vertex ordering to comply with the OGC and
 GeoJSON specifications. Otherwise, an unintended polygon may be created and
 unexpected query/filter results will be returned.
 
-The following provides an example of an ambiguous polygon.  Elasticsearch will
+The following provides an example of an ambiguous polygon.  {opensearch} will
 apply the GeoJSON standard to eliminate ambiguity resulting in a polygon that
 crosses the dateline.
 
@@ -611,7 +611,7 @@ POST /example/_doc
 [discrete]
 ===== Envelope
 
-Elasticsearch supports an `envelope` type, which consists of coordinates
+{opensearch} supports an `envelope` type, which consists of coordinates
 for upper left and lower right points of the shape to represent a
 bounding rectangle in the format `[[minLon, maxLat], [maxLon, minLat]]`:
 
@@ -641,7 +641,7 @@ POST /example/_doc
 [discrete]
 ===== Circle
 
-Elasticsearch supports a `circle` type, which consists of a center
+{opensearch} supports a `circle` type, which consists of a center
 point with a radius. Note that this circle representation can only
 be indexed when using the `recursive` Prefix Tree strategy. For
 the default <<geoshape-indexing-approach>> circles should be approximated using

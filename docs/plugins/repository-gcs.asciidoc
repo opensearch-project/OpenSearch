@@ -45,8 +45,8 @@ https://cloud.google.com/storage/docs/quickstart-console#create_a_bucket[Google 
 
 The plugin must authenticate the requests it makes to the Google Cloud Storage
 service. It is common for Google client libraries to employ a strategy named https://cloud.google.com/docs/authentication/production#providing_credentials_to_your_application[application default credentials].
-However, that strategy is **not** supported for use with Elasticsearch. The
-plugin operates under the Elasticsearch process, which runs with the security
+However, that strategy is **not** supported for use with {opensearch}. The
+plugin operates under the {opensearch} process, which runs with the security
 manager enabled. The security manager obstructs the "automatic" credential discovery.
 Therefore, you must configure <<repository-gcs-using-service-account,service account>>
 credentials even if you are using an environment that does not normally require
@@ -88,7 +88,7 @@ A JSON service account file looks like this:
 ----
 // NOTCONSOLE
 
-To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore].  You must
+To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[{opensearch} keystore].  You must
 add a `file` setting with the name `gcs.client.NAME.credentials_file` using the `add-file` subcommand.
  `NAME` is the name of the client configuration for the repository. The implicit client
 name is `default`, but a different client name can be specified in the
@@ -146,7 +146,7 @@ PUT _snapshot/my_gcs_repository
 // TEST[skip:we don't have gcs setup while testing this]
 
 Some settings are sensitive and must be stored in the
-{ref}/secure-settings.html[Elasticsearch keystore]. This is the case for the service account file:
+{ref}/secure-settings.html[{opensearch} keystore]. This is the case for the service account file:
 
 [source,sh]
 ----
