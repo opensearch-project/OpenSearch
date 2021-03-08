@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.testclusters.TestClustersPlugin
 
 subprojects { Project subproj ->
   subproj.tasks.withType(RestIntegTestTask) {

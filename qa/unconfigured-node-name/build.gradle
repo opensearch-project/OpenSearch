@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.OS
+import org.opensearch.gradle.OS
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -19,9 +19,9 @@ import org.elasticsearch.gradle.OS
  * under the License.
  */
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.rest-test'
 
 testClusters.integTest {
   nameCustomization = { null }

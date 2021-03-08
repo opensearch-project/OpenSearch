@@ -22,4 +22,4 @@
  * example to test process spawning.
  */
 
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'opensearch.standalone-test'
