@@ -86,7 +86,7 @@ After a snapshot is created, use the <<get-snapshot-api,Get snapshot API>> to re
 === Options for creating a snapshot
 The create snapshot request supports the
 `ignore_unavailable` option. Setting it to `true` will cause indices that do not exist to be ignored during snapshot
-creation. By default, when the `ignore_unavailable` option is not set and a index is missing, the snapshot request will fail.
+creation. By default, when the `ignore_unavailable` option is not set and an index is missing, the snapshot request will fail.
 
 By setting `include_global_state` to `false` it's possible to prevent the cluster global state to be stored as part of
 the snapshot.
