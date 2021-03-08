@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptLanguagesInfo;
 
 import java.io.IOException;

@@ -60,7 +60,7 @@ import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -929,7 +929,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    @TestIssueLogging(value = "org.elasticsearch.search.query.SearchQueryIT:DEBUG",
+    @TestIssueLogging(value = "org.opensearch.search.query.SearchQueryIT:DEBUG",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/43144")
     public void testQuotedQueryStringWithBoost() throws InterruptedException {
         float boost = 10.0f;
@@ -1736,7 +1736,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMatchPhrasePrefixQuery() throws ExecutionException, InterruptedException {
         createIndex("test1");
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("field", "Johnnie Walker Black Label"),
-        client().prepareIndex("test1", "type1", "2").setSource("field", "trying out Elasticsearch"));
+        client().prepareIndex("test1", "type1", "2").setSource("field", "trying out OpenSearch"));
 
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchPhrasePrefixQuery("field", "Johnnie la").slop(between(2, 5)))

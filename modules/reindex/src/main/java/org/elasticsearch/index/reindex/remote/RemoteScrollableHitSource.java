@@ -47,7 +47,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -124,7 +124,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             if (remoteVersion.before(Version.fromId(2000099))
                                     && re.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage(
-                                "Failed to clear scroll [{}] from pre-2.0 Elasticsearch. This is normal if the request terminated "
+                                "Failed to clear scroll [{}] from pre-2.0 OpenSearch. This is normal if the request terminated "
                                         + "normally as the scroll has already been cleared automatically.", scrollId), e);
                         return;
                     }
@@ -189,11 +189,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it
                                  * is totally wrong and we're probably not talking to Elasticsearch. */
                                 throw new OpenSearchException(
-                                    "Error parsing the response, remote is likely not an Elasticsearch instance", e);
+                                    "Error parsing the response, remote is likely not an OpenSearch instance", e);
                             }
                         } catch (IOException e) {
                             throw new OpenSearchException(
-                                "Error deserializing response, remote is likely not an Elasticsearch instance", e);
+                                "Error deserializing response, remote is likely not an OpenSearch instance", e);
                         }
                         listener.onResponse(parsedResponse);
                     }
@@ -228,7 +228,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     /**
      * Wrap the ResponseException in an exception that'll preserve its status code if possible so we can send it back to the user. We might
      * not have a constant for the status code so in that case we just use 500 instead. We also extract make sure to include the response
-     * body in the message so the user can figure out *why* the remote Elasticsearch service threw the error back to us.
+     * body in the message so the user can figure out *why* the remote OpenSearch service threw the error back to us.
      */
     static OpenSearchStatusException wrapExceptionToPreserveStatus(int statusCode, @Nullable HttpEntity entity, Exception cause) {
         RestStatus status = RestStatus.fromCode(statusCode);

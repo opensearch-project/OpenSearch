@@ -27,8 +27,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestStatus;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;

@@ -52,7 +52,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 
@@ -133,7 +133,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
-                "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
+                "OpenSearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
     }
 
     public void testClusterGetSettings() throws IOException {

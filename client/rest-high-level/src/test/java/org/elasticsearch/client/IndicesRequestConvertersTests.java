@@ -84,7 +84,7 @@ import static org.elasticsearch.client.indices.RandomCreateIndexGenerator.random
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAlias;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.opensearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 

@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Objects;

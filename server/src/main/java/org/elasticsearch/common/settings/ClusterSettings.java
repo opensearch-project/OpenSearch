@@ -110,7 +110,7 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;

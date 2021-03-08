@@ -59,7 +59,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;

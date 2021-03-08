@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.IOException;

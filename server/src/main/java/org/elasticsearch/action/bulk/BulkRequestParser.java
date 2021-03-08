@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.opensearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;

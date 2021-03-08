@@ -34,7 +34,7 @@ import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 

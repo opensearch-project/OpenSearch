@@ -33,7 +33,7 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.TaskId;
@@ -158,7 +158,7 @@ public class UpdateByQueryIT extends ESRestHighLevelClientTestCase {
             assertTrue(response.getTasks().isEmpty());
             assertFalse(response.getNodeFailures().isEmpty());
             assertEquals(1, response.getNodeFailures().size());
-            assertEquals("Elasticsearch exception [type=resource_not_found_exception, reason=task [" + taskIdToRethrottle + "] is missing]",
+            assertEquals("OpenSearch exception [type=resource_not_found_exception, reason=task [" + taskIdToRethrottle + "] is missing]",
                 response.getNodeFailures().get(0).getCause().getMessage());
         }
     }

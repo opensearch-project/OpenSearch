@@ -40,7 +40,7 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,7 +59,7 @@ import java.util.concurrent.Executors;
 import static org.hamcrest.Matchers.contains;
 
 /**
- * This test just tests, if he pipelining works in general with out any connection the Elasticsearch handler
+ * This test just tests, if he pipelining works in general with out any connection the OpenSearch handler
  */
 public class Netty4HttpServerPipeliningTests extends ESTestCase {
     private NetworkService networkService;

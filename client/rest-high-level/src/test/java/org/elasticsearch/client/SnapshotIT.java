@@ -43,7 +43,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -110,7 +110,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(), equalTo(
-            "Elasticsearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]"));
+            "OpenSearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]"));
     }
 
     public void testSnapshotDeleteRepository() throws IOException {

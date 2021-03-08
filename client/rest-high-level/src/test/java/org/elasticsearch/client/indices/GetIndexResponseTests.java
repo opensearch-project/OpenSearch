@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

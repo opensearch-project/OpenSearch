@@ -36,9 +36,9 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -52,7 +52,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Internal REST API for querying context information about Painless whitelists.

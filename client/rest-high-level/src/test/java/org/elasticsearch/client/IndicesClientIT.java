@@ -114,15 +114,15 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetIndicesAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetMappingAction;
-import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
-import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.opensearch.rest.action.admin.indices.RestGetFieldMappingAction;
+import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestGetIndicesAction;
+import org.opensearch.rest.action.admin.indices.RestGetMappingAction;
+import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestPutMappingAction;
+import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -819,7 +819,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(),
-            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
+            equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
 
         createIndex(index, Settings.EMPTY);
@@ -830,7 +830,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 () -> execute(mixedRequest, highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(),
-            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
+            equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
         assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
         assertThat(aliasExists(index, alias), equalTo(false));
@@ -843,7 +843,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(),
-            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
+            equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
         assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
         assertThat(aliasExists(index, alias), equalTo(false));
@@ -1387,7 +1387,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     highLevelClient().indices()::getAliasAsync);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
+                    equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest(alias);
@@ -1407,7 +1407,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getError(), nullValue());
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
+                    equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index, "non_existent_index").aliases(alias);
@@ -1416,7 +1416,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
+                    equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices("non_existent_index*");
@@ -1494,7 +1494,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         OpenSearchException exception = expectThrows(OpenSearchException.class, () -> execute(staticSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.getMessage(),
-                startsWith("Elasticsearch exception [type=illegal_argument_exception, "
+                startsWith("OpenSearch exception [type=illegal_argument_exception, "
                         + "reason=Can't update non dynamic settings [[index.shard.check_on_startup]] for open indices [[index/"));
 
         indexSettingsAsMap = getIndexSettingsAsMap(index);
@@ -1514,13 +1514,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         exception = expectThrows(OpenSearchException.class, () -> execute(unmodifiableSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.getMessage(), startsWith(
-                "Elasticsearch exception [type=illegal_argument_exception, "
+                "OpenSearch exception [type=illegal_argument_exception, "
                 + "reason=Can't update non dynamic settings [[index.number_of_shards]] for open indices [[index/"));
         closeIndex(index);
         exception = expectThrows(OpenSearchException.class, () -> execute(unmodifiableSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.getMessage(), startsWith(
-                "Elasticsearch exception [type=illegal_argument_exception, "
+                "OpenSearch exception [type=illegal_argument_exception, "
                 + "reason=final index setting [index.number_of_shards], not updateable"));
     }
 
@@ -1536,14 +1536,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
         assertThat(exception.getMessage(),
-            equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
+            equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]"));
 
         createIndex(index, Settings.EMPTY);
         exception = expectThrows(OpenSearchException.class, () -> execute(indexUpdateSettingsRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
-                "Elasticsearch exception [type=illegal_argument_exception, "
+                "OpenSearch exception [type=illegal_argument_exception, "
                 + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
                 + "or check the breaking changes documentation for removed settings]"));
     }

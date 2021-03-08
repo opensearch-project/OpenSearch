@@ -22,7 +22,7 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;

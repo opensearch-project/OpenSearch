@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
@@ -46,7 +46,7 @@ public class MainActionTests extends ESTestCase {
 
     public void testMainActionClusterAvailable() {
         final ClusterService clusterService = mock(ClusterService.class);
-        final ClusterName clusterName = new ClusterName("elasticsearch");
+        final ClusterName clusterName = new ClusterName("opensearch");
         final Settings settings = Settings.builder().put("node.name", "my-node").build();
         ClusterBlocks blocks;
         if (randomBoolean()) {

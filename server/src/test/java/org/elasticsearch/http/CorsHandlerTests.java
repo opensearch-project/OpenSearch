@@ -23,8 +23,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

@@ -42,7 +42,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShardRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -314,24 +314,24 @@ public final class RandomObjects {
         switch (type) {
             case 0:
                 actualException = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
-                expectedException = new OpenSearchException("Elasticsearch exception [type=cluster_block_exception, " +
+                expectedException = new OpenSearchException("OpenSearch exception [type=cluster_block_exception, " +
                         "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
                 break;
             case 1:
                 actualException = new ShardNotFoundException(shard);
-                expectedException = new OpenSearchException("Elasticsearch exception [type=shard_not_found_exception, " +
+                expectedException = new OpenSearchException("OpenSearch exception [type=shard_not_found_exception, " +
                         "reason=no such shard]");
                 expectedException.setShard(shard);
                 break;
             case 2:
                 actualException = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
-                expectedException = new OpenSearchException("Elasticsearch exception [type=illegal_argument_exception, " +
+                expectedException = new OpenSearchException("OpenSearch exception [type=illegal_argument_exception, " +
                         "reason=Closed resource]",
-                        new OpenSearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]"));
+                        new OpenSearchException("OpenSearch exception [type=runtime_exception, reason=Resource]"));
                 break;
             case 3:
                 actualException = new IndexShardRecoveringException(shard);
-                expectedException = new OpenSearchException("Elasticsearch exception [type=index_shard_recovering_exception, " +
+                expectedException = new OpenSearchException("OpenSearch exception [type=index_shard_recovering_exception, " +
                         "reason=CurrentState[RECOVERING] Already recovering]");
                 expectedException.setShard(shard);
                 break;

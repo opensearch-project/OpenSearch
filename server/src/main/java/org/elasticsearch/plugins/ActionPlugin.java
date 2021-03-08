@@ -36,9 +36,9 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.RestHeaderDefinition;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestHeaderDefinition;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -49,7 +49,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
- * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
+ * An additional extension point for {@link Plugin}s that extends OpenSearch's scripting functionality. Implement it like this:
  * <pre>{@code
  *   {@literal @}Override
  *   public List<ActionHandler<?, ?>> getActions() {

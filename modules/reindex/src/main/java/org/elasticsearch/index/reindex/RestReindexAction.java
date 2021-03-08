@@ -23,8 +23,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequestFilter;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,7 +33,7 @@ import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
  * Expose reindex over rest.

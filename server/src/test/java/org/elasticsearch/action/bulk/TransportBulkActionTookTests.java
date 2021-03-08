@@ -42,7 +42,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.opensearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -183,7 +183,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     private void runTestTook(boolean controlled) throws Exception {
-        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
+        String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk.json");
         // translate Windows line endings (\r\n) to standard ones (\n)
         if (Constants.WINDOWS) {
             bulkAction = Strings.replace(bulkAction, "\r\n", "\n");

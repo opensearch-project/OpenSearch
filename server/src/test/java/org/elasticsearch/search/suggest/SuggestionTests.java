@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.opensearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;

@@ -87,7 +87,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.opensearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;

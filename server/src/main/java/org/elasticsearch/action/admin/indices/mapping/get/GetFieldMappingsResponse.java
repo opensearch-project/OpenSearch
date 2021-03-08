@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,7 +47,7 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
+import static org.opensearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API

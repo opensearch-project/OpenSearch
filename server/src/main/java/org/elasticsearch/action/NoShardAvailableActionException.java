@@ -22,7 +22,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 

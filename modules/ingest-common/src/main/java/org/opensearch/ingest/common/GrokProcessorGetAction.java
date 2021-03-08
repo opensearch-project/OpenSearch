@@ -33,9 +33,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.grok.Grok;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
 

@@ -65,7 +65,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -179,18 +179,18 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 @Override
                 public void onFetchPhase(SearchContext context, long tookInNanos) {
                     if ("throttled_threadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_throttled]"));
+                        assertThat(Thread.currentThread().getName(), startsWith("opensearch[node_s_0][search_throttled]"));
                     } else {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
+                        assertThat(Thread.currentThread().getName(), startsWith("opensearch[node_s_0][search]"));
                     }
                 }
 
                 @Override
                 public void onQueryPhase(SearchContext context, long tookInNanos) {
                     if ("throttled_threadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_throttled]"));
+                        assertThat(Thread.currentThread().getName(), startsWith("opensearch[node_s_0][search_throttled]"));
                     } else {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
+                        assertThat(Thread.currentThread().getName(), startsWith("opensearch[node_s_0][search]"));
                     }
                 }
             });
@@ -605,7 +605,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     throw new AssertionError(e);
                 }
             });
-            threads[i].setName("elasticsearch[node_s_0][search]");
+            threads[i].setName("opensearch[node_s_0][search]");
             threads[i].start();
         }
         for (Thread thread : threads) {
@@ -800,7 +800,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().indices().prepareUpdateSettings("throttled_threadpool_index").setSettings(Settings.builder().put(IndexSettings
                 .INDEX_SEARCH_THROTTLED.getKey(), false)).get());
-        assertEquals("can not update private setting [index.search.throttled]; this setting is managed by Elasticsearch",
+        assertEquals("can not update private setting [index.search.throttled]; this setting is managed by OpenSearch",
             iae.getMessage());
         assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
@@ -925,7 +925,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 public void onResponse(SearchPhaseResult result) {
                     try {
                         assertNotSame(Thread.currentThread(), currentThread);
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
+                        assertThat(Thread.currentThread().getName(), startsWith("opensearch[node_s_0][search]"));
                         assertThat(result, instanceOf(QuerySearchResult.class));
                         assertFalse(result.queryResult().isNull());
                         assertNotNull(result.queryResult().topDocs());
@@ -955,7 +955,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 public void onResponse(SearchPhaseResult result) {
                     try {
                         assertNotSame(Thread.currentThread(), currentThread);
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
+                        assertThat(Thread.currentThread().getName(), startsWith("opensearch[node_s_0][search]"));
                         assertThat(result, instanceOf(QuerySearchResult.class));
                         assertFalse(result.queryResult().isNull());
                         assertNotNull(result.queryResult().topDocs());

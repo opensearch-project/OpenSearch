@@ -34,8 +34,8 @@ import org.elasticsearch.plugin.noop.action.search.RestNoopSearchAction;
 import org.elasticsearch.plugin.noop.action.search.TransportNoopSearchAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 
 import java.util.Arrays;
 import java.util.List;
