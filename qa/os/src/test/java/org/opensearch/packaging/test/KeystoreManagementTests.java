@@ -211,7 +211,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(runOpenSearchStartCommand(password, true, true));
+        awaitOpenSearchStartup(runOpenSearchStartCommand(password, true, true));
         ServerUtils.runOpenSearchTests();
         stopOpenSearch();
     }
@@ -236,7 +236,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * view help information.
      */
     public void test45EncryptedKeystoreAllowsHelpMessage() throws Exception {
-        assumeTrue("users call elasticsearch directly in archive case", distribution.isArchive());
+        assumeTrue("users call opensearch directly in archive case", distribution.isArchive());
 
         String password = "keystorepass";
 
@@ -244,8 +244,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         createKeystore(password);
 
         assertPasswordProtectedKeystore();
-        Shell.Result r = installation.executables().elasticsearch.run("--help");
-        assertThat(r.stdout, startsWith("Starts Elasticsearch"));
+        Shell.Result r = installation.executables().opensearch.run("--help");
+        assertThat(r.stdout, startsWith("Starts OpenSearch"));
     }
 
     public void test50KeystorePasswordFromFile() throws Exception {
