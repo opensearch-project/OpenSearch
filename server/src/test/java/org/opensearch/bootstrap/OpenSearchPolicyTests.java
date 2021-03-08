@@ -19,7 +19,7 @@
 
 package org.opensearch.bootstrap;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.security.AccessControlContext;
 import java.security.AccessController;
@@ -31,7 +31,7 @@ import java.security.ProtectionDomain;
 /**
  * Tests for OpenSearchPolicy
  */
-public class OpenSearchPolicyTests extends ESTestCase {
+public class OpenSearchPolicyTests extends OpenSearchTestCase {
 
     /**
      * test restricting privileges to no permissions actually works

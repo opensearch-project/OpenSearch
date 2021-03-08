@@ -19,14 +19,14 @@
 
 package org.opensearch.bootstrap;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
-public class JavaVersionTests extends ESTestCase {
+public class JavaVersionTests extends OpenSearchTestCase {
     public void testParse() {
         JavaVersion javaVersion = JavaVersion.parse("1.7.0");
         List<Integer> version = javaVersion.getVersion();

@@ -19,7 +19,7 @@
 
 package org.opensearch.bootstrap;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOError;
@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class OpenSearchUncaughtExceptionHandlerTests extends ESTestCase {
+public class OpenSearchUncaughtExceptionHandlerTests extends OpenSearchTestCase {
 
     private Map<Class<? extends Error>, Integer> expectedStatus;
 

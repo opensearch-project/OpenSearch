@@ -20,9 +20,9 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class BootstrapSettingsTests extends ESTestCase {
+public class BootstrapSettingsTests extends OpenSearchTestCase {
 
     public void testDefaultSettings() {
         assertTrue(BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(Settings.EMPTY));

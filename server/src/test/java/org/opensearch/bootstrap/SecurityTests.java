@@ -19,13 +19,13 @@
 
 package org.opensearch.bootstrap;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class SecurityTests extends ESTestCase {
+public class SecurityTests extends OpenSearchTestCase {
 
     public void testEnsureExists() throws IOException {
         Path p = createTempDir();
