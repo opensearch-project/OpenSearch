@@ -16,17 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
+package org.opensearch.join.aggregations;
 
-esplugin {
-  description 'This module adds the support parent-child queries and aggregations'
-  classname 'org.opensearch.join.ParentJoinPlugin'
-  hasClientJar = true
-}
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
-restResources {
-  restApi {
-    includeCore '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'search'
-  }
+import java.io.IOException;
+
+public class ParsedParent extends ParsedSingleBucketAggregation implements Parent {
+
+    @Override
+    public String getType() {
+        return ParentAggregationBuilder.NAME;
+    }
+
+    public static ParsedParent fromXContent(XContentParser parser, final String name) throws IOException {
+        return parseXContent(parser, new ParsedParent(), name);
+    }
 }
