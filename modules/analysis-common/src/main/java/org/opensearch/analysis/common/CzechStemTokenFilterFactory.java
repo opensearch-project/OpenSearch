@@ -16,21 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
+package org.opensearch.analysis.common;
 
-esplugin {
-  description 'Adds "built in" analyzers to OpenSearch.'
-  classname 'org.opensearch.analysis.common.CommonAnalysisPlugin'
-  extendedPlugins = ['lang-painless']
-}
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.cz.CzechStemFilter;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
-  }
-}
+public class CzechStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
-dependencies {
-  compileOnly project(':modules:lang-painless')
+    CzechStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
+    }
+
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
+        return new CzechStemFilter(tokenStream);
+    }
 }

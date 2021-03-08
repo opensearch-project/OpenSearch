@@ -16,21 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
+package org.opensearch.analysis.common;
 
-esplugin {
-  description 'Adds "built in" analyzers to OpenSearch.'
-  classname 'org.opensearch.analysis.common.CommonAnalysisPlugin'
-  extendedPlugins = ['lang-painless']
-}
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
-  }
-}
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-dependencies {
-  compileOnly project(':modules:lang-painless')
+public class CommonAnalysisClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    public CommonAnalysisClientYamlTestSuiteIT(@Name("yaml")ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }

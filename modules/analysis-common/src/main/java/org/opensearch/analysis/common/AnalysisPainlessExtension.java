@@ -16,21 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'Adds "built in" analyzers to OpenSearch.'
-  classname 'org.opensearch.analysis.common.CommonAnalysisPlugin'
-  extendedPlugins = ['lang-painless']
-}
+package org.opensearch.analysis.common;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
-  }
-}
+import org.elasticsearch.painless.spi.PainlessExtension;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.script.ScriptContext;
 
-dependencies {
-  compileOnly project(':modules:lang-painless')
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+public class AnalysisPainlessExtension implements PainlessExtension {
+
+    private static final Whitelist WHITELIST =
+        WhitelistLoader.loadFromResourceFiles(AnalysisPainlessExtension.class, "painless_whitelist.txt");
+
+    @Override
+    public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
+        return Collections.singletonMap(AnalysisPredicateScript.CONTEXT, Collections.singletonList(WHITELIST));
+    }
 }
