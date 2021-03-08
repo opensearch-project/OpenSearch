@@ -108,7 +108,7 @@ public class Archives {
         mv(extractedPath, fullInstallPath);
 
         assertThat("extracted archive moved to install location", Files.exists(fullInstallPath));
-        final List<Path> installations = lsGlob(baseInstallPath, "elasticsearch*");
+        final List<Path> installations = lsGlob(baseInstallPath, "opensearch*");
         assertThat("only the intended installation exists", installations, hasSize(1));
         assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
 
@@ -122,35 +122,35 @@ public class Archives {
     private static void setupArchiveUsersLinux(Path installPath) {
         final Shell sh = new Shell();
 
-        if (sh.runIgnoreExitCode("getent group elasticsearch").isSuccess() == false) {
+        if (sh.runIgnoreExitCode("getent group opensearch").isSuccess() == false) {
             if (isDPKG()) {
-                sh.run("addgroup --system elasticsearch");
+                sh.run("addgroup --system opensearch");
             } else {
-                sh.run("groupadd -r elasticsearch");
+                sh.run("groupadd -r opensearch");
             }
         }
 
-        if (sh.runIgnoreExitCode("id elasticsearch").isSuccess() == false) {
+        if (sh.runIgnoreExitCode("id opensearch").isSuccess() == false) {
             if (isDPKG()) {
                 sh.run(
                     "adduser "
                         + "--quiet "
                         + "--system "
                         + "--no-create-home "
-                        + "--ingroup elasticsearch "
+                        + "--ingroup opensearch "
                         + "--disabled-password "
                         + "--shell /bin/false "
-                        + "elasticsearch"
+                        + "opensearch"
                 );
             } else {
                 sh.run(
                     "useradd "
                         + "--system "
                         + "-M "
-                        + "--gid elasticsearch "
+                        + "--gid opensearch "
                         + "--shell /sbin/nologin "
-                        + "--comment 'elasticsearch user' "
-                        + "elasticsearch"
+                        + "--comment 'opensearch user' "
+                        + "opensearch"
                 );
             }
         }
@@ -170,12 +170,12 @@ public class Archives {
         assertThat(Files.exists(es.config("opensearch.keystore")), is(false));
 
         Stream.of(
-            "elasticsearch",
-            "elasticsearch-env",
+            "opensearch",
+            "opensearch-env",
             "opensearch-keystore",
             "opensearch-plugin",
             "opensearch-shard",
-            "opensearch-shard"
+            "opensearch-node"
         ).forEach(executable -> {
 
             assertThat(es.bin(executable), file(File, owner, owner, p755));
@@ -186,7 +186,7 @@ public class Archives {
         });
 
         if (distribution.packaging == Distribution.Packaging.ZIP) {
-            Stream.of("opensearch-service.bat", "elasticsearch-service-mgr.exe", "opensearch-service-x64.exe")
+            Stream.of("opensearch-service.bat", "opensearch-service-mgr.exe", "opensearch-service-x64.exe")
                 .forEach(executable -> assertThat(es.bin(executable), file(File, owner)));
         }
 
@@ -222,13 +222,13 @@ public class Archives {
                 + "spawn -ignore HUP "
                 + String.join(" ", command)
                 + "\n"
-                + "expect \"Elasticsearch keystore password:\"\n"
+                + "expect \"OpenSearch keystore password:\"\n"
                 + "send \"%s\\r\"\n"
                 + "expect eof\n"
                 + "EXPECT\n"
                 + ")\"",
             ARCHIVE_OWNER,
-            bin.elasticsearch,
+            bin.opensearch,
             pidFile,
             keystorePassword
         );
@@ -250,7 +250,7 @@ public class Archives {
         final Installation.Executables bin = installation.executables();
 
         if (Platforms.WINDOWS == false) {
-            // If jayatana is installed then we try to use it. Elasticsearch should ignore it even when we try.
+            // If jayatana is installed then we try to use it. OpenSearch should ignore it even when we try.
             // If it doesn't ignore it then OpenSearch will fail to start because of security errors.
             // This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
             if (Files.exists(Paths.get("/usr/share/java/jayatanaag.jar"))) {

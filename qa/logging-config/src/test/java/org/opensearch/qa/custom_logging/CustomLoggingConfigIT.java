@@ -35,9 +35,9 @@ import java.security.PrivilegedAction;
 import java.util.List;
 
 /**
- * This test verifies that Elasticsearch can startup successfully with a custom logging config using variables introduced in
+ * This test verifies that OpenSearch can startup successfully with a custom logging config using variables introduced in
  * <code>ESJsonLayout</code>
- * The intention is to confirm that users can still run their Elasticsearch instances with previous configurations.
+ * The intention is to confirm that users can still run their OpenSearch instances with previous configurations.
  */
 public class CustomLoggingConfigIT extends OpenSearchRestTestCase {
     private static final String NODE_STARTED = ".*integTest-0.*cluster.uuid.*node.id.*recovered.*cluster_state.*";

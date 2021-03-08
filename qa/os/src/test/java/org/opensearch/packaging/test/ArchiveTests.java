@@ -127,7 +127,7 @@ public class ArchiveTests extends PackagingTestCase {
         } catch (Exception e) {
             if (Files.exists(installation.home.resolve("opensearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("opensearch.pid")).trim();
-                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+                logger.info("Dumping jstack of opensearch processb ({}) that failed to start", pid);
                 sh.runIgnoreExitCode("jstack " + pid);
             }
             throw e;

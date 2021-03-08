@@ -362,7 +362,7 @@ public class DockerTests extends PackagingTestCase {
         staticLabels.put("name", "OpenSearch");
         staticLabels.put("schema-version", "1.0");
         staticLabels.put("url", "https://www.opensearch.co/products/opensearch");
-        staticLabels.put("usage", "https://www.opensearch.co/guide/en/opensearch./reference/index.html");
+        staticLabels.put("usage", "https://www.opensearch.co/guide/en/opensearch/reference/index.html");
         staticLabels.put("vcs-url", "https://github.com/opensearch/opensearch");
         staticLabels.put("vendor", "OpenSearch");
 
