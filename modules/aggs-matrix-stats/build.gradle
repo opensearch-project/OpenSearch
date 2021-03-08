@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
 esplugin {
   description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
-  classname 'org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin'
+  classname 'org.opensearch.search.aggregations.matrix.MatrixAggregationPlugin'
   hasClientJar = true
 }
 

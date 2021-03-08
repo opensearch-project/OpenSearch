@@ -54,11 +54,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
-import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
-import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
-import org.elasticsearch.script.mustache.SearchTemplateRequest;
-import org.elasticsearch.script.mustache.SearchTemplateResponse;
+import org.opensearch.script.mustache.MultiSearchTemplateRequest;
+import org.opensearch.script.mustache.MultiSearchTemplateResponse;
+import org.opensearch.script.mustache.MultiSearchTemplateResponse.Item;
+import org.opensearch.script.mustache.SearchTemplateRequest;
+import org.opensearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -71,8 +71,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.RareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
+import org.opensearch.search.aggregations.matrix.stats.MatrixStats;
+import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -1154,7 +1154,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(exception.getIndex().getName(), equalTo("non_existent_index"));
             assertThat(exception.getDetailedMessage(),
-                containsString("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
+                containsString("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             ExplainRequest explainRequest = new ExplainRequest("index1", "999");

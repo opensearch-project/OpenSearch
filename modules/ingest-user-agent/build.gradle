@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
 esplugin {
   description 'Ingest processor that extracts information from a user agent'
-  classname 'org.elasticsearch.ingest.useragent.IngestUserAgentPlugin'
+  classname 'org.opensearch.ingest.useragent.IngestUserAgentPlugin'
 }
 
 restResources {
