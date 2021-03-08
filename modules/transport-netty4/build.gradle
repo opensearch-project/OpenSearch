@@ -18,14 +18,14 @@
  */
 
 
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.rest.JavaRestTestPlugin
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.test.rest.JavaRestTestPlugin
+import org.opensearch.gradle.test.InternalClusterTestPlugin
 
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.java-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 /*
  TODOs:
@@ -35,7 +35,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
  */
 esplugin {
   description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.transport.Netty4Plugin'
+  classname 'org.opensearch.transport.Netty4Plugin'
   hasClientJar = true
 }
 
