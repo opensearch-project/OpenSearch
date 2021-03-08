@@ -21,9 +21,9 @@ package org.opensearch.cli;
 
 import joptsimple.OptionException;
 import joptsimple.OptionSet;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class CommandTests extends ESTestCase {
+public class CommandTests extends OpenSearchTestCase {
 
     static class UserErrorCommand extends Command {
 

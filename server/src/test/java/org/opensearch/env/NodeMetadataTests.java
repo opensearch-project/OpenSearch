@@ -21,7 +21,7 @@ package org.opensearch.env;
 import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.VersionUtils;
 
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class NodeMetadataTests extends ESTestCase {
+public class NodeMetadataTests extends OpenSearchTestCase {
     private Version randomVersion() {
         // VersionUtils.randomVersion() only returns known versions, which are necessarily no later than Version.CURRENT; however we want
         // also to consider our behaviour with all versions, so occasionally pick up a truly random version.

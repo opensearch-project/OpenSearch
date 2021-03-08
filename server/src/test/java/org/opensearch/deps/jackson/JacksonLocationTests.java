@@ -24,13 +24,13 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class JacksonLocationTests extends ESTestCase {
+public class JacksonLocationTests extends OpenSearchTestCase {
     public void testLocationExtraction() throws IOException {
         // {
         //    "index" : "test",

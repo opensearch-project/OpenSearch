@@ -29,7 +29,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.MockTransportClient;
 import org.opensearch.transport.TransportSettings;
 
@@ -43,7 +43,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class TransportClientTests extends ESTestCase {
+public class TransportClientTests extends OpenSearchTestCase {
 
     public void testThatUsingAClosedClientThrowsAnException() throws ExecutionException, InterruptedException {
         final TransportClient client =  new MockTransportClient(Settings.EMPTY);

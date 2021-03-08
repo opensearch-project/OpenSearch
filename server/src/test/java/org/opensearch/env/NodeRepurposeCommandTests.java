@@ -36,7 +36,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.Index;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class NodeRepurposeCommandTests extends ESTestCase {
+public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
     private static final Index INDEX = new Index("testIndex", "testUUID");
     private Settings dataMasterSettings;

@@ -33,7 +33,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.Node;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.NodeRoles;
 
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
-public class NodeEnvironmentTests extends ESTestCase {
+public class NodeEnvironmentTests extends OpenSearchTestCase {
     private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
     public void testNodeLockSillySettings() {

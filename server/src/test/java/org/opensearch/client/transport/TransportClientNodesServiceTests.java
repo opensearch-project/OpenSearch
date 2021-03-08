@@ -39,7 +39,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -78,7 +78,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class TransportClientNodesServiceTests extends ESTestCase {
+public class TransportClientNodesServiceTests extends OpenSearchTestCase {
 
     private static class TestIteration implements Closeable {
         private final ThreadPool threadPool;

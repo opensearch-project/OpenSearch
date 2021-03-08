@@ -19,7 +19,7 @@
 
 package org.opensearch.cli;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.BufferedReader;
 import java.io.StringReader;
@@ -27,7 +27,7 @@ import java.io.StringReader;
 import static org.opensearch.cli.Terminal.readLineToCharArray;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TerminalTests extends ESTestCase {
+public class TerminalTests extends OpenSearchTestCase {
 
     public void testVerbosity() throws Exception {
         MockTerminal terminal = new MockTerminal();

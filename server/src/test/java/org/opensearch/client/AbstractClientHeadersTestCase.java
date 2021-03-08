@@ -38,7 +38,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class AbstractClientHeadersTestCase extends ESTestCase {
+public abstract class AbstractClientHeadersTestCase extends OpenSearchTestCase {
 
     protected static final Settings HEADER_SETTINGS = Settings.builder()
             .put(ThreadContext.PREFIX + ".key1", "val1")

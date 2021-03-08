@@ -30,7 +30,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.gateway.PersistedClusterStateService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class OverrideNodeVersionCommandTests extends ESTestCase {
+public class OverrideNodeVersionCommandTests extends OpenSearchTestCase {
 
     private Environment environment;
     private Path[] nodePaths;

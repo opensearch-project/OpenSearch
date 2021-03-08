@@ -27,10 +27,10 @@ import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.tasks.TaskId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 
-public class ParentTaskAssigningClientTests extends ESTestCase {
+public class ParentTaskAssigningClientTests extends OpenSearchTestCase {
     public void testSetsParentId() {
         TaskId[] parentTaskId = new TaskId[] {new TaskId(randomAlphaOfLength(3), randomLong())};
 

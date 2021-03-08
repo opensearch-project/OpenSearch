@@ -46,14 +46,14 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimpleLuceneTests extends ESTestCase {
+public class SimpleLuceneTests extends OpenSearchTestCase {
     public void testSortValues() throws Exception {
         Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
