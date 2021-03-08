@@ -48,10 +48,10 @@ You can use {ref}/modules-network.html[core network host settings]. For example 
 ===== How to start (short story)
 
 * Create Azure instances
-* Install Elasticsearch
+* Install {opensearch}
 * Install Azure plugin
 * Modify `elasticsearch.yml` file
-* Start Elasticsearch
+* Start {opensearch}
 
 [[discovery-azure-classic-settings]]
 ===== Azure credential API settings
@@ -94,7 +94,7 @@ The following are a list of settings that can further control the discovery:
 `discovery.azure.endpoint.name`::
 
     When using `public_ip` this setting is used to identify the endpoint name
-    used to forward requests to Elasticsearch (aka transport port name).
+    used to forward requests to {opensearch} (aka transport port name).
     Defaults to `elasticsearch`. In Azure management console, you could define
     an endpoint `elasticsearch` forwarding for example requests on public IP
     on port 8100 to the virtual machine on port 9300.
@@ -127,10 +127,10 @@ discovery:
 [[discovery-azure-classic-long]]
 ==== Setup process for Azure Discovery
 
-We will expose here one strategy which is to hide our Elasticsearch cluster from outside.
+We will expose here one strategy which is to hide our {opensearch} cluster from outside.
 
 With this strategy, only VMs behind the same virtual port can talk to each
-other.  That means that with this mode, you can use Elasticsearch unicast
+other.  That means that with this mode, you can use {opensearch} unicast
 discovery to build a cluster, using the Azure API to retrieve information
 about your nodes.
 
@@ -176,7 +176,7 @@ cat azure-cert.pem azure-pk.pem > azure.pem.txt
 openssl pkcs12 -export -in azure.pem.txt -out azurekeystore.pkcs12 -name azure -noiter -nomaciter
 ----
 
-Upload the `azure-certificate.cer` file both in the Elasticsearch Cloud Service (under `Manage Certificates`),
+Upload the `azure-certificate.cer` file both in the {opensearch} Cloud Service (under `Manage Certificates`),
 and under `Settings -> Manage Certificates`.
 
 IMPORTANT: When prompted for a password, you need to enter a non empty one.
@@ -322,7 +322,7 @@ Host *.cloudapp.net
 ----
 ===============================================
 
-Next, you need to install Elasticsearch on your new instance. First, copy your
+Next, you need to install {opensearch} on your new instance. First, copy your
 keystore to the instance, then connect to the instance using SSH:
 
 [source,sh]
@@ -333,7 +333,7 @@ ssh azure-elasticsearch-cluster.cloudapp.net
 
 Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
 
-Check that Elasticsearch is running:
+Check that {opensearch} is running:
 
 [source,console]
 ----
@@ -372,11 +372,11 @@ This command should give you a JSON result:
 // So much s/// but at least we test that the layout is close to matching....
 
 [[discovery-azure-classic-long-plugin]]
-===== Install Elasticsearch cloud azure plugin
+===== Install {opensearch} cloud azure plugin
 
 [source,sh]
 ----
-# Stop Elasticsearch
+# Stop {opensearch}
 sudo service elasticsearch stop
 
 # Install the plugin
@@ -407,7 +407,7 @@ discovery:
 # path.data: /mnt/resource/elasticsearch/data
 ----
 
-Restart Elasticsearch:
+Restart {opensearch}:
 
 [source,sh]
 ----

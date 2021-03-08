@@ -29,7 +29,7 @@ GClient client = node.client();
 node.close();
 --------------------------------------------------
 
-Since {opensearch} allows to configure it using JSON based settings,
+Since Elasticsearch allows to configure it using JSON based settings,
 the configuration itself can be done using a closure that represent the
 JSON:
 

@@ -1,3 +1,4 @@
+// TODO: Correct the path for Opensearch
 // tag::unix[]
 Linux and macOS installations support Unix-style paths:
 

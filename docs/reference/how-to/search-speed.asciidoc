@@ -4,9 +4,9 @@
 [discrete]
 === Give memory to the filesystem cache
 
-Elasticsearch heavily relies on the filesystem cache in order to make search
+{opensearch} heavily relies on the filesystem cache in order to make search
 fast. In general, you should make sure that at least half the available memory
-goes to the filesystem cache so that Elasticsearch can keep hot regions of the
+goes to the filesystem cache so that {opensearch} can keep hot regions of the
 index in physical memory.
 
 [discrete]
@@ -17,7 +17,7 @@ filesystem cache (see above) or buying faster drives. In particular SSD drives
 are known to perform better than spinning disks. Always use local storage,
 remote filesystems such as `NFS` or `SMB` should be avoided. Also beware of
 virtualized storage such as Amazon's `Elastic Block Storage`. Virtualized
-storage works very well with Elasticsearch, and it is appealing since it is so
+storage works very well with {opensearch}, and it is appealing since it is so
 fast and simple to set up, but it is also unfortunately inherently slower on an
 ongoing basis when compared to dedicated local storage. If you put an index on
 `EBS`, be sure to use provisioned IOPS otherwise operations could be quickly
@@ -330,7 +330,7 @@ PUT index
 [discrete]
 === Warm up the filesystem cache
 
-If the machine running Elasticsearch is restarted, the filesystem cache will be
+If the machine running {opensearch} is restarted, the filesystem cache will be
 empty, so it will take some time before the operating system loads hot regions
 of the index into memory so that search operations are fast. You can explicitly
 tell the operating system which files should be loaded into memory eagerly
@@ -380,7 +380,7 @@ second case the number of replicas is 1, meaning that each node has two shards.
 Which setup is going to perform best in terms of search performance? Usually,
 the setup that has fewer shards per node in total will perform better. The
 reason for that is that it gives a greater share of the available filesystem
-cache to each shard, and the filesystem cache is probably Elasticsearch's
+cache to each shard, and the filesystem cache is probably {opensearch}'s
 number 1 performance factor. At the same time, beware that a setup that does
 not have replicas is subject to failure in case of a single node failure, so
 there is a trade-off between throughput and availability.
