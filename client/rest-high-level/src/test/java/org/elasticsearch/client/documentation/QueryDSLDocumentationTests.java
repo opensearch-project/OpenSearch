@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
-import org.elasticsearch.join.query.JoinQueryBuilders;
+import org.opensearch.join.query.JoinQueryBuilders;
 import org.elasticsearch.index.query.RankFeatureQueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
