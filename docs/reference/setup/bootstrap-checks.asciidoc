@@ -4,30 +4,30 @@
 Collectively, we have a lot of experience with users suffering
 unexpected issues because they have not configured
 <<important-settings,important settings>>. In previous versions of
-Elasticsearch, misconfiguration of some of these settings were logged
+{opensearch}, misconfiguration of some of these settings were logged
 as warnings. Understandably, users sometimes miss these log messages.
 To ensure that these settings receive the attention that they deserve,
-Elasticsearch has bootstrap checks upon startup.
+{opensearch} has bootstrap checks upon startup.
 
-These bootstrap checks inspect a variety of Elasticsearch and system
+These bootstrap checks inspect a variety of {opensearch} and system
 settings and compare them to values that are safe for the operation of
-Elasticsearch. If Elasticsearch is in development mode, any bootstrap
-checks that fail appear as warnings in the Elasticsearch log. If
-Elasticsearch is in production mode, any bootstrap checks that fail will
-cause Elasticsearch to refuse to start.
+{opensearch}. If {opensearch} is in development mode, any bootstrap
+checks that fail appear as warnings in the {opensearch} log. If
+{opensearch} is in production mode, any bootstrap checks that fail will
+cause {opensearch} to refuse to start.
 
 There are some bootstrap checks that are always enforced to prevent
-Elasticsearch from running with incompatible settings. These checks are
+{opensearch} from running with incompatible settings. These checks are
 documented individually.
 
 [discrete]
 [[dev-vs-prod-mode]]
 === Development vs. production mode
 
-By default, Elasticsearch binds to loopback addresses for <<modules-http,HTTP>>
+By default, {opensearch} binds to loopback addresses for <<modules-http,HTTP>>
 and <<modules-transport,transport (internal)>> communication. This is fine for
-downloading and playing with Elasticsearch as well as everyday development, but
-it's useless for production systems. To join a cluster, an Elasticsearch node
+downloading and playing with {opensearch} as well as everyday development, but
+it's useless for production systems. To join a cluster, an {opensearch} node
 must be reachable via transport communication. To join a cluster via a
 non-loopback address, a node must bind transport to a non-loopback address and
 not be using <<single-node-discovery,single-node discovery>>. Thus, we consider

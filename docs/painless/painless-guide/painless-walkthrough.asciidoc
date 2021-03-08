@@ -1,7 +1,7 @@
 [[painless-walkthrough]]
 === A Brief Painless Walkthrough
 
-To illustrate how Painless works, let's load some hockey stats into an Elasticsearch index:
+To illustrate how Painless works, let's load some hockey stats into an {opensearch} index:
 
 [source,console]
 ----------------------------------------------------------------

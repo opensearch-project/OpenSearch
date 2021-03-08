@@ -17,10 +17,10 @@ https://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[M
 Central]. The minimum Java version required is `1.8`.
 
 The low-level REST client is subject to the same release cycle as
-Elasticsearch. Replace the version with the desired client version, first
+{opensearch}. Replace the version with the desired client version, first
 released with `5.0.0-alpha4`. There is no relation between the client version
-and the Elasticsearch version that the client can communicate with. The
-low-level REST client is compatible with all Elasticsearch versions.
+and the {opensearch} version that the client can communicate with. The
+low-level REST client is compatible with all {opensearch} versions.
 
 If you are looking for a SNAPSHOT version, the Elastic Maven Snapshot repository is available
 at https://snapshots.elastic.co/maven/.
@@ -261,7 +261,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-body]
 --------------------------------------------------
 
 IMPORTANT: The `ContentType` specified for the `HttpEntity` is important
-because it will be used to set the `Content-Type` header so that Elasticsearch
+because it will be used to set the `Content-Type` header so that {opensearch}
 can properly parse the content.
 
 You can also set it to a `String` which will default to
@@ -287,7 +287,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-sin
 <2> Customize the response consumer.
 
 `addHeader` is for headers that are required for authorization or to work with
-a proxy in front of Elasticsearch. There is no need to set the `Content-Type`
+a proxy in front of {opensearch}. There is no need to set the `Content-Type`
 header because the client will automatically set that from the `HttpEntity`
 attached to the request.
 
@@ -342,7 +342,7 @@ The use of the `Cancellable` instance is optional and you can safely ignore this
 if you don't need it. A typical usecase for this would be using this together with 
 frameworks like Rx Java or the Kotlin's `suspendCancellableCoRoutine`. Cancelling
 no longer needed requests is a good way to avoid putting unnecessary 
-load on Elasticsearch.
+load on {opensearch}.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -383,7 +383,7 @@ a `404` status code because it is an expected `HEAD` response that simply
 denotes that the resource is not found. All other HTTP methods (e.g., `GET`)
 throw a `ResponseException` for `404` responses unless the `ignore` parameter
 contains `404`. `ignore` is a special client parameter that doesn't get sent
-to Elasticsearch and contains a comma separated list of error status codes.
+to {opensearch} and contains a comma separated list of error status codes.
 It allows to control whether some error status code should be treated as an
 expected response rather than as an exception. This is useful for instance
 with the get api as it can return `404` when the document is missing, in which

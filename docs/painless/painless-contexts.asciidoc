@@ -13,41 +13,41 @@ specialized code may define new ways to use a Painless script.
 [options="header",cols="<1,<1,<1"]
 |====
 | Name                              | Painless Documentation
-                                    | Elasticsearch Documentation
+                                    | {opensearch} Documentation
 | Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
-                                    | {ref}/script-processor.html[Elasticsearch Documentation]
+                                    | {ref}/script-processor.html[{opensearch} Documentation]
 | Update                            | <<painless-update-context, Painless Documentation>>
-                                    | {ref}/docs-update.html[Elasticsearch Documentation]
+                                    | {ref}/docs-update.html[{opensearch} Documentation]
 | Update by query                   | <<painless-update-by-query-context, Painless Documentation>>
-                                    | {ref}/docs-update-by-query.html[Elasticsearch Documentation]
+                                    | {ref}/docs-update-by-query.html[{opensearch} Documentation]
 | Reindex                           | <<painless-reindex-context, Painless Documentation>>
-                                    | {ref}/docs-reindex.html[Elasticsearch Documentation]
+                                    | {ref}/docs-reindex.html[{opensearch} Documentation]
 | Sort                              | <<painless-sort-context, Painless Documentation>>
-                                    | {ref}/sort-search-results.html[Elasticsearch Documentation]
+                                    | {ref}/sort-search-results.html[{opensearch} Documentation]
 | Similarity                        | <<painless-similarity-context, Painless Documentation>>
-                                    | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
+                                    | {ref}/index-modules-similarity.html[{opensearch}h Documentation]
 | Weight                            | <<painless-weight-context, Painless Documentation>>
-                                    | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
+                                    | {ref}/index-modules-similarity.html[{opensearch} Documentation]
 | Score                             | <<painless-score-context, Painless Documentation>>
-                                    | {ref}/query-dsl-function-score-query.html[Elasticsearch Documentation]
+                                    | {ref}/query-dsl-function-score-query.html[{opensearch} Documentation]
 | Field                             | <<painless-field-context, Painless Documentation>>
-                                    | {ref}/search-fields.html#script-fields[Elasticsearch Documentation]
+                                    | {ref}/search-fields.html#script-fields[{opensearch} Documentation]
 | Filter                            | <<painless-filter-context, Painless Documentation>>
-                                    | {ref}/query-dsl-script-query.html[Elasticsearch Documentation]
+                                    | {ref}/query-dsl-script-query.html[{opensearch} Documentation]
 | Minimum should match              | <<painless-min-should-match-context, Painless Documentation>>
-                                    | {ref}/query-dsl-terms-set-query.html[Elasticsearch Documentation]
+                                    | {ref}/query-dsl-terms-set-query.html[{opensearch} Documentation]
 | Metric aggregation initialization | <<painless-metric-agg-init-context, Painless Documentation>>
-                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[{opensearch} Documentation]
 | Metric aggregation map            | <<painless-metric-agg-map-context, Painless Documentation>>
-                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[{opensearch} Documentation]
 | Metric aggregation combine        | <<painless-metric-agg-combine-context, Painless Documentation>>
-                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[{opensearch} Documentation]
 | Metric aggregation reduce         | <<painless-metric-agg-reduce-context, Painless Documentation>>
-                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[{opensearch} Documentation]
 | Bucket script aggregation         | <<painless-bucket-script-agg-context, Painless Documentation>>
-                                    | {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[{opensearch} Documentation]
 | Bucket selector aggregation       | <<painless-bucket-selector-agg-context, Painless Documentation>>
-                                    | {ref}/search-aggregations-pipeline-bucket-selector-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-pipeline-bucket-selector-aggregation.html[{opensearch} Documentation]
 |====
 
 include::painless-contexts/index.asciidoc[]

@@ -13,7 +13,7 @@
 [[default-node-name-now-hostname]]
 ==== The default for `node.name` is now the hostname
 
-`node.name` now defaults to the hostname at the time when Elasticsearch
+`node.name` now defaults to the hostname at the time when {opensearch}
 is started. Previously the default node name was the first eight characters
 of the node id. It can still be configured explicitly in `elasticsearch.yml`.
 
@@ -155,7 +155,7 @@ on your network, you may need to enable TLS v1.0 support in any or all of the
 following places:
 
 `xpack.security.http.ssl.supported_protocols`::
-For incoming HTTP connections to Elasticsearch's HTTP (Rest) interface.
+For incoming HTTP connections to {opensearch}'s HTTP (Rest) interface.
 If there are clients that connect to {es} and do not support newer TLS versions,
 you must update this setting.
 

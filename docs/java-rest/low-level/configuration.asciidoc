@@ -73,9 +73,9 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-disa
 
 === Other authentication methods
 
-==== Elasticsearch Token Service tokens
+==== {opensearch} Token Service tokens
 
-If you want the client to authenticate with an Elasticsearch access token, set the relevant HTTP request header.
+If you want the client to authenticate with an {opensearch} access token, set the relevant HTTP request header.
 If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
 in the following example:
 
@@ -84,9 +84,9 @@ in the following example:
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-auth-bearer-token]
 --------------------------------------------------
 
-==== Elasticsearch API keys
+==== {opensearch} API keys
 
-If you want the client to authenticate with an Elasticsearch API key, set the relevant HTTP request header.
+If you want the client to authenticate with an {opensearch} API key, set the relevant HTTP request header.
 If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
 in the following example:
 
@@ -104,9 +104,9 @@ https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org
  communication: `setSSLContext`, `setSSLSessionStrategy` and
  `setConnectionManager`, in order of precedence from the least important.
 
-When accessing an Elasticsearch cluster that is setup for TLS on the HTTP layer, the client needs to trust the certificate that
-Elasticsearch is using.
- The following is an example of setting up the client to trust the CA that has signed the certificate that Elasticsearch is using, when
+When accessing an {opensearch} cluster that is setup for TLS on the HTTP layer, the client needs to trust the certificate that
+{opensearch} is using.
+ The following is an example of setting up the client to trust the CA that has signed the certificate that {opensearch} is using, when
  that CA certificate is available in a PKCS#12 keystore:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -114,7 +114,7 @@ Elasticsearch is using.
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-encrypted-communication]
 --------------------------------------------------
 
-The following is an example of setting up the client to trust the CA that has signed the certificate that Elasticsearch is using, when
+The following is an example of setting up the client to trust the CA that has signed the certificate that {opensearch} is using, when
 that CA certificate is available as a PEM encoded file.
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -122,7 +122,7 @@ that CA certificate is available as a PEM encoded file.
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-trust-ca-pem]
 --------------------------------------------------
 
-When Elasticsearch is configured to require client TLS authentication, for example when a PKI realm is configured, the client needs to provide
+When {opensearch} is configured to require client TLS authentication, for example when a PKI realm is configured, the client needs to provide
 a client certificate during the TLS handshake in order to authenticate. The following is an example of setting up the client for TLS
 authentication with a certificate and a private key that are stored in a PKCS#12 keystore.
 

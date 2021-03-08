@@ -1,10 +1,10 @@
 [[install-elasticsearch]]
-== Installing Elasticsearch
+== Installing {opensearch}
 
 [discrete]
-=== Installing Elasticsearch Yourself
+=== Installing {opensearch} Yourself
 
-Elasticsearch is provided in the following package formats:
+{opensearch} is provided in the following package formats:
 
 [horizontal]
 Linux and MacOS `tar.gz` archives::
@@ -22,7 +22,7 @@ The `zip` archive is suitable for installation on Windows.
 `deb`::
 
 The `deb` package is suitable for Debian, Ubuntu, and other Debian-based
-systems.  Debian packages may be downloaded from the Elasticsearch website or
+systems.  Debian packages may be downloaded from the {opensearch} website or
 from our Debian repository.
 +
 <<deb>>
@@ -31,13 +31,13 @@ from our Debian repository.
 
 The `rpm` package is suitable for installation on Red Hat, Centos, SLES,
 OpenSuSE and other RPM-based systems.  RPMs may be downloaded from the
-Elasticsearch website or from our RPM repository.
+{opensearch} website or from our RPM repository.
 +
 <<rpm>>
 
 `docker`::
 
-Images are available for running Elasticsearch as Docker containers. They may be
+Images are available for running {opensearch} as Docker containers. They may be
 downloaded from the Elastic Docker Registry.
 +
 {ref}/docker.html[Install {es} with Docker]

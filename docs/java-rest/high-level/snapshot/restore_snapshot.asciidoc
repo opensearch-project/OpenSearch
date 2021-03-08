@@ -22,7 +22,7 @@ provide a list of indices that should be restored:
 --------------------------------------------------
 include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request-indices]
 --------------------------------------------------
-<1> Request that Elasticsearch only restores "test_index".
+<1> Request that {opensearch} only restores "test_index".
 
 ==== Renaming Indices
 

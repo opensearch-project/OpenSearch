@@ -31,10 +31,10 @@ system crash or a JVM crash or a shard failure, any data written since the
 previous translog commit will be lost.
 
 By default, `index.translog.durability` is set to `request` meaning that
-Elasticsearch will only report success of an index, delete, update, or bulk
+{opensearch} will only report success of an index, delete, update, or bulk
 request to the client after the translog has been successfully ++fsync++ed and
 committed on the primary and on every allocated replica. If
-`index.translog.durability` is set to `async` then Elasticsearch ++fsync++s and
+`index.translog.durability` is set to `async` then {opensearch} ++fsync++s and
 commits the translog only every `index.translog.sync_interval` which means that
 any operations that were performed just before a crash may be lost when the node
 recovers.

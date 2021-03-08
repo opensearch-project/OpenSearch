@@ -2,7 +2,7 @@
 === Configuring system settings
 
 Where to configure systems settings depends on which package you have used to
-install Elasticsearch, and which operating system you are using.
+install {opensearch}, and which operating system you are using.
 
 When using the `.zip` or `.tar.gz` packages, system settings can be configured:
 
@@ -19,7 +19,7 @@ require that system limits are specified in a
 
 On Linux systems, `ulimit` can be used to change resource limits on a
 temporary basis. Limits usually need to be set as `root` before switching to
-the user that will run Elasticsearch.  For example, to set the number of
+the user that will run {opensearch}.  For example, to set the number of
 open file handles (`ulimit -n`) to 65,536, you can do the following:
 
 [source,sh]
@@ -30,7 +30,7 @@ su elasticsearch <3>
 --------------------------------
 <1> Become `root`.
 <2> Change the max number of open files.
-<3> Become the `elasticsearch` user in order to start Elasticsearch.
+<3> Become the `elasticsearch` user in order to start {opensearch}.
 
 The new limit is only applied during the current session.
 

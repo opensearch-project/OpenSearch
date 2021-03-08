@@ -2,7 +2,7 @@
 == API Anatomy
 
 Once a <<client,GClient>> has been
-obtained, all of Elasticsearch APIs can be executed on it. Each Groovy
+obtained, all of {opensearch} APIs can be executed on it. Each Groovy
 API is exposed using three different mechanisms.
 
 
@@ -13,7 +13,7 @@ The first type is to simply provide the request as a Closure, which
 automatically gets resolved into the respective request instance (for
 the index API, its the `IndexRequest` class). The API returns a special
 future, called `GActionFuture`. This is a groovier version of
-Elasticsearch Java `ActionFuture` (in turn a nicer extension to Java own
+{opensearch} Java `ActionFuture` (in turn a nicer extension to Java own
 `Future`) which allows to register listeners (closures) on it for
 success and failures, as well as blocking for the response. For example:
 

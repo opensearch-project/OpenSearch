@@ -654,7 +654,7 @@ Which results in a sensible `total` like this one:
 }
 ----------------------------------------------------------------
 
-Setting `slices` to `auto` will let Elasticsearch choose the number of slices
+Setting `slices` to `auto` will let {opensearch} choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If
 there are multiple source data streams or indices, it will choose the number of slices based
 on the index or backing index with the smallest number of shards.

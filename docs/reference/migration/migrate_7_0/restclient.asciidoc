@@ -29,4 +29,4 @@ e.g. `client.index(indexRequest, new Header("name" "value"))` becomes
 The Cluster Health API used to default to `shards` level to ease migration
 from transport client that doesn't support the `level` parameter and always
 returns information including indices and shards details. The level default
-value has been aligned with the Elasticsearch default level: `cluster`.
+value has been aligned with the {opensearch} default level: `cluster`.
