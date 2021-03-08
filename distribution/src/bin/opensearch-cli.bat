@@ -1,4 +1,4 @@
-call "%~dp0elasticsearch-env.bat" || exit /b 1
+call "%~dp0opensearch-env.bat" || exit /b 1
 
 if defined ES_ADDITIONAL_SOURCES (
   for %%a in ("%ES_ADDITIONAL_SOURCES:;=","%") do (

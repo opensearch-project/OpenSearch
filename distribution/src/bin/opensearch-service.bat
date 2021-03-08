@@ -6,14 +6,14 @@ setlocal enableextensions
 set NOJAVA=nojava
 if /i "%1" == "install" set NOJAVA=
 
-call "%~dp0elasticsearch-env.bat" %NOJAVA% || exit /b 1
+call "%~dp0opensearch-env.bat" %NOJAVA% || exit /b 1
 
-set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
-if "%SERVICE_ID%" == "" set SERVICE_ID=elasticsearch-service-x64
+set EXECUTABLE=%ES_HOME%\bin\opensearch-service-x64.exe
+if "%SERVICE_ID%" == "" set SERVICE_ID=opensearch-service-x64
 set ARCH=64-bit
 
 if EXIST "%EXECUTABLE%" goto okExe
-echo elasticsearch-service-x64.exe was not found...
+echo opensearch-service-x64.exe was not found...
 exit /B 1
 
 :okExe
@@ -41,7 +41,7 @@ exit /B 1
 
 :displayUsage
 echo.
-echo Usage: elasticsearch-service.bat install^|remove^|start^|stop^|manager [SERVICE_ID]
+echo Usage: opensearch-service.bat install^|remove^|start^|stop^|manager [SERVICE_ID]
 goto:eof
 
 :doStart
@@ -65,7 +65,7 @@ echo The service '%SERVICE_ID%' has been stopped
 goto:eof
 
 :doManagment
-set EXECUTABLE_MGR=%ES_HOME%\bin\elasticsearch-service-mgr
+set EXECUTABLE_MGR=%ES_HOME%\bin\opensearch-service-mgr
 "%EXECUTABLE_MGR%" //ES//%SERVICE_ID%
 if not errorlevel 1 goto managed
 echo Failed starting service manager for '%SERVICE_ID%'
@@ -107,11 +107,11 @@ if exist "%JAVA_HOME%\bin\server\jvm.dll" (
 
 :foundJVM
 if not defined ES_TMPDIR (
-  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set ES_TMPDIR=%%a
+  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.opensearch.tools.launchers.TempDirectory"`) do set ES_TMPDIR=%%a
 )
 
 rem The JVM options parser produces the final JVM options to start
-rem Elasticsearch. It does this by incorporating JVM options in the following
+rem OpenSearch. It does this by incorporating JVM options in the following
 rem way:
 rem   - first, system JVM options are applied (these are hardcoded options in
 rem     the parser)
@@ -121,7 +121,7 @@ rem   - third, JVM options from ES_JAVA_OPTS are applied
 rem   - fourth, ergonomic JVM options are applied
 
 @setlocal
-for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
+for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.opensearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
 @endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%ES_JAVA_OPTS%" & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
 
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
@@ -194,20 +194,20 @@ if "%JVM_SS%" == "" (
 set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:"=%
 set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:~1%
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%";-Des.distribution.type="%ES_DISTRIBUTION_TYPE%";-Des.bundled_jdk="%ES_BUNDLED_JDK%"
+set ES_PARAMS=-Dopensearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%";-Des.distribution.type="%ES_DISTRIBUTION_TYPE%";-Des.bundled_jdk="%ES_BUNDLED_JDK%"
 
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0
 
-if "%SERVICE_DISPLAY_NAME%" == "" set SERVICE_DISPLAY_NAME=Elasticsearch %ES_VERSION% (%SERVICE_ID%)
-if "%SERVICE_DESCRIPTION%" == "" set SERVICE_DESCRIPTION=Elasticsearch %ES_VERSION% Windows Service - https://elastic.co
+if "%SERVICE_DISPLAY_NAME%" == "" set SERVICE_DISPLAY_NAME=OpenSearch %ES_VERSION% (%SERVICE_ID%)
+if "%SERVICE_DESCRIPTION%" == "" set SERVICE_DESCRIPTION=OpenSearch %ES_VERSION% Windows Service - https://elastic.co
 
 if not "%SERVICE_USERNAME%" == "" (
 	if not "%SERVICE_PASSWORD%" == "" (
 		set SERVICE_PARAMS=%SERVICE_PARAMS% --ServiceUser "%SERVICE_USERNAME%" --ServicePassword "%SERVICE_PASSWORD%"
 	)
 )
-"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main ++StartParams --quiet --StopClass org.elasticsearch.bootstrap.Elasticsearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %OTHER_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.opensearch.bootstrap.OpenSearch --StartMethod main ++StartParams --quiet --StopClass org.opensearch.bootstrap.OpenSearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %OTHER_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
 
 if not errorlevel 1 goto installed
 echo Failed installing '%SERVICE_ID%' service

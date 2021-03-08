@@ -1,6 +1,6 @@
 set SCRIPT=%0
 
-rem determine Elasticsearch home; to do this, we strip from the path until we
+rem determine OpenSearch home; to do this, we strip from the path until we
 rem find bin, and then strip bin (there is an assumption here that there is no
 rem nested directory under bin also named bin)
 for %%I in (%SCRIPT%) do set ES_HOME=%%~dpI
@@ -70,5 +70,5 @@ if defined JAVA_OPTS (
 )
 
 rem check the Java version
-%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
+%JAVA% -cp "%ES_CLASSPATH%" "org.opensearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 

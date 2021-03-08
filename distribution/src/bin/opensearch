@@ -11,9 +11,9 @@
 # Optionally, exact memory values can be set using the `ES_JAVA_OPTS`. Example
 # values are "512m", and "10g".
 #
-#   ES_JAVA_OPTS="-Xms8g -Xmx8g" ./bin/elasticsearch
+#   ES_JAVA_OPTS="-Xms8g -Xmx8g" ./bin/opensearch
 
-source "`dirname "$0"`"/elasticsearch-env
+source "`dirname "$0"`"/opensearch-env
 
 CHECK_KEYSTORE=true
 DAEMONIZE=false
@@ -29,7 +29,7 @@ for option in "$@"; do
 done
 
 if [ -z "$ES_TMPDIR" ]; then
-  ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
+  ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.opensearch.tools.launchers.TempDirectory`
 fi
 
 # get keystore password before setting java options to avoid
@@ -37,22 +37,22 @@ fi
 unset KEYSTORE_PASSWORD
 KEYSTORE_PASSWORD=
 if [[ $CHECK_KEYSTORE = true ]] \
-    && bin/elasticsearch-keystore has-passwd --silent
+    && bin/opensearch-keystore has-passwd --silent
 then
-  if ! read -s -r -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then
+  if ! read -s -r -p "opensearch keystore password: " KEYSTORE_PASSWORD ; then
     echo "Failed to read keystore password on console" 1>&2
     exit 1
   fi
 fi
 
-# The JVM options parser produces the final JVM options to start Elasticsearch.
+# The JVM options parser produces the final JVM options to start OpenSearch.
 # It does this by incorporating JVM options in the following way:
 #   - first, system JVM options are applied (these are hardcoded options in the
 #     parser)
 #   - second, JVM options are read from jvm.options and jvm.options.d/*.options
 #   - third, JVM options from ES_JAVA_OPTS are applied
 #   - fourth, ergonomic JVM options are applied
-ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
+ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.opensearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
@@ -65,7 +65,7 @@ if [[ $DAEMONIZE = false ]]; then
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
-    org.elasticsearch.bootstrap.Elasticsearch \
+    org.opensearch.bootstrap.OpenSearch \
     "$@" <<<"$KEYSTORE_PASSWORD"
 else
   exec \
@@ -77,7 +77,7 @@ else
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
-    org.elasticsearch.bootstrap.Elasticsearch \
+    org.opensearch.bootstrap.OpenSearch \
     "$@" \
     <<<"$KEYSTORE_PASSWORD" &
   retval=$?
