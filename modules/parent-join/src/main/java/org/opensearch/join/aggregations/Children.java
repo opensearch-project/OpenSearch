@@ -16,17 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'This module adds the support parent-child queries and aggregations'
-  classname 'org.opensearch.join.ParentJoinPlugin'
-  hasClientJar = true
-}
+package org.opensearch.join.aggregations;
 
-restResources {
-  restApi {
-    includeCore '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'search'
-  }
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+
+/**
+ * An single bucket aggregation that translates parent documents to their children documents.
+ */
+public interface Children extends SingleBucketAggregation {
 }
