@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.url;
+package org.opensearch.repositories.url;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
