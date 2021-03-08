@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index;
+package org.opensearch.index;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.ResourceNotFoundException;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 

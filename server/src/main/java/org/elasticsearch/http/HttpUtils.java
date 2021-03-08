@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
 public class HttpUtils {
 

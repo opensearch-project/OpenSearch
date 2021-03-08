@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.indices;
+package org.opensearch.indices;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.index.cache.request.ShardRequestCache;
-import org.elasticsearch.index.shard.IndexShard;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.index.cache.request.ShardRequestCache;
+import org.opensearch.index.shard.IndexShard;
 
 /**
  * Abstract base class for the an {@link IndexShard} level {@linkplain IndicesRequestCache.CacheEntity}.

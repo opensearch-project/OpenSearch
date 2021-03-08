@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.similarity;
+package org.opensearch.index.similarity;
 
 import org.apache.lucene.search.similarities.AfterEffect;
 import org.apache.lucene.search.similarities.AfterEffectB;
@@ -50,9 +50,9 @@ import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.Version;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
 
 import java.util.Arrays;
 import java.util.HashMap;

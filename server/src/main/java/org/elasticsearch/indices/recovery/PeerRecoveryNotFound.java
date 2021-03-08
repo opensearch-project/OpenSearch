@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.ResourceNotFoundException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 

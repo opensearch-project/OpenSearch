@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata.ordinals;
+package org.opensearch.index.fielddata.ordinals;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.LongsRef;

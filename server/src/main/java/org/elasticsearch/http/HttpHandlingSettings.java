@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
+import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
+import static org.opensearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 
 public class HttpHandlingSettings {
 

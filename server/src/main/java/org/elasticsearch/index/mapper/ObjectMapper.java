@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.CopyOnWriteHashMap;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.util.ArrayList;

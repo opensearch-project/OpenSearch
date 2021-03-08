@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 public interface MultiTermQueryBuilder extends QueryBuilder {
     /**

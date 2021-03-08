@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.seqno;
+package org.opensearch.index.seqno;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.ResourceNotFoundException;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Objects;

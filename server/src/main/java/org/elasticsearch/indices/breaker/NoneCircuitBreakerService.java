@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.breaker;
+package org.opensearch.indices.breaker;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.NoopCircuitBreaker;
 
 /**
  * Class that returns a breaker that never breaks

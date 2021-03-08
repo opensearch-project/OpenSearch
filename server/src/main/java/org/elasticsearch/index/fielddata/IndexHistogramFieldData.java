@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 /**
  * Specialization of {@link IndexFieldData} for histograms.

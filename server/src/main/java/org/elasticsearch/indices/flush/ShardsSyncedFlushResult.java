@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.flush;
+package org.opensearch.indices.flush;
 
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.HashMap;

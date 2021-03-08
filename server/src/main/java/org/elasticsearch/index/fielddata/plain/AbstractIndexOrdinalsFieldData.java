@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata.plain;
+package org.opensearch.index.fielddata.plain;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,16 +27,16 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.OpenSearchException;
+import org.opensearch.index.fielddata.IndexFieldDataCache;
+import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
+import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
+import org.opensearch.index.fielddata.RamAccountingTermsEnum;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
+import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.function.Function;

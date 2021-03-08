@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.breaker;
+package org.opensearch.indices.breaker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.component.AbstractLifecycleComponent;
 
 /**
  * Interface for Circuit Breaker services, which provide breakers to classes

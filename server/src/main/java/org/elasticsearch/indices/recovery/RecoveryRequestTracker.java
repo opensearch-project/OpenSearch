@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.ListenableFuture;
+import org.opensearch.index.seqno.LocalCheckpointTracker;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 public class RecoveryRequestTracker {
 

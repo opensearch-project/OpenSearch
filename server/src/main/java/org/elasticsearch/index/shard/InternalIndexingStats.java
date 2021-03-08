@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.engine.Engine;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.index.engine.Engine;
 
 import java.util.HashMap;
 import java.util.Map;

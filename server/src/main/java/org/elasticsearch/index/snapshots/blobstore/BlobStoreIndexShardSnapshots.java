@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.snapshots.blobstore;
+package org.opensearch.index.snapshots.blobstore;
 
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;

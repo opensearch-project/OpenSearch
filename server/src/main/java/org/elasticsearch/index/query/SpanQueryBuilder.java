@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.xcontent.XContentParser;
 
 /**
  * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries.

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class UpdateByQueryAction extends ActionType<BulkByScrollResponse> {
     public static final UpdateByQueryAction INSTANCE = new UpdateByQueryAction();

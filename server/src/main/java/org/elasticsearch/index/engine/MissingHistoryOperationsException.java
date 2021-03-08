@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 /**
  * Exception indicating that not all requested operations from {@link LuceneChangesSnapshot}

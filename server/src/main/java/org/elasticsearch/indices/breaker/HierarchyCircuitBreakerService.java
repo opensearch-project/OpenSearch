@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.breaker;
+package org.opensearch.indices.breaker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.monitor.jvm.GcNames;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.common.breaker.NoopCircuitBreaker;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.monitor.jvm.GcNames;
+import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
@@ -52,8 +52,8 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING;
-import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING;
+import static org.opensearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING;
+import static org.opensearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING;
 
 /**
  * CircuitBreakerService that attempts to redistribute space between breakers
@@ -62,7 +62,7 @@ import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_
 public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private static final Logger logger = LogManager.getLogger(HierarchyCircuitBreakerService.class);
 
-    private static final String CHILD_LOGGER_PREFIX = "org.elasticsearch.indices.breaker.";
+    private static final String CHILD_LOGGER_PREFIX = "org.opensearch.indices.breaker.";
 
     private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 

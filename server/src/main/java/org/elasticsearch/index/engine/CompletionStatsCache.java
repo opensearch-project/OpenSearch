@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
@@ -26,13 +26,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.FieldMemoryStats;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.util.function.Supplier;
 

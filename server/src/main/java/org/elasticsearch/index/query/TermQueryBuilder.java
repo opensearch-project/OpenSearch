@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.opensearch.Version;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ToXContent.Params;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.ConstantFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -43,10 +43,10 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     public static final String NAME = "term";
     public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
     private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
-    
-    
+
+
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
-    
+
 
     private static final ParseField TERM_FIELD = new ParseField("term");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -85,16 +85,16 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     public TermQueryBuilder(String fieldName, Object value) {
         super(fieldName, value);
     }
-    
+
     public TermQueryBuilder caseInsensitive(boolean caseInsensitive) {
         this.caseInsensitive = caseInsensitive;
         return this;
-    }    
+    }
 
     public boolean caseInsensitive() {
         return this.caseInsensitive;
     }
-    
+
 
     /**
      * Read from a stream.
@@ -103,22 +103,22 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
-        }        
+        }
     }
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         super.doWriteTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(caseInsensitive);
-        }    
-    }    
+        }
+    }
 
     public static TermQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String queryName = null;
         String fieldName = null;
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;        
+        boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -164,14 +164,14 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         termQuery.caseInsensitive(caseInsensitive);
         return termQuery;
     }
-    
+
     @Override
     protected void addExtraXContent(XContentBuilder builder, Params params) throws IOException {
         if (caseInsensitive != DEFAULT_CASE_INSENSITIVITY) {
             builder.field(CASE_INSENSITIVE_FIELD.getPreferredName(), caseInsensitive);
         }
-    }    
-    
+    }
+
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryShardContext context = queryRewriteContext.convertToShardContext();
@@ -189,7 +189,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                 } else {
                     query = fieldType.termQuery(value, context);
                 }
-                    
+
                 if (query instanceof MatchAllDocsQuery) {
                     return new MatchAllQueryBuilder();
                 } else if (query instanceof MatchNoDocsQuery) {
@@ -218,7 +218,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     public String getWriteableName() {
         return NAME;
     }
-    
+
 
     @Override
     protected final int doHashCode() {
@@ -229,6 +229,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     protected final boolean doEquals(TermQueryBuilder other) {
         return super.doEquals(other) &&
                Objects.equals(caseInsensitive, other.caseInsensitive);
-    }    
-    
+    }
+
 }

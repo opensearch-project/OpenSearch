@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.client.OpenSearchClient;
 
 public class DeleteByQueryRequestBuilder extends
         AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {

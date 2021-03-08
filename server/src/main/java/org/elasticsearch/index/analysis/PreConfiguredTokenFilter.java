@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
+import org.opensearch.Version;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.indices.analysis.PreBuiltCacheFactory;
+import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -68,7 +68,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
      * Create a pre-configured token filter that may vary based on the Elasticsearch version.
      */
     public static PreConfiguredTokenFilter elasticsearchVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<TokenStream, org.elasticsearch.Version, TokenStream> create) {
+            BiFunction<TokenStream, org.opensearch.Version, TokenStream> create) {
         return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.ELASTICSEARCH, create);
     }
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 
@@ -39,13 +39,13 @@ public abstract class SortedNumericDoubleValues {
      *  &lt; {@code maxDoc}.*/
     public abstract boolean advanceExact(int target) throws IOException;
 
-    /** 
+    /**
      * Iterates to the next value in the current document. Do not call this more than
      * {@link #docValueCount} times for the document.
      */
     public abstract double nextValue() throws IOException;
-    
-    /** 
+
+    /**
      * Retrieves the number of values for the current document.  This must always
      * be greater than zero.
      * It is illegal to call this method after {@link #advanceExact(int)}

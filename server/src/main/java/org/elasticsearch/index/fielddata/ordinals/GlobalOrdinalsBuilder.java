@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata.ordinals;
+package org.opensearch.index.fielddata.ordinals;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
@@ -26,13 +26,13 @@ import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
+import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.opensearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 import java.util.Collection;

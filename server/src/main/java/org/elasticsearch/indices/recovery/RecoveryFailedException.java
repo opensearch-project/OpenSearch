@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.OpenSearchException;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 

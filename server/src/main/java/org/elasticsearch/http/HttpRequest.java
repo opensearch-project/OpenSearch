@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestStatus;
 
 import java.util.Collections;
 import java.util.List;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.snapshots;
+package org.opensearch.index.snapshots;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;

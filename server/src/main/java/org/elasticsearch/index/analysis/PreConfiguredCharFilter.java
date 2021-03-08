@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.TokenFilter;
-import org.elasticsearch.Version;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
+import org.opensearch.Version;
+import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.io.Reader;
 import java.util.function.BiFunction;
@@ -44,7 +44,7 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
      * Create a pre-configured char filter that may not vary at all, provide access to the elasticsearch version
      */
     public static PreConfiguredCharFilter singletonWithVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.elasticsearch.Version, Reader> create) {
+            BiFunction<Reader, org.opensearch.Version, Reader> create) {
         return new PreConfiguredCharFilter(name, CachingStrategy.ONE, useFilterForMultitermQueries,
                 (reader, version) -> create.apply(reader, version));
     }
@@ -62,7 +62,7 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
      * Create a pre-configured token filter that may vary based on the Elasticsearch version.
      */
     public static PreConfiguredCharFilter elasticsearchVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.elasticsearch.Version, Reader> create) {
+            BiFunction<Reader, org.opensearch.Version, Reader> create) {
         return new PreConfiguredCharFilter(name, CachingStrategy.ELASTICSEARCH, useFilterForMultitermQueries, create);
     }
 
@@ -70,7 +70,7 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
     private final BiFunction<Reader, Version, Reader> create;
 
     protected PreConfiguredCharFilter(String name, CachingStrategy cache, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.elasticsearch.Version, Reader> create) {
+            BiFunction<Reader, org.opensearch.Version, Reader> create) {
         super(name, cache);
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
         this.create = create;

@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.opensearch.Assertions;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.concurrent.AsyncIOProcessor;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.seqno.LocalCheckpointTracker;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -35,8 +35,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * File chunks are sent/requested sequentially by at most one thread at any time. However, the sender/requestor won't wait for the response

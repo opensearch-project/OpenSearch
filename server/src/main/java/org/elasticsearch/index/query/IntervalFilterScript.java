@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.queries.intervals.IntervalIterator;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptFactory;
 
 /**
  * Base class for scripts used as interval filters, see {@link IntervalsSourceProvider.IntervalFilter}

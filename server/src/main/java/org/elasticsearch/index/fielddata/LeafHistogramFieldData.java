@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 
 import java.io.IOException;

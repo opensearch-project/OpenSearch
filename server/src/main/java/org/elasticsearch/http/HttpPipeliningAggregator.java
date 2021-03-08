@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Comparator;

@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata.plain;
+package org.opensearch.index.fielddata.plain;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.index.fielddata.MultiGeoPointValues;
 
 import java.io.IOException;
 import java.util.Collection;

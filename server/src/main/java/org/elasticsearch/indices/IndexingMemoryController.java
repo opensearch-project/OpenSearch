@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.indices;
+package org.opensearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.IndexingOperationListener;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.Scheduler.Cancellable;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.IndexingOperationListener;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.threadpool.Scheduler.Cancellable;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool.Names;
 
 import java.io.Closeable;
 import java.util.ArrayList;

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.analysis;
+package org.opensearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
@@ -27,14 +27,14 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.Version;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
+import org.opensearch.Version;
+import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
 
 public enum PreBuiltAnalyzers {
 
-    STANDARD(CachingStrategy.ELASTICSEARCH) {
+    STANDARD(CachingStrategy.OPENSEARCH) {
         @Override
         protected Analyzer create(Version version) {
             final Analyzer a = new StandardAnalyzer(CharArraySet.EMPTY_SET);
@@ -43,7 +43,7 @@ public enum PreBuiltAnalyzers {
         }
     },
 
-    DEFAULT(CachingStrategy.ELASTICSEARCH){
+    DEFAULT(CachingStrategy.OPENSEARCH){
         @Override
         protected Analyzer create(Version version) {
             // by calling get analyzer we are ensuring reuse of the same STANDARD analyzer for DEFAULT!

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
@@ -25,24 +25,24 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.GeoPolygonDecomposer;
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.GeoShapeUtils;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.geometry.Circle;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
-import org.elasticsearch.geometry.GeometryVisitor;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.geometry.MultiPolygon;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.common.geo.GeoPolygonDecomposer;
+import org.opensearch.common.geo.GeoShapeType;
+import org.opensearch.common.geo.GeoShapeUtils;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.geometry.Circle;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.GeometryCollection;
+import org.opensearch.geometry.GeometryVisitor;
+import org.opensearch.geometry.LinearRing;
+import org.opensearch.geometry.MultiLine;
+import org.opensearch.geometry.MultiPoint;
+import org.opensearch.geometry.MultiPolygon;
+import org.opensearch.geometry.Point;
+import org.opensearch.geometry.Polygon;
+import org.opensearch.geometry.Rectangle;
+import org.opensearch.geometry.ShapeType;
+import org.opensearch.index.mapper.GeoPointFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 
@@ -113,7 +113,7 @@ public class VectorGeoPointShapeQueryProcessor {
         }
 
         @Override
-        public Query visit(org.elasticsearch.geometry.Line line) {
+        public Query visit(org.opensearch.geometry.Line line) {
             throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
                 + GeoShapeType.LINESTRING + " queries");
         }
@@ -154,7 +154,7 @@ public class VectorGeoPointShapeQueryProcessor {
 
         @Override
         public Query visit(MultiPolygon multiPolygon) {
-            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+            ArrayList<org.opensearch.geometry.Polygon> collector = new ArrayList<>();
             GeoPolygonDecomposer.decomposeMultiPolygon(multiPolygon, true, collector);
             return visit(collector);
         }
@@ -168,7 +168,7 @@ public class VectorGeoPointShapeQueryProcessor {
 
         @Override
         public Query visit(Polygon polygon) {
-            ArrayList<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+            ArrayList<org.opensearch.geometry.Polygon> collector = new ArrayList<>();
             GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
             return visit(collector);
         }

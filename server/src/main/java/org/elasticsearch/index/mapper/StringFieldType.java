@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
@@ -31,18 +31,18 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.support.QueryParsers;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.support.QueryParsers;
 
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so

@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
+import org.opensearch.common.component.LifecycleComponent;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.node.ReportingService;
+import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestRequest;
 
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 

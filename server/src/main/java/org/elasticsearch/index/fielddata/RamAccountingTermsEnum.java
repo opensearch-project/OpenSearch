@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.index.fielddata.plain.AbstractIndexOrdinalsFieldData;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.index.fielddata.plain.AbstractIndexOrdinalsFieldData;
 
 import java.io.IOException;
 

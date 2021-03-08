@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
 /**
  * A basic http response abstraction. Http modules must implement this interface as the server package rest

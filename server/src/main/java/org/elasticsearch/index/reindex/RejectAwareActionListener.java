@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedConsumer;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.CheckedConsumer;
 
 import java.util.function.Consumer;
 

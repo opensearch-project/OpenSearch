@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.Loggers;
 
 public abstract class AbstractIndexComponent implements IndexComponent {
 

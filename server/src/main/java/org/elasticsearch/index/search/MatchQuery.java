@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.search;
+package org.opensearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
@@ -44,19 +44,19 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.support.QueryParsers;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,8 +66,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
-import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
+import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MatchQuery {
 
@@ -495,7 +495,7 @@ public class MatchQuery {
                 if (source.hasAttribute(DisableGraphAttribute.class)) {
                     /*
                      * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
-                     * paths explosion. See {@link org.elasticsearch.index.analysis.ShingleTokenFilterFactory} for details.
+                     * paths explosion. See {@link org.opensearch.index.analysis.ShingleTokenFilterFactory} for details.
                      */
                     setEnableGraphQueries(false);
                 }

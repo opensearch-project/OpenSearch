@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
+import org.opensearch.common.Strings;
+import org.opensearch.index.search.SimpleQueryStringQueryParser;
 
 import java.util.Locale;
 

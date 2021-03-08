@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.indices;
+package org.opensearch.indices;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 
 import java.util.Objects;
 

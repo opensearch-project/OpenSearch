@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.warmer;
+package org.opensearch.index.warmer;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.AbstractIndexShardComponent;
+import org.opensearch.index.shard.ShardId;
 
 import java.util.concurrent.TimeUnit;
 

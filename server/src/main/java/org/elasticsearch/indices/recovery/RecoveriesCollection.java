@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.OpenSearchTimeoutException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.OpenSearchTimeoutException;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;

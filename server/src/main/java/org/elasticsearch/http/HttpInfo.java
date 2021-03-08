@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.node.ReportingService;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 

@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.analysis;
+package org.opensearch.indices.analysis;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -121,7 +121,7 @@ public class PreBuiltCacheFactory {
         }
 
         @Override
-        public void put(org.elasticsearch.Version version, T model) {
+        public void put(org.opensearch.Version version, T model) {
             mapModel.put(version.luceneVersion, model);
         }
 

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.http;
+package org.opensearch.http;
 
 public class HttpReadTimeoutException extends RuntimeException {
 

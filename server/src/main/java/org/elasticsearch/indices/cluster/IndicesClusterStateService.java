@@ -17,61 +17,61 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.cluster;
+package org.opensearch.indices.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource.Type;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
-import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
-import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardRelocatedException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
-import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.snapshots.SnapshotShardsService;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.ResourceAlreadyExistsException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateApplier;
+import org.opensearch.cluster.action.index.NodeMappingRefreshAction;
+import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RecoverySource.Type;
+import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.env.ShardLockObtainFailedException;
+import org.opensearch.gateway.GatewayService;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexComponent;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
+import org.opensearch.index.seqno.ReplicationTracker;
+import org.opensearch.index.seqno.RetentionLeaseSyncer;
+import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardRelocatedException;
+import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.PrimaryReplicaSyncer;
+import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardNotFoundException;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.flush.SyncedFlushService;
+import org.opensearch.indices.recovery.PeerRecoverySourceService;
+import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.recovery.RecoveryFailedException;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.search.SearchService;
+import org.opensearch.snapshots.SnapshotShardsService;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,11 +88,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.REOPENED;
+import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
+import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
+import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.REOPENED;
 
 public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(IndicesClusterStateService.class);
@@ -351,7 +351,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     /**
      * Removes indices that have no shards allocated to this node or indices whose state has changed. This does not delete the shard data
      * as we wait for enough shard copies to exist in the cluster before deleting shard data (triggered by
-     * {@link org.elasticsearch.indices.store.IndicesStore}).
+     * {@link org.opensearch.indices.store.IndicesStore}).
      *
      * @param event the cluster changed event
      */

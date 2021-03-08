@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.Version;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.sort.SortOrder;
 
 import java.util.Collections;
 import java.util.EnumSet;

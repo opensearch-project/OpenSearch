@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
@@ -30,8 +30,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.common.io.Channels;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

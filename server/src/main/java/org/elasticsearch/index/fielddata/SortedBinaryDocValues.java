@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
 
@@ -37,7 +37,7 @@ public abstract class SortedBinaryDocValues {
      */
     public abstract boolean advanceExact(int doc) throws IOException;
 
-    /** 
+    /**
      * Retrieves the number of values for the current document.  This must always
      * be greater than zero.
      * It is illegal to call this method after {@link #advanceExact(int)}
@@ -45,7 +45,7 @@ public abstract class SortedBinaryDocValues {
      */
     public abstract int docValueCount();
 
-    /** 
+    /**
      * Iterates to the next value in the current document. Do not call this more than
      * {@link #docValueCount} times for the document.
      * Note that the returned {@link BytesRef} might be reused across invocations.

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.indices;
+package org.opensearch.indices;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.Index;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.AbstractIndexComponent;
+import org.opensearch.index.IndexSettings;
 
 public abstract class AbstractCharFilterFactory extends AbstractIndexComponent implements CharFilterFactory {
 

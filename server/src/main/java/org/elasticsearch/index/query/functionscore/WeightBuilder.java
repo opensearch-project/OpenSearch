@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore;
+package org.opensearch.index.query.functionscore;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.search.function.ScoreFunction;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 

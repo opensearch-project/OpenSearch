@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore;
+package org.opensearch.index.query.functionscore;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.SearchModule;
 
 import java.io.IOException;
 import java.util.function.BiFunction;

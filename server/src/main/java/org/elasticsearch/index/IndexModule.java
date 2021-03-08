@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -28,42 +28,42 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.cache.query.DisabledQueryCache;
-import org.elasticsearch.index.cache.query.IndexQueryCache;
-import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexingOperationListener;
-import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.FsDirectoryFactory;
-import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.Version;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.TriFunction;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.cache.query.DisabledQueryCache;
+import org.opensearch.index.cache.query.IndexQueryCache;
+import org.opensearch.index.cache.query.QueryCache;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexingOperationListener;
+import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.indices.IndicesQueryCache;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.script.ScriptService;
+import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -144,7 +144,7 @@ public final class IndexModule {
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
-     * via {@link org.elasticsearch.plugins.PluginsService#onIndexModule(IndexModule)}.
+     * via {@link org.opensearch.plugins.PluginsService#onIndexModule(IndexModule)}.
      *
      * @param indexSettings       the index settings
      * @param analysisRegistry    the analysis registry

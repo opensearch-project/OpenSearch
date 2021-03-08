@@ -17,37 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.Assertions;
+import org.opensearch.OpenSearchException;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.MapperException;
+import org.opensearch.index.seqno.ReplicationTracker;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardNotRecoveringException;
+import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.nio.file.Path;

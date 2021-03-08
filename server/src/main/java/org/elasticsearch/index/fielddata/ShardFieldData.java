@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.FieldMemoryStats;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.index.shard.ShardId;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;

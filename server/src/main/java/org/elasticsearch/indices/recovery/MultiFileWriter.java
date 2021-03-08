@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -24,14 +24,14 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.transport.Transports;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.Arrays;

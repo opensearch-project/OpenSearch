@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.Version;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import java.util.List;
  * A mapper that indexes the field names of a document under <code>_field_names</code>. This mapper is typically useful in order
  * to have fast <code>exists</code> and <code>missing</code> queries/filters.
  *
- * Added in Elasticsearch 1.3.
+ * Added in OpenSearch 1.3.
  */
 public class FieldNamesFieldMapper extends MetadataFieldMapper {
 

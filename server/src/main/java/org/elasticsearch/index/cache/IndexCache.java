@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache;
+package org.opensearch.index.cache;
 
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCache;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.AbstractIndexComponent;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.cache.query.QueryCache;
 
 import java.io.Closeable;
 import java.io.IOException;

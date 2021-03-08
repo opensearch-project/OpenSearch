@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indices;
+package org.opensearch.indices;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
@@ -27,20 +27,20 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.cache.CacheLoader;
-import org.elasticsearch.common.cache.RemovalListener;
-import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.cache.Cache;
+import org.opensearch.common.cache.CacheBuilder;
+import org.opensearch.common.cache.CacheLoader;
+import org.opensearch.common.cache.RemovalListener;
+import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.Closeable;
 import java.io.IOException;

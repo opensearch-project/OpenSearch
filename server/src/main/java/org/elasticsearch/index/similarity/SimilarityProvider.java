@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.similarity;
+package org.opensearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
 

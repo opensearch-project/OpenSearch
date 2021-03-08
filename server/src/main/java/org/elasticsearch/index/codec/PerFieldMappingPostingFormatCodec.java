@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.codec;
+package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene87.Lucene87Codec;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.mapper.CompletionFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default

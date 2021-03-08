@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;

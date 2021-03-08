@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.merge;
+package org.opensearch.index.merge;
 
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
