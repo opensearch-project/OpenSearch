@@ -17,8 +17,27 @@
  * under the License.
  */
 
-esplugin {
-  description 'Integrates OpenSearch with systemd'
-  classname 'org.opensearch.systemd.SystemdPlugin'
-}
+package org.opensearch.transport;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToMessageDecoder;
+
+import java.util.List;
+
+@ChannelHandler.Sharable
+public class NettyByteBufSizer extends MessageToMessageDecoder<ByteBuf> {
+
+    @Override
+    protected void decode(ChannelHandlerContext ctx, ByteBuf buf, List<Object> out) {
+        int readableBytes = buf.readableBytes();
+        if (buf.capacity() >= 1024) {
+            ByteBuf resized = buf.discardReadBytes().capacity(readableBytes);
+            assert resized.readableBytes() == readableBytes;
+            out.add(resized.retain());
+        } else {
+            out.add(buf.retain());
+        }
+    }
+}
