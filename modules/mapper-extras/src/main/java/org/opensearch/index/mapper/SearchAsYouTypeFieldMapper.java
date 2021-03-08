@@ -163,7 +163,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public SearchAsYouTypeFieldMapper build(BuilderContext context) {
+        public SearchAsYouTypeFieldMapper build(Mapper.BuilderContext context) {
 
             FieldType fieldType = new FieldType();
             fieldType.setIndexOptions(TextParams.toIndexOptions(index.getValue(), indexOptions.getValue()));
