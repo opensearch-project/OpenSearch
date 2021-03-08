@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 esplugin {
   description 'This module adds the support parent-child queries and aggregations'
-  classname 'org.elasticsearch.join.ParentJoinPlugin'
+  classname 'org.opensearch.join.ParentJoinPlugin'
   hasClientJar = true
 }
 
