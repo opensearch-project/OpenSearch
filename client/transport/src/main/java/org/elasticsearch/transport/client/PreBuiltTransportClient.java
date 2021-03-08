@@ -31,7 +31,7 @@ import org.elasticsearch.join.ParentJoinPlugin;
 import org.opensearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.opensearch.script.mustache.MustachePlugin;
-import org.elasticsearch.transport.Netty4Plugin;
+import org.opensearch.transport.Netty4Plugin;
 
 import java.util.Arrays;
 import java.util.Collection;
