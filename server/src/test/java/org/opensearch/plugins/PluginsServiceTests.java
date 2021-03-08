@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.opensearch.plugins;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.JarHell;
+import org.opensearch.Version;
+import org.opensearch.bootstrap.JarHell;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;

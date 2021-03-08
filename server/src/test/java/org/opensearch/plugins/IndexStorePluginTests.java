@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.opensearch.plugins;
 
-import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.store.FsDirectoryFactory;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.node.MockNode;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.bootstrap.JavaVersion;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.node.MockNode;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -119,11 +119,11 @@ public class IndexStorePluginTests extends ESTestCase {
         if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
             assertThat(e, hasToString(matches(
                     "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values " +
-                            "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ " +
-                            "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)")));
+                            "org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+ " +
+                            "and org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)")));
         } else {
             assertThat(e, hasToString(matches(
-                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+")));
+                    "java.lang.IllegalStateException: Duplicate key org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+")));
         }
     }
 
@@ -137,7 +137,7 @@ public class IndexStorePluginTests extends ESTestCase {
         } else {
             assertThat(e, hasToString(matches(
                 "java.lang.IllegalStateException: Duplicate key " +
-                    "org.elasticsearch.plugins.IndexStorePluginTests\\$RecoveryFactory@[\\w\\d]+")));
+                    "org.opensearch.plugins.IndexStorePluginTests\\$RecoveryFactory@[\\w\\d]+")));
         }
     }
 }

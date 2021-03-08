@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.OpenSearchCorruptionException;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.fs.FsBlobStore;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
-import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.fs.FsBlobStore;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.io.Streams;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
+import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
+import org.opensearch.test.ESTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;

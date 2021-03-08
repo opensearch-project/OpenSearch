@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.nodesinfo;
+package org.opensearch.nodesinfo;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;

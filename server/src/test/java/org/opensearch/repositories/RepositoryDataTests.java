@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories;
+package org.opensearch.repositories;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
