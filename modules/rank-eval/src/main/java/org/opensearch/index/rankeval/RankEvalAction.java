@@ -16,22 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'The Rank Eval module adds APIs to evaluate ranking quality.'
-  classname 'org.opensearch.index.rankeval.RankEvalPlugin'
-  hasClientJar = true
-}
+package org.opensearch.index.rankeval;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'rank_eval'
-  }
-}
+import org.elasticsearch.action.ActionType;
 
-testClusters.all {
-  // Modules who's integration is explicitly tested in integration tests
-  module ':modules:lang-mustache'
+/**
+ * ActionType for explaining evaluating search ranking results.
+ */
+public class RankEvalAction extends ActionType<RankEvalResponse> {
+
+    public static final RankEvalAction INSTANCE = new RankEvalAction();
+    public static final String NAME = "indices:data/read/rank_eval";
+
+    private RankEvalAction() {
+        super(NAME, RankEvalResponse::new);
+    }
 }
