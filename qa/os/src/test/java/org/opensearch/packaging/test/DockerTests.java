@@ -215,7 +215,7 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that it is possible to run Opensearch under a different user and group to the default.
+     * Check that it is possible to run OpenSearch under a different user and group to the default.
      */
     public void test072RunEsAsDifferentUserAndGroup() throws Exception {
         assumeFalse(Platforms.WINDOWS);
@@ -303,7 +303,7 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the opensearch-shard tool is shipped in the Docker image and is executable.
+     * Check that the OpenSearch-shard tool is shipped in the Docker image and is executable.
      */
     public void test091OpenSearchShardCliPackaging() {
         final Installation.Executables bin = installation.executables();
@@ -313,14 +313,14 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the opensearch-shard tool is shipped in the Docker image and is executable.
+     * Check that the OpenSearch-shard tool is shipped in the Docker image and is executable.
      */
     public void test092OpenSearchNodeCliPackaging() {
         final Installation.Executables bin = installation.executables();
 
         final Result result = sh.run(bin.nodeTool + " -h");
         assertThat(
-            "Failed to find expected message about the opensearch-shard CLI tool",
+            "Failed to find expected message about the OpenSearch-shard CLI tool",
             result.stdout,
             containsString("A CLI tool to " + "do unsafe cluster and index manipulations on current node")
         );
@@ -337,7 +337,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that there are no files with a GID other than 0.
      */
     public void test101AllFilesAreGroupZero() {
-        // Run a `find` command in a new container without Opensearch running, so
+        // Run a `find` command in a new container without OpenSearch running, so
         // that the results aren't subject to sporadic failures from files appearing /
         // disappearing while `find` is traversing the filesystem.
         //
@@ -359,7 +359,7 @@ public class DockerTests extends PackagingTestCase {
         final Map<String, String> labels = getImageLabels(distribution);
 
         final Map<String, String> staticLabels = new HashMap<>();
-        staticLabels.put("name", "Opensearch");
+        staticLabels.put("name", "OpenSearch");
         staticLabels.put("schema-version", "1.0");
         staticLabels.put("url", "https://www.opensearch.co/products/opensearch");
         staticLabels.put("usage", "https://www.opensearch.co/guide/en/opensearch./reference/index.html");
@@ -396,11 +396,11 @@ public class DockerTests extends PackagingTestCase {
         final Map<String, String> labels = getImageLabels(distribution);
 
         final Map<String, String> staticLabels = new HashMap<>();
-        staticLabels.put("title", "Opensearch");
+        staticLabels.put("title", "OpenSearch");
         staticLabels.put("url", "https://www.opensearch.co/products/opensearch");
         staticLabels.put("documentation", "https://www.opensearch.co/guide/en/opensearch/reference/index.html");
         staticLabels.put("source", "https://github.com/opensearch/opensearch");
-        staticLabels.put("vendor", "Opensearch");
+        staticLabels.put("vendor", "OpenSearch");
 
         staticLabels.put("licenses", "Apache-2.0");
 
@@ -425,7 +425,7 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the container logs contain the expected content for Opensearch itself.
+     * Check that the container logs contain the expected content for OpenSearch itself.
      */
     public void test120DockerLogsIncludeOpenSearchLogs() throws Exception {
         waitForOpenSearch(installation);

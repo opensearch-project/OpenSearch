@@ -180,7 +180,7 @@ public abstract class PackagingTestCase extends Assert {
             if (Files.exists(installation.logs)) {
                 Path logFile = installation.logs.resolve("opensearch.log");
                 if (Files.exists(logFile)) {
-                    logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"));
+                    logger.warn("OpenSearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"));
                 }
 
                 // move log file so we can avoid false positives when grepping for
@@ -190,7 +190,7 @@ public abstract class PackagingTestCase extends Assert {
                     Path newFile = installation.logs.resolve(prefix + ".opensearch.log");
                     FileUtils.mv(logFile, newFile);
                 }
-                for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
+                for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "opensearch*.tar.gz")) {
                     Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());
                     FileUtils.mv(rotatedLogFile, newRotatedLogFile);
                 }
@@ -224,7 +224,7 @@ public abstract class PackagingTestCase extends Assert {
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
             default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+                throw new IllegalStateException("Unknown OpenSearch packaging type.");
         }
     }
 
@@ -234,19 +234,19 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
-     * Starts and stops elasticsearch, and performs assertions while it is running.
+     * Starts and stops opensearch, and performs assertions while it is running.
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
-            awaitElasticsearchStartup(runOpenSearchStartCommand(null, true, false));
+            awaitOpenSearchStartup(runOpenSearchStartCommand(null, true, false));
         } catch (Exception e) {
             if (Files.exists(installation.home.resolve("opensearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("opensearch.pid")).trim();
-                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+                logger.info("Dumping jstack of opensearch processb ({}) that failed to start", pid);
                 sh.runIgnoreExitCode("jstack " + pid);
             }
             if (Files.exists(installation.logs.resolve("opensearch.log"))) {
-                logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"));
+                logger.warn("OpenSearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"));
             }
             if (Files.exists(installation.logs.resolve("output.out"))) {
                 logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
@@ -260,19 +260,19 @@ public abstract class PackagingTestCase extends Assert {
         try {
             assertions.run();
         } catch (Exception e) {
-            logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"));
+            logger.warn("OpenSearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"));
             throw e;
         }
         stopOpenSearch();
     }
 
     /**
-     * Run the command to start Elasticsearch, but don't wait or test for success.
+     * Run the command to start OpenSearch, but don't wait or test for success.
      * This method is useful for testing failure conditions in startup. To await success,
      * use {@link #startOpenSearch()}.
      * @param password Password for password-protected keystore, null for no password;
      *                 this option will fail for non-archive distributions
-     * @param daemonize Run Elasticsearch in the background
+     * @param daemonize Run OpenSearch in the background
      * @param useTty Use a tty for inputting the password rather than standard input;
      *               this option will fail for non-archive distributions
      * @return Shell results of the startup command.
@@ -298,7 +298,7 @@ public abstract class PackagingTestCase extends Assert {
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
             default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+                throw new IllegalStateException("Unknown OpenSearch packaging type.");
         }
     }
 
@@ -316,36 +316,36 @@ public abstract class PackagingTestCase extends Assert {
                 // nothing, "installing" docker image is running it
                 break;
             default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+                throw new IllegalStateException("Unknown OpenSearch packaging type.");
         }
     }
 
-    public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
+    public void awaitOpenSearchStartup(Shell.Result result) throws Exception {
         assertThat("Startup command should succeed", result.exitCode, equalTo(0));
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                Archives.assertElasticsearchStarted(installation);
+                Archives.assertOpenSearchStarted(installation);
                 break;
             case DEB:
             case RPM:
-                Packages.assertElasticsearchStarted(sh, installation);
+                Packages.assertOpenSearchStarted(sh, installation);
                 break;
             case DOCKER:
                 Docker.waitForOpenSearchToStart();
                 break;
             default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+                throw new IllegalStateException("Unknown OpenSearch packaging type.");
         }
     }
 
     /**
-     * Start Elasticsearch and wait until it's up and running. If you just want to run
+     * Start OpenSearch and wait until it's up and running. If you just want to run
      * the start command, use {@link #runOpenSearchStartCommand(String, boolean, boolean)}.
-     * @throws Exception if Elasticsearch can't start
+     * @throws Exception if Opensearch can't start
      */
     public void startOpenSearch() throws Exception {
-        awaitElasticsearchStartup(runOpenSearchStartCommand(null, true, false));
+        awaitOpenSearchStartup(runOpenSearchStartCommand(null, true, false));
     }
 
     public void assertOpenSearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
@@ -420,18 +420,18 @@ public abstract class PackagingTestCase extends Assert {
      * Run the given action with a temporary copy of the config directory.
      *
      * Files under the path passed to the action may be modified as necessary for the
-     * test to execute, and running Elasticsearch with {@link #startOpenSearch()} will
+     * test to execute, and running OpenSearch with {@link #startOpenSearch()} will
      * use the temporary directory.
      */
     public void withCustomConfig(CheckedConsumer<Path, Exception> action) throws Exception {
         Path tempDir = createTempDir("custom-config");
-        Path tempConf = tempDir.resolve("elasticsearch");
+        Path tempConf = tempDir.resolve("opensearch");
         FileUtils.copyDirectory(installation.config, tempConf);
 
-        Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempDir));
+        Platforms.onLinux(() -> sh.run("chown -R opensearch:opensearch " + tempDir));
 
         if (distribution.isPackage()) {
-            Files.copy(installation.envFile, tempDir.resolve("elasticsearch.bk"));// backup
+            Files.copy(installation.envFile, tempDir.resolve("opensearch.bk"));// backup
             append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
         } else {
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
@@ -440,7 +440,7 @@ public abstract class PackagingTestCase extends Assert {
         action.accept(tempConf);
         if (distribution.isPackage()) {
             IOUtils.rm(installation.envFile);
-            Files.copy(tempDir.resolve("elasticsearch.bk"), installation.envFile);
+            Files.copy(tempDir.resolve("opensearch.bk"), installation.envFile);
         } else {
             sh.getEnv().remove("ES_PATH_CONF");
         }

@@ -61,9 +61,9 @@ public class Archives {
     protected static final Logger logger = LogManager.getLogger(Archives.class);
 
     // in the future we'll run as a role user on Windows
-    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
+    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "opensearch";
 
-    /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
+    /** This is an arbitrarily chosen value that gives OpenSearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
     public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
 
@@ -74,10 +74,10 @@ public class Archives {
     public static Installation installArchive(Shell sh, Distribution distribution, Path fullInstallPath, String version) throws Exception {
         final Path distributionFile = getDistributionFile(distribution);
         final Path baseInstallPath = fullInstallPath.getParent();
-        final Path extractedPath = baseInstallPath.resolve("elasticsearch-" + version);
+        final Path extractedPath = baseInstallPath.resolve("opensearch-" + version);
 
         assertThat("distribution file must exist: " + distributionFile.toString(), Files.exists(distributionFile), is(true));
-        assertThat("elasticsearch must not already be installed", lsGlob(baseInstallPath, "elasticsearch*"), empty());
+        assertThat("opensearch must not already be installed", lsGlob(baseInstallPath, "opensearch*"), empty());
 
         logger.info("Installing file: " + distributionFile);
         final String installCommand;
@@ -251,13 +251,13 @@ public class Archives {
 
         if (Platforms.WINDOWS == false) {
             // If jayatana is installed then we try to use it. Elasticsearch should ignore it even when we try.
-            // If it doesn't ignore it then Elasticsearch will fail to start because of security errors.
+            // If it doesn't ignore it then OpenSearch will fail to start because of security errors.
             // This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
             if (Files.exists(Paths.get("/usr/share/java/jayatanaag.jar"))) {
                 sh.getEnv().put("JAVA_TOOL_OPTIONS", "-javaagent:/usr/share/java/jayatanaag.jar");
             }
 
-            // We need to give Elasticsearch enough time to print failures to stderr before exiting
+            // We need to give OpenSearch enough time to print failures to stderr before exiting
             sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
 
             List<String> command = new ArrayList<>();
@@ -294,7 +294,7 @@ public class Archives {
             return sh.run(
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; "
                     + "$processInfo.FileName = '"
-                    + bin.elasticsearch
+                    + bin.opensearch
                     + "'; "
                     + "$processInfo.Arguments = '-p "
                     + installation.home.resolve("opensearch.pid")
@@ -348,11 +348,11 @@ public class Archives {
         }
     }
 
-    public static void assertElasticsearchStarted(Installation installation) throws Exception {
+    public static void assertOpenSearchStarted(Installation installation) throws Exception {
         final Path pidFile = installation.home.resolve("opensearch.pid");
         ServerUtils.waitForOpenSearch(installation);
 
-        assertThat("Starting Elasticsearch produced a pid file at " + pidFile, pidFile, fileExists());
+        assertThat("Starting OpenSearch produced a pid file at " + pidFile, pidFile, fileExists());
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
     }

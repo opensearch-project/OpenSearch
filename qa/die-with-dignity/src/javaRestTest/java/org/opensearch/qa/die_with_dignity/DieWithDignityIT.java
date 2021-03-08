@@ -43,7 +43,7 @@ public class DieWithDignityIT extends OpenSearchRestTestCase {
             () -> client().performRequest(new Request("GET", "/_die_with_dignity"))
         );
 
-        // the Elasticsearch process should die and disappear from the output of jps
+        // the OpenSearch process should die and disappear from the output of jps
         assertBusy(() -> {
             final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
             final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
@@ -57,7 +57,7 @@ public class DieWithDignityIT extends OpenSearchRestTestCase {
             }
         });
 
-        // parse the logs and ensure that Elasticsearch died with the expected cause
+        // parse the logs and ensure that OpenSearch died with the expected cause
         final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
 
         final Iterator<String> it = lines.iterator();

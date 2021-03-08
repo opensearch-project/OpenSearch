@@ -506,13 +506,13 @@ public class Docker {
         Stream.of(es.bin, es.lib).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
         Stream.of(
-            "elasticsearch",
-            "elasticsearch-cli",
-            "elasticsearch-env",
+            "opensearch",
+            "opensearch-cli",
+            "opensearch-env",
             "opensearch-keystore",
             "opensearch-shard",
             "opensearch-plugin",
-            "opensearch-shard"
+            "opensearch-node"
         ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));

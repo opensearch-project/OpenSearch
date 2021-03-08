@@ -23,12 +23,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * Represents an installation of Elasticsearch
+ * Represents an installation of OpenSearch
  */
 public class Installation {
 
     // in the future we'll run as a role user on Windows
-    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
+    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "opensearch";
 
     private final Shell sh;
     public final Distribution distribution;
@@ -89,19 +89,19 @@ public class Installation {
     public static Installation ofPackage(Shell sh, Distribution distribution) {
 
         final Path envFile = (distribution.packaging == Distribution.Packaging.RPM)
-            ? Paths.get("/etc/sysconfig/elasticsearch")
-            : Paths.get("/etc/default/elasticsearch");
+            ? Paths.get("/etc/sysconfig/opensearch")
+            : Paths.get("/etc/default/opensearch");
 
         return new Installation(
             sh,
             distribution,
             Paths.get("/usr/share/opensearch"),
-            Paths.get("/etc/elasticsearch"),
-            Paths.get("/var/lib/elasticsearch"),
-            Paths.get("/var/log/elasticsearch"),
+            Paths.get("/etc/opensearch"),
+            Paths.get("/var/lib/opensearch"),
+            Paths.get("/var/log/opensearch"),
             Paths.get("/usr/share/opensearch/plugins"),
             Paths.get("/usr/share/opensearch/modules"),
-            Paths.get("/var/run/elasticsearch"),
+            Paths.get("/var/run/opensearch"),
             envFile
         );
     }
@@ -188,10 +188,10 @@ public class Installation {
 
     public class Executables {
 
-        public final Executable elasticsearch = new Executable("elasticsearch");
+        public final Executable elasticsearch = new Executable("opensearch");
         public final Executable pluginTool = new Executable("opensearch-plugin");
         public final Executable keystoreTool = new Executable("opensearch-keystore");
         public final Executable shardTool = new Executable("opensearch-shard");
-        public final Executable nodeTool = new Executable("opensearch-shard");
+        public final Executable nodeTool = new Executable("opensearch-node");
     }
 }
