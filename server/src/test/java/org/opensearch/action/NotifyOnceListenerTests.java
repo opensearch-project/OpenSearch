@@ -19,11 +19,11 @@
 
 package org.opensearch.action;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class NotifyOnceListenerTests extends ESTestCase {
+public class NotifyOnceListenerTests extends OpenSearchTestCase {
 
     public void testWhenSuccessCannotNotifyMultipleTimes() {
         AtomicReference<String> response = new AtomicReference<>();

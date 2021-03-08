@@ -24,14 +24,14 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.opensearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class IndicesAliasesRequestTests extends ESTestCase {
+public class IndicesAliasesRequestTests extends OpenSearchTestCase {
 
     public void testToAndFromXContent() throws IOException {
         IndicesAliasesRequest indicesAliasesRequest = createTestInstance();

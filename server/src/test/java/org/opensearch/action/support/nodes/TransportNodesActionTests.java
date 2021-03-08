@@ -33,7 +33,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -59,7 +59,7 @@ import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.mockito.Mockito.mock;
 
-public class TransportNodesActionTests extends ESTestCase {
+public class TransportNodesActionTests extends OpenSearchTestCase {
 
     private static ThreadPool THREAD_POOL;
 

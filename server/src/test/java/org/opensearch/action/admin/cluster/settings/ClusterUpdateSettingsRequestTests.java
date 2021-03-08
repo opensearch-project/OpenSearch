@@ -24,7 +24,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.XContentTestUtils;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import java.util.Collections;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ClusterUpdateSettingsRequestTests extends ESTestCase {
+public class ClusterUpdateSettingsRequestTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws IOException {
         doFromXContentTestWithRandomFields(false);

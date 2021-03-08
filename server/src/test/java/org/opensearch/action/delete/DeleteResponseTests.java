@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import static org.opensearch.action.index.IndexResponseTests.assertDocWriteRespo
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 
-public class DeleteResponseTests extends ESTestCase {
+public class DeleteResponseTests extends OpenSearchTestCase {
 
     public void testToXContent() {
         {

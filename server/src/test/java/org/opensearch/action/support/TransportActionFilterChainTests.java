@@ -30,7 +30,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -52,7 +52,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-public class TransportActionFilterChainTests extends ESTestCase {
+public class TransportActionFilterChainTests extends OpenSearchTestCase {
 
     private AtomicInteger counter;
     private ThreadPool threadPool;

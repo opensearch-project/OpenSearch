@@ -29,7 +29,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
+public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
     private static final String NODE_IDENTIFIERS_INCORRECTLY_SET_MSG = "Please set node identifiers correctly. " +
                                                             "One and only one of [node_name], [node_names] and [node_ids] has to be set";
 

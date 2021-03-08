@@ -21,11 +21,11 @@ package org.opensearch.action.bulk;
 
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 
-public class BulkShardRequestTests extends ESTestCase {
+public class BulkShardRequestTests extends OpenSearchTestCase {
     public void testToString() {
         String index = randomSimpleString(random(), 10);
         int count = between(2, 100);

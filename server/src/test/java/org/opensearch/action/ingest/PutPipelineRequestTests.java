@@ -27,12 +27,12 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.Pipeline;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class PutPipelineRequestTests extends ESTestCase {
+public class PutPipelineRequestTests extends OpenSearchTestCase {
 
     public void testSerializationWithXContent() throws IOException {
         PutPipelineRequest request = new PutPipelineRequest("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);

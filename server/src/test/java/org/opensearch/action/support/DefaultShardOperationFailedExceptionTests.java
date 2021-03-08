@@ -38,7 +38,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -47,7 +47,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
+public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCase {
 
     public void testToString() {
         {

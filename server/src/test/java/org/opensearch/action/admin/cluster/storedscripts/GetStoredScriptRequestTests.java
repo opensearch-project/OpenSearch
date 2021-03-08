@@ -21,14 +21,14 @@ package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class GetStoredScriptRequestTests extends ESTestCase {
+public class GetStoredScriptRequestTests extends OpenSearchTestCase {
     public void testGetIndexedScriptRequestSerialization() throws IOException {
         GetStoredScriptRequest request = new GetStoredScriptRequest("id");
 

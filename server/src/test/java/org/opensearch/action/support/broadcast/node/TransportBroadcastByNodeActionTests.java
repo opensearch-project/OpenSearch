@@ -54,7 +54,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -85,7 +85,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class TransportBroadcastByNodeActionTests extends ESTestCase {
+public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
 
     private static final String TEST_INDEX = "test-index";
     private static final String TEST_CLUSTER = "test-cluster";

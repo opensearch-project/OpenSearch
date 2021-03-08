@@ -37,7 +37,7 @@ import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
@@ -53,7 +53,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-public class NodeStatsTests extends ESTestCase {
+public class NodeStatsTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
         NodeStats nodeStats = createNodeStats();
         try (BytesStreamOutput out = new BytesStreamOutput()) {

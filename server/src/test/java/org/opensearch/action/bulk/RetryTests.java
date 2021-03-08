@@ -27,7 +27,7 @@ import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RetryTests extends ESTestCase {
+public class RetryTests extends OpenSearchTestCase {
     // no need to wait fof a long time in tests
     private static final TimeValue DELAY = TimeValue.timeValueMillis(1L);
     private static final int CALLS_TO_FAIL = 5;

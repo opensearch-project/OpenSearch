@@ -22,13 +22,13 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 
-public class TaskTests extends ESTestCase {
+public class TaskTests extends OpenSearchTestCase {
 
     public void testTaskInfoToString() {
         String nodeId = randomAlphaOfLength(10);

@@ -25,7 +25,7 @@ import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class RetryableActionTests extends ESTestCase {
+public class RetryableActionTests extends OpenSearchTestCase {
 
     private DeterministicTaskQueue taskQueue;
 

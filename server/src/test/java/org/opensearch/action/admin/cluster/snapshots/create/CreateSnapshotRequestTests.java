@@ -31,7 +31,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ import static org.opensearch.snapshots.SnapshotInfoTests.randomUserMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class CreateSnapshotRequestTests extends ESTestCase {
+public class CreateSnapshotRequestTests extends OpenSearchTestCase {
 
     // tests creating XContent and parsing with source(Map) equivalency
     public void testToXContent() throws IOException {

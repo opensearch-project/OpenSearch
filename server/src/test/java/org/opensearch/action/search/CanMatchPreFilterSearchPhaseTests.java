@@ -37,7 +37,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
+public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
 
     public void testFilterShards() throws InterruptedException {
 

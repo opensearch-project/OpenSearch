@@ -31,7 +31,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;

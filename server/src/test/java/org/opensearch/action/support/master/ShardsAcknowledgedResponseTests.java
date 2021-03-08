@@ -22,14 +22,14 @@ import org.opensearch.Version;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
 
-public class ShardsAcknowledgedResponseTests extends ESTestCase {
+public class ShardsAcknowledgedResponseTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         ShardsAcknowledgedResponse testInstance = new TestImpl(true, true);

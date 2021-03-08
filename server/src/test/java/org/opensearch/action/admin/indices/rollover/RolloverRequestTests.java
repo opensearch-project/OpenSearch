@@ -39,7 +39,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesModule;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.XContentTestUtils;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.Before;
@@ -54,7 +54,7 @@ import java.util.function.Consumer;
 import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RolloverRequestTests extends ESTestCase {
+public class RolloverRequestTests extends OpenSearchTestCase {
     private NamedWriteableRegistry writeableRegistry;
 
     @Override

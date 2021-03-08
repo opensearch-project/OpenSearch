@@ -31,7 +31,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.NodeDisconnectedException;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
-public class IndicesShardStoreResponseTests extends ESTestCase {
+public class IndicesShardStoreResponseTests extends OpenSearchTestCase {
     public void testBasicSerialization() throws Exception {
         ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>>
             indexStoreStatuses = ImmutableOpenMap.builder();

@@ -37,7 +37,7 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
@@ -63,7 +63,7 @@ import static org.opensearch.common.util.concurrent.ConcurrentCollections.newCon
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class SearchAsyncActionTests extends ESTestCase {
+public class SearchAsyncActionTests extends OpenSearchTestCase {
 
     public void testSkipSearchShards() throws InterruptedException {
         SearchRequest request = new SearchRequest();

@@ -22,7 +22,7 @@ package org.opensearch.action.support;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.RemoteTransportException;
 
 import java.util.Objects;
@@ -32,7 +32,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class AdapterActionFutureTests extends ESTestCase {
+public class AdapterActionFutureTests extends OpenSearchTestCase {
 
     public void testInterruption() throws Exception {
         final AdapterActionFuture<String, Integer> adapter =

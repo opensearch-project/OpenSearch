@@ -23,14 +23,14 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.VersionType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class MultiGetShardRequestTests extends ESTestCase {
+public class MultiGetShardRequestTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         if (randomBoolean()) {

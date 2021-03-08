@@ -26,12 +26,12 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 
 import java.util.Collections;
 
-public class PendingReplicationActionsTests extends ESTestCase {
+public class PendingReplicationActionsTests extends OpenSearchTestCase {
 
     private TestThreadPool threadPool;
     private ShardId shardId;

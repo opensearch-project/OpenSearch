@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import java.io.IOException;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 
-public class ShardSearchFailureTests extends ESTestCase {
+public class ShardSearchFailureTests extends OpenSearchTestCase {
 
     public static ShardSearchFailure createTestItem(String indexUuid) {
         String randomMessage = randomAlphaOfLengthBetween(3, 20);

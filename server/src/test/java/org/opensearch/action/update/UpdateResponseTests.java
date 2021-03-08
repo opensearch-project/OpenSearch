@@ -34,7 +34,7 @@ import org.opensearch.index.get.GetResult;
 import org.opensearch.index.get.GetResultTests;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class UpdateResponseTests extends ESTestCase {
+public class UpdateResponseTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         {

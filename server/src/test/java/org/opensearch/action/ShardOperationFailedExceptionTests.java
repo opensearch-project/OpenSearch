@@ -23,11 +23,11 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class ShardOperationFailedExceptionTests extends ESTestCase {
+public class ShardOperationFailedExceptionTests extends OpenSearchTestCase {
 
     public void testCauseCannotBeNull() {
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> new Failure(

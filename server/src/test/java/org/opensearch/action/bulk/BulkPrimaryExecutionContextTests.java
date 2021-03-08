@@ -31,7 +31,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BulkPrimaryExecutionContextTests extends ESTestCase {
+public class BulkPrimaryExecutionContextTests extends OpenSearchTestCase {
 
     public void testAbortedSkipped() {
         BulkShardRequest shardRequest = generateRandomRequest();

@@ -19,13 +19,13 @@
 package org.opensearch.action.admin.cluster.configuration;
 
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClearVotingConfigExclusionsRequestTests extends ESTestCase {
+public class ClearVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
         final ClearVotingConfigExclusionsRequest originalRequest = new ClearVotingConfigExclusionsRequest();
         if (randomBoolean()) {

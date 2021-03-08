@@ -31,7 +31,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ import static org.opensearch.OpenSearchExceptionTests.assertDeepEquals;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class ReplicationResponseTests extends ESTestCase {
+public class ReplicationResponseTests extends OpenSearchTestCase {
 
     public void testShardInfoToString() {
         final int total = 5;

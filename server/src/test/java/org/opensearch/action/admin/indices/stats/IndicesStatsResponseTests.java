@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class IndicesStatsResponseTests extends ESTestCase {
+public class IndicesStatsResponseTests extends OpenSearchTestCase {
 
     public void testInvalidLevel() {
         final IndicesStatsResponse response = new IndicesStatsResponse(null, 0, 0, 0, null);

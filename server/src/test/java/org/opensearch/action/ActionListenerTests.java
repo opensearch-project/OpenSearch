@@ -20,7 +20,7 @@ package org.opensearch.action;
 
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ActionListenerTests extends ESTestCase {
+public class ActionListenerTests extends OpenSearchTestCase {
 
     public void testWrap() {
         AtomicReference<Boolean> reference = new AtomicReference<>();

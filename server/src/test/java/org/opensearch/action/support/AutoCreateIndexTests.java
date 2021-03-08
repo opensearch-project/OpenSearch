@@ -32,7 +32,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.List;
@@ -40,7 +40,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class AutoCreateIndexTests extends ESTestCase {
+public class AutoCreateIndexTests extends OpenSearchTestCase {
 
     private static final String TEST_SYSTEM_INDEX_NAME = ".test-system-index";
 

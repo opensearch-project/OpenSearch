@@ -38,7 +38,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.RandomCreateIndexGenerator;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -50,7 +50,7 @@ import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
-public class PutMappingRequestTests extends ESTestCase {
+public class PutMappingRequestTests extends OpenSearchTestCase {
 
     public void testValidation() {
         PutMappingRequest r = new PutMappingRequest("myindex").type("");

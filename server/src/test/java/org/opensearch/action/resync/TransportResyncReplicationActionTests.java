@@ -48,7 +48,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.tasks.Task;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -79,7 +79,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TransportResyncReplicationActionTests extends ESTestCase {
+public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
 

@@ -49,7 +49,7 @@ import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.tasks.Task;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -73,7 +73,7 @@ import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class TransportMasterNodeActionTests extends ESTestCase {
+public class TransportMasterNodeActionTests extends OpenSearchTestCase {
     private static ThreadPool threadPool;
 
     private ClusterService clusterService;

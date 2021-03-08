@@ -22,11 +22,11 @@ package org.opensearch.action.admin.indices.settings.get;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class GetSettingsRequestTests extends ESTestCase {
+public class GetSettingsRequestTests extends OpenSearchTestCase {
     private static final GetSettingsRequest TEST_700_REQUEST = new GetSettingsRequest()
             .includeDefaults(true)
             .humanReadable(true)

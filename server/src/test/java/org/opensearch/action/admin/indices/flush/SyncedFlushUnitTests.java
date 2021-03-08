@@ -31,7 +31,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.flush.ShardsSyncedFlushResult;
 import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import static org.opensearch.test.XContentTestUtils.convertToMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SyncedFlushUnitTests extends ESTestCase {
+public class SyncedFlushUnitTests extends OpenSearchTestCase {
 
     private static class TestPlan {
         public SyncedFlushResponse.ShardCounts totalCounts;

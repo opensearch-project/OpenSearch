@@ -45,7 +45,7 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.SortBuilders;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.transport.Transport;
 
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
+public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
     public void testBottomFieldSort() throws Exception {
         testCase(false, false);
     }

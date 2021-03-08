@@ -33,7 +33,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -73,7 +73,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.cluster.ClusterStateChanges;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -133,7 +133,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TransportReplicationActionTests extends ESTestCase {
+public class TransportReplicationActionTests extends OpenSearchTestCase {
 
     private static final ShardId NO_SHARD_ID = null;
 

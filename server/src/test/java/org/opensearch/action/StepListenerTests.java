@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteTransportException;
@@ -33,7 +33,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StepListenerTests extends ESTestCase {
+public class StepListenerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
 
     @Before

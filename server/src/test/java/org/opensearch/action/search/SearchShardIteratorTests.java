@@ -25,7 +25,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.routing.GroupShardsIteratorTests;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.hamcrest.Matchers;
 
@@ -36,7 +36,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchShardIteratorTests extends ESTestCase {
+public class SearchShardIteratorTests extends OpenSearchTestCase {
 
     public void testShardId() {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());

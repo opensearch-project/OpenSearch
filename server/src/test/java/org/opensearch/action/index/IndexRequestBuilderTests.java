@@ -23,7 +23,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
@@ -32,7 +32,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.Map;
 
-public class IndexRequestBuilderTests extends ESTestCase {
+public class IndexRequestBuilderTests extends OpenSearchTestCase {
 
     private static final String EXPECTED_SOURCE = "{\"SomeKey\":\"SomeValue\"}";
     private NoOpClient testClient;

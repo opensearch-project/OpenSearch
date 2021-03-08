@@ -26,14 +26,14 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 
-public class CountedCollectorTests extends ESTestCase {
+public class CountedCollectorTests extends OpenSearchTestCase {
     public void testCollect() throws InterruptedException {
         ArraySearchPhaseResults<SearchPhaseResult> consumer = new ArraySearchPhaseResults<>(randomIntBetween(1, 100));
         List<Integer> state = new ArrayList<>();

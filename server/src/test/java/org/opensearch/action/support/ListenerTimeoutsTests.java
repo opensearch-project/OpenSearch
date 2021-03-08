@@ -24,7 +24,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class ListenerTimeoutsTests extends ESTestCase {
+public class ListenerTimeoutsTests extends OpenSearchTestCase {
 
     private final TimeValue timeout = TimeValue.timeValueMillis(10);
     private final String generic = ThreadPool.Names.GENERIC;

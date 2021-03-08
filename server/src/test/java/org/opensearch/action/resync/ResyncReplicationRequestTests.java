@@ -24,14 +24,14 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ResyncReplicationRequestTests extends ESTestCase {
+public class ResyncReplicationRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));

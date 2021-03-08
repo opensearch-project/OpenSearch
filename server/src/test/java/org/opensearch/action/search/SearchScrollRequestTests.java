@@ -34,7 +34,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.internal.InternalScrollSearchRequest;
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -42,7 +42,7 @@ import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SearchScrollRequestTests extends ESTestCase {
+public class SearchScrollRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         SearchScrollRequest searchScrollRequest = createSearchScrollRequest();

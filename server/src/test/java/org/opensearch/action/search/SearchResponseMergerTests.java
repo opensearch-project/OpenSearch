@@ -44,7 +44,7 @@ import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.profile.SearchProfileShardResultsTests;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
 import org.junit.Before;
@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class SearchResponseMergerTests extends ESTestCase {
+public class SearchResponseMergerTests extends OpenSearchTestCase {
 
     private int numResponses;
     private ExecutorService executorService;

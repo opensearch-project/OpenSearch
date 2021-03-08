@@ -26,14 +26,14 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransportGetAliasesActionTests extends ESTestCase {
+public class TransportGetAliasesActionTests extends OpenSearchTestCase {
     private final SystemIndices EMPTY_SYSTEM_INDICES = new SystemIndices(Collections.emptyMap());
 
     public void testPostProcess() {

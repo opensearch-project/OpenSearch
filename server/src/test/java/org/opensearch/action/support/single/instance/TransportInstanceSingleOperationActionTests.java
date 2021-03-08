@@ -44,7 +44,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -69,7 +69,7 @@ import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class TransportInstanceSingleOperationActionTests extends ESTestCase {
+public class TransportInstanceSingleOperationActionTests extends OpenSearchTestCase {
 
     private static ThreadPool THREAD_POOL;
 

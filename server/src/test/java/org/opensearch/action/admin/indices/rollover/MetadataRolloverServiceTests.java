@@ -73,7 +73,7 @@ import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.ClusterServiceUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -105,7 +105,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-public class MetadataRolloverServiceTests extends ESTestCase {
+public class MetadataRolloverServiceTests extends OpenSearchTestCase {
 
     public void testRolloverAliasActions() {
         String sourceAlias = randomAlphaOfLength(10);

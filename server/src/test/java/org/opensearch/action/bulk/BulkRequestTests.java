@@ -36,7 +36,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.script.Script;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class BulkRequestTests extends ESTestCase {
+public class BulkRequestTests extends OpenSearchTestCase {
     public void testSimpleBulk1() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk.json");
         BulkRequest bulkRequest = new BulkRequest();

@@ -24,7 +24,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import static java.util.Collections.emptyMap;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Tests for {@link NodeInfo}. Serialization and deserialization tested in
  * {@link org.opensearch.nodesinfo.NodeInfoStreamingTests}.
  */
-public class NodeInfoTests extends ESTestCase {
+public class NodeInfoTests extends OpenSearchTestCase {
 
     /**
      * Check that the the {@link NodeInfo#getInfo(Class)} method returns null

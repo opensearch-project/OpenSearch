@@ -22,12 +22,12 @@ package org.opensearch.action.admin.indices.rollover;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ConditionTests extends ESTestCase {
+public class ConditionTests extends OpenSearchTestCase {
 
     public void testMaxAge() {
         final MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(1));

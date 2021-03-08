@@ -22,7 +22,7 @@ package org.opensearch.action.admin.cluster.node.stats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 
-public class NodesStatsRequestTests extends ESTestCase {
+public class NodesStatsRequestTests extends OpenSearchTestCase {
 
     /**
      * Make sure that we can set, serialize, and deserialize arbitrary sets

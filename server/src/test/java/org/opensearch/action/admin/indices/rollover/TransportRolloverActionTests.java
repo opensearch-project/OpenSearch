@@ -67,7 +67,7 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.tasks.Task;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
@@ -92,7 +92,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
-public class TransportRolloverActionTests extends ESTestCase {
+public class TransportRolloverActionTests extends OpenSearchTestCase {
 
     public void testDocStatsSelectionFromPrimariesOnly() {
         long docsInPrimaryShards = 100;

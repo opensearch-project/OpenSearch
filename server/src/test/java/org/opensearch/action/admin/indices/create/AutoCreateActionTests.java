@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.create;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class AutoCreateActionTests extends ESTestCase {
+public class AutoCreateActionTests extends OpenSearchTestCase {
 
     public void testResolveAutoCreateDataStreams() {
         Metadata metadata;

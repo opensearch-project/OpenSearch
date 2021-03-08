@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,7 +42,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
     protected UpdateSettingsRequest mutateInstance(UpdateSettingsRequest request) {
         UpdateSettingsRequest mutation = copyRequest(request);
         List<Runnable> mutators = new ArrayList<>();
-        Supplier<TimeValue> timeValueSupplier = () -> TimeValue.parseTimeValue(ESTestCase.randomTimeValue(), "_setting");
+        Supplier<TimeValue> timeValueSupplier = () -> TimeValue.parseTimeValue(OpenSearchTestCase.randomTimeValue(), "_setting");
         mutators.add(() -> mutation
                 .masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout(), timeValueSupplier)));
         mutators.add(() -> mutation.timeout(randomValueOtherThan(request.timeout(), timeValueSupplier)));

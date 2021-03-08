@@ -32,7 +32,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -41,7 +41,7 @@ import java.util.Arrays;
 /**
  * Tests for the {@link ActiveShardCount} class
  */
-public class ActiveShardCountTests extends ESTestCase {
+public class ActiveShardCountTests extends OpenSearchTestCase {
 
     public void testFromIntValue() {
         assertSame(ActiveShardCount.from(0), ActiveShardCount.NONE);

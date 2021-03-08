@@ -19,13 +19,13 @@
 package org.opensearch.action.get;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class GetRequestTests  extends ESTestCase {
+public class GetRequestTests  extends OpenSearchTestCase {
 
     public void testValidation() {
         {

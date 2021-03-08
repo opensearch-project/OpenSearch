@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.not;
  * Granular tests for the {@link NodesInfoRequest} class. Higher-level tests
  * can be found in {@link org.opensearch.rest.action.admin.cluster.RestNodesInfoActionTests}.
  */
-public class NodesInfoRequestTests extends ESTestCase {
+public class NodesInfoRequestTests extends OpenSearchTestCase {
 
     /**
      * Make sure that we can set, serialize, and deserialize arbitrary sets

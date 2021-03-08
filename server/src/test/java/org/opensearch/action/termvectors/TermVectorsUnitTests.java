@@ -45,7 +45,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.action.document.RestTermVectorsAction;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.StreamsUtils;
 import org.hamcrest.Matchers;
 
@@ -59,7 +59,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermVectorsUnitTests extends ESTestCase {
+public class TermVectorsUnitTests extends OpenSearchTestCase {
     public void testStreamResponse() throws Exception {
         TermVectorsResponse outResponse = new TermVectorsResponse("a", "b", "c");
         outResponse.setExists(true);

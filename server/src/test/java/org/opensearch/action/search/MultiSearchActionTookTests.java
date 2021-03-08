@@ -36,7 +36,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -67,7 +67,7 @@ import static org.mockito.Mockito.when;
 /**
  * MultiSearch took time tests
  */
-public class MultiSearchActionTookTests extends ESTestCase {
+public class MultiSearchActionTookTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;

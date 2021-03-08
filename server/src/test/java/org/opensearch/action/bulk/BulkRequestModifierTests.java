@@ -25,7 +25,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class BulkRequestModifierTests extends ESTestCase {
+public class BulkRequestModifierTests extends OpenSearchTestCase {
 
     public void testBulkRequestModifier() {
         int numRequests = scaledRandomIntBetween(8, 64);

@@ -31,7 +31,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class IndicesOptionsTests extends ESTestCase {
+public class IndicesOptionsTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);

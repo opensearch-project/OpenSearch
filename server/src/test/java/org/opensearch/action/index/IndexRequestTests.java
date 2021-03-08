@@ -32,7 +32,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class IndexRequestTests extends ESTestCase {
+public class IndexRequestTests extends OpenSearchTestCase {
     public void testIndexRequestOpTypeFromString() throws Exception {
         String create = "create";
         String index = "index";

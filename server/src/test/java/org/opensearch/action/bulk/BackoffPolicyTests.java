@@ -20,7 +20,7 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 
-public class BackoffPolicyTests extends ESTestCase {
+public class BackoffPolicyTests extends OpenSearchTestCase {
     public void testWrapBackoffPolicy() {
         TimeValue timeValue = timeValueMillis(between(0, Integer.MAX_VALUE));
         int maxNumberOfRetries = between(1, 1000);

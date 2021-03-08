@@ -35,7 +35,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.time.Instant;
@@ -47,7 +47,7 @@ import static org.opensearch.action.admin.cluster.allocation.TransportClusterAll
 /**
  * Tests for the {@link TransportClusterAllocationExplainAction} class.
  */
-public class ClusterAllocationExplainActionTests extends ESTestCase {
+public class ClusterAllocationExplainActionTests extends OpenSearchTestCase {
 
     private static final AllocationDeciders NOOP_DECIDERS = new AllocationDeciders(Collections.emptyList());
 

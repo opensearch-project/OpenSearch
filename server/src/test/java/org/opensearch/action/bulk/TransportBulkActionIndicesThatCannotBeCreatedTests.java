@@ -40,7 +40,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.IndexingPressure;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -59,7 +59,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCase {
+public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSearchTestCase {
     public void testNonExceptional() {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));

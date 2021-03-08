@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class AliasActionsTests extends ESTestCase {
+public class AliasActionsTests extends OpenSearchTestCase {
     public void testValidate() {
         AliasActions.Type type = randomFrom(AliasActions.Type.values());
         if (type == AliasActions.Type.REMOVE_INDEX) {

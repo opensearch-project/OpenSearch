@@ -24,7 +24,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.repositories.fs.FsRepository;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -33,7 +33,7 @@ import java.util.Map;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PutRepositoryRequestTests extends ESTestCase {
+public class PutRepositoryRequestTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCreateRepositoryToXContent() throws IOException {

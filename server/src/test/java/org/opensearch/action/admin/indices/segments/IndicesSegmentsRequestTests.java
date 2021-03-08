@@ -25,7 +25,7 @@ import org.opensearch.index.engine.Segment;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 

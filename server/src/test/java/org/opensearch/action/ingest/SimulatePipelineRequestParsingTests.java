@@ -27,7 +27,7 @@ import org.opensearch.ingest.IngestService;
 import org.opensearch.ingest.Pipeline;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.TestProcessor;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SimulatePipelineRequestParsingTests extends ESTestCase {
+public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
 
     private IngestService ingestService;
 

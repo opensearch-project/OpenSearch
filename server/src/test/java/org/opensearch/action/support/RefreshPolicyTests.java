@@ -21,11 +21,11 @@ package org.opensearch.action.support;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class RefreshPolicyTests extends ESTestCase {
+public class RefreshPolicyTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());

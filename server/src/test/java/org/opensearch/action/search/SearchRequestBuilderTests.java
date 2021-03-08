@@ -24,14 +24,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.MockTransportClient;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SearchRequestBuilderTests extends ESTestCase {
+public class SearchRequestBuilderTests extends OpenSearchTestCase {
     private static Client client;
 
     @BeforeClass

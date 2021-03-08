@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -36,7 +36,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContent
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ClearScrollRequestTests extends ESTestCase {
+public class ClearScrollRequestTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws Exception {
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();

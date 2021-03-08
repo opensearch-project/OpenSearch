@@ -20,9 +20,9 @@
 package org.opensearch.action.admin.cluster.allocation;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class ClusterAllocationExplainRequestTests extends ESTestCase {
+public class ClusterAllocationExplainRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         ClusterAllocationExplainRequest request =

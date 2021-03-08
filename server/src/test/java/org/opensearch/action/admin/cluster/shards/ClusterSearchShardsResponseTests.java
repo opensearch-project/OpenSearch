@@ -35,7 +35,7 @@ import org.opensearch.index.query.RandomQueryBuilder;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class ClusterSearchShardsResponseTests extends ESTestCase {
+public class ClusterSearchShardsResponseTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();

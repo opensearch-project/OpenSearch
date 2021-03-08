@@ -33,7 +33,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -41,7 +41,7 @@ import static org.opensearch.OpenSearchExceptionTests.assertDeepEquals;
 import static org.opensearch.OpenSearchExceptionTests.randomExceptions;
 import static org.hamcrest.Matchers.containsString;
 
-public class BulkItemResponseTests extends ESTestCase {
+public class BulkItemResponseTests extends OpenSearchTestCase {
 
     public void testFailureToString() {
         Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));

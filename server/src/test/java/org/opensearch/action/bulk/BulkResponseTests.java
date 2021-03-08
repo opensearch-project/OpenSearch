@@ -31,7 +31,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -41,7 +41,7 @@ import static org.opensearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class BulkResponseTests extends ESTestCase {
+public class BulkResponseTests extends OpenSearchTestCase {
 
     public void testToAndFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());

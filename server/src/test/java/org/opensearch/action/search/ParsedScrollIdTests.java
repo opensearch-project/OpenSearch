@@ -20,9 +20,9 @@
 package org.opensearch.action.search;
 
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class ParsedScrollIdTests extends ESTestCase {
+public class ParsedScrollIdTests extends OpenSearchTestCase {
     public void testHasLocalIndices() {
         final int nResults = randomIntBetween(1, 3);
         final SearchContextIdForNode[] searchContextIdForNodes = new SearchContextIdForNode[nResults];

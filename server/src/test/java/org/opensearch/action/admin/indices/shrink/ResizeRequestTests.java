@@ -28,7 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.RandomCreateIndexGenerator;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
-public class ResizeRequestTests extends ESTestCase {
+public class ResizeRequestTests extends OpenSearchTestCase {
 
     public void testCopySettingsValidation() {
         runTestCopySettingsValidation(false, r -> {

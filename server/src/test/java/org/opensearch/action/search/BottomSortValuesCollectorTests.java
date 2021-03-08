@@ -28,7 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.DocValueFormat;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.ZoneId;
 import java.util.Arrays;
@@ -38,7 +38,7 @@ import static org.opensearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORM
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class BottomSortValuesCollectorTests extends ESTestCase {
+public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
     public void testWithStrings() {
         for (boolean reverse : new boolean[] { true, false }) {
             SortField[] sortFields = new SortField[] { new SortField("foo", SortField.Type.STRING_VAL, reverse) };

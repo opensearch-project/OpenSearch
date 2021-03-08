@@ -36,7 +36,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-public class ResolveIndexTests extends ESTestCase {
+public class ResolveIndexTests extends OpenSearchTestCase {
 
     private final Object[][] indices = new Object[][] {
         // name, isClosed, isHidden, isFrozen, dataStream, aliases

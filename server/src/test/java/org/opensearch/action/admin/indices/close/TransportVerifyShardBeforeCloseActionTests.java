@@ -47,7 +47,7 @@ import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.TaskId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -80,7 +80,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
+public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
 

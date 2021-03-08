@@ -38,7 +38,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TransportMultiSearchActionTests extends ESTestCase {
+public class TransportMultiSearchActionTests extends OpenSearchTestCase {
 
     public void testParentTaskId() throws Exception {
         // Initialize dependencies of TransportMultiSearchAction
@@ -111,7 +111,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             future.get();
             assertEquals(numSearchRequests, counter.get());
         } finally {
-            assertTrue(ESTestCase.terminate(threadPool));
+            assertTrue(OpenSearchTestCase.terminate(threadPool));
         }
     }
 
@@ -190,7 +190,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             assertThat(requests.size(), equalTo(numSearchRequests));
             assertThat(errorHolder.get(), nullValue());
         } finally {
-            assertTrue(ESTestCase.terminate(threadPool));
+            assertTrue(OpenSearchTestCase.terminate(threadPool));
         }
     }
 

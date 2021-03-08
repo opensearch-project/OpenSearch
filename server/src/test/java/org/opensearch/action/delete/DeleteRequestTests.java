@@ -19,13 +19,13 @@
 package org.opensearch.action.delete;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class DeleteRequestTests extends ESTestCase {
+public class DeleteRequestTests extends OpenSearchTestCase {
 
     public void testValidation() {
         {

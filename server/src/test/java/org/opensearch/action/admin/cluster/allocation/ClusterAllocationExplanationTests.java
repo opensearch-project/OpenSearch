@@ -38,7 +38,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -46,7 +46,7 @@ import static java.util.Collections.emptySet;
 /**
  * Tests for the cluster allocation explanation
  */
-public final class ClusterAllocationExplanationTests extends ESTestCase {
+public final class ClusterAllocationExplanationTests extends OpenSearchTestCase {
 
     public void testDecisionEquality() {
         Decision.Multi d = new Decision.Multi();

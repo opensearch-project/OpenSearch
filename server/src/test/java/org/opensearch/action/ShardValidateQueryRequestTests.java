@@ -30,14 +30,14 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ShardValidateQueryRequestTests extends ESTestCase {
+public class ShardValidateQueryRequestTests extends OpenSearchTestCase {
     protected NamedWriteableRegistry namedWriteableRegistry;
 
     public void setUp() throws Exception {

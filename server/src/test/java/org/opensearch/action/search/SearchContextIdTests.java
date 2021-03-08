@@ -29,7 +29,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SearchContextIdTests extends ESTestCase {
+public class SearchContextIdTests extends OpenSearchTestCase {
 
     QueryBuilder randomQueryBuilder() {
         if (randomBoolean()) {

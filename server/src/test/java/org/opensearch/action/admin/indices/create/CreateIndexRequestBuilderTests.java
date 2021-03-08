@@ -24,7 +24,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
@@ -35,7 +35,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-public class CreateIndexRequestBuilderTests extends ESTestCase {
+public class CreateIndexRequestBuilderTests extends OpenSearchTestCase {
 
     private static final String KEY = "my.settings.key";
     private static final String VALUE = "my.settings.value";

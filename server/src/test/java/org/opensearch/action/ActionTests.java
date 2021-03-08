@@ -19,9 +19,9 @@
 
 package org.opensearch.action;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class ActionTests extends ESTestCase {
+public class ActionTests extends OpenSearchTestCase {
 
     public void testEquals() {
         class FakeAction extends ActionType<ActionResponse> {

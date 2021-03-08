@@ -31,7 +31,7 @@ import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.InternalScrollSearchRequest;
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
-public class SearchScrollAsyncActionTests extends ESTestCase {
+public class SearchScrollAsyncActionTests extends OpenSearchTestCase {
 
     public void testSendRequestsToNodes() throws InterruptedException {
 

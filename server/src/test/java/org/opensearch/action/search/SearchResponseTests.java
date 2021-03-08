@@ -45,7 +45,7 @@ import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.profile.SearchProfileShardResultsTests;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.SuggestTests;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -60,7 +60,7 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class SearchResponseTests extends ESTestCase {
+public class SearchResponseTests extends OpenSearchTestCase {
 
     private static final NamedXContentRegistry xContentRegistry;
     static {

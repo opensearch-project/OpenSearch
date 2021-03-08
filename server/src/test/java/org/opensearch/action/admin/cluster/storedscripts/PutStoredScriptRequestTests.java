@@ -27,12 +27,12 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.StoredScriptSource;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class PutStoredScriptRequestTests extends ESTestCase {
+public class PutStoredScriptRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("bar", "context", new BytesArray("{}"), XContentType.JSON,

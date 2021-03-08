@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.dangling.list;
 import org.opensearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.AggregatedDanglingIndexInfo;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ListDanglingIndicesResponseTests extends ESTestCase {
+public class ListDanglingIndicesResponseTests extends OpenSearchTestCase {
 
     public static final String UUID_1 = UUID.randomUUID().toString();
     public static final String UUID_2 = UUID.randomUUID().toString();

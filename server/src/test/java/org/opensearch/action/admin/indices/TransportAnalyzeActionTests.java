@@ -46,7 +46,7 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
 import org.opensearch.plugins.AnalysisPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -64,7 +64,7 @@ import static org.mockito.Mockito.when;
  * Tests for {@link TransportAnalyzeAction}. See the rest tests in the {@code analysis-common} module for places where this code gets a ton
  * more exercise.
  */
-public class TransportAnalyzeActionTests extends ESTestCase {
+public class TransportAnalyzeActionTests extends OpenSearchTestCase {
 
     private IndexAnalyzers indexAnalyzers;
     private IndexSettings indexSettings;

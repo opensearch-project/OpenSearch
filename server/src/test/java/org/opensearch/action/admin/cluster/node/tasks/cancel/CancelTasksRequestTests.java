@@ -21,11 +21,11 @@ package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 
-public class CancelTasksRequestTests extends ESTestCase {
+public class CancelTasksRequestTests extends OpenSearchTestCase {
 
     public void testGetDescription() {
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();

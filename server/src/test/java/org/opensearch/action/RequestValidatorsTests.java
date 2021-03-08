@@ -21,7 +21,7 @@ package org.opensearch.action;
 
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.Randomness;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OptionalMatchers;
 import org.hamcrest.Matchers;
 
@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-public class RequestValidatorsTests extends ESTestCase {
+public class RequestValidatorsTests extends OpenSearchTestCase {
 
     private final RequestValidators.RequestValidator<PutMappingRequest> EMPTY = (request, state, indices) -> Optional.empty();
     private final RequestValidators.RequestValidator<PutMappingRequest> FAIL =

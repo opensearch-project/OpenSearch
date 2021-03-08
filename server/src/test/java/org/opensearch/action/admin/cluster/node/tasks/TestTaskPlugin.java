@@ -74,7 +74,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.opensearch.test.ESTestCase.waitUntil;
+import static org.opensearch.test.OpenSearchTestCase.waitUntil;
 
 /**
  * A plugin that adds a cancellable blocking test task of integration testing of the task manager.

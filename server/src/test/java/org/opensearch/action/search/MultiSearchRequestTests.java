@@ -39,7 +39,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.StreamsUtils;
 import org.opensearch.test.rest.FakeRestRequest;
 
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiSearchRequestTests extends ESTestCase {
+public class MultiSearchRequestTests extends OpenSearchTestCase {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MultiSearchRequestTests.class);
 

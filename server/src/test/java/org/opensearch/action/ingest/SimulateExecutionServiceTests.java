@@ -30,7 +30,7 @@ import org.opensearch.ingest.Pipeline;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestProcessor;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class SimulateExecutionServiceTests extends ESTestCase {
+public class SimulateExecutionServiceTests extends OpenSearchTestCase {
 
     private final Integer version = randomBoolean() ? randomInt() : null;
 

@@ -32,7 +32,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.Index;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -47,7 +47,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
-public class GetSettingsActionTests extends ESTestCase {
+public class GetSettingsActionTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private ClusterService clusterService;

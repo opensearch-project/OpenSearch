@@ -46,7 +46,7 @@ import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 import org.junit.Before;
 
@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class UpdateRequestTests extends ESTestCase {
+public class UpdateRequestTests extends OpenSearchTestCase {
 
     private UpdateHelper updateHelper;
 
@@ -423,7 +423,7 @@ public class UpdateRequestTests extends ESTestCase {
                 new ShardId("test", "", 0),
                 updateRequest,
                 getResult,
-                ESTestCase::randomNonNegativeLong);
+                OpenSearchTestCase::randomNonNegativeLong);
         final Writeable action = result.action();
         assertThat(action, instanceOf(ReplicationRequest.class));
         final ReplicationRequest<?> request = (ReplicationRequest<?>) action;
@@ -612,7 +612,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .script(mockInlineScript("ctx._source.body = \"foo\""));
 
         UpdateHelper.Result result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult,
-                ESTestCase::randomNonNegativeLong);
+                OpenSearchTestCase::randomNonNegativeLong);
 
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
@@ -622,7 +622,7 @@ public class UpdateRequestTests extends ESTestCase {
         request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx.op = delete"));
 
         result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult,
-                ESTestCase::randomNonNegativeLong);
+                OpenSearchTestCase::randomNonNegativeLong);
 
         assertThat(result.action(), instanceOf(DeleteRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.DELETED));
@@ -636,7 +636,7 @@ public class UpdateRequestTests extends ESTestCase {
         }
 
         result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult,
-                ESTestCase::randomNonNegativeLong);
+                OpenSearchTestCase::randomNonNegativeLong);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));

@@ -24,7 +24,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -32,7 +32,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 /**
  * Unit tests for the {@link ClusterStateRequest}.
  */
-public class ClusterStateRequestTests extends ESTestCase {
+public class ClusterStateRequestTests extends OpenSearchTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {

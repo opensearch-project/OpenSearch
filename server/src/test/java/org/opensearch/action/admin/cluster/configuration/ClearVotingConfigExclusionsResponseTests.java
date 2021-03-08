@@ -18,11 +18,11 @@
  */
 package org.opensearch.action.admin.cluster.configuration;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class ClearVotingConfigExclusionsResponseTests extends ESTestCase {
+public class ClearVotingConfigExclusionsResponseTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
         final ClearVotingConfigExclusionsResponse originalRequest = new ClearVotingConfigExclusionsResponse();
         copyWriteable(originalRequest, writableRegistry(), ClearVotingConfigExclusionsResponse::new);

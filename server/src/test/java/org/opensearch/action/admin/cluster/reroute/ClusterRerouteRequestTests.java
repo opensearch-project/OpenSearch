@@ -40,7 +40,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 /**
  * Test for serialization and parsing of {@link ClusterRerouteRequest} and its commands. See the superclass for, well, everything.
  */
-public class ClusterRerouteRequestTests extends ESTestCase {
+public class ClusterRerouteRequestTests extends OpenSearchTestCase {
     private static final int ROUNDS = 30;
     private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = unmodifiableList(
             Arrays.<Supplier<AllocationCommand>> asList(

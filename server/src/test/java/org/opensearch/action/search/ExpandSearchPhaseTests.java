@@ -32,7 +32,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.internal.InternalSearchResponse;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ExpandSearchPhaseTests extends ESTestCase {
+public class ExpandSearchPhaseTests extends OpenSearchTestCase {
 
     public void testCollapseSingleHit() throws IOException {
         final int iters = randomIntBetween(5, 10);

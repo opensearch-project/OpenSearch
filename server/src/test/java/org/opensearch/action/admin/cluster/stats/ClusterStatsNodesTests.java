@@ -26,7 +26,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,7 +41,7 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClusterStatsNodesTests extends ESTestCase {
+public class ClusterStatsNodesTests extends OpenSearchTestCase {
 
     /**
      * Test that empty transport/http types are not printed out as part

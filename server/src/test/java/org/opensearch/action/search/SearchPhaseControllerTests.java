@@ -69,7 +69,7 @@ import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.search.suggest.phrase.PhraseSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestion;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -100,7 +100,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class SearchPhaseControllerTests extends ESTestCase {
+public class SearchPhaseControllerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private EsThreadPoolExecutor fixedExecutor;
     private SearchPhaseController searchPhaseController;

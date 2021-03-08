@@ -21,14 +21,14 @@ package org.opensearch.action.search;
 
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class SearchShardTests extends ESTestCase {
+public class SearchShardTests extends OpenSearchTestCase {
 
    public void testEqualsAndHashcode() {
        String index = randomAlphaOfLengthBetween(5, 10);

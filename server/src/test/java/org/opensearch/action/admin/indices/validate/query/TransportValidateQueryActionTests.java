@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.validate.query;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 

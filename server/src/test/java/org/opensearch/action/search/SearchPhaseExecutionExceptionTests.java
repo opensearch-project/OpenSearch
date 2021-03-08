@@ -36,14 +36,14 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SearchPhaseExecutionExceptionTests extends ESTestCase {
+public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         SearchPhaseExecutionException exception = new SearchPhaseExecutionException("test", "all shards failed",
@@ -133,7 +133,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         final ShardSearchFailure[] searchShardFailures = new ShardSearchFailure[0];
         final String phase = randomFrom("fetch", "search", "other");
         SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures",
-            new EsRejectedExecutionException("ES rejected execution of fetch phase"), searchShardFailures);
+            new EsRejectedExecutionException("OpenSearch rejected execution of fetch phase"), searchShardFailures);
 
         assertEquals(actual.status(), RestStatus.TOO_MANY_REQUESTS);
     }
@@ -159,7 +159,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
 
         final String phase = randomFrom("fetch", "search", "other");
         SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures",
-            new EsRejectedExecutionException("ES rejected execution of fetch phase"), shardSearchFailures);
+            new EsRejectedExecutionException("OpenSearch rejected execution of fetch phase"), shardSearchFailures);
 
         assertEquals(actual.status(), RestStatus.BAD_REQUEST);
     }

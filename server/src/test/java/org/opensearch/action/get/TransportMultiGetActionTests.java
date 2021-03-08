@@ -47,7 +47,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -69,7 +69,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TransportMultiGetActionTests extends ESTestCase {
+public class TransportMultiGetActionTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
     private static TransportService transportService;

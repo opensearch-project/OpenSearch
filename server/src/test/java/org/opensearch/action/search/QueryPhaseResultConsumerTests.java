@@ -36,7 +36,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -50,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class QueryPhaseResultConsumerTests extends ESTestCase {
+public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
 
     private SearchPhaseController searchPhaseController;
     private ThreadPool threadPool;

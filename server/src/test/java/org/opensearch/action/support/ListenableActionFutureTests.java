@@ -20,7 +20,7 @@ package org.opensearch.action.support;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
@@ -29,7 +29,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class ListenableActionFutureTests extends ESTestCase {
+public class ListenableActionFutureTests extends OpenSearchTestCase {
 
     public void testListenerIsCallableFromNetworkThreads() throws Throwable {
         ThreadPool threadPool = new TestThreadPool("testListenerIsCallableFromNetworkThreads");

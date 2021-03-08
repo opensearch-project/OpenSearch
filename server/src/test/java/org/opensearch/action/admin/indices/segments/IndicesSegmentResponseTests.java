@@ -27,13 +27,13 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.engine.Segment;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class IndicesSegmentResponseTests extends ESTestCase {
+public class IndicesSegmentResponseTests extends OpenSearchTestCase {
 
     public void testToXContentSerialiationWithSortedFields() throws Exception {
         ShardRouting shardRouting = TestShardRouting.newShardRouting("foo", 0, "node_id", true, ShardRoutingState.STARTED);

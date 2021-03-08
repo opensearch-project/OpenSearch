@@ -19,7 +19,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class GroupedActionListenerTests extends ESTestCase {
+public class GroupedActionListenerTests extends OpenSearchTestCase {
 
     public void testNotifications() throws InterruptedException {
         AtomicReference<Collection<Integer>> resRef = new AtomicReference<>();

@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,7 +28,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class MappingVisitorTests extends ESTestCase {
+public class MappingVisitorTests extends OpenSearchTestCase {
 
     private static void collectTypes(Map<String, ?> mapping, Set<String> types) {
         MappingVisitor.visitMapping(mapping,

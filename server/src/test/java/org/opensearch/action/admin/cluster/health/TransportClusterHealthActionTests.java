@@ -33,7 +33,7 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +41,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class TransportClusterHealthActionTests extends ESTestCase {
+public class TransportClusterHealthActionTests extends OpenSearchTestCase {
 
     public void testWaitForInitializingShards() throws Exception {
         final String[] indices = {"test"};

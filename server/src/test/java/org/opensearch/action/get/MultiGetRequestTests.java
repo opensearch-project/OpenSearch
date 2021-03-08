@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiGetRequestTests extends ESTestCase {
+public class MultiGetRequestTests extends OpenSearchTestCase {
 
     public void testAddWithInvalidKey() throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();

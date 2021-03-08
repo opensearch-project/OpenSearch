@@ -46,7 +46,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -71,7 +71,7 @@ import static org.opensearch.test.ClusterServiceUtils.setState;
 /**
  * The test case for unit testing task manager and related transport actions
  */
-public abstract class TaskManagerTestCase extends ESTestCase {
+public abstract class TaskManagerTestCase extends OpenSearchTestCase {
 
     protected ThreadPool threadPool;
     protected TestNode[] testNodes;

@@ -38,7 +38,7 @@ import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.transport.Transport;
 
@@ -46,7 +46,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class DfsQueryPhaseTests extends ESTestCase {
+public class DfsQueryPhaseTests extends OpenSearchTestCase {
 
     private static DfsSearchResult newSearchResult(int shardIndex, ShardSearchContextId contextId, SearchShardTarget target) {
         DfsSearchResult result = new DfsSearchResult(contextId, target, null);

@@ -29,7 +29,7 @@ import org.opensearch.indices.IndicesModule;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class ExplainRequestTests extends ESTestCase {
+public class ExplainRequestTests extends OpenSearchTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
 
     public void setUp() throws Exception {

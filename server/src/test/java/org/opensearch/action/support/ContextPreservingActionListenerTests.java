@@ -21,14 +21,14 @@ package org.opensearch.action.support;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
-public class ContextPreservingActionListenerTests extends ESTestCase {
+public class ContextPreservingActionListenerTests extends OpenSearchTestCase {
 
     public void testOriginalContextIsPreservedAfterOnResponse() throws IOException {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
