@@ -172,7 +172,7 @@ public class PackageTests extends PackagingTestCase {
         ).stdout.trim();
         assertThat(journalEntries, equalTo("0"));
 
-        assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
+        assertPathsExist(installation.pidDir.resolve("opensearch.pid"));
         assertPathsExist(installation.logs.resolve("elasticsearch_server.json"));
 
         runOpenSearchTests();
@@ -289,7 +289,7 @@ public class PackageTests extends PackagingTestCase {
 
         startOpenSearch();
 
-        final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
+        final Path pidFile = installation.pidDir.resolve("opensearch.pid");
 
         assertThat(pidFile, fileExists());
 
@@ -338,7 +338,7 @@ public class PackageTests extends PackagingTestCase {
 
         startOpenSearch();
 
-        final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
+        final Path pidFile = installation.pidDir.resolve("opensearch.pid");
         assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
         String maxFileSize = sh.run("cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid).stdout.trim();

@@ -203,7 +203,7 @@ public class Archives {
 
     public static Shell.Result startOpenSearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
         throws Exception {
-        final Path pidFile = installation.home.resolve("elasticsearch.pid");
+        final Path pidFile = installation.home.resolve("opensearch.pid");
         final Installation.Executables bin = installation.executables();
 
         List<String> command = new ArrayList<>();
@@ -243,7 +243,7 @@ public class Archives {
         String keystorePassword,
         boolean daemonize
     ) {
-        final Path pidFile = installation.home.resolve("elasticsearch.pid");
+        final Path pidFile = installation.home.resolve("opensearch.pid");
 
         assertThat(pidFile, fileDoesNotExist());
 
@@ -297,7 +297,7 @@ public class Archives {
                     + bin.elasticsearch
                     + "'; "
                     + "$processInfo.Arguments = '-p "
-                    + installation.home.resolve("elasticsearch.pid")
+                    + installation.home.resolve("opensearch.pid")
                     + "'; "
                     + powerShellProcessUserSetup
                     + "$processInfo.RedirectStandardOutput = $true; "
@@ -343,13 +343,13 @@ public class Archives {
             }
             command.add(bin.opensearch.toString());
             command.add("-p");
-            command.add(installation.home.resolve("elasticsearch.pid").toString());
+            command.add(installation.home.resolve("opensearch.pid").toString());
             return sh.runIgnoreExitCode(String.join(" ", command));
         }
     }
 
     public static void assertElasticsearchStarted(Installation installation) throws Exception {
-        final Path pidFile = installation.home.resolve("elasticsearch.pid");
+        final Path pidFile = installation.home.resolve("opensearch.pid");
         ServerUtils.waitForOpenSearch(installation);
 
         assertThat("Starting Elasticsearch produced a pid file at " + pidFile, pidFile, fileExists());
@@ -358,7 +358,7 @@ public class Archives {
     }
 
     public static void stopOpenSearch(Installation installation) throws Exception {
-        Path pidFile = installation.home.resolve("elasticsearch.pid");
+        Path pidFile = installation.home.resolve("opensearch.pid");
         assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
