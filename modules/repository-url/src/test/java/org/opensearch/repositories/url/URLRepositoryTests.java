@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.url;
+package org.opensearch.repositories.url;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;

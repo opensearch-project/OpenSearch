@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.url;
+package org.opensearch.repositories.url;
 
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import org.elasticsearch.common.SuppressForbidden;
