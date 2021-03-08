@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
-import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
-import org.elasticsearch.cluster.SnapshotsInProgress.State;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterState.Custom;
+import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.SnapshotsInProgress.Entry;
+import org.opensearch.cluster.SnapshotsInProgress.ShardState;
+import org.opensearch.cluster.SnapshotsInProgress.State;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.test.AbstractDiffableWireSerializationTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;

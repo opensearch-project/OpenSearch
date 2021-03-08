@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.opensearch.plugins;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.common.io.stream.ByteBufferStreamInput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -82,7 +82,7 @@ public class PluginInfoTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[version] is missing"));
     }
 
-    public void testReadFromPropertiesElasticsearchVersionMissing() throws Exception {
+    public void testReadFromPropertiesOpenSearchVersionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
@@ -118,7 +118,7 @@ public class PluginInfoTests extends ESTestCase {
                                            " by \".\"'s and may have leading zeros but was 1.7.0_80"));
     }
 
-    public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
+    public void testReadFromPropertiesBogusOpenSearchVersion() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",

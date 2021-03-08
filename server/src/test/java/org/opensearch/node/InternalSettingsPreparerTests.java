@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.node;
+package org.opensearch.node;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.common.settings.SecureString;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.env.Environment;
+import org.opensearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 

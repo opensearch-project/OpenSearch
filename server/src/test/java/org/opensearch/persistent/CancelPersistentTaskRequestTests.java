@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.persistent;
+package org.opensearch.persistent;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.persistent.RemovePersistentTaskAction.Request;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.persistent.RemovePersistentTaskAction.Request;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 

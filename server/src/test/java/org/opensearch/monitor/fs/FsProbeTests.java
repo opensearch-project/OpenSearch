@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.fs;
+package org.opensearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironment.NodePath;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.env.NodeEnvironment.NodePath;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.FileStore;

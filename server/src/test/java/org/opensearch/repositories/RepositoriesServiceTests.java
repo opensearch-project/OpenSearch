@@ -17,44 +17,44 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories;
+package org.opensearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterApplierService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.component.Lifecycle;
+import org.opensearch.common.component.LifecycleListener;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -84,7 +84,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
         Map<String, Repository.Factory> typesRegistry =
-            org.elasticsearch.common.collect.Map.of(TestRepository.TYPE, TestRepository::new,
+            org.opensearch.common.collect.Map.of(TestRepository.TYPE, TestRepository::new,
                 MeteredRepositoryTypeA.TYPE, metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
                 MeteredRepositoryTypeB.TYPE, metadata -> new MeteredRepositoryTypeB(metadata, clusterService));
         repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
@@ -331,7 +331,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     private static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-a";
-        private static final RepositoryStats STATS = new RepositoryStats(org.elasticsearch.common.collect.Map.of("GET", 10L));
+        private static final RepositoryStats STATS = new RepositoryStats(org.opensearch.common.collect.Map.of("GET", 10L));
 
         private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
             super(metadata,
@@ -339,7 +339,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 mock(NamedXContentRegistry.class),
                 clusterService,
                 mock(RecoverySettings.class),
-                org.elasticsearch.common.collect.Map.of("bucket", "bucket-a"));
+                org.opensearch.common.collect.Map.of("bucket", "bucket-a"));
         }
 
         @Override
@@ -360,7 +360,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     private static class MeteredRepositoryTypeB extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-b";
-        private static final RepositoryStats STATS = new RepositoryStats(org.elasticsearch.common.collect.Map.of("LIST", 20L));
+        private static final RepositoryStats STATS = new RepositoryStats(org.opensearch.common.collect.Map.of("LIST", 20L));
 
         private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
             super(metadata,
@@ -368,7 +368,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 mock(NamedXContentRegistry.class),
                 clusterService,
                 mock(RecoverySettings.class),
-                org.elasticsearch.common.collect.Map.of("bucket", "bucket-b"));
+                org.opensearch.common.collect.Map.of("bucket", "bucket-b"));
         }
 
         @Override

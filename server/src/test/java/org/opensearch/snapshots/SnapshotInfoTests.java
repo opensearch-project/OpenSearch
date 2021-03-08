@@ -19,10 +19,10 @@
 
 package org.opensearch.snapshots;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;

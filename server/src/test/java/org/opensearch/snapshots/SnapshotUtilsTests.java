@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
+package org.opensearch.snapshots;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;

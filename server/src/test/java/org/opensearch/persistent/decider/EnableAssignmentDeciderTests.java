@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.persistent.decider;
+package org.opensearch.persistent.decider;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksDecidersTestCase;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.persistent.PersistentTasksDecidersTestCase;
 
 public class EnableAssignmentDeciderTests extends PersistentTasksDecidersTestCase {
 

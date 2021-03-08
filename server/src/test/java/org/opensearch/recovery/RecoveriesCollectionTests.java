@@ -16,20 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.recovery;
+package org.opensearch.recovery;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoveriesCollection;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.opensearch.OpenSearchException;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.replication.ESIndexLevelReplicationTestCase;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.recovery.RecoveriesCollection;
+import org.opensearch.indices.recovery.RecoveryFailedException;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.recovery.RecoveryTarget;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

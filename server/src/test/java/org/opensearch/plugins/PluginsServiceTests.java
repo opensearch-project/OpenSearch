@@ -24,13 +24,13 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.env.TestEnvironment;
+import org.opensearch.index.IndexModule;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -614,11 +614,11 @@ public class PluginsServiceTests extends ESTestCase {
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
     }
 
-    public void testIncompatibleElasticsearchVersion() throws Exception {
+    public void testIncompatibleOpenSearchVersion() throws Exception {
         PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_6_0_0,
             "1.8", "FakePlugin", Collections.emptyList(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
-        assertThat(e.getMessage(), containsString("was built for Elasticsearch version 6.0.0"));
+        assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
@@ -653,7 +653,7 @@ public class PluginsServiceTests extends ESTestCase {
         final Settings settings =
                 Settings.builder()
                         .put("path.home", createTempDir())
-                        .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+                        .put("plugin.mandatory", "org.opensearch.plugins.PluginsServiceTests$FakePlugin")
                         .build();
         newPluginsService(settings, FakePlugin.class);
     }

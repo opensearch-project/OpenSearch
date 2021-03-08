@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.persistent;
+package org.opensearch.persistent;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.persistent.CompletionPersistentTaskAction.Request;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.persistent.CompletionPersistentTaskAction.Request;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 public class RestartPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
 

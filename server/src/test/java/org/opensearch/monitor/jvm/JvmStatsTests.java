@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.jvm;
+package org.opensearch.monitor.jvm;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.Strings;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

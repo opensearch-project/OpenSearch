@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.os;
+package org.opensearch.monitor.os;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -38,7 +38,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class OsProbeTests extends ESTestCase {
 

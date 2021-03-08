@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.fs;
+package org.opensearch.monitor.fs;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 

@@ -19,33 +19,33 @@
 
 package org.opensearch.nodesinfo;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.ingest.IngestInfo;
-import org.elasticsearch.ingest.ProcessorInfo;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.os.OsInfo;
-import org.elasticsearch.monitor.process.ProcessInfo;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.search.aggregations.support.AggregationInfo;
-import org.elasticsearch.search.aggregations.support.AggregationUsageService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.Build;
+import org.opensearch.action.admin.cluster.node.info.NodeInfo;
+import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.http.HttpInfo;
+import org.opensearch.ingest.IngestInfo;
+import org.opensearch.ingest.ProcessorInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.os.OsInfo;
+import org.opensearch.monitor.process.ProcessInfo;
+import org.opensearch.plugins.PluginInfo;
+import org.opensearch.search.aggregations.support.AggregationInfo;
+import org.opensearch.search.aggregations.support.AggregationUsageService;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPoolInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +56,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class NodeInfoStreamingTests extends ESTestCase {

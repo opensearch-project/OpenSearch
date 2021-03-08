@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.persistent;
+package org.opensearch.persistent;
 
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.persistent.StartPersistentTaskAction.Request;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.persistent.StartPersistentTaskAction.Request;
+import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
+import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
 
