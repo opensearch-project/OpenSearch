@@ -66,11 +66,11 @@ public class BootstrapTests extends ESTestCase {
             assertTrue(seed.length() > 0);
             keyStoreWrapper.save(configPath, new char[0]);
         }
-        assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
+        assertTrue(Files.exists(configPath.resolve("opensearch.keystore")));
         try (SecureSettings secureSettings = Bootstrap.loadSecureSettings(env)) {
             SecureString seedAfterLoad = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(secureSettings).build());
             assertEquals(seedAfterLoad.toString(), seed.toString());
-            assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
+            assertTrue(Files.exists(configPath.resolve("opensearch.keystore")));
         }
     }
 

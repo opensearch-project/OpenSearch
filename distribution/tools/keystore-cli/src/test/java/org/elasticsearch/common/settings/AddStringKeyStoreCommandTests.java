@@ -23,6 +23,7 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
+import org.opensearch.common.settings.AddStringKeyStoreCommand;
 
 import java.io.ByteArrayInputStream;
 import java.io.CharArrayWriter;

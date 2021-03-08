@@ -16,7 +16,7 @@
 */ %>
 ################################################################################
 # Build stage 0 `builder`:
-# Extract Elasticsearch artifact
+# Extract OpenSearch artifact
 ################################################################################
 
 FROM ${base_image} AS builder
@@ -40,28 +40,26 @@ RUN set -eux ; \\
     mv \${tini_bin} /tini ; \\
     chmod +x /tini
 
-RUN mkdir /usr/share/elasticsearch
-WORKDIR /usr/share/elasticsearch
+RUN mkdir /usr/share/opensearch
+WORKDIR /usr/share/opensearch
 
-${source_elasticsearch}
+${source_opensearch}
 
-RUN tar zxf /opt/elasticsearch.tar.gz --strip-components=1
-RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
+RUN tar zxf /opt/opensearch.tar.gz --strip-components=1
+RUN sed -i -e 's/OPENSEARCH_DISTRIBUTION_TYPE=tar/OPENSEARCH_DISTRIBUTION_TYPE=docker/' /usr/share/opensearch/bin/opensearch-env
 RUN mkdir -p config config/jvm.options.d data logs
 RUN chmod 0775 config config/jvm.options.d data logs
-COPY config/elasticsearch.yml config/log4j2.properties config/
-RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
+COPY config/opensearch.yml config/log4j2.properties config/
+RUN chmod 0660 config/opensearch.yml config/log4j2.properties
 
 ################################################################################
-# Build stage 1 (the actual Elasticsearch image):
+# Build stage 1 (the actual OpenSearch image):
 #
-# Copy elasticsearch from stage 0
+# Copy opensearch from stage 0
 # Add entrypoint
 ################################################################################
 
 FROM ${base_image}
-
-ENV ELASTIC_CONTAINER true
 
 RUN for iter in {1..10}; do \\
       ${package_manager} update --setopt=tsflags=nodocs -y && \\
@@ -72,27 +70,27 @@ RUN for iter in {1..10}; do \\
     done; \\
     (exit \$exit_code)
 
-RUN groupadd -g 1000 elasticsearch && \\
-    adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
-    chmod 0775 /usr/share/elasticsearch && \\
-    chown -R 1000:0 /usr/share/elasticsearch
+RUN groupadd -g 1000 opensearch && \\
+    adduser -u 1000 -g 1000 -G 0 -d /usr/share/opensearch opensearch && \\
+    chmod 0775 /usr/share/opensearch && \\
+    chown -R 1000:0 /usr/share/opensearch
 
-WORKDIR /usr/share/elasticsearch
-COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
+WORKDIR /usr/share/opensearch
+COPY --from=builder --chown=1000:0 /usr/share/opensearch /usr/share/opensearch
 COPY --from=builder --chown=0:0 /tini /tini
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.
 # REF: https://github.com/elastic/elasticsearch-docker/issues/171
-RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
+RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/opensearch/jdk/lib/security/cacerts
 
-ENV PATH /usr/share/elasticsearch/bin:\$PATH
+ENV PATH /usr/share/opensearch/bin:\$PATH
 
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # The JDK's directories' permissions don't allow `java` to be executed under a different
 # group to the default. Fix this.
-RUN find /usr/share/elasticsearch/jdk -type d -exec chmod 0755 '{}' \\; && \\
+RUN find /usr/share/opensearch/jdk -type d -exec chmod 0755 '{}' \\; && \\
     chmod g=u /etc/passwd && \\
     chmod 0775 /usr/local/bin/docker-entrypoint.sh
 
@@ -103,7 +101,7 @@ EXPOSE 9200 9300
 
 LABEL org.label-schema.build-date="${build_date}" \\
   org.label-schema.license="${license}" \\
-  org.label-schema.name="Elasticsearch" \\
+  org.label-schema.name="OpenSearch" \\
   org.label-schema.schema-version="1.0" \\
   org.label-schema.url="https://www.elastic.co/products/elasticsearch" \\
   org.label-schema.usage="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \\
@@ -116,14 +114,14 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.licenses="${license}" \\
   org.opencontainers.image.revision="${git_revision}" \\
   org.opencontainers.image.source="https://github.com/elastic/elasticsearch" \\
-  org.opencontainers.image.title="Elasticsearch" \\
+  org.opencontainers.image.title="OpenSearch" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
-  org.opencontainers.image.vendor="Elastic" \\
+  org.opencontainers.image.vendor="OpenSearch" \\
   org.opencontainers.image.version="${version}"
 
 ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint
-CMD ["eswrapper"]
+CMD ["opensearchwrapper"]
 
 ################################################################################
 # End of multi-stage Dockerfile

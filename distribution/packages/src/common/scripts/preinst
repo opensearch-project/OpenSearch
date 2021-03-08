@@ -20,31 +20,31 @@ if [ -f "${path.env}" ]; then
     . "${path.env}"
 fi
 
-export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+export OPENSEARCH_PATH_CONF=${OPENSEARCH_PATH_CONF:-${path.conf}}
 
 case "$1" in
 
     # Debian ####################################################
     install|upgrade)
 
-        # Create elasticsearch group if not existing
-        if ! getent group elasticsearch > /dev/null 2>&1 ; then
-            echo -n "Creating elasticsearch group..."
-            addgroup --quiet --system elasticsearch
+        # Create opensearch group if not existing
+        if ! getent group opensearch > /dev/null 2>&1 ; then
+            echo -n "Creating opensearch group..."
+            addgroup --quiet --system opensearch
             echo " OK"
         fi
 
-        # Create elasticsearch user if not existing
-        if ! id elasticsearch > /dev/null 2>&1 ; then
-            echo -n "Creating elasticsearch user..."
+        # Create opensearch user if not existing
+        if ! id opensearch > /dev/null 2>&1 ; then
+            echo -n "Creating opensearch user..."
             adduser --quiet \
                     --system \
                     --no-create-home \
                     --home /nonexistent \
-                    --ingroup elasticsearch \
+                    --ingroup opensearch \
                     --disabled-password \
                     --shell /bin/false \
-                    elasticsearch
+                    opensearch
             echo " OK"
         fi
     ;;
@@ -54,23 +54,23 @@ case "$1" in
     # RedHat ####################################################
     1|2)
 
-        # Create elasticsearch group if not existing
-        if ! getent group elasticsearch > /dev/null 2>&1 ; then
-            echo -n "Creating elasticsearch group..."
-            groupadd -r elasticsearch
+        # Create opensearch group if not existing
+        if ! getent group opensearch > /dev/null 2>&1 ; then
+            echo -n "Creating opensearch group..."
+            groupadd -r opensearch
             echo " OK"
         fi
 
-        # Create elasticsearch user if not existing
-        if ! id elasticsearch > /dev/null 2>&1 ; then
-            echo -n "Creating elasticsearch user..."
+        # Create opensearch user if not existing
+        if ! id opensearch > /dev/null 2>&1 ; then
+            echo -n "Creating opensearch user..."
             useradd --system \
                     --no-create-home \
                     --home-dir /nonexistent \
-                    --gid elasticsearch \
+                    --gid opensearch \
                     --shell /sbin/nologin \
-                    --comment "elasticsearch user" \
-                    elasticsearch
+                    --comment "opensearch user" \
+                    opensearch
             echo " OK"
         fi
     ;;

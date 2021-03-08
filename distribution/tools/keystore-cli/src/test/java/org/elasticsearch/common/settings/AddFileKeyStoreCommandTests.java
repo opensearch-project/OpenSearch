@@ -24,6 +24,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.env.Environment;
+import org.opensearch.common.settings.AddFileKeyStoreCommand;
 
 import java.io.IOException;
 import java.nio.file.Files;

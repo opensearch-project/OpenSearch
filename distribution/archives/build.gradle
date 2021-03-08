@@ -17,11 +17,11 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.internal-distribution-archive-setup'
+apply plugin: 'opensearch.internal-distribution-archive-setup'
 
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean jdk) {
   return copySpec {
-    into("elasticsearch-${version}") {
+    into("opensearch-${version}") {
       into('lib') {
         with libFiles()
       }
@@ -129,7 +129,7 @@ distribution_archives {
 
 subprojects {
   apply plugin: 'distribution'
-  apply plugin: 'elasticsearch.internal-distribution-archive-check'
+  apply plugin: 'opensearch.internal-distribution-archive-check'
 
-  group = "org.elasticsearch.distribution.oss"
+  group = "org.opensearch.distribution.oss"
 }

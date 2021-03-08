@@ -3,7 +3,7 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set ES_MAIN_CLASS=org.opensearch.index.shard.ShardToolCli
+set OPENSEARCH_MAIN_CLASS=org.opensearch.index.shard.ShardToolCli
 call "%~dp0opensearch-cli.bat" ^
   %%* ^
   || goto exit
