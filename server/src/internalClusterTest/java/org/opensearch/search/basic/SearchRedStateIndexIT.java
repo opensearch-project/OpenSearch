@@ -48,7 +48,6 @@ public class SearchRedStateIndexIT extends OpenSearchIntegTestCase {
     public void testAllowPartialsWithRedState() throws Exception {
         final int numShards = cluster().numDataNodes()+2;
         buildRedIndex(numShards);
-
         SearchResponse searchResponse = client().prepareSearch().setSize(0).setAllowPartialSearchResults(true)
                 .get();
         assertThat(RestStatus.OK, equalTo(searchResponse.status()));

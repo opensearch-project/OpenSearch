@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class ValidateIndicesAliasesRequestIT extends OpenSearchSingleNodeTestCase {
 
-    public static class IndicesAliasopensearchplugin extends Plugin implements ActionPlugin {
+    public static class IndicesAliasesPlugin extends Plugin implements ActionPlugin {
 
         static final Setting<List<String>> ALLOWED_ORIGINS_SETTING = Setting.listSetting(
                 "index.aliases.allowed_origins",
