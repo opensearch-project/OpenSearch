@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Installation;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.Shell;
+import org.opensearch.packaging.util.Installation;
+import org.opensearch.packaging.util.Platforms;
+import org.opensearch.packaging.util.Shell;
 import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
+import static org.opensearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;

@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.upgrades;
+package org.opensearch.upgrades;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.Version;
+import org.opensearch.client.Request;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.IndexSettings;
 import org.junit.Before;
 
 import java.io.IOException;

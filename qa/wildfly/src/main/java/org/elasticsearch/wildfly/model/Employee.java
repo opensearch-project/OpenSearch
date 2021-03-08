@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.wildfly.model;
+package org.opensearch.wildfly.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

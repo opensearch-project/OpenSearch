@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.opensearch.packaging.test;
 
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Docker;
-import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Installation;
-import org.elasticsearch.packaging.util.Packages;
-import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell;
+import org.opensearch.packaging.util.Distribution;
+import org.opensearch.packaging.util.Docker;
+import org.opensearch.packaging.util.FileUtils;
+import org.opensearch.packaging.util.Installation;
+import org.opensearch.packaging.util.Packages;
+import org.opensearch.packaging.util.Platforms;
+import org.opensearch.packaging.util.ServerUtils;
+import org.opensearch.packaging.util.Shell;
 import org.junit.Ignore;
 
 import java.io.IOException;
@@ -41,23 +41,23 @@ import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
-import static org.elasticsearch.packaging.util.Archives.installArchive;
-import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
-import static org.elasticsearch.packaging.util.Docker.runContainer;
-import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
-import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
-import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
-import static org.elasticsearch.packaging.util.FileMatcher.file;
-import static org.elasticsearch.packaging.util.FileMatcher.p600;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.Packages.assertInstalled;
-import static org.elasticsearch.packaging.util.Packages.assertRemoved;
-import static org.elasticsearch.packaging.util.Packages.installPackage;
-import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.opensearch.packaging.util.Archives.ARCHIVE_OWNER;
+import static org.opensearch.packaging.util.Archives.installArchive;
+import static org.opensearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.opensearch.packaging.util.Docker.assertPermissionsAndOwnership;
+import static org.opensearch.packaging.util.Docker.runContainer;
+import static org.opensearch.packaging.util.Docker.runContainerExpectingFailure;
+import static org.opensearch.packaging.util.Docker.waitForElasticsearch;
+import static org.opensearch.packaging.util.Docker.waitForPathToExist;
+import static org.opensearch.packaging.util.FileMatcher.Fileness.File;
+import static org.opensearch.packaging.util.FileMatcher.file;
+import static org.opensearch.packaging.util.FileMatcher.p600;
+import static org.opensearch.packaging.util.FileMatcher.p660;
+import static org.opensearch.packaging.util.FileUtils.rm;
+import static org.opensearch.packaging.util.Packages.assertInstalled;
+import static org.opensearch.packaging.util.Packages.assertRemoved;
+import static org.opensearch.packaging.util.Packages.installPackage;
+import static org.opensearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;

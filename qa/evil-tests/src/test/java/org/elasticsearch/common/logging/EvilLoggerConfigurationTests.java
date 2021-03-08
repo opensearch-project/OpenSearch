@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging;
+package org.opensearch.common.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -27,10 +27,10 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cli.UserException;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;

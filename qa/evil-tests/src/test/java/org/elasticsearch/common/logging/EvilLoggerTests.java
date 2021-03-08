@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging;
+package org.opensearch.common.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -29,17 +29,17 @@ import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
+import org.opensearch.cli.UserException;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.Randomness;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.env.Environment;
+import org.opensearch.node.Node;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -57,7 +57,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION;
+import static org.opensearch.common.logging.DeprecationLogger.DEPRECATION;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -97,7 +97,7 @@ public class EvilLoggerTests extends ESTestCase {
                 ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
         assertThat(events.size(), equalTo(5));
-        final String location = "org.elasticsearch.common.logging.EvilLoggerTests.testLocationInfoTest";
+        final String location = "org.opensearch.common.logging.EvilLoggerTests.testLocationInfoTest";
         // the first message is a warning for unsupported configuration files
         assertLogLine(events.get(0), Level.ERROR, location, "This is an error message");
         assertLogLine(events.get(1), Level.WARN, location, "This is a warning message");
@@ -177,7 +177,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(i),
                     DEPRECATION,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$DeprecationLoggerBuilder.withDeprecation",
+                    "org.opensearch.common.logging.DeprecationLogger\\$DeprecationLoggerBuilder.withDeprecation",
                     "This is a maybe logged deprecation message" + i);
         }
 
@@ -210,7 +210,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(0),
                     DEPRECATION,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$DeprecationLoggerBuilder.withDeprecation",
+                    "org.opensearch.common.logging.DeprecationLogger\\$DeprecationLoggerBuilder.withDeprecation",
                     "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                             "See the breaking changes documentation for the next major version.");
         }
@@ -295,7 +295,7 @@ public class EvilLoggerTests extends ESTestCase {
                 System.getProperty("es.logs.cluster_name") + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
         assertThat(events.size(), equalTo(2));
-        final String location = "org.elasticsearch.common.logging.LogConfigurator";
+        final String location = "org.opensearch.common.logging.LogConfigurator";
         // the first message is a warning for unsupported configuration files
         assertLogLine(events.get(0), Level.WARN, location, "\\[" + nodeName + "\\] Some logging configurations have "
                 + "%marker but don't have %node_name. We will automatically add %node_name to the pattern to ease the "

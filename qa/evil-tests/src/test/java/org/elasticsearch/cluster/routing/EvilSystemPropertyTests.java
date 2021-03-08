@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.routing;
+package org.opensearch.cluster.routing;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 

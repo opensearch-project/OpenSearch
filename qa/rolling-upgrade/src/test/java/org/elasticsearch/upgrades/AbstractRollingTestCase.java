@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.upgrades;
+package org.opensearch.upgrades;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.Version;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.rest.ESRestTestCase;
 
 public abstract class AbstractRollingTestCase extends ESRestTestCase {
     protected enum ClusterType {

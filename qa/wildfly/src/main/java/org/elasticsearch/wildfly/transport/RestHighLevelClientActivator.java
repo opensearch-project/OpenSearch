@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.wildfly.transport;
+package org.opensearch.wildfly.transport;
 
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.core.Application;

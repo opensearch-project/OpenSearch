@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
 esplugin {
-  description 'Placeholder plugin for geospatial features in ES. only registers geo_shape field mapper for now'
-  classname 'org.elasticsearch.geo.GeoPlugin'
+  description 'Placeholder plugin for geospatial features in OpenSearch. only registers geo_shape field mapper for now'
+  classname 'org.opensearch.geo.GeoPlugin'
 }
 
 restResources {

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.util;
+package org.opensearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
