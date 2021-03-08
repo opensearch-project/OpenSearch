@@ -24,7 +24,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.zen.ElectMasterService.MasterCandidate;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class ElectMasterServiceTests extends ESTestCase {
+public class ElectMasterServiceTests extends OpenSearchTestCase {
 
     ElectMasterService electMasterService() {
         return new ElectMasterService(Settings.EMPTY);

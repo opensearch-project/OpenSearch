@@ -40,7 +40,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.tasks.Task;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -61,7 +61,7 @@ import static org.opensearch.http.AbstractHttpServerTransport.resolvePublishPort
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AbstractHttpServerTransportTests extends ESTestCase {
+public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;

@@ -22,7 +22,7 @@ package org.opensearch.discovery;
 import org.opensearch.Version;
 import org.opensearch.cluster.coordination.PeersResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
 
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
-public class PeerFinderMessagesTests extends ESTestCase {
+public class PeerFinderMessagesTests extends OpenSearchTestCase {
     private DiscoveryNode createNode(String id) {
         return new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT);
     }
@@ -77,7 +77,7 @@ public class PeerFinderMessagesTests extends ESTestCase {
                 final long term = in.getTerm();
                 if (randomBoolean()) {
                     return new PeersResponse(in.getMasterNode(), in.getKnownPeers(),
-                        randomValueOtherThan(term, ESTestCase::randomNonNegativeLong));
+                        randomValueOtherThan(term, OpenSearchTestCase::randomNonNegativeLong));
                 } else {
                     if (in.getMasterNode().isPresent()) {
                         if (randomBoolean()) {

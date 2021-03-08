@@ -35,7 +35,7 @@ import org.opensearch.common.util.concurrent.EsExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -75,7 +75,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class SeedHostsResolverTests extends ESTestCase {
+public class SeedHostsResolverTests extends OpenSearchTestCase {
 
     private List<TransportAddress> transportAddresses;
     private SeedHostsResolver seedHostsResolver;

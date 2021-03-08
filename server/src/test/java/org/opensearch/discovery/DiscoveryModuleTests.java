@@ -33,7 +33,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.plugins.DiscoveryPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -53,7 +53,7 @@ import java.util.function.Supplier;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DiscoveryModuleTests extends ESTestCase {
+public class DiscoveryModuleTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private NamedWriteableRegistry namedWriteableRegistry;

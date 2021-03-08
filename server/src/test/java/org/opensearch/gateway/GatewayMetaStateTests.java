@@ -26,7 +26,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.MetadataUpgrader;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.TestCustomMetadata;
 
 import java.util.Arrays;
@@ -38,7 +38,7 @@ import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GatewayMetaStateTests extends ESTestCase {
+public class GatewayMetaStateTests extends OpenSearchTestCase {
 
     public void testUpdateTemplateMetadataOnUpgrade() {
         Metadata metadata = randomMetadata();

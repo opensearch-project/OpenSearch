@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase {
+public class BlockingClusterStatePublishResponseHandlerTests extends OpenSearchTestCase {
 
     private static class PublishResponder extends AbstractRunnable {
 

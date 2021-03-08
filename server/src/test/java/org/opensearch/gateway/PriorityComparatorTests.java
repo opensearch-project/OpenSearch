@@ -27,7 +27,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -39,7 +39,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 
-public class PriorityComparatorTests extends ESTestCase {
+public class PriorityComparatorTests extends OpenSearchTestCase {
 
     public void testPreferNewIndices() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards(mock(RoutingNodes.class));

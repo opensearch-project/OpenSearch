@@ -35,7 +35,7 @@ import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.Index;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class ClusterStateUpdatersTests extends ESTestCase {
+public class ClusterStateUpdatersTests extends OpenSearchTestCase {
 
     public void testUpgradePersistentSettings() {
         runUpgradeSettings(Metadata.Builder::persistentSettings, Metadata::persistentSettings);

@@ -27,7 +27,7 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.coordination.JoinTaskExecutor;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
@@ -54,7 +54,7 @@ import org.opensearch.discovery.zen.PublishClusterStateActionTests.AssertingAckL
 import org.opensearch.discovery.zen.ZenDiscovery.ZenNodeRemovalClusterStateTaskExecutor;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.ClusterServiceUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -105,7 +105,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ZenDiscoveryUnitTests extends ESTestCase {
+public class ZenDiscoveryUnitTests extends OpenSearchTestCase {
 
     public void testShouldIgnoreNewClusterState() {
         ClusterName clusterName = new ClusterName("abc");
@@ -368,7 +368,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service,
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
             masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(),
-            ESAllocationTestCase.createAllocationService(), Collections.emptyList(), (s, p, r) -> {});
+            OpenSearchAllocationTestCase.createAllocationService(), Collections.emptyList(), (s, p, r) -> {});
         zenDiscovery.start();
         return zenDiscovery;
     }

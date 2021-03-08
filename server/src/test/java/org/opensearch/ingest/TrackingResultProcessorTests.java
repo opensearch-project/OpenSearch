@@ -26,7 +26,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TrackingResultProcessorTests extends ESTestCase {
+public class TrackingResultProcessorTests extends OpenSearchTestCase {
 
     private IngestDocument ingestDocument;
     private List<SimulateProcessorResult> resultList;

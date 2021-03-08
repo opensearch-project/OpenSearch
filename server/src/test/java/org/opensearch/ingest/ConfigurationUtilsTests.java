@@ -22,7 +22,7 @@ package org.opensearch.ingest;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.TemplateScript;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ConfigurationUtilsTests extends ESTestCase {
+public class ConfigurationUtilsTests extends OpenSearchTestCase {
 
     private final ScriptService scriptService = mock(ScriptService.class);
 

@@ -28,9 +28,9 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class HttpInfoTests extends ESTestCase {
+public class HttpInfoTests extends OpenSearchTestCase {
 
     public void testCorrectlyDisplayPublishedCname() throws Exception {
         InetAddress localhost = InetAddress.getByName("localhost");

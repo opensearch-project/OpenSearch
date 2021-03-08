@@ -19,7 +19,7 @@
 
 package org.opensearch.gateway;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOError;
 import java.io.UncheckedIOException;
@@ -27,7 +27,7 @@ import java.io.UncheckedIOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class WriteStateExceptionTests extends ESTestCase {
+public class WriteStateExceptionTests extends OpenSearchTestCase {
 
     public void testDirtyFlag() {
         boolean dirty = randomBoolean();

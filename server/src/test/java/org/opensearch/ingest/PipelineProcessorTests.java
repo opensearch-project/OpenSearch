@@ -21,7 +21,7 @@ package org.opensearch.ingest;
 import org.opensearch.OpenSearchException;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.TemplateScript;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class PipelineProcessorTests extends ESTestCase {
+public class PipelineProcessorTests extends OpenSearchTestCase {
 
     public void testExecutesPipeline() throws Exception {
         String pipelineId = "pipeline";

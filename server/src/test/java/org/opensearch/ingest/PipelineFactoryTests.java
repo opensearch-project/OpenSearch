@@ -21,7 +21,7 @@ package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.script.ScriptService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class PipelineFactoryTests extends ESTestCase {
+public class PipelineFactoryTests extends OpenSearchTestCase {
 
     private final Integer version = randomBoolean() ? randomInt() : null;
     private final String versionString = version != null ? Integer.toString(version) : null;

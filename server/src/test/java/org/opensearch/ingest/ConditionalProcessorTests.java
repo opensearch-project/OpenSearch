@@ -29,7 +29,7 @@ import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.StoredScriptSource;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -52,7 +52,7 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ConditionalProcessorTests extends ESTestCase {
+public class ConditionalProcessorTests extends OpenSearchTestCase {
 
     private static final String scriptName = "conditionalScript";
 

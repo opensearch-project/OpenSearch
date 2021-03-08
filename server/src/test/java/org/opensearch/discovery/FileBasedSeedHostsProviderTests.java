@@ -29,7 +29,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -51,7 +51,7 @@ import java.util.concurrent.Executors;
 
 import static org.opensearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 
-public class FileBasedSeedHostsProviderTests extends ESTestCase {
+public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private ExecutorService executorService;

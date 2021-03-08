@@ -47,7 +47,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.node.Node;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class GatewayMetaStatePersistedStateTests extends ESTestCase {
+public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
     private NodeEnvironment nodeEnvironment;
     private ClusterName clusterName;
     private Settings settings;
@@ -221,7 +221,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             final String indexName = randomAlphaOfLength(10);
             final int numberOfShards = randomIntBetween(1, 5);
             final long version = randomNonNegativeLong();
-            final long term = randomValueOtherThan(Long.MAX_VALUE, ESTestCase::randomNonNegativeLong);
+            final long term = randomValueOtherThan(Long.MAX_VALUE, OpenSearchTestCase::randomNonNegativeLong);
             final IndexMetadata indexMetadata = createIndexMetadata(indexName, numberOfShards, version);
             final ClusterState state = createClusterState(randomNonNegativeLong(),
                 Metadata.builder().coordinationMetadata(createCoordinationMetadata(term)).put(indexMetadata, false).build());
@@ -248,7 +248,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             gateway = newGatewayPersistedState();
 
             long currentTerm = randomNonNegativeLong();
-            long term = randomValueOtherThan(currentTerm, ESTestCase::randomNonNegativeLong);
+            long term = randomValueOtherThan(currentTerm, OpenSearchTestCase::randomNonNegativeLong);
 
             gateway.setCurrentTerm(currentTerm);
             gateway.setLastAcceptedState(createClusterState(randomNonNegativeLong(),

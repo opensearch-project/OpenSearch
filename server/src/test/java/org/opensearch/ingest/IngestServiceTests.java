@@ -60,7 +60,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -108,7 +108,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class IngestServiceTests extends ESTestCase {
+public class IngestServiceTests extends OpenSearchTestCase {
 
     private static final IngestPlugin DUMMY_PLUGIN = new IngestPlugin() {
         @Override

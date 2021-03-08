@@ -39,7 +39,7 @@ import org.opensearch.discovery.zen.NodesFaultDetection;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.node.Node;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -66,7 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class ZenFaultDetectionTests extends ESTestCase {
+public class ZenFaultDetectionTests extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     private CircuitBreakerService circuitBreakerService;
 

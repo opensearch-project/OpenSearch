@@ -31,7 +31,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.PeerFinder.TransportAddressConnector;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.CapturingTransport.CapturedRequest;
 import org.opensearch.test.transport.StubbableConnectionManager;
@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PeerFinderTests extends ESTestCase {
+public class PeerFinderTests extends OpenSearchTestCase {
 
     private CapturingTransport capturingTransport;
     private DeterministicTaskQueue deterministicTaskQueue;

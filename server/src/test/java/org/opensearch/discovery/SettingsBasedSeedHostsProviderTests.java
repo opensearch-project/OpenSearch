@@ -22,7 +22,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.discovery.SeedHostsProvider.HostsResolver;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
@@ -33,7 +33,7 @@ import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
+public class SettingsBasedSeedHostsProviderTests extends OpenSearchTestCase {
 
     private class AssertingHostsResolver implements HostsResolver {
         private final Set<String> expectedHosts;

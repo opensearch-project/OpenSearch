@@ -51,7 +51,7 @@ import org.opensearch.env.NodeMetadata;
 import org.opensearch.gateway.PersistedClusterStateService.Writer;
 import org.opensearch.index.Index;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 
@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PersistedClusterStateServiceTests extends ESTestCase {
+public class PersistedClusterStateServiceTests extends OpenSearchTestCase {
 
     private PersistedClusterStateService newPersistedClusterStateService(NodeEnvironment nodeEnvironment) {
         return new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),

@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class IngestStatsTests extends ESTestCase {
+public class IngestStatsTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         IngestStats.Stats totalStats = new IngestStats.Stats(50, 100, 200, 300);

@@ -20,7 +20,7 @@
 package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class CompoundProcessorTests extends ESTestCase {
+public class CompoundProcessorTests extends OpenSearchTestCase {
     private IngestDocument ingestDocument;
 
     @Before

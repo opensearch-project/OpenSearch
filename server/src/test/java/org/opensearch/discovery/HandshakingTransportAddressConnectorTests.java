@@ -32,7 +32,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransport;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class HandshakingTransportAddressConnectorTests extends ESTestCase {
+public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCase {
 
     private DiscoveryNode remoteNode;
     private TransportAddress discoveryAddress;

@@ -20,7 +20,7 @@
 package org.opensearch.ingest;
 
 import org.opensearch.script.ScriptService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ValueSourceTests extends ESTestCase {
+public class ValueSourceTests extends OpenSearchTestCase {
 
     public void testDeepCopy() {
         int iterations = scaledRandomIntBetween(8, 64);
