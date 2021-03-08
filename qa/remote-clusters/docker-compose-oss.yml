@@ -2,7 +2,7 @@
 version: '3.7'
 services:
   opensearch-oss-1:
-    image: elasticsearch:test
+    image: opensearch:test
     environment:
        - node.name=opensearch-oss-1
        - cluster.initial_master_nodes=opensearch-oss-1
@@ -36,7 +36,7 @@ services:
       timeout: 2s
       retries: 5
   opensearch-oss-2:
-    image: elasticsearch:test
+    image: opensearch:test
     environment:
        - node.name=opensearch-oss-2
        - cluster.initial_master_nodes=opensearch-oss-2
