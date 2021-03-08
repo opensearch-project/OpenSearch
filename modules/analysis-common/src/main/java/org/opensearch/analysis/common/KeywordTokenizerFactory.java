@@ -16,21 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'Adds "built in" analyzers to OpenSearch.'
-  classname 'org.opensearch.analysis.common.CommonAnalysisPlugin'
-  extendedPlugins = ['lang-painless']
-}
+package org.opensearch.analysis.common;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
-  }
-}
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
-dependencies {
-  compileOnly project(':modules:lang-painless')
+public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
+
+    private final int bufferSize;
+
+    KeywordTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, settings, name);
+        bufferSize = settings.getAsInt("buffer_size", 256);
+    }
+
+    @Override
+    public Tokenizer create() {
+        return new KeywordTokenizer(bufferSize);
+    }
 }
