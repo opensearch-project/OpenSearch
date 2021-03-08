@@ -69,7 +69,7 @@ to `asc` when sorting on anything else.
 [discrete]
 === Sort mode option
 
-Elasticsearch supports sorting by array or multi-valued fields. The `mode` option
+{opensearch} supports sorting by array or multi-valued fields. The `mode` option
 controls what array value is picked for sorting the document it belongs
 to. The `mode` option can have the following values:
 
@@ -235,7 +235,7 @@ To avoid overflow, the conversion to `date_nanos` cannot be applied on dates bef
 [[nested-sorting]]
 === Sorting within nested objects.
 
-Elasticsearch also supports sorting by
+{opensearch} also supports sorting by
 fields that are inside one or more nested objects. The sorting by nested
 field support has a `nested` sort option with the following properties:
 
@@ -255,15 +255,6 @@ field support has a `nested` sort option with the following properties:
 `nested`::
     Same as top-level `nested` but applies to another nested path within the
     current nested object.
-
-[WARNING]
-.Nested sort options before Elasticsearch 6.1
-============================================
-
-The `nested_path` and `nested_filter` options have been deprecated in
-favor of the options documented above.
-
-============================================
 
 [discrete]
 ==== Nested sorting examples

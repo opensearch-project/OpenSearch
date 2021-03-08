@@ -36,7 +36,7 @@ discovery:
 .Binding the network host
 ==============================================
 
-The keystore file must be placed in a directory accessible by Elasticsearch like the `config` directory.
+The keystore file must be placed in a directory accessible by {opensearch} like the `config` directory.
 
 It's important to define `network.host` as by default it's bound to `localhost`.
 

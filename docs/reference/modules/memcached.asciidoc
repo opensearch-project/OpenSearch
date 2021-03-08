@@ -18,7 +18,7 @@ automatically detecting the correct one to use.
 === Mapping REST to Memcached Protocol
 
 Memcached commands are mapped to REST and handled by the same generic
-REST layer in Elasticsearch. Here is a list of the memcached commands
+REST layer in {opensearch}. Here is a list of the memcached commands
 supported:
 
 [discrete]

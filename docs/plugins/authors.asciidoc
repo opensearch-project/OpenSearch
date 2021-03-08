@@ -3,7 +3,7 @@
 
 :plugin-properties-files: {search-root}/buildSrc/src/main/resources
 
-The Elasticsearch repository contains examples of:
+The {opensearch} repository contains examples of:
 
 * a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/custom-settings[Java plugin]
   which contains a plugin with custom settings.
@@ -29,7 +29,7 @@ The format for this file is described in detail in this example:
 include::{plugin-properties-files}/plugin-descriptor.properties[]
 --------------------------------------------------
 
-Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
+Either fill in this template yourself or, if you are using {opensearch}'s Gradle build system, you
 can fill in the necessary values in the `build.gradle` file for your plugin.
 
 [discrete]
@@ -52,7 +52,7 @@ can fill in the necessary values in the `build.gradle` file for your plugin.
 Use the system property `java.specification.version`. Version string must be a sequence
 of nonnegative decimal integers separated by "."'s and may have leading zeros.
 
-|`elasticsearch.version`    |String  | version of Elasticsearch compiled against.
+|`elasticsearch.version`    |String  | version of {opensearch} compiled against.
 
 |=======================================================================
 
@@ -63,8 +63,8 @@ If you need other resources, package them into a resources jar.
 .Plugin release lifecycle
 ==============================================
 
-You will have to release a new version of the plugin for each new Elasticsearch release.
-This version is checked when the plugin is loaded so Elasticsearch will refuse to start
+You will have to release a new version of the plugin for each new {opensearch} release.
+This version is checked when the plugin is loaded so {opensearch} will refuse to start
 in the presence of plugins with the incorrect `elasticsearch.version`.
 
 ==============================================
@@ -92,7 +92,7 @@ with a large warning, and they will have to confirm them when installing the
 plugin interactively. So if possible, it is best to avoid requesting any
 spurious permissions!
 
-If you are using the Elasticsearch Gradle build system, place this file in
+If you are using the {opensearch} Gradle build system, place this file in
 `src/main/plugin-metadata` and it will be applied during unit tests as well.
 
 Keep in mind that the Java security model is stack-based, and the additional

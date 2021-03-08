@@ -1,8 +1,8 @@
 [[analysis]]
 == Analysis Plugins
 
-Analysis plugins extend Elasticsearch by adding new analyzers, tokenizers,
-token filters, or character filters to Elasticsearch.
+Analysis plugins extend {opensearch} by adding new analyzers, tokenizers,
+token filters, or character filters to {opensearch}.
 
 [discrete]
 ==== Core analysis plugins

@@ -105,7 +105,7 @@ the mapping that is used for new fields.
 [discrete]
 == Explicit mappings
 
-You know more about your data than Elasticsearch can guess, so while dynamic
+You know more about your data than {opensearch} can guess, so while dynamic
 mapping can be useful to get started, at some point you will want to specify
 your own explicit mappings.
 

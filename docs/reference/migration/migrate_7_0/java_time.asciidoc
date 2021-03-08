@@ -98,7 +98,7 @@ If dates are used in scripting, a backwards compatibility layer has been added
 that emulates the Joda-Time methods, but logs a deprecation message as well
 to use the java time methods.
 
-The following methods will be removed in future versions of Elasticsearch
+The following methods will be removed in future versions of {opensearch}
 and should be replaced.
 
 * `getDayOfWeek()` will be an enum instead of an int, if you need to use

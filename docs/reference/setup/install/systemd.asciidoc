@@ -1,6 +1,6 @@
-==== Running Elasticsearch with `systemd`
+==== Running {opensearch} with `systemd`
 
-To configure Elasticsearch to start automatically when the system boots up,
+To configure {opensearch} to start automatically when the system boots up,
 run the following commands:
 
 [source,sh]
@@ -9,7 +9,7 @@ sudo /bin/systemctl daemon-reload
 sudo /bin/systemctl enable elasticsearch.service
 --------------------------------------------------
 
-Elasticsearch can be started and stopped as follows:
+{opensearch} can be started and stopped as follows:
 
 [source,sh]
 --------------------------------------------
@@ -17,14 +17,14 @@ sudo systemctl start elasticsearch.service
 sudo systemctl stop elasticsearch.service
 --------------------------------------------
 
-These commands provide no feedback as to whether Elasticsearch was started
+These commands provide no feedback as to whether {opensearch} was started
 successfully or not. Instead, this information will be written in the log
 files located in `/var/log/elasticsearch/`.
 
 If you have password-protected your {es} keystore, you will need to provide
 `systemd` with the keystore password using a local file and systemd environment
 variables. This local file should be protected while it exists and may be
-safely deleted once Elasticsearch is up and running.
+safely deleted once {opensearch} is up and running.
 
 [source,sh]
 -----------------------------------------------------------------------------------
@@ -34,7 +34,7 @@ sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=/path/to/my_pwd_file.
 sudo systemctl start elasticsearch.service
 -----------------------------------------------------------------------------------
 
-By default the Elasticsearch service doesn't log information in the `systemd`
+By default the {opensearch} service doesn't log information in the `systemd`
 journal. To enable `journalctl` logging, the `--quiet` option must be removed
  from the `ExecStart` command line in the `elasticsearch.service` file.
 

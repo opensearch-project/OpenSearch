@@ -68,10 +68,10 @@ Bound transport port, such as `9300`.
 Bound http address, such as `127.0.0.1:9200`.
 
 `version`, `v`::
-Elasticsearch version, such as {version}.
+{opensearch} version, such as {version}.
 
 `build`, `b`::
-Elasticsearch build hash, such as `5c03844`.
+{opensearch} build hash, such as `5c03844`.
 
 `jdk`, `j`::
 Java version, such as `1.8.0`.
