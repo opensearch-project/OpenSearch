@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.systemd;
+package org.opensearch.systemd;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.CheckedConsumer;
