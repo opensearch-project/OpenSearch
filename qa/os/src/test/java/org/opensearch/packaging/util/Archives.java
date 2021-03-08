@@ -263,7 +263,7 @@ public class Archives {
             List<String> command = new ArrayList<>();
             command.add("sudo -E -u ");
             command.add(ARCHIVE_OWNER);
-            command.add(bin.elasticsearch.toString());
+            command.add(bin.opensearch.toString());
             if (daemonize) {
                 command.add("-d");
             }
@@ -341,7 +341,7 @@ public class Archives {
             if (keystorePassword != null) {
                 command.add("echo '" + keystorePassword + "' |");
             }
-            command.add(bin.elasticsearch.toString());
+            command.add(bin.opensearch.toString());
             command.add("-p");
             command.add(installation.home.resolve("elasticsearch.pid").toString());
             return sh.runIgnoreExitCode(String.join(" ", command));
