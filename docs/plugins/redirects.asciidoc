@@ -13,7 +13,7 @@ one of the <<discovery,cloud discovery plugins>>.
 [role="exclude",id="cloud-aws"]
 === AWS Cloud Plugin
 
-The Elasticsearch `cloud-aws` plugin has been split into two separate plugins:
+The {opensearch} `cloud-aws` plugin has been split into two separate plugins:
 
 *  <<discovery-ec2>> (`discovery-ec2`)
 *  <<repository-s3>> (`repository-s3`)

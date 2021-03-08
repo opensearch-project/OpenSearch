@@ -9,6 +9,6 @@ Running commands from this directory or any subdirectories, such as the
 <<secure-settings,elasticsearch-keystore tool>>, requires `root:opensearch`
 permissions.
 
-Elasticsearch loads its configuration from the
+{opensearch} loads its configuration from the
 `/etc/opensearch/opensearch.yml` file by default.  The format of this
 config file is explained in <<settings>>.

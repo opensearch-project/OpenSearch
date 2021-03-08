@@ -262,7 +262,7 @@ the `advance` phase of that query is the cause, for example.
 
 The `query` section contains detailed timing of the query tree executed by 
 Lucene on a particular shard. The overall structure of this query tree will 
-resemble your original Elasticsearch query, but may be slightly (or sometimes 
+resemble your original {opensearch} query, but may be slightly (or sometimes 
 very) different.  It will also use similar but not always identical naming. 
 Using our previous `match` query example, let's analyze the `query` section:
 
@@ -300,7 +300,7 @@ Using our previous `match` query example, let's analyze the `query` section:
 Based on the profile structure, we can see that our `match` query was rewritten 
 by Lucene into a BooleanQuery with two clauses (both holding a TermQuery).  The 
 `type` field displays the Lucene class name, and often aligns with the 
-equivalent name in Elasticsearch.  The `description` field displays the Lucene 
+equivalent name in {opensearch}.  The `description` field displays the Lucene 
 explanation text for the query, and is made available to help differentiating 
 between parts of your query (e.g. both `message:get` and `message:search` are 
 TermQuery's and would appear identical otherwise.
@@ -498,7 +498,7 @@ For reference, the various collector reasons are:
 
 `aggregation`::
 
-    A collector that Elasticsearch uses to run aggregations against the query scope.  A single `aggregation`
+    A collector that {opensearch} uses to run aggregations against the query scope.  A single `aggregation`
     collector is used to collect documents for *all* aggregations, so you will see a list of aggregations
     in the name rather.
 

@@ -103,7 +103,7 @@ that helps control how buckets are collected. It defaults to `global_ordinals`,
 but can be set to `map` to instead use the term values directly.
 * If a shard has been <<indices-forcemerge,force-merged>> down to a single
 segment, then its segment ordinals are already 'global' to the shard. In this
-case, Elasticsearch does not need to build a global ordinal mapping and there
+case, {opensearch} does not need to build a global ordinal mapping and there
 is no additional overhead from using global ordinals. Note that for performance
 reasons you should only force-merge an index to which you will never write to
 again.

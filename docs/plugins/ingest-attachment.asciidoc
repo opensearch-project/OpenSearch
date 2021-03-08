@@ -1,7 +1,7 @@
 [[ingest-attachment]]
 === Ingest Attachment Processor Plugin
 
-The ingest attachment plugin lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
+The ingest attachment plugin lets {opensearch} extract file attachments in common formats (such as PPT, XLS, and PDF) by
 using the Apache text extraction library https://tika.apache.org/[Tika].
 
 You can use the ingest attachment plugin as a replacement for the mapper attachment plugin.
