@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.cli;
+package org.opensearch.cli;
 
 import joptsimple.OptionException;
 import joptsimple.OptionSet;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class CommandTests extends ESTestCase {
+public class CommandTests extends OpenSearchTestCase {
 
     static class UserErrorCommand extends Command {
 

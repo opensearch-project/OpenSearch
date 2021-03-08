@@ -17,34 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport;
+package org.opensearch.client.transport;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
-import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.transport.CloseableConnection;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportMessageListener;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportStats;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.node.liveness.LivenessResponse;
+import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction;
+import org.opensearch.action.admin.cluster.state.ClusterStateAction;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.component.Lifecycle;
+import org.opensearch.common.component.LifecycleListener;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.transport.CloseableConnection;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.ConnectionProfile;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportMessageListener;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.TransportStats;
 
 import java.net.UnknownHostException;
 import java.util.Collections;

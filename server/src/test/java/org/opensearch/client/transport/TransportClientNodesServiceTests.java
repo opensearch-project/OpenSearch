@@ -17,41 +17,41 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport;
+package org.opensearch.client.transport;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
-import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
+import org.opensearch.Version;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.node.liveness.LivenessResponse;
+import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction;
+import org.opensearch.action.admin.cluster.state.ClusterStateAction;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.node.Node;
+import org.opensearch.tasks.Task;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportInterceptor;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponseHandler;
 import org.hamcrest.CustomMatcher;
 
 import java.io.Closeable;
@@ -67,7 +67,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.transport.MockTransportService.createNewService;
+import static org.opensearch.test.transport.MockTransportService.createNewService;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.everyItem;
 import static org.hamcrest.CoreMatchers.hasItem;
@@ -78,7 +78,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class TransportClientNodesServiceTests extends ESTestCase {
+public class TransportClientNodesServiceTests extends OpenSearchTestCase {
 
     private static class TestIteration implements Closeable {
         private final ThreadPool threadPool;
