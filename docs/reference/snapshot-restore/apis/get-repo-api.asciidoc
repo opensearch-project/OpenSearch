@@ -81,9 +81,6 @@ Repository type.
 `fs`::
 Shared file system repository. See <<snapshots-filesystem-repository>>.
 
-[xpack]#`source`#::
-Source-only repository. See <<snapshots-source-only-repository>>.
-
 `url`::
 URL repository. See <<snapshots-read-only-repository>>.
 =====

@@ -13,13 +13,6 @@ to achieve high availability despite failures.
   things that commonly go wrong, from the loss of a single node or network
   connection right up to a zone-wide outage such as power loss.
 
-* You can use <<xpack-ccr,{ccr}>> to replicate data to a remote _follower_
-  cluster which may be in a different data centre or even on a different
-  continent from the leader cluster. The follower cluster acts as a hot
-  standby, ready for you to fail over in the event of a disaster so severe that
-  the leader cluster fails. The follower cluster can also act as a geo-replica
-  to serve searches from nearby clients.
-
 * The last line of defence against data loss is to take
   <<backup-cluster,regular snapshots>> of your cluster so that you can restore
   a completely fresh copy of it elsewhere if needed.

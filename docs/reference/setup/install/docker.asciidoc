@@ -130,12 +130,6 @@ To **delete the data volumes** when you bring down the cluster,
 specify the `-v` option: `docker-compose down -v`.
 
 
-[[next-getting-started-tls-docker]]
-===== Start a multi-node cluster with TLS enabled
-
-See <<configuring-tls-docker>> and
-{stack-gs}/get-started-docker.html#get-started-docker-tls[Run the {stack} in Docker with TLS enabled].
-
 [[docker-prod-prerequisites]]
 ==== Using the Docker images in production
 

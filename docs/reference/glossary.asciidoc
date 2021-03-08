@@ -187,7 +187,7 @@ Index templates are used to automatically configure indices created during <<glo
 
 [[glossary-local-cluster]] local cluster ::
 // tag::local-cluster-def[]
-The cluster that pulls data from a <<glossary-remote-cluster,remote cluster>> in {ccs} or {ccr}.
+The cluster that pulls data from a <<glossary-remote-cluster,remote cluster>> in {ccs}.
 // end::local-cluster-def[]
 
 [[glossary-mapping]] mapping ::

@@ -11,11 +11,7 @@ continuously generated data.
 
 You can submit indexing and search requests directly to a data stream. The
 stream automatically routes the request to backing indices that store the
-stream's data. You can use <<index-lifecycle-management,{ilm} ({ilm-init})>> to
-automate the management of these backing indices. For example, you can use
-{ilm-init} to automatically move older backing indices to less expensive
-hardware and delete unneeded indices. {ilm-init} can help you reduce costs and
-overhead as your data grows.
+stream's data.
 
 [discrete]
 [[backing-indices]]
@@ -77,9 +73,7 @@ the stream. This index also acts as the stream's first write index. A
 <<indices-rollover-index,rollover>> creates a new backing index that becomes the
 stream's new write index.
 
-We recommend using <<index-lifecycle-management,{ilm-init}>> to automatically
-roll over data streams when the write index reaches a specified age or size.
-If needed, you can also <<manually-roll-over-a-data-stream,manually roll over>>
+If needed, you can <<manually-roll-over-a-data-stream,manually roll over>>
 a data stream.
 
 
@@ -121,8 +115,7 @@ documents>> by submitting requests directly to the document's backing index.
 
 TIP: If you frequently update or delete existing documents, use an
 <<indices-add-alias,index alias>> and <<index-templates,index template>>
-instead of a data stream. You can still use
-<<index-lifecycle-management,{ilm-init}>> to manage indices for the alias.
+instead of a data stream.
 
 include::set-up-a-data-stream.asciidoc[]
 include::use-a-data-stream.asciidoc[]

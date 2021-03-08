@@ -59,7 +59,7 @@ excluded from mult-target queries by default.
 To include hidden indices, you must specify the `expand_wildcards` parameter.
 
 The backing indices for data streams are hidden indices, 
-and some features like {ml} store information in hidden indices. 
+and some features store information in hidden indices. 
 
 Global index templates that match all indices are not applied to hidden indices.
 

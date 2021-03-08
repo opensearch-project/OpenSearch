@@ -9,8 +9,7 @@ reconstruct.
 
 Configuration information resides in
 <<config-files-location, regular text files>> on every cluster node. Sensitive
-setting values such as passwords for the {watcher} notification servers, are
-specified inside a binary secure container, the
+setting values such as passwords, are specified inside a binary secure container, the
 <<secure-settings, elasticsearch.keystore>> file. Some setting values are
 file paths to the associated configuration data, such as the ingest geo ip
 database. All these files are contained inside the `ES_PATH_CONF` directory.
