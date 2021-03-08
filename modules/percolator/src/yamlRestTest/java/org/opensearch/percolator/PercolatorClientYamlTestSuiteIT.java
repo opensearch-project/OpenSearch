@@ -16,22 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
-  description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-  classname 'org.opensearch.percolator.PercolatorPlugin'
-  hasClientJar = true
-}
+package org.opensearch.percolator;
 
-dependencies {
-  testImplementation project(':modules:parent-join')
-  testImplementation project(':modules:geo')
-}
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'search', 'msearch'
-  }
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+
+public class PercolatorClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    public PercolatorClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }
