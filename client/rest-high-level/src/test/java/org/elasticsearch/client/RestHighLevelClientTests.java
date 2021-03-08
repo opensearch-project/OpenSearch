@@ -63,7 +63,7 @@ import org.opensearch.index.rankeval.MeanReciprocalRank;
 import org.opensearch.index.rankeval.MetricDetail;
 import org.opensearch.index.rankeval.PrecisionAtK;
 import org.opensearch.index.rankeval.RecallAtK;
-import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
+import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
