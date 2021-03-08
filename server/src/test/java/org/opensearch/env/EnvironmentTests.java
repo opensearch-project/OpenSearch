@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.env;
+package org.opensearch.env;
 
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.hasToString;
 /**
  * Simple unit-tests for Environment.java
  */
-public class EnvironmentTests extends ESTestCase {
+public class EnvironmentTests extends OpenSearchTestCase {
     public Environment newEnvironment() {
         return newEnvironment(Settings.EMPTY);
     }

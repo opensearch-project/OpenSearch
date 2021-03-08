@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.opensearch.client;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
-import org.elasticsearch.action.admin.indices.flush.FlushAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteAction;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
+import org.opensearch.action.admin.indices.create.CreateIndexAction;
+import org.opensearch.action.admin.indices.flush.FlushAction;
+import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
+import org.opensearch.action.delete.DeleteAction;
+import org.opensearch.action.get.GetAction;
+import org.opensearch.action.index.IndexAction;
+import org.opensearch.action.search.SearchAction;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.env.Environment;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class AbstractClientHeadersTestCase extends ESTestCase {
+public abstract class AbstractClientHeadersTestCase extends OpenSearchTestCase {
 
     protected static final Settings HEADER_SETTINGS = Settings.builder()
             .put(ThreadContext.PREFIX + ".key1", "val1")

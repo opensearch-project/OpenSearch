@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.deps.jackson;
+package org.opensearch.deps.jackson;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class JacksonLocationTests extends ESTestCase {
+public class JacksonLocationTests extends OpenSearchTestCase {
     public void testLocationExtraction() throws IOException {
         // {
         //    "index" : "test",

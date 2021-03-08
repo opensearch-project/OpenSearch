@@ -16,26 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.env;
+package org.opensearch.env;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.MetadataStateFormat;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.NodeRoles;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.gateway.MetadataStateFormat;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.node.Node;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.NodeRoles;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,8 +52,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.NodeRoles.nonDataNode;
-import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonDataNode;
+import static org.opensearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
-public class NodeEnvironmentTests extends ESTestCase {
+public class NodeEnvironmentTests extends OpenSearchTestCase {
     private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
     public void testNodeLockSillySettings() {
@@ -79,7 +79,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         int max = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(
                 Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build());
         assertEquals(value, max);
-        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! " +
             "See the breaking changes documentation for the next major version.");
     }
 
@@ -103,7 +103,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
         env.close();
         assertThat(env.lockedShards(), empty());
-        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! " +
             "See the breaking changes documentation for the next major version.");
     }
 
@@ -139,7 +139,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertEquals(first.nodeDataPaths()[i].getParent(), second.nodeDataPaths()[i].getParent());
         }
         IOUtils.close(first, second);
-        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in OpenSearch and will be removed in a future release! " +
             "See the breaking changes documentation for the next major version.");
     }
 

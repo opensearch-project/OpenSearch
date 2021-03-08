@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.deps.lucene;
+package org.opensearch.deps.lucene;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -45,15 +45,15 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimpleLuceneTests extends ESTestCase {
+public class SimpleLuceneTests extends OpenSearchTestCase {
     public void testSortValues() throws Exception {
         Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
