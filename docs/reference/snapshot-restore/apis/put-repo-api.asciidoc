@@ -107,21 +107,6 @@ nodes in the cluster.
 +
 See <<snapshots-filesystem-repository>>.
 
-[xpack]#`source`#::
-Source-only repository. You can use source-only repositories to create minimal,
-source-only snapshots that take up to 50% less space on disk.
-+
-Source-only snapshots are only supported if the <<mapping-source-field,`_source`
-field>> is enabled and no
-<<source-filtering,source-filtering>> is applied.
-+
-WARNING: Source-only snapshots contain stored fields and index metadata. They do
-not include index or doc values structures and are not searchable when restored.
-After restoring a source-only snapshot, you must <<docs-reindex,reindex>> the
-data into a new index.
-+
-See <<snapshots-source-only-repository>>.
-
 `url`::
 URL repository. Repositories of this type are read-only
 for the cluster. This means the cluster can retrieve or restore snapshots from
@@ -211,19 +196,6 @@ Other accepted `settings` properties depend on the repository type, set using th
 Location of the shared filesystem used to store and retrieve snapshots. This
 location must be registered in the `path.repo` setting on all master and data
 nodes in the cluster.
-====
-
-.Valid `settings` properties for `source` repositories
-[%collapsible%open]
-====
-`delegate_type`::
-(Optional, string)
-Delegated repository type. For valid values, see the
-<<put-snapshot-repo-api-request-type,`type` parameter>>.
-+
-`source` repositories can use `settings` properties for its delegated repository
-type. See <<snapshots-source-only-repository>>.
-
 ====
 
 .Valid `settings` properties for `url` repositories

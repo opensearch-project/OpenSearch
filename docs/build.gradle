@@ -22,9 +22,9 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-/* List of files that have snippets that will not work until platinum tests can occur ... */
+/* List of files that have snippets that will not work ... */
 buildRestTests.expectedUnconvertedCandidates = [
-//  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
+// File path from content root
 ]
 
 restResources {
@@ -54,7 +54,7 @@ testClusters.integTest {
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
-  // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+  // TODO: remove this once cname is prepended to transport.publish_address by default
   systemProperty 'es.transport.cname_in_publish_address', 'true'
 }
 
@@ -80,7 +80,7 @@ buildRestTests.docs = fileTree(projectDir) {
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests
-  exclude 'reference/graph/explore.asciidoc'
+
   if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
     // We don't install/support this plugin in FIPS 140
     exclude 'plugins/ingest-attachment.asciidoc'

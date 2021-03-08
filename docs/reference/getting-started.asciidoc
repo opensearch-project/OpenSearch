@@ -23,35 +23,13 @@ with the rest of the stack, you might want to jump to the
 {stack-gs}/get-started-elastic-stack.html[Elastic Stack
 Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
 {beats}, and {ls}.
-
-TIP: The fastest way to get started with {es} is to
-{ess-trial}[start a free 14-day
-trial of {ess}] in the cloud.
 --
 
 [[getting-started-install]]
 == Get {es} up and running
 
-To take {es} for a test drive, you can create a 
-{ess-trial}[hosted deployment]  on 
-the {ess} or set up a multi-node {es} cluster on your own
+To take {es} for a test drive, you can set up a multi-node {es} cluster on your own
 Linux, macOS, or Windows machine.
-
-[discrete]
-[[run-elasticsearch-hosted]]
-=== Run {es} on Elastic Cloud
-
-When you create a deployment on the {es} Service, the service provisions
-a three-node {es} cluster along with Kibana and APM.
-
-To create a deployment:
-
-. Sign up for a {ess-trial}[free trial] 
-and verify your email address.
-. Set a password for your account.
-. Click **Create Deployment**.
-
-Once you've created a deployment, you're ready to <<getting-started-index>>.
 
 [discrete]
 [[run-elasticsearch-local]]
@@ -227,8 +205,8 @@ the exception of `HEAD` requests, it also returns a JSON-encoded response body.
 Installing {es} from an archive file enables you to easily install and run
 multiple instances locally so you can try things out. To run a single instance,
 you can  run {es} in a Docker container, install {es} using the DEB or RPM
-packages on Linux, install using Homebrew on macOS, or install using the MSI
-package installer on Windows. See <<install-elasticsearch>> for more information.
+packages on Linux, install using Homebrew on macOS, or install using the zip
+package on Windows. See <<install-elasticsearch>> for more information.
 
 [[getting-started-index]]
 == Index some documents

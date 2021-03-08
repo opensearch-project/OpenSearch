@@ -58,7 +58,7 @@ Indices that are configured to be hidden with the <<index-hidden,index.hidden>> 
 excluded from mult-target queries by default. 
 To include hidden indices, you must specify the `expand_wildcards` parameter.
 
-Some features like {ml} store information in hidden indices. 
+Some features store information in hidden indices. 
 
 Global index templates that match all indices are not applied to hidden indices.
 

@@ -16,9 +16,6 @@ of items which *must* be considered before using your cluster in production:
 * <<error-file-path,JVM fatal error log setting>>
 * <<important-settings-backups,Cluster backups>>
 
-Our {ess-trial}[{ecloud}] service configures these items automatically, making
-your cluster production-ready by default.
-
 include::important-settings/path-settings.asciidoc[]
 
 include::important-settings/cluster-name.asciidoc[]

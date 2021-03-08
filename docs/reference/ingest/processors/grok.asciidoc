@@ -13,7 +13,7 @@ that is generally written for humans and not computer consumption.
 This processor comes packaged with many
 https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns[reusable patterns].
 
-If you need help building patterns to match your logs, you will find the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! The Grok Debugger is an {xpack} feature under the Basic License and is therefore *free to use*. The https://grokconstructor.appspot.com[Grok Constructor] is also a useful tool.
+If you need help building patterns to match your logs, you will find the https://grokconstructor.appspot.com[Grok Constructor] is a useful tool.
 
 [[grok-basics]]
 ==== Grok Basics
@@ -358,10 +358,7 @@ settings:
 [[grok-debugging]]
 ==== Grok debugging
 
-It is advised to use the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] to debug grok patterns. From there you can test one or more
-patterns in the UI against sample data. Under the covers it uses the same engine as ingest node processor.
-
-Additionally, it is recommended to enable debug logging for Grok so that any additional messages may also be seen in the Elasticsearch
+It is recommended to enable debug logging for Grok so that any additional messages may also be seen in the Elasticsearch
 server log.
 
 [source,js]

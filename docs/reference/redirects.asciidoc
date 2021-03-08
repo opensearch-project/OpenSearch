@@ -561,11 +561,6 @@ Tribe node functionality has been removed in favor of {ccs}. See
 
 See <<release-highlights>>.
 
-[role="exclude",id="sql-settings"]
-=== SQL access settings in Elasticsearch
-
-The `xpack.sql.enabled` setting has been deprecated. SQL access is always enabled.
-
 [role="exclude",id="indices-templates"]
 === Index templates [[getting]]
 

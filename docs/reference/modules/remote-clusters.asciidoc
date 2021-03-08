@@ -3,8 +3,7 @@
 
 You can connect a local cluster to other {es} clusters, known as _remote
 clusters_. Once connected, you can search remote clusters using
-<<modules-cross-cluster-search,{ccs}>>. You can also sync data between clusters
-using <<xpack-ccr,{ccr}>>.
+<<modules-cross-cluster-search,{ccs}>>.
 
 To register a remote cluster, connect the local cluster to nodes in the
 remote cluster using one of two connection modes:
