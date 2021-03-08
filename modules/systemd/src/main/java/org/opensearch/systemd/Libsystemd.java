@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.systemd;
+package org.opensearch.systemd;
 
 import com.sun.jna.Native;
 
