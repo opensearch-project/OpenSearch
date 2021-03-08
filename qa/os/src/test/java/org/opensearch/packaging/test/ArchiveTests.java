@@ -332,7 +332,7 @@ public class ArchiveTests extends PackagingTestCase {
         });
     }
 
-    public void test91ElasticsearchShardCliPackaging() throws Exception {
+    public void test91OpenSearchShardCliPackaging() throws Exception {
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
