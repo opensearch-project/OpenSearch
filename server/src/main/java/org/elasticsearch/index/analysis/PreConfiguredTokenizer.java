@@ -57,7 +57,7 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
      */
-    public static PreConfiguredTokenizer elasticsearchVersion(String name, Function<org.opensearch.Version, Tokenizer> create) {
+    public static PreConfiguredTokenizer openearchVersion(String name, Function<org.opensearch.Version, Tokenizer> create) {
         return new PreConfiguredTokenizer(name, CachingStrategy.ELASTICSEARCH, create);
     }
 
