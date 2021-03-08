@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport;
+package org.opensearch.client.transport;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.env.Environment;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.MockTransportClient;
+import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,7 +43,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class TransportClientTests extends ESTestCase {
+public class TransportClientTests extends OpenSearchTestCase {
 
     public void testThatUsingAClosedClientThrowsAnException() throws ExecutionException, InterruptedException {
         final TransportClient client =  new MockTransportClient(Settings.EMPTY);

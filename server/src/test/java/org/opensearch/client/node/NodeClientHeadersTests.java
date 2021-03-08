@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.client.node;
+package org.opensearch.client.node;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.AbstractClientHeadersTestCase;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportAction;
+import org.opensearch.client.AbstractClientHeadersTestCase;
+import org.opensearch.client.Client;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskManager;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashMap;

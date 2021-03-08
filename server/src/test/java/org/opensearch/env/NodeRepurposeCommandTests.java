@@ -16,27 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.env;
+package org.opensearch.env;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.OpenSearchNodeCommand;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.cli.MockTerminal;
+import org.opensearch.cli.Terminal;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.gateway.PersistedClusterStateService;
+import org.opensearch.index.Index;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -48,18 +48,18 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.env.NodeRepurposeCommand.NO_CLEANUP;
-import static org.elasticsearch.env.NodeRepurposeCommand.NO_DATA_TO_CLEAN_UP_FOUND;
-import static org.elasticsearch.env.NodeRepurposeCommand.NO_SHARD_DATA_TO_CLEAN_UP_FOUND;
-import static org.elasticsearch.test.NodeRoles.masterNode;
-import static org.elasticsearch.test.NodeRoles.nonDataNode;
-import static org.elasticsearch.test.NodeRoles.nonMasterNode;
-import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.opensearch.env.NodeRepurposeCommand.NO_CLEANUP;
+import static org.opensearch.env.NodeRepurposeCommand.NO_DATA_TO_CLEAN_UP_FOUND;
+import static org.opensearch.env.NodeRepurposeCommand.NO_SHARD_DATA_TO_CLEAN_UP_FOUND;
+import static org.opensearch.test.NodeRoles.masterNode;
+import static org.opensearch.test.NodeRoles.nonDataNode;
+import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class NodeRepurposeCommandTests extends ESTestCase {
+public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
     private static final Index INDEX = new Index("testIndex", "testUUID");
     private Settings dataMasterSettings;

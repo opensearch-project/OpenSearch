@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.env;
+package org.opensearch.env;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.gateway.MetadataStateFormat;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.gateway.MetadataStateFormat;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class NodeMetadataTests extends ESTestCase {
+public class NodeMetadataTests extends OpenSearchTestCase {
     private Version randomVersion() {
         // VersionUtils.randomVersion() only returns known versions, which are necessarily no later than Version.CURRENT; however we want
         // also to consider our behaviour with all versions, so occasionally pick up a truly random version.
