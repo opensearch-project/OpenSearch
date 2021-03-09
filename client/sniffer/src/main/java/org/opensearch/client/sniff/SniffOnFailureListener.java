@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.opensearch.client.sniff;
 
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;

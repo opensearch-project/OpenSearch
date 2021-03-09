@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.opensearch.client.sniff;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
@@ -61,17 +61,17 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
-public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
+public class OpenSearchNodesSnifferTests extends RestClientTestCase {
 
     private int sniffRequestTimeout;
-    private ElasticsearchNodesSniffer.Scheme scheme;
+    private OpenSearchNodesSniffer.Scheme scheme;
     private SniffResponse sniffResponse;
     private HttpServer httpServer;
 
     @Before
     public void startHttpServer() throws IOException {
         this.sniffRequestTimeout = RandomNumbers.randomIntBetween(getRandom(), 1000, 10000);
-        this.scheme = RandomPicks.randomFrom(getRandom(), ElasticsearchNodesSniffer.Scheme.values());
+        this.scheme = RandomPicks.randomFrom(getRandom(), OpenSearchNodesSniffer.Scheme.values());
         if (rarely()) {
             this.sniffResponse = SniffResponse.buildFailure();
         } else {
@@ -88,7 +88,7 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
 
     public void testConstructorValidation() throws IOException {
         try {
-            new ElasticsearchNodesSniffer(null, 1, ElasticsearchNodesSniffer.Scheme.HTTP);
+            new OpenSearchNodesSniffer(null, 1, OpenSearchNodesSniffer.Scheme.HTTP);
             fail("should have failed");
         } catch(NullPointerException e) {
             assertEquals("restClient cannot be null", e.getMessage());
@@ -96,14 +96,14 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         try (RestClient restClient = RestClient.builder(httpHost).build()) {
             try {
-                new ElasticsearchNodesSniffer(restClient, 1, null);
+                new OpenSearchNodesSniffer(restClient, 1, null);
                 fail("should have failed");
             } catch (NullPointerException e) {
                 assertEquals(e.getMessage(), "scheme cannot be null");
             }
             try {
-                new ElasticsearchNodesSniffer(restClient, RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0),
-                        ElasticsearchNodesSniffer.Scheme.HTTP);
+                new OpenSearchNodesSniffer(restClient, RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0),
+                        OpenSearchNodesSniffer.Scheme.HTTP);
                 fail("should have failed");
             } catch (IllegalArgumentException e) {
                 assertEquals(e.getMessage(), "sniffRequestTimeoutMillis must be greater than 0");
@@ -114,7 +114,7 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
     public void testSniffNodes() throws IOException {
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         try (RestClient restClient = RestClient.builder(httpHost).build()) {
-            ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(restClient, sniffRequestTimeout, scheme);
+            OpenSearchNodesSniffer sniffer = new OpenSearchNodesSniffer(restClient, sniffRequestTimeout, scheme);
             try {
                 List<Node> sniffedNodes = sniffer.sniff();
                 if (sniffResponse.isFailure) {
@@ -171,7 +171,7 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
         }
     }
 
-    private static SniffResponse buildSniffResponse(ElasticsearchNodesSniffer.Scheme scheme) throws IOException {
+    private static SniffResponse buildSniffResponse(OpenSearchNodesSniffer.Scheme scheme) throws IOException {
         int numNodes = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         List<Node> nodes = new ArrayList<>(numNodes);
         JsonFactory jsonFactory = new JsonFactory();
@@ -179,7 +179,7 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
         JsonGenerator generator = jsonFactory.createGenerator(writer);
         generator.writeStartObject();
         if (getRandom().nextBoolean()) {
-            generator.writeStringField("cluster_name", "elasticsearch");
+            generator.writeStringField("cluster_name", "opensearch");
         }
         if (getRandom().nextBoolean()) {
             generator.writeObjectFieldStart("bogus_object");
