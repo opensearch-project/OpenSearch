@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.bulk.BackoffPolicy;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;

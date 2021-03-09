@@ -31,6 +31,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.bulk.Retry;
 
 import java.util.HashMap;
 import java.util.Map;
