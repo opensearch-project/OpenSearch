@@ -165,7 +165,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testInfo() throws IOException {
-        MainResponse testInfo = new MainResponse("nodeName", new MainResponse.Version("number", "buildFlavor", "buildType", "buildHash",
+        MainResponse testInfo = new MainResponse("nodeName", new MainResponse.Version("number", "buildType", "buildHash",
             "buildDate", true, "luceneVersion", "minimumWireCompatibilityVersion", "minimumIndexCompatibilityVersion"),
             "clusterName", "clusterUuid", "You Know, for Search");
         mockResponse((ToXContentFragment) (builder, params) -> {
@@ -175,7 +175,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             builder.field("cluster_uuid", testInfo.getClusterUuid());
             builder.startObject("version")
                 .field("number", testInfo.getVersion().getNumber())
-                .field("build_flavor", testInfo.getVersion().getBuildFlavor())
                 .field("build_type", testInfo.getVersion().getBuildType())
                 .field("build_hash", testInfo.getVersion().getBuildHash())
                 .field("build_date", testInfo.getVersion().getBuildDate())

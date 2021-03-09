@@ -102,14 +102,13 @@ public class MainResponse {
         private static final ConstructingObjectParser<Version, Void> PARSER =
             new ConstructingObjectParser<>(Version.class.getName(), true,
                 args -> {
-                    return new Version((String) args[0], (String) args[1], (String) args[2], (String) args[3], (String) args[4],
-                        (Boolean) args[5], (String) args[6], (String) args[7], (String) args[8]);
+                    return new Version((String) args[0], (String) args[1], (String) args[2], (String) args[3],
+                        (Boolean) args[4], (String) args[5], (String) args[6], (String) args[7]);
                 }
             );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("number"));
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("build_flavor"));
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("build_type"));
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("build_hash"));
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("build_date"));
@@ -118,8 +117,8 @@ public class MainResponse {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("minimum_wire_compatibility_version"));
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("minimum_index_compatibility_version"));
         }
+
         private final String number;
-        private final String buildFlavor;
         private final String buildType;
         private final String buildHash;
         private final String buildDate;
@@ -128,10 +127,9 @@ public class MainResponse {
         private final String minimumWireCompatibilityVersion;
         private final String minimumIndexCompatibilityVersion;
 
-        public Version(String number, String buildFlavor, String buildType, String buildHash, String buildDate, boolean isSnapshot,
-            String luceneVersion, String minimumWireCompatibilityVersion, String minimumIndexCompatibilityVersion) {
+        public Version(String number, String buildType, String buildHash, String buildDate, boolean isSnapshot,
+                       String luceneVersion, String minimumWireCompatibilityVersion, String minimumIndexCompatibilityVersion) {
             this.number = number;
-            this.buildFlavor = buildFlavor;
             this.buildType = buildType;
             this.buildHash = buildHash;
             this.buildDate = buildDate;
@@ -143,10 +141,6 @@ public class MainResponse {
 
         public String getNumber() {
             return number;
-        }
-
-        public String getBuildFlavor() {
-            return buildFlavor;
         }
 
         public String getBuildType() {
@@ -184,7 +178,6 @@ public class MainResponse {
             Version version = (Version) o;
             return isSnapshot == version.isSnapshot &&
                 number.equals(version.number) &&
-                Objects.equals(buildFlavor, version.buildFlavor) &&
                 Objects.equals(buildType, version.buildType) &&
                 buildHash.equals(version.buildHash) &&
                 buildDate.equals(version.buildDate) &&
@@ -195,7 +188,7 @@ public class MainResponse {
 
         @Override
         public int hashCode() {
-            return Objects.hash(number, buildFlavor, buildType, buildHash, buildDate, isSnapshot, luceneVersion,
+            return Objects.hash(number, buildType, buildHash, buildDate, isSnapshot, luceneVersion,
                 minimumWireCompatibilityVersion, minimumIndexCompatibilityVersion);
         }
     }

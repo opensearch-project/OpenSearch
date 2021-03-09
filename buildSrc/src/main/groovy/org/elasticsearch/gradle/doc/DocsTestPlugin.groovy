@@ -23,8 +23,6 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.tasks.TaskProvider
 
 /**
  * Sets up tests for documentation.
@@ -37,9 +35,6 @@ class DocsTestPlugin implements Plugin<Project> {
         project.pluginManager.apply('elasticsearch.standalone-rest-test')
         project.pluginManager.apply('elasticsearch.rest-test')
 
-        String distribution = System.getProperty('tests.distribution', 'default')
-        // The distribution can be configured with -Dtests.distribution on the command line
-        project.testClusters.integTest.testDistribution = distribution.toUpperCase()
         project.testClusters.integTest.nameCustomization = { it.replace("integTest", "node") }
         // Docs are published separately so no need to assemble
         project.tasks.assemble.enabled = false
@@ -51,7 +46,6 @@ class DocsTestPlugin implements Plugin<Project> {
             '\\{version\\}': Version.fromString(VersionProperties.elasticsearch).toString(),
             '\\{version_qualified\\}': VersionProperties.elasticsearch,
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
-            '\\{build_flavor\\}' : distribution,
             '\\{build_type\\}' : OS.conditionalString().onWindows({"zip"}).onUnix({"tar"}).supply(),
         ]
         project.tasks.register('listSnippets', SnippetsTask) {
