@@ -16,7 +16,7 @@ Step through this getting started tutorial to:
 
 Need more context?
 
-Check out the <<elasticsearch-intro,
+Check out the <<opensearch-intro,
 {es} Introduction>> to learn the lingo and understand the basics of
 how {es} works. If you're already familiar with {es} and want to see how it works
 with the rest of the stack, you might want to jump to the
@@ -68,21 +68,21 @@ Linux:
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
+tar -xvf opensearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 +
 macOS:
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-tar -xvf elasticsearch-{version}-darwin-x86_64.tar.gz
+tar -xvf opensearch-{version}-darwin-x86_64.tar.gz
 --------------------------------------------------
 +
 Windows PowerShell:
 +
 ["source","powershell",subs="attributes,callouts"]
 --------------------------------------------------
-Expand-Archive elasticsearch-{version}-windows-x86_64.zip
+Expand-Archive opensearch-{version}-windows-x86_64.zip
 --------------------------------------------------
 
 . Start {es} from the `bin` directory:
@@ -91,16 +91,16 @@ Linux and macOS:
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-cd elasticsearch-{version}/bin
-./elasticsearch
+cd opensearch-{version}/bin
+./opensearch
 --------------------------------------------------
 +
 Windows:
 +
 ["source","powershell",subs="attributes,callouts"]
 --------------------------------------------------
-cd elasticsearch-{version}\bin
-.\elasticsearch.bat
+cd opensearch-{version}\bin
+.\opensearch.bat
 --------------------------------------------------
 +
 You now have a single-node {es} cluster up and running!
@@ -113,16 +113,16 @@ Linux and macOS:
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-./elasticsearch -Epath.data=data2 -Epath.logs=log2
-./elasticsearch -Epath.data=data3 -Epath.logs=log3
+./opensearch -Epath.data=data2 -Epath.logs=log2
+./opensearch -Epath.data=data3 -Epath.logs=log3
 --------------------------------------------------
 +
 Windows:
 +
 ["source","powershell",subs="attributes,callouts"]
 --------------------------------------------------
-.\elasticsearch.bat -E path.data=data2 -E path.logs=log2
-.\elasticsearch.bat -E path.data=data3 -E path.logs=log3
+.\opensearch.bat -E path.data=data2 -E path.logs=log2
+.\opensearch.bat -E path.data=data3 -E path.logs=log3
 --------------------------------------------------
 +
 The additional nodes are assigned unique IDs. Because you're running all three
@@ -145,15 +145,15 @@ clients] when you're ready to start using {es} in your own applications.
 GET /_cat/health?v=true
 --------------------------------------------------
 +
-The response should indicate that the status of the `elasticsearch` cluster
+The response should indicate that the status of the `opensearch` cluster
 is `green` and it has three nodes:
 +
 [source,txt]
 --------------------------------------------------
 epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-1565052807 00:53:27  elasticsearch green           3         3      6   3    0    0        0             0                  -                100.0%
+1565052807 00:53:27  opensearch green           3         3      6   3    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
+// TESTRESPONSE[s/1565052807 00:53:27  opensearch/\\d+ \\d+:\\d+:\\d+ integTest/]
 // TESTRESPONSE[s/3         3      6   3/\\d+         \\d+      \\d+   \\d+/]
 // TESTRESPONSE[s/0             0                  -/0             \\d+                  (-|\\d+(\.\\d+)?(micros|ms|s))/]
 // TESTRESPONSE[non_json]
@@ -205,7 +205,7 @@ Installing {es} from an archive file enables you to easily install and run
 multiple instances locally so you can try things out. To run a single instance,
 you can  run {es} in a Docker container, install {es} using the DEB or RPM
 packages on Linux, install using Homebrew on macOS, or install using the zip
-package on Windows. See <<install-elasticsearch>> for more information.
+package on Windows. See <<install-opensearch>> for more information.
 
 [[getting-started-index]]
 == Index some documents

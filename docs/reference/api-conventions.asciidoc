@@ -647,7 +647,7 @@ The response looks like:
     ],
     "type": "illegal_argument_exception",
     "reason": "Failed to parse int parameter [size] with value [surprise_me]",
-    "stack_trace": "java.lang.IllegalArgumentException: Failed to parse int parameter [size] with value [surprise_me]\n    at org.elasticsearch.rest.RestRequest.paramAsInt(RestRequest.java:175)...",
+    "stack_trace": "java.lang.IllegalArgumentException: Failed to parse int parameter [size] with value [surprise_me]\n    at org.opensearch.rest.RestRequest.paramAsInt(RestRequest.java:175)...",
     "caused_by": {
       "type": "number_format_exception",
       "reason": "For input string: \"surprise_me\"",
@@ -692,8 +692,8 @@ Many users use a proxy with URL-based access control to secure access to
 the choice of specifying an index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 
-To prevent the user from overriding the index specified in the
-URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.yml`.
+To prevent the user from overriding the data stream or index specified in the
+URL, set `rest.action.multi.allow_explicit_index` to `false` in `opensearch.yml`.
 
 
 This causes  {es} to

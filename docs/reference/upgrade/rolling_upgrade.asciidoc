@@ -87,7 +87,7 @@ must configure <<built-in-hosts-providers,either `discovery.seed_hosts` or
 
 . *Upgrade any plugins.*
 +
-Use the `elasticsearch-plugin` script to install the upgraded version of each
+Use the `opensearch-plugin` script to install the upgraded version of each
 installed {es} plugin. All plugins must be upgraded when you upgrade
 a node.
 

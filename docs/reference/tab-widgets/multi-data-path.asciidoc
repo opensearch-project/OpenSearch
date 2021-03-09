@@ -5,9 +5,9 @@ Linux and macOS installations support multiple Unix-style paths in `path.data`:
 ----
 path:
   data:
-    - /mnt/elasticsearch_1
-    - /mnt/elasticsearch_2
-    - /mnt/elasticsearch_3
+    - /mnt/opensearch_1
+    - /mnt/opensearch_2
+    - /mnt/opensearch_3
 ----
 // end::unix[]
 

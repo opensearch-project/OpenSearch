@@ -40,7 +40,7 @@ The javadoc for the REST high level client can be found at {rest-high-level-clie
 === Maven Repository
 
 The high-level Java REST client is hosted on
-https://search.maven.org/search?q=g:org.elasticsearch.client[Maven
+https://search.maven.org/search?q=g:org.opensearch.client[Maven
 Central]. The minimum Java version required is `1.8`.
 
 The High Level REST Client is subject to the same release cycle as
@@ -53,7 +53,7 @@ If you are looking for a SNAPSHOT version, you should add our snapshot repositor
 <repositories>
     <repository>
         <id>es-snapshots</id>
-        <name>elasticsearch snapshot repo</name>
+        <name>opensearch snapshot repo</name>
         <url>https://snapshots.elastic.co/maven/</url>
     </repository>
 </repositories>
@@ -77,8 +77,8 @@ Add the following to your `pom.xml` file:
 ["source","xml",subs="attributes"]
 --------------------------------------------------
 <dependency>
-    <groupId>org.elasticsearch.client</groupId>
-    <artifactId>elasticsearch-rest-high-level-client</artifactId>
+    <groupId>org.opensearch.client</groupId>
+    <artifactId>opensearch-rest-high-level-client</artifactId>
     <version>{version}</version>
 </dependency>
 --------------------------------------------------
@@ -92,7 +92,7 @@ Add the following to your `build.gradle` file:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 dependencies {
-    compile 'org.elasticsearch.client:elasticsearch-rest-high-level-client:{version}'
+    compile 'org.opensearch.client:opensearch-rest-high-level-client:{version}'
 }
 --------------------------------------------------
 
@@ -134,8 +134,8 @@ maven {
 The High Level Java REST Client depends on the following artifacts and their
 transitive dependencies:
 
-- org.elasticsearch.client:elasticsearch-rest-client
-- org.elasticsearch:elasticsearch
+- org.opensearch.client:opensearch-rest-client
+- org.opensearch:opensearch
 
 
 [[java-rest-high-getting-started-initialization]]

@@ -61,7 +61,7 @@ See the <<painless-api-reference-moving-function, Moving Function API>> for a hi
 
 
 [role="exclude",id="painless-api-reference-moving-function-org-elasticsearch-search-aggregations-pipeline"]
-=== Moving Function API for package org.elasticsearch.search.aggregations.pipeline
+=== Moving Function API for package org.opensearch.search.aggregations.pipeline
 See the <<painless-api-reference-moving-function, Moving Function API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-moving-function-MovingFunctions]]

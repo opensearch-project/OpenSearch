@@ -14,7 +14,7 @@ which should give you a response something like this:
 --------------------------------------------
 {
   "name" : "Cp8oag6",
-  "cluster_name" : "elasticsearch",
+  "cluster_name" : "opensearch",
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
     "number" : "{version_qualified}",
@@ -30,7 +30,7 @@ which should give you a response something like this:
 }
 --------------------------------------------
 // TESTRESPONSE[s/"name" : "Cp8oag6",/"name" : "$body.name",/]
-// TESTRESPONSE[s/"cluster_name" : "elasticsearch",/"cluster_name" : "$body.cluster_name",/]
+// TESTRESPONSE[s/"cluster_name" : "opensearch",/"cluster_name" : "$body.cluster_name",/]
 // TESTRESPONSE[s/"cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",/"cluster_uuid" : "$body.cluster_uuid",/]
 // TESTRESPONSE[s/"build_hash" : "f27399d",/"build_hash" : "$body.version.build_hash",/]
 // TESTRESPONSE[s/"build_date" : "2016-03-30T09:51:41.449Z",/"build_date" : $body.version.build_date,/]

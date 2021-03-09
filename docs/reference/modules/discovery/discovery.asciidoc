@@ -88,7 +88,7 @@ container to be dynamically supplied with a list of IP addresses to connect to
 when those IP addresses may not be known at node startup.
 
 To enable file-based discovery, configure the `file` hosts provider as follows
-in the `elasticsearch.yml` file:
+in the `opensearch.yml` file:
 
 [source,yml]
 ----------------------------------------------------------------
@@ -100,7 +100,7 @@ below. Any time a change is made to the `unicast_hosts.txt` file the new
 changes will be picked up by {es} and the new hosts list will be used.
 
 Note that the file-based discovery plugin augments the unicast hosts list in
-`elasticsearch.yml`: if there are valid seed addresses in
+`opensearch.yml`: if there are valid seed addresses in
 `discovery.seed_hosts` then {es} uses those addresses in addition to those
 supplied in `unicast_hosts.txt`.
 

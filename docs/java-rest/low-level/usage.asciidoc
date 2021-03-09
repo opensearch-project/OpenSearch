@@ -13,7 +13,7 @@ The javadoc for the low level REST client can be found at {rest-client-javadoc}/
 === Maven Repository
 
 The low-level Java REST client is hosted on
-https://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
+https://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.opensearch.client%22[Maven
 Central]. The minimum Java version required is `1.8`.
 
 The low-level REST client is subject to the same release cycle as
@@ -34,8 +34,8 @@ Add the following to your `pom.xml` file:
 ["source","xml",subs="attributes"]
 --------------------------------------------------
 <dependency>
-    <groupId>org.elasticsearch.client</groupId>
-    <artifactId>elasticsearch-rest-client</artifactId>
+    <groupId>org.opensearch.client</groupId>
+    <artifactId>opensearch-rest-client</artifactId>
     <version>{version}</version>
 </dependency>
 --------------------------------------------------
@@ -49,7 +49,7 @@ Add the following to your `build.gradle` file:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 dependencies {
-    compile 'org.elasticsearch.client:elasticsearch-rest-client:{version}'
+    compile 'org.opensearch.client:opensearch-rest-client:{version}'
 }
 --------------------------------------------------
 
@@ -410,8 +410,8 @@ https://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/htt
 The Java REST client uses the same logging library that the Apache Async Http
 Client uses: https://commons.apache.org/proper/commons-logging/[Apache Commons Logging],
  which comes with support for a number of popular logging implementations. The
-java packages to enable logging for are `org.elasticsearch.client` for the
-client itself and `org.elasticsearch.client.sniffer` for the sniffer.
+java packages to enable logging for are `org.opensearch.client` for the
+client itself and `org.opensearch.client.sniffer` for the sniffer.
 
 The request tracer logging can also be enabled to log every request and
 corresponding response in curl format. That comes handy when debugging, for

@@ -1,7 +1,7 @@
 [[node-tool]]
-== elasticsearch-node
+== opensearch-node
 
-The `elasticsearch-node` command enables you to perform certain unsafe
+The `opensearch-node` command enables you to perform certain unsafe
 operations on a node that are only possible while it is shut down. This command
 allows you to adjust the <<modules-node,role>> of a node, unsafely edit cluster
 settings and may be able to recover some data after a disaster or start a node
@@ -12,7 +12,7 @@ even if it is incompatible with the data on disk.
 
 [source,shell]
 --------------------------------------------------
-bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-version
+bin/opensearch-node repurpose|unsafe-bootstrap|detach-cluster|override-version
   [--ordinal <Integer>] [-E <KeyValuePair>]
   [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
@@ -22,30 +22,30 @@ bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-versio
 
 This tool has a number of modes:
 
-* `elasticsearch-node repurpose` can be used to delete unwanted data from a
+* `opensearch-node repurpose` can be used to delete unwanted data from a
   node if it used to be a <<data-node,data node>> or a
   <<master-node,master-eligible node>> but has been repurposed not to have one
   or other of these roles.
 
-* `elasticsearch-node remove-settings` can be used to remove persistent settings
+* `opensearch-node remove-settings` can be used to remove persistent settings
   from the cluster state in case where it contains incompatible settings that
   prevent the cluster from forming.
 
-* `elasticsearch-node remove-customs` can be used to remove custom metadata
+* `opensearch-node remove-customs` can be used to remove custom metadata
   from the cluster state in case where it contains broken metadata that
   prevents the cluster state from being loaded.
 
-* `elasticsearch-node unsafe-bootstrap` can be used to perform _unsafe cluster
+* `opensearch-node unsafe-bootstrap` can be used to perform _unsafe cluster
   bootstrapping_.  It forces one of the nodes to form a brand-new cluster on
   its own, using its local copy of the cluster metadata.
 
-* `elasticsearch-node detach-cluster` enables you to move nodes from one
+* `opensearch-node detach-cluster` enables you to move nodes from one
   cluster to another.  This can be used to move nodes into a new cluster
-  created with the `elasticsearch-node unsafe-bootstrap` command. If unsafe
+  created with the `opensearch-node unsafe-bootstrap` command. If unsafe
   cluster bootstrapping was not possible, it also enables you to move nodes
   into a brand-new cluster.
 
-* `elasticsearch-node override-version` enables you to start up a node
+* `opensearch-node override-version` enables you to start up a node
   even if the data in the data path was written by an incompatible version of
   {es}. This may sometimes allow you to downgrade to an earlier version of
   {es}.
@@ -55,21 +55,21 @@ This tool has a number of modes:
 ==== Changing the role of a node
 
 There may be situations where you want to repurpose a node without following
-the <<change-node-role,proper repurposing processes>>. The `elasticsearch-node
+the <<change-node-role,proper repurposing processes>>. The `opensearch-node
 repurpose` tool allows you to delete any excess on-disk data and start a node
 after repurposing it.
 
 The intended use is:
 
 * Stop the node
-* Update `elasticsearch.yml` by setting `node.roles` as desired.
-* Run `elasticsearch-node repurpose` on the node
+* Update `opensearch.yml` by setting `node.roles` as desired.
+* Run `opensearch-node repurpose` on the node
 * Start the node
 
-If you run `elasticsearch-node repurpose` on a node without the `data` role and
+If you run `opensearch-node repurpose` on a node without the `data` role and
 with the `master` role then it will delete any remaining shard data on that
 node, but it will leave the index and cluster metadata alone. If you run
-`elasticsearch-node repurpose` on a node without the `data` and `master` roles
+`opensearch-node repurpose` on a node without the `data` and `master` roles
 then it will delete any remaining shard data and index metadata, but it will
 leave the cluster metadata alone.
 
@@ -91,7 +91,7 @@ settings that prevent the cluster from forming. Since the cluster cannot form,
 it is not possible to remove these settings using the
 <<cluster-update-settings>> API.
 
-The `elasticsearch-node remove-settings` tool allows you to forcefully remove
+The `opensearch-node remove-settings` tool allows you to forcefully remove
 those persistent settings from the on-disk cluster state. The tool takes a
 list of settings as parameters that should be removed, and also supports
 wildcard patterns.
@@ -99,7 +99,7 @@ wildcard patterns.
 The intended use is:
 
 * Stop the node
-* Run `elasticsearch-node remove-settings name-of-setting-to-remove` on the node
+* Run `opensearch-node remove-settings name-of-setting-to-remove` on the node
 * Repeat for all other master-eligible nodes
 * Start the nodes
 
@@ -110,14 +110,14 @@ There may be situations where a node contains custom metadata, typically
 provided by plugins, that prevent the node from starting up and loading
 the cluster from disk.
 
-The `elasticsearch-node remove-customs` tool allows you to forcefully remove
+The `opensearch-node remove-customs` tool allows you to forcefully remove
 the problematic custom metadata. The tool takes a list of custom metadata names
 as parameters that should be removed, and also supports wildcard patterns.
 
 The intended use is:
 
 * Stop the node
-* Run `elasticsearch-node remove-customs name-of-custom-to-remove` on the node
+* Run `opensearch-node remove-customs name-of-custom-to-remove` on the node
 * Repeat for all other master-eligible nodes
 * Start the nodes
 
@@ -157,7 +157,7 @@ ingested since that snapshot was taken.
 However, if the disaster is serious enough then it may not be possible to
 recover from a recent snapshot either. Unfortunately in this case there is no
 way forward that does not risk data loss, but it may be possible to use the
-`elasticsearch-node` tool to construct a new cluster that contains some of the
+`opensearch-node` tool to construct a new cluster that contains some of the
 data from the failed cluster.
 
 [[node-tool-override-version]]
@@ -176,7 +176,7 @@ work if the format of the stored data has changed, and it is a risky process
 because it is possible for the format to change in ways that {es} may
 misinterpret, silently leading to data loss.
 
-To bypass this check, you can use the `elasticsearch-node override-version`
+To bypass this check, you can use the `opensearch-node override-version`
 tool to overwrite the version number stored in the data path with the current
 version, causing {es} to believe that it is compatible with the on-disk data.
 
@@ -185,7 +185,7 @@ version, causing {es} to believe that it is compatible with the on-disk data.
 ===== Unsafe cluster bootstrapping
 
 If there is at least one remaining master-eligible node, but it is not possible
-to restart a majority of them, then the `elasticsearch-node unsafe-bootstrap`
+to restart a majority of them, then the `opensearch-node unsafe-bootstrap`
 command will unsafely override the cluster's <<modules-discovery-voting,voting
 configuration>> as if performing another
 <<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>.
@@ -198,11 +198,11 @@ metadata, and this out-of-date metadata may make it impossible to use some or
 all of the indices in the cluster.
 
 Since unsafe bootstrapping forms a new cluster containing a single node, once
-you have run it you must use the <<node-tool-detach-cluster,`elasticsearch-node
+you have run it you must use the <<node-tool-detach-cluster,`opensearch-node
 detach-cluster` tool>> to migrate any other surviving nodes from the failed
 cluster into this new cluster.
 
-When you run the `elasticsearch-node unsafe-bootstrap` tool it will analyse the
+When you run the `opensearch-node unsafe-bootstrap` tool it will analyse the
 state of the node and ask for confirmation before taking any action. Before
 asking for confirmation it reports the term and version of the cluster state on
 the node on which it runs as follows:
@@ -236,11 +236,11 @@ by moving their data paths to healthy hardware.
 2. Stop **all** remaining nodes.
 3. Choose one of the remaining master-eligible nodes to become the new elected
 master as described above.
-4. On this node, run the `elasticsearch-node unsafe-bootstrap` command as shown
+4. On this node, run the `opensearch-node unsafe-bootstrap` command as shown
 below. Verify that the tool reported `Master node was successfully
 bootstrapped`.
 5. Start this node and verify that it is elected as the master node.
-6. Run the <<node-tool-detach-cluster,`elasticsearch-node detach-cluster`
+6. Run the <<node-tool-detach-cluster,`opensearch-node detach-cluster`
 tool>>, described below, on every other node in the cluster.
 7. Start all other nodes and verify that each one joins the cluster.
 8. Investigate the data in the cluster to discover if any was lost during this
@@ -269,7 +269,7 @@ up. Every node records the UUID of its cluster and refuses to join a
 cluster with a different UUID.
 
 However, if a node's cluster has permanently failed then it may be desirable to
-try and move it into a new cluster. The `elasticsearch-node detach-cluster`
+try and move it into a new cluster. The `opensearch-node detach-cluster`
 command lets you detach a node from its cluster by resetting its cluster UUID.
 It can then join another cluster with a different UUID.
 
@@ -284,7 +284,7 @@ nodes also contain a copy of the index metadata corresponding with their
 shards. This sometimes allows a new cluster to import these shards as
 <<modules-gateway-dangling-indices,dangling indices>>. You can sometimes
 recover some indices after the loss of all master-eligible nodes in a cluster
-by creating a new cluster and then using the `elasticsearch-node
+by creating a new cluster and then using the `opensearch-node
 detach-cluster` command to move any surviving nodes into this new cluster.
 
 There is a risk of data loss when importing a dangling index because data nodes
@@ -307,7 +307,7 @@ data paths to healthy hardware.
 one or more brand-new master-eligible nodes, or may be an unsafely-bootstrapped
 cluster formed as described above.
 3. Stop **all** remaining data nodes.
-4. On each data node, run the `elasticsearch-node detach-cluster` tool as shown
+4. On each data node, run the `opensearch-node detach-cluster` tool as shown
 below. Verify that the tool reported `Node was successfully detached from the
 cluster`.
 5. If necessary, configure each data node to
@@ -359,12 +359,12 @@ to `0`, meaning to use the first node in the data path.
 
 In this example, a former data node is repurposed as a dedicated master node.
 First update the node's settings to `node.roles: [ "master" ]` in its
-`elasticsearch.yml` config file. Then run the `elasticsearch-node repurpose`
+`opensearch.yml` config file. Then run the `opensearch-node repurpose`
 command to find and remove excess shard data:
 
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node repurpose
+node$ ./bin/opensearch-node repurpose
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
@@ -381,13 +381,13 @@ Node successfully repurposed to master and no-data.
 
 In this example, a node that previously held data is repurposed as a
 coordinating-only node. First update the node's settings to `node.roles: []` in
-its `elasticsearch.yml` config file. Then run the `elasticsearch-node repurpose`
+its `opensearch.yml` config file. Then run the `opensearch-node repurpose`
 command to find and remove excess shard data and index metadata:
 
 
 [source,txt]
 ----
-node$./bin/elasticsearch-node repurpose
+node$./bin/opensearch-node repurpose
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
@@ -473,7 +473,7 @@ lost three of them, leaving two nodes remaining.
 
 [source,txt]
 ----
-node_1$ ./bin/elasticsearch-node unsafe-bootstrap
+node_1$ ./bin/opensearch-node unsafe-bootstrap
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
@@ -496,7 +496,7 @@ Confirm [y/N] n
 
 [source,txt]
 ----
-node_2$ ./bin/elasticsearch-node unsafe-bootstrap
+node_2$ ./bin/opensearch-node unsafe-bootstrap
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
@@ -519,7 +519,7 @@ Confirm [y/N] n
 
 [source,txt]
 ----
-node_2$ ./bin/elasticsearch-node unsafe-bootstrap
+node_2$ ./bin/opensearch-node unsafe-bootstrap
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
@@ -541,20 +541,20 @@ Master node was successfully bootstrapped
 [discrete]
 ==== Detaching nodes from their cluster
 
-After unsafely bootstrapping a new cluster, run the `elasticsearch-node
+After unsafely bootstrapping a new cluster, run the `opensearch-node
 detach-cluster` command to detach all remaining nodes from the failed cluster
 so they can join the new cluster:
 
 [source, txt]
 ----
-node_3$ ./bin/elasticsearch-node detach-cluster
+node_3$ ./bin/opensearch-node detach-cluster
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
 You should only run this tool if you have permanently lost all of the
 master-eligible nodes in this cluster and you cannot restore the cluster
 from a snapshot, or you have already unsafely bootstrapped a new cluster
-by running `elasticsearch-node unsafe-bootstrap` on a master-eligible
+by running `opensearch-node unsafe-bootstrap` on a master-eligible
 node that belonged to the same cluster as this node. This tool can cause
 arbitrary data loss and its use should be your last resort.
 
@@ -567,13 +567,13 @@ Node was successfully detached from the cluster
 [discrete]
 ==== Bypassing version checks
 
-Run the `elasticsearch-node override-version` command to overwrite the version
+Run the `opensearch-node override-version` command to overwrite the version
 stored in the data path so that a node can start despite being incompatible
 with the data stored in the data path:
 
 [source, txt]
 ----
-node$ ./bin/elasticsearch-node override-version
+node$ ./bin/opensearch-node override-version
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 

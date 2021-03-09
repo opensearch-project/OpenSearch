@@ -5,7 +5,7 @@ the process ID in a file using the `-p` option:
 
 [source,sh]
 --------------------------------------------
-./bin/elasticsearch -d -p pid
+./bin/opensearch -d -p pid
 --------------------------------------------
 
 If you have password-protected the {es} keystore, you will be prompted

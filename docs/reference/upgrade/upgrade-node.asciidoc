@@ -14,10 +14,10 @@ To upgrade using a zip or compressed tarball:
    using an external `config` directory, copy your old configuration
    over to the new installation.
 
-.. Set `path.data` in `config/elasticsearch.yml` to point to your external
+.. Set `path.data` in `config/opensearch.yml` to point to your external
    data directory. If you are not using an external `data` directory, copy
    your old data directory over to the new installation. +
 
-.. Set `path.logs` in `config/elasticsearch.yml` to point to the location
+.. Set `path.logs` in `config/opensearch.yml` to point to the location
    where you want to store your logs. If you do not specify this setting,
    logs are stored in the directory you extracted the archive to.

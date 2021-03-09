@@ -2,7 +2,7 @@
 === Korean (nori) Analysis Plugin
 
 The Korean (nori) Analysis plugin integrates Lucene nori analysis
-module into elasticsearch. It uses the https://bitbucket.org/eunjeon/mecab-ko-dic[mecab-ko-dic dictionary]
+module into opensearch. It uses the https://bitbucket.org/eunjeon/mecab-ko-dic[mecab-ko-dic dictionary]
 to perform morphological analysis of Korean texts.
 
 :plugin_name: analysis-nori

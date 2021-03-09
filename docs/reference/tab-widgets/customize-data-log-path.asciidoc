@@ -4,8 +4,8 @@ Linux and macOS installations support Unix-style paths:
 [source,yaml]
 ----
 path:
-  data: /var/data/elasticsearch
-  logs: /var/log/elasticsearch
+  data: /var/data/opensearch
+  logs: /var/log/opensearch
 ----
 // end::unix[]
 

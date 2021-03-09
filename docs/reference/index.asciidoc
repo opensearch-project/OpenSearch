@@ -1,4 +1,4 @@
-[[elasticsearch-reference]]
+[[opensearch-reference]]
 = Elasticsearch Reference
 
 :es-test-dir:           {search-root}/docs/src/test

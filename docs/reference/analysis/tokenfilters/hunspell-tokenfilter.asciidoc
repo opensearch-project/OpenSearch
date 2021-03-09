@@ -48,7 +48,7 @@ Each dictionary can be configured with one setting:
 (Static, Boolean)
 If true, dictionary matching will be case insensitive. Defaults to `false`.
 
-This setting can be configured globally in `elasticsearch.yml` using
+This setting can be configured globally in `opensearch.yml` using
 `indices.analysis.hunspell.dictionary.ignore_case`.
 
 To configure the setting for a specific locale, use the
@@ -58,7 +58,7 @@ the `en_US` (American English) locale, the setting is
 
 It is also possible to add `settings.yml` file under the dictionary
 directory which holds these settings. This overrides any other `ignore_case`
-settings defined in `elasticsearch.yml`.
+settings defined in `opensearch.yml`.
 
 [[analysis-hunspell-tokenfilter-analyze-ex]]
 ==== Example
@@ -228,7 +228,7 @@ PUT /my-index-000001
 
 In addition to the <<analysis-hunspell-ignore-case-settings,`ignore_case`
 settings>>, you can configure the following global settings for the `hunspell`
-filter using `elasticsearch.yml`:
+filter using `opensearch.yml`:
 
 `indices.analysis.hunspell.dictionary.lazy`::
 (Static, Boolean)

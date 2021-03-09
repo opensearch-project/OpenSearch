@@ -5,16 +5,16 @@ when the system boots up:
 
 [source,sh]
 --------------------------------------------------
-sudo update-rc.d elasticsearch defaults 95 10
+sudo update-rc.d opensearch defaults 95 10
 --------------------------------------------------
 
 Elasticsearch can be started and stopped using the `service` command:
 
 [source,sh]
 --------------------------------------------
-sudo -i service elasticsearch start
-sudo -i service elasticsearch stop
+sudo -i service opensearch start
+sudo -i service opensearch stop
 --------------------------------------------
 
 If Elasticsearch fails to start for any reason, it will print the reason for
-failure to STDOUT. Log files can be found in `/var/log/elasticsearch/`.
+failure to STDOUT. Log files can be found in `/var/log/opensearch/`.

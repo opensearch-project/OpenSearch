@@ -35,7 +35,7 @@ POST /hockey/_explain/1
 // we have to override it to get a normal shaped response
 
 Which shows that the class of `doc.first` is
-`org.elasticsearch.index.fielddata.ScriptDocValues.Longs` by responding with:
+`org.opensearch.index.fielddata.ScriptDocValues.Longs` by responding with:
 
 [source,console-result]
 ---------------------------------------------------------
@@ -43,8 +43,8 @@ Which shows that the class of `doc.first` is
    "error": {
       "type": "script_exception",
       "to_string": "[1, 9, 27]",
-      "painless_class": "org.elasticsearch.index.fielddata.ScriptDocValues.Longs",
-      "java_class": "org.elasticsearch.index.fielddata.ScriptDocValues$Longs",
+      "painless_class": "org.opensearch.index.fielddata.ScriptDocValues.Longs",
+      "java_class": "org.opensearch.index.fielddata.ScriptDocValues$Longs",
       ...
    },
    "status": 400

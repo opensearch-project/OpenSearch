@@ -6,20 +6,20 @@ run the following commands:
 [source,sh]
 --------------------------------------------------
 sudo /bin/systemctl daemon-reload
-sudo /bin/systemctl enable elasticsearch.service
+sudo /bin/systemctl enable opensearch.service
 --------------------------------------------------
 
 Elasticsearch can be started and stopped as follows:
 
 [source,sh]
 --------------------------------------------
-sudo systemctl start elasticsearch.service
-sudo systemctl stop elasticsearch.service
+sudo systemctl start opensearch.service
+sudo systemctl stop opensearch.service
 --------------------------------------------
 
 These commands provide no feedback as to whether Elasticsearch was started
 successfully or not. Instead, this information will be written in the log
-files located in `/var/log/elasticsearch/`.
+files located in `/var/log/opensearch/`.
 
 If you have password-protected your {es} keystore, you will need to provide
 `systemd` with the keystore password using a local file and systemd environment
@@ -31,12 +31,12 @@ safely deleted once Elasticsearch is up and running.
 echo "keystore_password" > /path/to/my_pwd_file.tmp
 chmod 600 /path/to/my_pwd_file.tmp
 sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=/path/to/my_pwd_file.tmp
-sudo systemctl start elasticsearch.service
+sudo systemctl start opensearch.service
 -----------------------------------------------------------------------------------
 
 By default the Elasticsearch service doesn't log information in the `systemd`
 journal. To enable `journalctl` logging, the `--quiet` option must be removed
- from the `ExecStart` command line in the `elasticsearch.service` file.
+ from the `ExecStart` command line in the `opensearch.service` file.
 
 When `systemd` logging is enabled, the logging information are available using
 the `journalctl` commands:
@@ -48,18 +48,18 @@ To tail the journal:
 sudo journalctl -f
 --------------------------------------------
 
-To list journal entries for the elasticsearch service:
+To list journal entries for the opensearch service:
 
 [source,sh]
 --------------------------------------------
-sudo journalctl --unit elasticsearch
+sudo journalctl --unit opensearch
 --------------------------------------------
 
-To list journal entries for the elasticsearch service starting from a given time:
+To list journal entries for the opensearch service starting from a given time:
 
 [source,sh]
 --------------------------------------------
-sudo journalctl --unit elasticsearch --since  "2016-10-30 18:17:16"
+sudo journalctl --unit opensearch --since  "2016-10-30 18:17:16"
 --------------------------------------------
 
 Check `man journalctl` or https://www.freedesktop.org/software/systemd/man/journalctl.html for

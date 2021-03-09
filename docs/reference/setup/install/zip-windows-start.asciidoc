@@ -4,7 +4,7 @@ Elasticsearch can be started from the command line as follows:
 
 [source,sh]
 --------------------------------------------
-.\bin\elasticsearch.bat
+.\bin\opensearch.bat
 --------------------------------------------
 
 If you have password-protected the {es} keystore, you will be prompted to
