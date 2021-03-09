@@ -7,7 +7,7 @@ or from our <<deb-repo,APT repository>>. It can be used to install
 
 include::license.asciidoc[]
 
-// TODO: Correct the links for Opensearch
+// TODO: Correct the links for OpenSearch
 The latest stable version of {opensearch} can be found on the
 link:/downloads/elasticsearch[Download {opensearch}] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
