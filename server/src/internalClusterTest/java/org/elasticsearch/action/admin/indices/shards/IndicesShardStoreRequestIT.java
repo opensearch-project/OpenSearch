@@ -39,6 +39,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
+import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 
 import java.util.Arrays;
 import java.util.Collection;

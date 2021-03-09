@@ -26,21 +26,21 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.opensearch.action.admin.indices.open.OpenIndexRequest;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.admin.indices.shrink.ResizeType;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
@@ -130,16 +130,16 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
     public void testIndicesExistEmptyIndicesWithTypes() {
         LuceneTestCase.expectThrows(IllegalArgumentException.class,
-                () -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest()));
+                () -> IndicesRequestConverters.indicesExist(new org.opensearch.action.admin.indices.get.GetIndexRequest()));
         LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> IndicesRequestConverters
-                .indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices((String[]) null)));
+                .indicesExist(new org.opensearch.action.admin.indices.get.GetIndexRequest().indices((String[]) null)));
     }
 
     public void testIndicesExistWithTypes() {
         String[] indices = RequestConvertersTests.randomIndicesNames(1, 10);
 
-        org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
-                new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(indices);
+        org.opensearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
+                new org.opensearch.action.admin.indices.get.GetIndexRequest().indices(indices);
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
@@ -172,7 +172,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testCreateIndexWithTypes() throws IOException {
-        org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
+        org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
             org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -234,8 +234,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testPutMappingWithTypes() throws IOException {
-        org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
-            new org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest();
+        org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
+            new org.opensearch.action.admin.indices.mapping.put.PutMappingRequest();
 
         String[] indices = RequestConvertersTests.randomIndicesNames(0, 5);
         putMappingRequest.indices(indices);
@@ -295,8 +295,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testGetMappingWithTypes() {
-        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingRequest =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest();
+        org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingRequest =
+            new org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest();
 
         String[] indices = Strings.EMPTY_ARRAY;
         if (randomBoolean()) {
@@ -381,8 +381,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testGetFieldMappingWithTypes() {
-        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest();
+        org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
+            new org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest();
 
         String[] indices = Strings.EMPTY_ARRAY;
         if (randomBoolean()) {
@@ -567,8 +567,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     public void testGetIndexWithTypes() throws IOException {
         String[] indicesUnderTest = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
 
-        org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
-                new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(indicesUnderTest);
+        org.opensearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
+                new org.opensearch.action.admin.indices.get.GetIndexRequest().indices(indicesUnderTest);
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomMasterTimeout(getIndexRequest, expectedParams);
@@ -942,8 +942,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testRolloverWithTypes() throws IOException {
-        org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
-            new  org.elasticsearch.action.admin.indices.rollover.RolloverRequest(ESTestCase.randomAlphaOfLengthBetween(3, 10),
+        org.opensearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
+            new org.opensearch.action.admin.indices.rollover.RolloverRequest(ESTestCase.randomAlphaOfLengthBetween(3, 10),
             ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLengthBetween(3, 10));
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(rolloverRequest::timeout, rolloverRequest.timeout(), expectedParams);
@@ -1049,8 +1049,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         names.put("-#template", "-%23template");
         names.put("foo^bar", "foo%5Ebar");
 
-        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
-                new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()
+        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
+                new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest()
                 .name(ESTestCase.randomFrom(names.keySet()))
                 .patterns(Arrays.asList(ESTestCase.generateRandomStringArray(20, 100, false, false)));
         if (ESTestCase.randomBoolean()) {

@@ -20,8 +20,8 @@
 package org.elasticsearch.get;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;

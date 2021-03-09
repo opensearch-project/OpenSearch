@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,6 +43,9 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.action.admin.indices.shrink.ResizeRequest;
+import org.opensearch.action.admin.indices.shrink.ResizeType;
+import org.opensearch.action.admin.indices.shrink.TransportResizeAction;
 
 import java.util.Arrays;
 import java.util.Collections;

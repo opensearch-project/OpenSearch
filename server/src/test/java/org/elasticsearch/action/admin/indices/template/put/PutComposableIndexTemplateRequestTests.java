@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.indices.create.AutoCreateAction;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 
 import java.util.Collections;
 

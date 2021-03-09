@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 
 import java.util.Arrays;
 

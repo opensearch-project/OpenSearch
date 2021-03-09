@@ -120,7 +120,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
         SyncedFlushResponse.ShardCounts totalCounts;
         Map<String, SyncedFlushResponse.ShardCounts> countsPerIndex = new HashMap<>();
         ObjectIntMap<String> expectedFailuresPerIndex = new ObjectIntHashMap<>();
-        org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse result;
+        org.opensearch.action.admin.indices.flush.SyncedFlushResponse result;
         SyncedFlushResponse clientResult;
     }
 
@@ -213,7 +213,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
             totalShards += shards * (replicas + 1);
             totalSuccessful += successful;
         }
-        testPlan.result = new org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse(indicesResults);
+        testPlan.result = new org.opensearch.action.admin.indices.flush.SyncedFlushResponse(indicesResults);
         testPlan.totalCounts = new SyncedFlushResponse.ShardCounts(totalShards, totalSuccessful, totalFailed);
         testPlan.clientResult = new SyncedFlushResponse(
             new SyncedFlushResponse.ShardCounts(totalShards, totalSuccessful, totalFailed),

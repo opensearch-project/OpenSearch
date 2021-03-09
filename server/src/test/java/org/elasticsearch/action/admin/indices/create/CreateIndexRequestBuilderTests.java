@@ -28,6 +28,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.admin.indices.create.CreateIndexAction;
+import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.indices.shrink.ResizeResponse;
 
 public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeResponse> {
 

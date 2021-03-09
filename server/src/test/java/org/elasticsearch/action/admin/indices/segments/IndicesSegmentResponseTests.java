@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.opensearch.action.admin.indices.segments.ShardSegments;
 
 import java.util.Collections;
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;

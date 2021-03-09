@@ -20,7 +20,7 @@
 package org.opensearch.index.rankeval;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
