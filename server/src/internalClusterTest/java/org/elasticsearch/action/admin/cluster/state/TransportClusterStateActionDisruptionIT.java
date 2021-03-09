@@ -31,6 +31,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequestBuilder;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 
 import java.util.Collection;
 import java.util.Collections;

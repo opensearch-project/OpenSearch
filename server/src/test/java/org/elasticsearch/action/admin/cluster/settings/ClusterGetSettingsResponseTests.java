@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 
 import java.io.IOException;
 import java.util.function.Predicate;

@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 
 import java.io.IOException;
 
