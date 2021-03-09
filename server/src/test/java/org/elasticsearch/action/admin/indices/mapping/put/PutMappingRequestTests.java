@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamRequestTests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;

@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.indices.alias.exists;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;

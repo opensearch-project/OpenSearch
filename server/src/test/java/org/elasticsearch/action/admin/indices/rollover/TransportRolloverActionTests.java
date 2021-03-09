@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;

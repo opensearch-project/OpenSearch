@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.function.Supplier;

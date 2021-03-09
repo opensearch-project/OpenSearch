@@ -20,9 +20,9 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;

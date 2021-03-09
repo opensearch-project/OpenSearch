@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.indices.readonly;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to add a block to an index.

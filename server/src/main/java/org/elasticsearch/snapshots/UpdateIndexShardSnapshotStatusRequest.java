@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.io.stream.StreamInput;

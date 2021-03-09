@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
+import static org.opensearch.action.DocWriteRequest.OpType.CREATE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;

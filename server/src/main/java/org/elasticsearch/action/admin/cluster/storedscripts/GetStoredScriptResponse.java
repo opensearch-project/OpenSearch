@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

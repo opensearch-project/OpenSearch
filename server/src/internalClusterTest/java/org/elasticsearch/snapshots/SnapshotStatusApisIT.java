@@ -19,7 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
+import org.opensearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;

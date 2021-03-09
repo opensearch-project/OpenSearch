@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class IndexAction extends ActionType<IndexResponse> {
 

@@ -19,7 +19,7 @@
 
 package org.opensearch.script.mustache;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class MultiSearchTemplateAction extends ActionType<MultiSearchTemplateResponse> {
 

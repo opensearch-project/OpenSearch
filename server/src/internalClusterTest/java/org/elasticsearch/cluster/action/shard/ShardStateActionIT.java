@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.action.shard;
 
-import org.elasticsearch.action.ActionFuture;
+import org.opensearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;

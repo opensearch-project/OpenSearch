@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.indices.exists.types;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class TypesExistsAction extends ActionType<TypesExistsResponse> {
 

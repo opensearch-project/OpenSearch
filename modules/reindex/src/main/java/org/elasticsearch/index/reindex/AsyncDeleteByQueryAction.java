@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.script.ScriptService;

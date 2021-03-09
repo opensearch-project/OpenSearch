@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.TaskOperationFailure;
+import org.opensearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 
 /**
  * A {@link java.util.function.BiFunction}-like interface designed to be used with asynchronous executions.

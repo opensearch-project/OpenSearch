@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * Upgrade index/indices action.

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;

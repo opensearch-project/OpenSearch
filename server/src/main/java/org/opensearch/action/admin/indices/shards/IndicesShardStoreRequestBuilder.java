@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.shards;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;

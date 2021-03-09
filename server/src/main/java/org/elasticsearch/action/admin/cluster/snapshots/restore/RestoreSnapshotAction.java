@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * Restore snapshot action

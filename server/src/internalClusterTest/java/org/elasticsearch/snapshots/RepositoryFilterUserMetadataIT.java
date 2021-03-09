@@ -20,7 +20,7 @@ package org.elasticsearch.snapshots;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;

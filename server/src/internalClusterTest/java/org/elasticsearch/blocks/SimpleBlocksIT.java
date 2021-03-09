@@ -20,7 +20,7 @@
 package org.elasticsearch.blocks;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;

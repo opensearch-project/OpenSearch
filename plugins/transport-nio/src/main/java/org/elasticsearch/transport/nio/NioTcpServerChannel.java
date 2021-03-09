@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.transport.TcpServerChannel;
 

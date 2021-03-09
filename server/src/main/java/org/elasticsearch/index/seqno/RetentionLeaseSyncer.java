@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;

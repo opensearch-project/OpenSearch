@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class CreateIndexAction extends ActionType<CreateIndexResponse> {
 

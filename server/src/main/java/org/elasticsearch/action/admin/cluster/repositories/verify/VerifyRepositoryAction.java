@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * Verify repository action

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
