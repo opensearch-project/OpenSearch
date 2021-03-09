@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.opensearch.client.sniff;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
@@ -50,12 +50,12 @@ import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * Class responsible for sniffing the http hosts from elasticsearch through the nodes info api and returning them back.
+ * Class responsible for sniffing the http hosts from opensearch through the nodes info api and returning them back.
  * Compatible with elasticsearch 2.x+.
  */
-public final class ElasticsearchNodesSniffer implements NodesSniffer {
+public final class OpenSearchNodesSniffer implements NodesSniffer {
 
-    private static final Log logger = LogFactory.getLog(ElasticsearchNodesSniffer.class);
+    private static final Log logger = LogFactory.getLog(OpenSearchNodesSniffer.class);
 
     public static final long DEFAULT_SNIFF_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
 
@@ -65,29 +65,29 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
     private final JsonFactory jsonFactory = new JsonFactory();
 
     /**
-     * Creates a new instance of the Elasticsearch sniffer. It will use the provided {@link RestClient} to fetch the hosts,
+     * Creates a new instance of the OpenSearch sniffer. It will use the provided {@link RestClient} to fetch the hosts,
      * through the nodes info api, the default sniff request timeout value {@link #DEFAULT_SNIFF_REQUEST_TIMEOUT} and http
      * as the scheme for all the hosts.
-     * @param restClient client used to fetch the hosts from elasticsearch through nodes info api. Usually the same instance
+     * @param restClient client used to fetch the hosts from opensearch through nodes info api. Usually the same instance
      *                   that is also provided to {@link Sniffer#builder(RestClient)}, so that the hosts are set to the same
      *                   client that was used to fetch them.
      */
-    public ElasticsearchNodesSniffer(RestClient restClient) {
-        this(restClient, DEFAULT_SNIFF_REQUEST_TIMEOUT, ElasticsearchNodesSniffer.Scheme.HTTP);
+    public OpenSearchNodesSniffer(RestClient restClient) {
+        this(restClient, DEFAULT_SNIFF_REQUEST_TIMEOUT, OpenSearchNodesSniffer.Scheme.HTTP);
     }
 
     /**
-     * Creates a new instance of the Elasticsearch sniffer. It will use the provided {@link RestClient} to fetch the hosts
+     * Creates a new instance of the OpenSearch sniffer. It will use the provided {@link RestClient} to fetch the hosts
      * through the nodes info api, the provided sniff request timeout value and scheme.
-     * @param restClient client used to fetch the hosts from elasticsearch through nodes info api. Usually the same instance
+     * @param restClient client used to fetch the hosts from opensearch through nodes info api. Usually the same instance
      *                   that is also provided to {@link Sniffer#builder(RestClient)}, so that the hosts are set to the same
      *                   client that was used to sniff them.
      * @param sniffRequestTimeoutMillis the sniff request timeout (in milliseconds) to be passed in as a query string parameter
-     *                                  to elasticsearch. Allows to halt the request without any failure, as only the nodes
+     *                                  to opensearch. Allows to halt the request without any failure, as only the nodes
      *                                  that have responded within this timeout will be returned.
-     * @param scheme the scheme to associate sniffed nodes with (as it is not returned by elasticsearch)
+     * @param scheme the scheme to associate sniffed nodes with (as it is not returned by opensearch)
      */
-    public ElasticsearchNodesSniffer(RestClient restClient, long sniffRequestTimeoutMillis, Scheme scheme) {
+    public OpenSearchNodesSniffer(RestClient restClient, long sniffRequestTimeoutMillis, Scheme scheme) {
         this.restClient = Objects.requireNonNull(restClient, "restClient cannot be null");
         if (sniffRequestTimeoutMillis < 0) {
             throw new IllegalArgumentException("sniffRequestTimeoutMillis must be greater than 0");
@@ -98,7 +98,7 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
     }
 
     /**
-     * Calls the elasticsearch nodes info api, parses the response and returns all the found http hosts
+     * Calls the opensearch nodes info api, parses the response and returns all the found http hosts
      */
     @Override
     public List<Node> sniff() throws IOException {
@@ -138,7 +138,7 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
         HttpHost publishedHost = null;
         /*
          * We sniff the bound hosts so we can look up the node based on any
-         * address on which it is listening. This is useful in Elasticsearch's
+         * address on which it is listening. This is useful in OpenSearch's
          * test framework where we sometimes publish ipv6 addresses but the
          * tests contact the node on ipv4.
          */

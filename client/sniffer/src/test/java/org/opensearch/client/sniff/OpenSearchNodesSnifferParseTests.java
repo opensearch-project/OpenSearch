@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.opensearch.client.sniff;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import org.apache.http.HttpEntity;
@@ -27,7 +27,7 @@ import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Node.Roles;
 import org.elasticsearch.client.RestClientTestCase;
-import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer.Scheme;
+import org.opensearch.client.sniff.OpenSearchNodesSniffer.Scheme;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,9 +46,9 @@ import static org.junit.Assert.assertThat;
 
 /**
  * Test parsing the response from the {@code /_nodes/http} API from fixed
- * versions of Elasticsearch.
+ * versions of OpenSearch.
  */
-public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
+public class OpenSearchNodesSnifferParseTests extends RestClientTestCase {
 
     private void checkFile(String file, Node... expected) throws IOException {
         InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream(file);
@@ -57,7 +57,7 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
         }
         try {
             HttpEntity entity = new InputStreamEntity(in, ContentType.APPLICATION_JSON);
-            List<Node> nodes = ElasticsearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
+            List<Node> nodes = OpenSearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
             /*
              * Use these assertions because the error messages are nicer
              * than hasItems and we know the results are in order because
@@ -124,7 +124,7 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
         InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("es6_nodes_publication_address_format.json");
 
         HttpEntity entity = new InputStreamEntity(in, ContentType.APPLICATION_JSON);
-        List<Node> nodes = ElasticsearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
+        List<Node> nodes = OpenSearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
 
         assertEquals("127.0.0.1", nodes.get(0).getHost().getHostName());
         assertEquals(9200, nodes.get(0).getHost().getPort());
@@ -135,7 +135,7 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
         InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("es7_nodes_publication_address_format.json");
 
         HttpEntity entity = new InputStreamEntity(in, ContentType.APPLICATION_JSON);
-        List<Node> nodes = ElasticsearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
+        List<Node> nodes = OpenSearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
 
         assertEquals("elastic.test", nodes.get(0).getHost().getHostName());
         assertEquals(9200, nodes.get(0).getHost().getPort());

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.opensearch.client.sniff;
 
 import org.elasticsearch.client.Node;
 
@@ -29,7 +29,7 @@ import java.util.List;
  */
 public interface NodesSniffer {
     /**
-     * Returns the sniffed Elasticsearch nodes.
+     * Returns the sniffed OpenSearch nodes.
      */
     List<Node> sniff() throws IOException;
 }
