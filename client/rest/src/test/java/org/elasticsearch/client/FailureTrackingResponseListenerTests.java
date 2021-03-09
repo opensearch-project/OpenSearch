@@ -27,6 +27,7 @@ import org.apache.http.StatusLine;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
+import org.opensearch.client.RestClientTestCase;
 
 import java.util.concurrent.atomic.AtomicReference;
 
