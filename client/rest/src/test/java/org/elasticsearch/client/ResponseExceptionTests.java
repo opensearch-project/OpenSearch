@@ -32,6 +32,7 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.util.EntityUtils;
+import org.opensearch.client.RestClientTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

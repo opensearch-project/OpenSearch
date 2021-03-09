@@ -26,7 +26,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Node.Roles;
-import org.elasticsearch.client.RestClientTestCase;
+import org.opensearch.client.RestClientTestCase;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer.Scheme;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import static org.junit.Assert.assertThat;
 
 /**
  * Test parsing the response from the {@code /_nodes/http} API from fixed
- * versions of Elasticsearch.
+ * versions of OpenSearch.
  */
 public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
 

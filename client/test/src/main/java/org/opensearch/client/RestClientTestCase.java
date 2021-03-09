@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.opensearch.client;
 
 import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
 import com.carrotsearch.randomizedtesting.MixWithSuiteName;

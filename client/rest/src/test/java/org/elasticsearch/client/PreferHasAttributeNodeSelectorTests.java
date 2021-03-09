@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node.Roles;
+import org.opensearch.client.RestClientTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
