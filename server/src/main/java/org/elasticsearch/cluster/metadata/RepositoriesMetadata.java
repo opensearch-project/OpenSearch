@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.repositories.RepositoryData;
-import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
