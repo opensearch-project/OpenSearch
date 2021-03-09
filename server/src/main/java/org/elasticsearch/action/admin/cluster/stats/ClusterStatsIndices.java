@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -61,7 +61,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         this.segments = new SegmentsStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
-            for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
+            for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
                 ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
                 if (indexShardStats == null) {
                     indexShardStats = new ShardStats();

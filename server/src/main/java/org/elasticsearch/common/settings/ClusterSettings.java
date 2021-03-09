@@ -20,7 +20,7 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;

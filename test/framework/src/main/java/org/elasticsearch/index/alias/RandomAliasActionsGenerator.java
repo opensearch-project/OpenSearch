@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.alias;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 
 import java.util.HashMap;
 import java.util.Locale;

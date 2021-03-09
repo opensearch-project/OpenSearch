@@ -20,26 +20,26 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.open.OpenIndexRequest;
+import org.opensearch.action.admin.indices.open.OpenIndexResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
@@ -305,12 +305,12 @@ public final class IndicesClient {
      * request object.
      */
     @Deprecated
-    public org.elasticsearch.action.admin.indices.create.CreateIndexResponse create(
-            org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
+    public org.opensearch.action.admin.indices.create.CreateIndexResponse create(
+            org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
             RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(createIndexRequest,
             IndicesRequestConverters::createIndex, options,
-            org.elasticsearch.action.admin.indices.create.CreateIndexResponse::fromXContent, emptySet());
+            org.opensearch.action.admin.indices.create.CreateIndexResponse::fromXContent, emptySet());
     }
 
     /**
@@ -327,12 +327,12 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public Cancellable createAsync(org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
+    public Cancellable createAsync(org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
                                    RequestOptions options,
-                                   ActionListener<org.elasticsearch.action.admin.indices.create.CreateIndexResponse> listener) {
+                                   ActionListener<org.opensearch.action.admin.indices.create.CreateIndexResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest,
             IndicesRequestConverters::createIndex, options,
-            org.elasticsearch.action.admin.indices.create.CreateIndexResponse::fromXContent, listener, emptySet());
+            org.opensearch.action.admin.indices.create.CreateIndexResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -377,7 +377,7 @@ public final class IndicesClient {
      * {@link #putMapping(PutMappingRequest, RequestOptions)} should be used instead, which accepts a new request object.
      */
     @Deprecated
-    public AcknowledgedResponse putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
+    public AcknowledgedResponse putMapping(org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
                                            RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
             AcknowledgedResponse::fromXContent, emptySet());
@@ -397,7 +397,7 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public Cancellable putMappingAsync(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
+    public Cancellable putMappingAsync(org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
                                        RequestOptions options,
                                        ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
@@ -454,13 +454,13 @@ public final class IndicesClient {
      * accepts a new request object.
      */
     @Deprecated
-    public org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse getMapping(
-            org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest,
+    public org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse getMapping(
+            org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest,
             RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getMappingsRequest,
             IndicesRequestConverters::getMappings,
             options,
-            org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse::fromXContent,
+            org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse::fromXContent,
             emptySet());
     }
 
@@ -478,13 +478,13 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public Cancellable getMappingAsync(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest,
+    public Cancellable getMappingAsync(org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest,
                                        RequestOptions options,
-                                       ActionListener<org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse> listener) {
+                                       ActionListener<org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest,
             IndicesRequestConverters::getMappings,
             options,
-            org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse::fromXContent,
+            org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse::fromXContent,
             listener,
             emptySet());
     }
@@ -503,11 +503,11 @@ public final class IndicesClient {
      * accepts a new request object.
      */
     @Deprecated
-    public org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMapping(
-            org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
+    public org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMapping(
+            org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
             RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping,
-            options, org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse::fromXContent, emptySet());
+            options, org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse::fromXContent, emptySet());
     }
 
     /**
@@ -525,12 +525,12 @@ public final class IndicesClient {
      */
     @Deprecated
     public Cancellable getFieldMappingAsync(
-        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
+        org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
         RequestOptions options,
-        ActionListener<org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse> listener) {
+        ActionListener<org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest,
             IndicesRequestConverters::getFieldMapping, options,
-            org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse::fromXContent,
+            org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse::fromXContent,
             listener, emptySet());
     }
 
@@ -840,10 +840,10 @@ public final class IndicesClient {
      * {@link #get(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
      */
     @Deprecated
-    public org.elasticsearch.action.admin.indices.get.GetIndexResponse get(
-            org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options) throws IOException {
+    public org.opensearch.action.admin.indices.get.GetIndexResponse get(
+        org.opensearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
-                org.elasticsearch.action.admin.indices.get.GetIndexResponse::fromXContent, emptySet());
+                org.opensearch.action.admin.indices.get.GetIndexResponse::fromXContent, emptySet());
     }
 
     /**
@@ -858,10 +858,10 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public Cancellable getAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options,
-                                ActionListener<org.elasticsearch.action.admin.indices.get.GetIndexResponse> listener) {
+    public Cancellable getAsync(org.opensearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options,
+                                ActionListener<org.opensearch.action.admin.indices.get.GetIndexResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
-                org.elasticsearch.action.admin.indices.get.GetIndexResponse::fromXContent, listener, emptySet());
+                org.opensearch.action.admin.indices.get.GetIndexResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -1007,7 +1007,7 @@ public final class IndicesClient {
      * {@link #exists(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
      */
     @Deprecated
-    public boolean exists(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options) throws IOException {
+    public boolean exists(org.opensearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequest(
             request,
             IndicesRequestConverters::indicesExist,
@@ -1029,7 +1029,7 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public Cancellable existsAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options,
+    public Cancellable existsAsync(org.opensearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options,
                                    ActionListener<Boolean> listener) {
         return restHighLevelClient.performRequestAsync(
                 request,
@@ -1066,10 +1066,10 @@ public final class IndicesClient {
      * @deprecated use {@link #shrink(ResizeRequest, RequestOptions)}
      */
     @Deprecated
-    public org.elasticsearch.action.admin.indices.shrink.ResizeResponse shrink(
-        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options) throws IOException {
+    public org.opensearch.action.admin.indices.shrink.ResizeResponse shrink(
+        org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::shrink, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, emptySet());
+            org.opensearch.action.admin.indices.shrink.ResizeResponse::fromXContent, emptySet());
     }
 
     /**
@@ -1097,10 +1097,10 @@ public final class IndicesClient {
      * @deprecated use {@link #shrinkAsync(ResizeRequest, RequestOptions, ActionListener)}
      */
     @Deprecated
-    public Cancellable shrinkAsync(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options,
-                                   ActionListener<org.elasticsearch.action.admin.indices.shrink.ResizeResponse> listener) {
+    public Cancellable shrinkAsync(org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options,
+                                   ActionListener<org.opensearch.action.admin.indices.shrink.ResizeResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::shrink, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, listener, emptySet());
+            org.opensearch.action.admin.indices.shrink.ResizeResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -1128,10 +1128,10 @@ public final class IndicesClient {
      * @deprecated use {@link #split(ResizeRequest, RequestOptions)}
      */
     @Deprecated
-    public org.elasticsearch.action.admin.indices.shrink.ResizeResponse split(
-        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options) throws IOException {
+    public org.opensearch.action.admin.indices.shrink.ResizeResponse split(
+        org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::split, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, emptySet());
+            org.opensearch.action.admin.indices.shrink.ResizeResponse::fromXContent, emptySet());
     }
 
     /**
@@ -1159,10 +1159,10 @@ public final class IndicesClient {
      * @deprecated use {@link #splitAsync(ResizeRequest, RequestOptions, ActionListener)}
      */
     @Deprecated
-    public Cancellable splitAsync(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options,
-                                  ActionListener<org.elasticsearch.action.admin.indices.shrink.ResizeResponse> listener) {
+    public Cancellable splitAsync(org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options,
+                                  ActionListener<org.opensearch.action.admin.indices.shrink.ResizeResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::split, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, listener, emptySet());
+            org.opensearch.action.admin.indices.shrink.ResizeResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -1190,10 +1190,10 @@ public final class IndicesClient {
      * @deprecated use {@link #clone(ResizeRequest, RequestOptions)}
      */
     @Deprecated
-    public org.elasticsearch.action.admin.indices.shrink.ResizeResponse clone(
-        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options) throws IOException {
+    public org.opensearch.action.admin.indices.shrink.ResizeResponse clone(
+        org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, emptySet());
+            org.opensearch.action.admin.indices.shrink.ResizeResponse::fromXContent, emptySet());
     }
 
     /**
@@ -1221,10 +1221,10 @@ public final class IndicesClient {
      * @deprecated use {@link #cloneAsync(ResizeRequest, RequestOptions, ActionListener)}
      */
     @Deprecated
-    public Cancellable cloneAsync(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options,
-                                  ActionListener<org.elasticsearch.action.admin.indices.shrink.ResizeResponse> listener) {
+    public Cancellable cloneAsync(org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options,
+                                  ActionListener<org.opensearch.action.admin.indices.shrink.ResizeResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, listener, emptySet());
+            org.opensearch.action.admin.indices.shrink.ResizeResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -1269,11 +1269,11 @@ public final class IndicesClient {
      * The method {@link #rollover(RolloverRequest, RequestOptions)} should be used instead, which accepts a new request object.
      */
     @Deprecated
-    public org.elasticsearch.action.admin.indices.rollover.RolloverResponse rollover(
-            org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest,
+    public org.opensearch.action.admin.indices.rollover.RolloverResponse rollover(
+            org.opensearch.action.admin.indices.rollover.RolloverRequest rolloverRequest,
             RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
-            org.elasticsearch.action.admin.indices.rollover.RolloverResponse::fromXContent, emptySet());
+            org.opensearch.action.admin.indices.rollover.RolloverResponse::fromXContent, emptySet());
     }
 
     /**
@@ -1290,11 +1290,11 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public Cancellable rolloverAsync(org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest,
-            RequestOptions options,
-            ActionListener<org.elasticsearch.action.admin.indices.rollover.RolloverResponse> listener) {
+    public Cancellable rolloverAsync(org.opensearch.action.admin.indices.rollover.RolloverRequest rolloverRequest,
+                                     RequestOptions options,
+                                     ActionListener<org.opensearch.action.admin.indices.rollover.RolloverResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
-            org.elasticsearch.action.admin.indices.rollover.RolloverResponse::fromXContent, listener, emptySet());
+            org.opensearch.action.admin.indices.rollover.RolloverResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -1371,7 +1371,7 @@ public final class IndicesClient {
      */
     @Deprecated
     public AcknowledgedResponse putTemplate(
-            org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest,
+            org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest,
             RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putTemplate, options,
             AcknowledgedResponse::fromXContent, emptySet());
@@ -1391,7 +1391,7 @@ public final class IndicesClient {
      */
     @Deprecated
     public Cancellable putTemplateAsync(
-                org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest,
+                org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest,
                 RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest,
             IndicesRequestConverters::putTemplate, options,
@@ -1542,12 +1542,12 @@ public final class IndicesClient {
      * {@link #getIndexTemplate(GetIndexTemplatesRequest, RequestOptions)} instead which returns a new response object
      */
     @Deprecated
-    public org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate(
+    public org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate(
             GetIndexTemplatesRequest getIndexTemplatesRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getIndexTemplatesRequest,
             IndicesRequestConverters::getTemplatesWithDocumentTypes,
             options,
-            org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse::fromXContent, emptySet());
+            org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse::fromXContent, emptySet());
     }
 
     /**
@@ -1610,11 +1610,11 @@ public final class IndicesClient {
      */
     @Deprecated
     public Cancellable getTemplateAsync(GetIndexTemplatesRequest getIndexTemplatesRequest, RequestOptions options,
-            ActionListener<org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse> listener) {
+            ActionListener<org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest,
             IndicesRequestConverters::getTemplatesWithDocumentTypes,
             options,
-            org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse::fromXContent,
+            org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse::fromXContent,
             listener, emptySet());
     }
 

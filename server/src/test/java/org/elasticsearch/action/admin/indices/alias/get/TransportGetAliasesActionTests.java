@@ -27,6 +27,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.opensearch.action.admin.indices.alias.get.TransportGetAliasesAction;
 
 import java.util.Collections;
 import java.util.List;

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 
 import java.util.Arrays;
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.document;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.Alias;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 
