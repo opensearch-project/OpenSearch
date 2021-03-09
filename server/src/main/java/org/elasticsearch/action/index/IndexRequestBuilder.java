@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;

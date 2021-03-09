@@ -19,12 +19,12 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.RequestValidators;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.RequestValidators;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -186,7 +186,7 @@ public interface ActionPlugin {
 
     /**
      * Returns a collection of validators that are used by {@link RequestValidators} to validate a
-     * {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
+     * {@link org.opensearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
      */
     default Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
         return Collections.emptyList();

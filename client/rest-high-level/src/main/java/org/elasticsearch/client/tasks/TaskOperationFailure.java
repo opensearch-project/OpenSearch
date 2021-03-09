@@ -28,7 +28,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 /**
  * client side counterpart of server side
- * {@link org.elasticsearch.action.TaskOperationFailure}
+ * {@link org.opensearch.action.TaskOperationFailure}
  */
 public class TaskOperationFailure {
 

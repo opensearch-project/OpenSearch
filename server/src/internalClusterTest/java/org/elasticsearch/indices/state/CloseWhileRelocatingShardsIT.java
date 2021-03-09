@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.state;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.document;
 
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -39,7 +39,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.DocWriteRequest.OpType;
+import static org.opensearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.client.Requests.clearIndicesCacheRequest;
 import static org.elasticsearch.client.Requests.getRequest;
 import static org.elasticsearch.client.Requests.indexRequest;

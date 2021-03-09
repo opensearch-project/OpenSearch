@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;

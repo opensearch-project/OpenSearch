@@ -21,6 +21,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.ActionListener;
 
 import java.io.IOException;
 import java.util.ArrayList;

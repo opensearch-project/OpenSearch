@@ -26,12 +26,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 
 public class ResizeResponseTests extends
-    AbstractResponseTestCase<org.elasticsearch.action.admin.indices.shrink.ResizeResponse, ResizeResponse> {
+    AbstractResponseTestCase<org.opensearch.action.admin.indices.shrink.ResizeResponse, ResizeResponse> {
 
     @Override
-    protected org.elasticsearch.action.admin.indices.shrink.ResizeResponse createServerTestInstance(XContentType xContentType) {
+    protected org.opensearch.action.admin.indices.shrink.ResizeResponse createServerTestInstance(XContentType xContentType) {
         boolean acked = randomBoolean();
-        return new org.elasticsearch.action.admin.indices.shrink.ResizeResponse(acked, acked, randomAlphaOfLength(5));
+        return new org.opensearch.action.admin.indices.shrink.ResizeResponse(acked, acked, randomAlphaOfLength(5));
     }
 
     @Override
@@ -40,7 +40,7 @@ public class ResizeResponseTests extends
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.admin.indices.shrink.ResizeResponse serverTestInstance,
+    protected void assertInstances(org.opensearch.action.admin.indices.shrink.ResizeResponse serverTestInstance,
                                    ResizeResponse clientInstance) {
         assertEquals(serverTestInstance.isAcknowledged(), clientInstance.isAcknowledged());
         assertEquals(serverTestInstance.isShardsAcknowledged(), clientInstance.isShardsAcknowledged());

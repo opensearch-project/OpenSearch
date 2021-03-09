@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.support.single.shard;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.client.OpenSearchClient;
 
 public abstract class SingleShardOperationRequestBuilder<Request extends SingleShardRequest<Request>, Response extends ActionResponse,

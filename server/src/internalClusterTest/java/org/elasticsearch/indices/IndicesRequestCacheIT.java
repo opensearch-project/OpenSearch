@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;

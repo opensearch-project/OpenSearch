@@ -20,10 +20,10 @@ package org.elasticsearch.cluster.routing;
  */
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
+import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;

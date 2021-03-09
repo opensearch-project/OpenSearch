@@ -22,9 +22,9 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -49,8 +49,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
-import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.opensearch.action.DocWriteResponse.Result.CREATED;
+import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;

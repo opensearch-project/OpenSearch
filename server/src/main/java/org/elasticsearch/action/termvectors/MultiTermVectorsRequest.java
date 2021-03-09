@@ -20,11 +20,11 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.RealtimeRequest;
-import org.elasticsearch.action.ValidateActions;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
+import org.opensearch.action.RealtimeRequest;
+import org.opensearch.action.ValidateActions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

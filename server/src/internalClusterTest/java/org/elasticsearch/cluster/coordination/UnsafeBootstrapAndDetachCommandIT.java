@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

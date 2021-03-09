@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 
 import java.io.IOException;
 import java.util.HashMap;

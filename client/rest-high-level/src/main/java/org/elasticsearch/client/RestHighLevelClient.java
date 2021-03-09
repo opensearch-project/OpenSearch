@@ -22,14 +22,14 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.OpenSearchStatusException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -73,8 +73,8 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.rankeval.RankEvalRequest;
-import org.elasticsearch.index.rankeval.RankEvalResponse;
+import org.opensearch.index.rankeval.RankEvalRequest;
+import org.opensearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -1687,7 +1687,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Converts a {@link ResponseException} obtained from the low level REST client into an {@link OpenSearchException}.
-     * If a response body was returned, tries to parse it as an error returned from Elasticsearch.
+     * If a response body was returned, tries to parse it as an error returned from OpenSearch.
      * If no response body was returned or anything goes wrong while parsing the error, returns a new {@link OpenSearchStatusException}
      * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
      * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.

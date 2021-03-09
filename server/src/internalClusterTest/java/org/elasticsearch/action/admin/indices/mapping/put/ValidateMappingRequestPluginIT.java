@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.RequestValidators;
+import org.opensearch.action.RequestValidators;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 
 import java.util.Arrays;
 import java.util.Collection;

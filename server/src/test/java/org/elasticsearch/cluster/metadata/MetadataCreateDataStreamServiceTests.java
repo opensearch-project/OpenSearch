@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;

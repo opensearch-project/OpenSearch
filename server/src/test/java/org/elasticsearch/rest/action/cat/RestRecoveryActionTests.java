@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;

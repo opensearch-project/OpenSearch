@@ -19,12 +19,12 @@
 
 package org.elasticsearch.rest.action;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;

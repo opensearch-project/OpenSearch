@@ -20,7 +20,7 @@
 package org.elasticsearch.explain;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;

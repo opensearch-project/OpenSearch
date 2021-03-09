@@ -21,9 +21,9 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -76,6 +76,11 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.action.admin.indices.rollover.Condition;
+import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MetadataRolloverService;
+import org.opensearch.action.admin.indices.rollover.RolloverInfo;
+import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
