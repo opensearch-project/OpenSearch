@@ -74,7 +74,7 @@ import java.util.Map;
  * A client provides a one stop interface for performing actions/operations against the cluster.
  * <p>
  * All operations performed are asynchronous by nature. Each action/operation has two flavors, the first
- * simply returns an {@link ActionFuture}, while the second accepts an
+ * simply returns an {@link org.opensearch.action.ActionFuture}, while the second accepts an
  * {@link ActionListener}.
  * <p>
  * A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
