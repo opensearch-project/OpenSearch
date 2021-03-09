@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptLanguagesInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.cluster.storedscripts.GetScriptLanguageResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

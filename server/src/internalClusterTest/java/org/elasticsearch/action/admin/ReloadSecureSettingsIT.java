@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin;
 
 import org.elasticsearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
+import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;

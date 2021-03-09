@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageRequest;
+import org.opensearch.action.admin.cluster.storedscripts.GetScriptLanguageAction;
+import org.opensearch.action.admin.cluster.storedscripts.GetScriptLanguageRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;

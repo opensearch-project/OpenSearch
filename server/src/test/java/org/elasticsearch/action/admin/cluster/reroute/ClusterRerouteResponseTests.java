@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 
 import java.io.IOException;
 import java.util.HashMap;

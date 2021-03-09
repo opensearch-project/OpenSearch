@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 
 import java.util.Arrays;
 

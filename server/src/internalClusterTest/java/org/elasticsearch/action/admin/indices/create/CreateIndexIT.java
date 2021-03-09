@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.UnavailableShardsException;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
