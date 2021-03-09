@@ -4,11 +4,11 @@ configured Docker logging driver. To access logs, run `docker logs`.
 // end::docker[]
 
 // tag::deb[]
-For <<deb,Debian installations>>, {es} writes logs to `/var/log/elasticsearch`.
+For <<deb,Debian installations>>, {es} writes logs to `/var/log/opensearch`.
 // end::deb[]
 
 // tag::rpm[]
-For <<rpm,RPM installations>>, {es} writes logs to `/var/log/elasticsearch`.
+For <<rpm,RPM installations>>, {es} writes logs to `/var/log/opensearch`.
 // end::rpm[]
 
 // tag::mac[]
@@ -22,7 +22,7 @@ See <<path-settings>>.
 
 // tag::brew[]
 For <<brew,macOS Homebrew>> installations, {es} writes logs to
-`/usr/local/var/log/elasticsearch`.
+`/usr/local/var/log/opensearch`.
 // end::brew[]
 
 // tag::linux[]

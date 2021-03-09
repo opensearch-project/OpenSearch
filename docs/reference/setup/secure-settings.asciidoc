@@ -3,7 +3,7 @@
 
 Some settings are sensitive, and relying on filesystem permissions to protect
 their values is not sufficient. For this use case, {es} provides a
-keystore and the <<elasticsearch-keystore,`elasticsearch-keystore` tool>> to
+keystore and the <<elasticsearch-keystore,`opensearch-keystore` tool>> to
 manage the settings in the keystore.
 
 IMPORTANT: Only some settings are designed to be read from the keystore. However,
@@ -14,7 +14,7 @@ reference.
 
 All the modifications to the keystore take effect only after restarting {es}.
 
-These settings, just like the regular ones in the `elasticsearch.yml` config file,
+These settings, just like the regular ones in the `opensearch.yml` config file,
 need to be specified on each node in the cluster. Currently, all secure settings
 are node-specific settings that must have the same value on every node.
 
@@ -22,14 +22,14 @@ are node-specific settings that must have the same value on every node.
 [[reloadable-secure-settings]]
 === Reloadable secure settings
 
-Just like the settings values in `elasticsearch.yml`, changes to the keystore
+Just like the settings values in `opensearch.yml`, changes to the keystore
 contents are not automatically applied to the running {es} node. Re-reading
 settings requires a node restart. However, certain secure settings are marked as
 *reloadable*. Such settings can be <<cluster-nodes-reload-secure-settings, re-read and applied on a running node>>.
 
 The values of all secure settings, *reloadable* or not, must be identical
 across all cluster nodes. After making the desired secure settings changes,
-using the `bin/elasticsearch-keystore add` command, call:
+using the `bin/opensearch-keystore add` command, call:
 
 [source,console]
 ----

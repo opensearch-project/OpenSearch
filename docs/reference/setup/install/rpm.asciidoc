@@ -40,7 +40,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-Create a file called `elasticsearch.repo` in the `/etc/yum.repos.d/` directory
+Create a file called `opensearch.repo` in the `/etc/yum.repos.d/` directory
 for RedHat based distributions, or in the `/etc/zypp/repos.d/` directory for
 OpenSuSE based distributions, containing:
 
@@ -48,7 +48,7 @@ ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-[elasticsearch]
+[opensearch]
 name=Elasticsearch repository for {major-version} packages
 baseurl=https://artifacts.elastic.co/packages/{major-version}/yum
 gpgcheck=1
@@ -64,7 +64,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-[elasticsearch]
+[opensearch]
 name=Elasticsearch repository for {major-version} packages
 baseurl=https://artifacts.elastic.co/packages/{major-version}-prerelease/yum
 gpgcheck=1
@@ -80,18 +80,18 @@ And your repository is ready for use. You can now install Elasticsearch with one
 
 [source,sh]
 --------------------------------------------------
-sudo yum install --enablerepo=elasticsearch elasticsearch <1>
-sudo dnf install --enablerepo=elasticsearch elasticsearch <2>
-sudo zypper modifyrepo --enable elasticsearch && \
-  sudo zypper install elasticsearch; \
-  sudo zypper modifyrepo --disable elasticsearch <3>
+sudo yum install --enablerepo=opensearch opensearch <1>
+sudo dnf install --enablerepo=opensearch opensearch <2>
+sudo zypper modifyrepo --enable opensearch && \
+  sudo zypper install opensearch; \
+  sudo zypper modifyrepo --disable opensearch <3>
 --------------------------------------------------
 <1> Use `yum` on CentOS and older Red Hat based distributions.
 <2> Use `dnf` on Fedora and other newer Red Hat distributions.
 <3> Use `zypper` on OpenSUSE based distributions
 
 NOTE: The configured repository is disabled by default. This eliminates the possibility of accidentally
-upgrading `elasticsearch` when upgrading the rest of the system. Each install or upgrade command
+upgrading `opensearch` when upgrading the rest of the system. Each install or upgrade command
 must explicitly enable the repository as indicated in the sample commands above.
 
 endif::[]
@@ -176,13 +176,13 @@ include::check-running.asciidoc[]
 
 include::etc-elasticsearch.asciidoc[]
 
-The RPM also has a system configuration file (`/etc/sysconfig/elasticsearch`),
+The RPM also has a system configuration file (`/etc/sysconfig/opensearch`),
 which allows you to set the following parameters:
 
 include::sysconfig-file.asciidoc[]
 
 NOTE: Distributions that use `systemd` require that system resource limits be
-configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
+configured via `systemd` rather than via the `/etc/sysconfig/opensearch`
 file.  See <<systemd>> for more information.
 
 [[rpm-layout]]
@@ -197,46 +197,46 @@ locations for an RPM-based system:
 | Type | Description | Default Location | Setting
 | home
   | Elasticsearch home directory or `$ES_HOME`
-  | /usr/share/elasticsearch
+  | /usr/share/opensearch
  d|
 
 | bin
-  | Binary scripts including `elasticsearch` to start a node
-    and `elasticsearch-plugin` to install plugins
+  | Binary scripts including `opensearch` to start a node
+    and `opensearch-plugin` to install plugins
   | /usr/share/elasticsearch/bin
  d|
 
 | conf
-  | Configuration files including `elasticsearch.yml`
-  | /etc/elasticsearch
+  | Configuration files including `opensearch.yml`
+  | /etc/opensearch
   | <<config-files-location,ES_PATH_CONF>>
 
 | conf
   | Environment variables including heap size, file descriptors.
-  | /etc/sysconfig/elasticsearch
+  | /etc/sysconfig/opensearch
  d|
 
 | data
   | The location of the data files of each index / shard allocated
     on the node. Can hold multiple locations.
-  | /var/lib/elasticsearch
+  | /var/lib/opensearch
   | path.data
 
 | jdk
   | The bundled Java Development Kit used to run Elasticsearch. Can
     be overridden by setting the `JAVA_HOME` environment variable
-    in `/etc/sysconfig/elasticsearch`.
-  | /usr/share/elasticsearch/jdk
+    in `/etc/sysconfig/opensearch`.
+  | /usr/share/opensearch/jdk
  d|
 
 | logs
   | Log files location.
-  | /var/log/elasticsearch
+  | /var/log/opensearch
   | path.logs
 
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
-  | /usr/share/elasticsearch/plugins
+  | /usr/share/opensearchplugins
   |
 
 | repo

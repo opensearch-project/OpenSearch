@@ -72,7 +72,7 @@ POST _reindex
 ==== {api-prereq-title}
 
 * If reindexing from a remote cluster, you must explicitly allow the remote host
-in the `reindex.remote.whitelist` setting of `elasticsearch.yml`. See
+in the `reindex.remote.whitelist` setting of `opensearch.yml`. See
 <<reindex-from-remote>>.
 
 * Automatic data stream creation requires a matching index template with data
@@ -982,7 +982,7 @@ using basic auth or the password will be sent in plain text.
 There are a range of <<reindex-ssl,settings>> available to configure the behaviour of the
  `https` connection.
 
-Remote hosts have to be explicitly allowed in elasticsearch.yml using the
+Remote hosts have to be explicitly allowed in opensearch.yml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations. Scheme is
 ignored, only the host and port are used. For example:
@@ -1076,7 +1076,7 @@ POST _reindex
 ===== Configuring SSL parameters
 
 Reindex from remote supports configurable SSL settings. These must be
-specified in the `elasticsearch.yml` file, with the exception of the
+specified in the `opensearch.yml` file, with the exception of the
 secure settings, which you add in the Elasticsearch keystore.
 It is not possible to configure SSL in the body of the `_reindex` request.
 

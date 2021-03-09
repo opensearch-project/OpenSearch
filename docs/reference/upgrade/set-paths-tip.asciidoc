@@ -1,7 +1,7 @@
 [TIP]
 ================================================
 
-When you extract the zip or tarball packages, the `elasticsearch-n.n.n`
+When you extract the zip or tarball packages, the `opensearch-n.n.n`
 directory contains the {es} `config`, `data`, and `logs` directories.
 
 We recommend moving these directories out of the {es} directory

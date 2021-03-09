@@ -59,7 +59,7 @@ prevent off-heap memory swaps, <<disable-swap-files,disable all swap files>>
 instead.
 
 To enable a memory lock, set `bootstrap.memory_lock` to `true` in
-`elasticsearch.yml`:
+`opensearch.yml`:
 
 [source,yaml]
 --------------
@@ -92,9 +92,9 @@ Alternatively, set `memlock` to `unlimited` in `/etc/security/limits.conf`:
 +
 [source,sh]
 ----
-# allow user 'elasticsearch' mlockall
-elasticsearch soft memlock unlimited
-elasticsearch hard memlock unlimited
+# allow user 'opensearch' mlockall
+opensearch soft memlock unlimited
+opensearch hard memlock unlimited
 ----
 
 RPM and Debian::
@@ -115,7 +115,7 @@ a new temporary directory for JNA using the `ES_JAVA_OPTS` environment variable:
 [source,sh]
 --------------
 export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djna.tmpdir=<path>"
-./bin/elasticsearch
+./bin/opensearch
 --------------
 
 or setting this JVM flag in the jvm.options configuration file.

@@ -16,8 +16,8 @@ The following classes are available grouped by their respective packages. Click 
 
 * <<painless-api-reference-analysis-String, String>>
 
-==== org.elasticsearch.analysis.common
-<<painless-api-reference-analysis-org-elasticsearch-analysis-common, Expand details for org.elasticsearch.analysis.common>>
+==== org.opensearch.analysis.common
+<<painless-api-reference-analysis-org-opensearch-analysis-common, Expand details for org.opensearch.analysis.common>>
 
 * <<painless-api-reference-analysis-AnalysisPredicateScript-Token, AnalysisPredicateScript.Token>>
 

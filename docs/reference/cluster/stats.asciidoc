@@ -997,7 +997,7 @@ Name of the {es} plugin.
 (string)
 {es} version for which the plugin was built.
 
-`elasticsearch_version`:::
+`opensearch_version`:::
 (string)
 {es} version for which the plugin was built.
 
@@ -1115,7 +1115,7 @@ The API returns the following response:
       "failed" : 0
    },
    "cluster_uuid": "YjAvIhsCQ9CbjWZb2qJw3Q",
-   "cluster_name": "elasticsearch",
+   "cluster_name": "opensearch",
    "timestamp": 1459427693515,
    "status": "green",
    "indices": {
@@ -1292,8 +1292,8 @@ The API returns the following response:
         {
           "name": "analysis-icu",
           "version": "{version}",
-          "description": "The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.",
-          "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
+          "description": "The ICU Analysis plugin integrates Lucene ICU module into opensearch, adding ICU relates analysis components.",
+          "classname": "org.opensearch.plugin.analysis.icu.AnalysisICUPlugin",
           "has_native_controller": false
         },
         ...

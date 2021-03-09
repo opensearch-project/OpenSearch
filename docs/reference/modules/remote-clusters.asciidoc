@@ -93,7 +93,7 @@ connections are subject to the same version compatibility rules as
 
 You can configure remote clusters settings <<configure-remote-clusters-dynamic,globally>>, or configure
 settings <<configure-remote-clusters-static,on individual nodes>> in the
-`elasticsearch.yml` file.
+`opensearch.yml` file.
 
 [discrete]
 [[configure-remote-clusters-dynamic]]
@@ -205,7 +205,7 @@ PUT _cluster/settings
 [discrete]
 [[configure-remote-clusters-static]]
 ===== Statically configure remote clusters
-If you specify settings in `elasticsearch.yml` files, only the nodes with
+If you specify settings in `opensearch.yml` files, only the nodes with
 those settings can connect to the remote cluster and serve remote cluster requests. For example:
 
 [source,yaml]

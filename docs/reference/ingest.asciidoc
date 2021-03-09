@@ -9,7 +9,7 @@ passes the documents back to the index or bulk APIs.
 
 All nodes enable ingest by default, so any node can handle ingest tasks. You can also create
 dedicated ingest nodes. To disable ingest for a node, configure the following setting in the
-elasticsearch.yml file:
+opensearch.yml file:
 
 [source,yaml]
 ----

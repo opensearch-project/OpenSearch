@@ -70,7 +70,7 @@ process
 Process statistics, memory consumption, cpu usage, open file descriptors.
 
 `settings`::
-Lists all node settings in use as defined in the `elasticsearch.yml` file.
+Lists all node settings in use as defined in the `opensearch.yml` file.
 
 `thread_pool`::
 Statistics about each thread pool, including current size, queue and rejected
@@ -201,7 +201,7 @@ The API returns the following response:
 --------------------------------------------------
 {
   "_nodes": ...
-  "cluster_name": "elasticsearch",
+  "cluster_name": "opensearch",
   "nodes": {
     "USpTGYaBSIKbgSUJR2Z9lg": {
       "name": "node-0",
@@ -221,8 +221,8 @@ The API returns the following response:
         {
           "name": "analysis-icu",
           "version": "{version}",
-          "description": "The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.",
-          "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
+          "description": "The ICU Analysis plugin integrates Lucene ICU module into opensearch, adding ICU relates analysis components.",
+          "classname": "org.opensearch.plugin.analysis.icu.AnalysisICUPlugin",
           "has_native_controller": false
         }
       ],
@@ -230,8 +230,8 @@ The API returns the following response:
         {
           "name": "lang-painless",
           "version": "{version}",
-          "description": "An easy, safe and fast scripting language for Elasticsearch",
-          "classname": "org.elasticsearch.painless.PainlessPlugin",
+          "description": "An easy, safe and fast scripting language for Elaticsearch",
+          "classname": "org.opensearch.painless.PainlessPlugin",
           "has_native_controller": false
         }
       ]
@@ -240,7 +240,7 @@ The API returns the following response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_nodes": \.\.\./"_nodes": $body.$_path,/]
-// TESTRESPONSE[s/"elasticsearch"/$body.cluster_name/]
+// TESTRESPONSE[s/"opensearch"/$body.cluster_name/]
 // TESTRESPONSE[s/"USpTGYaBSIKbgSUJR2Z9lg"/\$node_name/]
 // TESTRESPONSE[s/"name": "node-0"/"name": $body.$_path/]
 // TESTRESPONSE[s/"transport_address": "192.168.17:9300"/"transport_address": $body.$_path/]
@@ -271,7 +271,7 @@ The API returns the following response:
 --------------------------------------------------
 {
   "_nodes": ...
-  "cluster_name": "elasticsearch",
+  "cluster_name": "opensearch",
   "nodes": {
     "USpTGYaBSIKbgSUJR2Z9lg": {
       "name": "node-0",
@@ -334,7 +334,7 @@ The API returns the following response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_nodes": \.\.\./"_nodes": $body.$_path,/]
-// TESTRESPONSE[s/"elasticsearch"/$body.cluster_name/]
+// TESTRESPONSE[s/"opensearch"/$body.cluster_name/]
 // TESTRESPONSE[s/"USpTGYaBSIKbgSUJR2Z9lg"/\$node_name/]
 // TESTRESPONSE[s/"name": "node-0"/"name": $body.$_path/]
 // TESTRESPONSE[s/"transport_address": "192.168.17:9300"/"transport_address": $body.$_path/]

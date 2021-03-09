@@ -54,7 +54,7 @@ the master-eligible nodes.
 
 . *Upgrade any plugins.*
 +
-Use the `elasticsearch-plugin` script to install the upgraded version of each
+Use the `opensearch-plugin` script to install the upgraded version of each
 installed {es} plugin. All plugins must be upgraded when you upgrade
 a node.
 

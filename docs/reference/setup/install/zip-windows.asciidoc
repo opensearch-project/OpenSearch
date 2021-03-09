@@ -2,7 +2,7 @@
 === Install Elasticsearch with `.zip` on Windows
 
 Elasticsearch can be installed on Windows using the Windows `.zip` archive.  This
-comes with a `elasticsearch-service.bat` command which will setup Elasticsearch to run as a
+comes with a `opensearch-service.bat` command which will setup Elasticsearch to run as a
 service.
 
 include::license.asciidoc[]
@@ -34,12 +34,12 @@ features that are available under the Apache 2.0 license:
 https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-windows-x86_64.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
-+elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal
++opensearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal
 window, `cd` to the `%ES_HOME%` directory, for instance:
 
 ["source","sh",subs="attributes"]
 ----------------------------
-cd c:\elasticsearch-{version}
+cd c:\opensearch-{version}
 ----------------------------
 
 endif::[]
@@ -50,7 +50,7 @@ include::zip-windows-start.asciidoc[]
 [[windows-configuring]]
 ==== Configuring Elasticsearch on the command line
 
-Elasticsearch loads its configuration from the `%ES_HOME%\config\elasticsearch.yml`
+Elasticsearch loads its configuration from the `%ES_HOME%\config\opensearch.yml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -59,13 +59,13 @@ the command line, using the `-E` syntax as follows:
 
 [source,sh]
 --------------------------------------------
-.\bin\elasticsearch.bat -Ecluster.name=my_cluster -Enode.name=node_1
+.\bin\opensearch.bat -Ecluster.name=my_cluster -Enode.name=node_1
 --------------------------------------------
 
 NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-Epath.logs="C:\My Logs\logs"`.
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
-added to the `elasticsearch.yml` config file, while any node-specific settings
+added to the `opensearch.yml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
 
 include::check-running.asciidoc[]
@@ -75,15 +75,15 @@ include::check-running.asciidoc[]
 
 Elasticsearch can be installed as a service to run in the background or start
 automatically at boot time without any user interaction. This can be achieved
-through the `elasticsearch-service.bat` script in the `bin\` folder which allows one to
+through the `opensearch-service.bat` script in the `bin\` folder which allows one to
 install, remove, manage or configure the service and potentially start and
 stop the service, all from the command-line.
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-c:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat
+c:\opensearch-{version}{backslash}bin>opensearch-service.bat
 
-Usage: elasticsearch-service.bat install|remove|start|stop|manager [SERVICE_ID]
+Usage: opensearch-service.bat install|remove|start|stop|manager [SERVICE_ID]
 --------------------------------------------------
 
 The script requires one parameter (the command to execute) followed by an
@@ -107,10 +107,10 @@ The name of the service and the value of `JAVA_HOME` will be made available duri
 
 ["source","sh",subs="attributes"]
 --------------------------------------------------
-c:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat install
-Installing service      :  "elasticsearch-service-x64"
+c:\opensearch-{version}{backslash}bin>opensearch-service.bat install
+Installing service      :  "opensearch-service-x64"
 Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
-The service 'elasticsearch-service-x64' has been installed.
+The service 'opensearch-service-x64' has been installed.
 --------------------------------------------------
 
 NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
@@ -132,7 +132,7 @@ The Elasticsearch service can be configured prior to installation by setting the
 `SERVICE_ID`::
 
   A unique identifier for the service. Useful if installing multiple instances
-  on the same machine. Defaults to `elasticsearch-service-x64`.
+  on the same machine. Defaults to `opensearch-service-x64`.
 
 `SERVICE_USERNAME`::
 
@@ -158,12 +158,12 @@ The Elasticsearch service can be configured prior to installation by setting the
 
     Service log directory, defaults to `%ES_HOME%\logs`. Note that this does
     not control the path for the Elasticsearch logs; the path for these is set
-    via the setting `path.logs` in the `elasticsearch.yml` configuration file,
+    via the setting `path.logs` in the `opensearch.yml` configuration file,
     or on the command line.
 
 `ES_PATH_CONF`::
 
-    Configuration file directory (which needs to include `elasticsearch.yml`,
+    Configuration file directory (which needs to include `opensearch.yml`,
     `jvm.options`, and `log4j2.properties` files), defaults to
     `%ES_HOME%\config`.
 
@@ -179,14 +179,14 @@ The Elasticsearch service can be configured prior to installation by setting the
 
   The timeout in seconds that procrun waits for service to exit gracefully.  Defaults to `0`.
 
-NOTE: At its core, `elasticsearch-service.bat` relies on https://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
+NOTE: At its core, `opensearch-service.bat` relies on https://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
 to install the service. Environment variables set prior to the service installation are copied and will be used during the service lifecycle. This means any changes made to them after the installation will not be picked up unless the service is reinstalled.
 
 NOTE: On Windows, the <<heap-size,heap size>> can be configured as for
 any other Elasticsearch installation when running Elasticsearch from the
 command line, or when installing Elasticsearch as a service for the
 first time. To adjust the heap size for an already installed service,
-use the service manager: `bin\elasticsearch-service.bat manager`.
+use the service manager: `bin\opensearch-service.bat manager`.
 
 NOTE: The service automatically configures a private temporary directory for use
 by Elasticsearch when it is running. This private temporary directory is
@@ -198,7 +198,7 @@ before you execute the service installation.
 
 Using the Manager GUI::
 
-It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things.  Simply invoking `elasticsearch-service.bat manager` from the command-line will open up the manager window:
+It is also possible to configure the service after it's been installed using the manager GUI (`opensearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things.  Simply invoking `opensearch-service.bat manager` from the command-line will open up the manager window:
 
 image::images/service-manager-win.png["Windows Service Manager GUI",align="center"]
 
@@ -227,13 +227,13 @@ directory so that you do not delete important data later on.
   |
 
 | bin
-  | Binary scripts including `elasticsearch` to start a node
-    and `elasticsearch-plugin` to install plugins
+  | Binary scripts including `opensearch` to start a node
+    and `opensearch-plugin` to install plugins
   | %ES_HOME%\bin
  d|
 
 | conf
-  | Configuration files including `elasticsearch.yml`
+  | Configuration files including `opensearch.yml`
   | %ES_HOME%\config
   | <<config-files-location,ES_PATH_CONF>>
 

@@ -179,7 +179,7 @@ POST /kimchy/_flush/synced
 
 [source,console]
 --------------------------------------------------
-POST /kimchy,elasticsearch/_flush/synced
+POST /kimchy,opensearch/_flush/synced
 --------------------------------------------------
 // TEST[skip: Synced flush can conflict with scheduled flushes in doc tests]
 

@@ -29,7 +29,7 @@ node:
   multiple nodes sharing a single IP address.
 
 When you start a master-eligible node, you can provide this setting on the
-command line or in the `elasticsearch.yml` file. After the cluster has formed,
+command line or in the `opensearch.yml` file. After the cluster has formed,
 this setting is no longer required. It should not be set for master-ineligible
 nodes, master-eligible nodes joining an existing cluster, or cluster restarts.
 
@@ -60,7 +60,7 @@ nodes on the command-line that is used to start Elasticsearch:
 
 [source,bash]
 --------------------------------------------------
-$ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
+$ bin/opensearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
 --------------------------------------------------
 
 [NOTE]
@@ -101,7 +101,7 @@ The <<cluster-name,`cluster.name`>> setting enables you to create multiple
 clusters which are separated from each other. Nodes verify that they agree on
 their cluster name when they first connect to each other, and Elasticsearch
 will only form a cluster from nodes that all have the same cluster name. The
-default value for the cluster name is `elasticsearch`, but it is recommended to
+default value for the cluster name is `opensearch`, but it is recommended to
 change this to reflect the logical name of the cluster.
 
 [discrete]

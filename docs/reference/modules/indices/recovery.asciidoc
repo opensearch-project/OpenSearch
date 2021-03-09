@@ -28,7 +28,7 @@ If this limit is too high, ongoing recoveries may consume an excess of bandwidth
 and other resources, which can destabilize the cluster.
 +
 This is a dynamic setting, which means you can set it in each node's
-`elasticsearch.yml` config file and you can update it dynamically using the
+`opensearch.yml` config file and you can update it dynamically using the
 <<cluster-update-settings,cluster update settings API>>. If you set it
 dynamically then the same limit applies on every node in the cluster. If you do
 not set it dynamically then you can set a different limit on each node, which is

@@ -43,7 +43,7 @@ are supported out of the box:
 PUT my-index-000001/_doc/1
 {
   "message": "some arrays in this document...",
-  "tags":  [ "elasticsearch", "wow" ], <1>
+  "tags":  [ "opensearch", "wow" ], <1>
   "lists": [ <2>
     {
       "name": "prog_list",
@@ -59,7 +59,7 @@ PUT my-index-000001/_doc/1
 PUT my-index-000001/_doc/2 <3>
 {
   "message": "no arrays in this document...",
-  "tags":  "elasticsearch",
+  "tags":  "opensearch",
   "lists": {
     "name": "prog_list",
     "description": "programming list"
@@ -70,7 +70,7 @@ GET my-index-000001/_search
 {
   "query": {
     "match": {
-      "tags": "elasticsearch" <4>
+      "tags": "opensearch" <4>
     }
   }
 }
@@ -79,7 +79,7 @@ GET my-index-000001/_search
 <1> The `tags` field is dynamically added as a `string` field.
 <2> The `lists` field is dynamically added as an `object` field.
 <3> The second document contains no arrays, but can be indexed into the same fields.
-<4> The query looks for `elasticsearch` in the `tags` field, and matches both documents.
+<4> The query looks for `opensearch` in the `tags` field, and matches both documents.
 
 [[multi-value-fields-inverted-index]]
 .Multi-value fields and the inverted index

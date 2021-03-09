@@ -207,7 +207,7 @@ without both the `master` and `data` roles will refuse to start if they have any
 index metadata on disk at startup.
 
 It is possible to change the roles of a node by adjusting its
-`elasticsearch.yml` file and restarting it. This is known as _repurposing_ a
+`opensearch.yml` file and restarting it. This is known as _repurposing_ a
 node. In order to satisfy the checks for unexpected data described above, you
 must perform some extra steps to prepare a node for repurposing when starting
 the node without the `data` or `master` roles.
@@ -223,7 +223,7 @@ the node without the `data` or `master` roles.
   in the cluster first.
 
 If it is not possible to follow these extra steps then you may be able to use
-the <<node-tool-repurpose,`elasticsearch-node repurpose`>> tool to delete any
+the <<node-tool-repurpose,`opensearch-node repurpose`>> tool to delete any
 excess data that prevents a node from starting.
 
 [discrete]
@@ -234,19 +234,19 @@ excess data that prevents a node from starting.
 
 Every data and master-eligible node requires access to a data directory where
 shards and index and cluster metadata will be stored. The `path.data` defaults
-to `$ES_HOME/data` but can be configured in the `elasticsearch.yml` config
+to `$ES_HOME/data` but can be configured in the `opensearch.yml` config
 file an absolute path or a path relative to `$ES_HOME` as follows:
 
 [source,yaml]
 ----
-path.data:  /var/elasticsearch/data
+path.data:  /var/opensearch/data
 ----
 
 Like all node settings, it can also be specified on the command line as:
 
 [source,sh]
 ----
-./bin/elasticsearch -Epath.data=/var/elasticsearch/data
+./bin/opensearch -Epath.data=/var/opensearch/data
 ----
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
