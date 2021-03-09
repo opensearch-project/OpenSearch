@@ -20,6 +20,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.NotifyOnceListener;
 
 import java.util.concurrent.atomic.AtomicReference;
 

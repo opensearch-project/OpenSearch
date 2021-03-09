@@ -20,7 +20,7 @@
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.routing.UnassignedInfo;

@@ -19,9 +19,9 @@
 
 package org.opensearch.client.documentation;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;

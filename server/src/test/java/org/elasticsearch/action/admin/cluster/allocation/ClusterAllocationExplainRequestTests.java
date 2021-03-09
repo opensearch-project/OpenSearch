@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 
 public class ClusterAllocationExplainRequestTests extends ESTestCase {
 

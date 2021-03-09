@@ -49,7 +49,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
 
     /**
      * Serialization parameter used to hide the {@link RepositoryMetadata#generation()} and {@link RepositoryMetadata#pendingGeneration()}
-     * in {@link org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
+     * in {@link org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
      */
     public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
 

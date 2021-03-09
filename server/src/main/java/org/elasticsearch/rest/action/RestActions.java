@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;

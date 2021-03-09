@@ -19,10 +19,10 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;

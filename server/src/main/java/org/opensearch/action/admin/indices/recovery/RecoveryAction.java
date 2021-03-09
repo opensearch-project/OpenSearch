@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.recovery;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * Recovery information action

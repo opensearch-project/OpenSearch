@@ -99,6 +99,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.IndicesRequest;
 
 import java.util.ArrayList;
 import java.util.Arrays;

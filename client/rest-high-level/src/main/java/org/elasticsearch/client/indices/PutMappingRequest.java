@@ -20,7 +20,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.action.IndicesRequest;
+import org.opensearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.bytes.BytesArray;

@@ -23,7 +23,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 
-import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
+import static org.opensearch.action.DocWriteRequest.OpType.CREATE;
 import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 

@@ -19,7 +19,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;

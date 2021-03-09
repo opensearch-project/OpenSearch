@@ -19,7 +19,7 @@
 
 package org.opensearch.index.rankeval;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * ActionType for explaining evaluating search ranking results.

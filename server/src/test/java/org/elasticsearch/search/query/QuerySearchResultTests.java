@@ -23,7 +23,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;

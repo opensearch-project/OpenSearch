@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
