@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.breaker;
+package org.opensearch.indices.breaker;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
 
 /**
  * Settings for a {@link CircuitBreaker}

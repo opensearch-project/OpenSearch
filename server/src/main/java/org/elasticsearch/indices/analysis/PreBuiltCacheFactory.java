@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.analysis;
+package org.opensearch.indices.analysis;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -33,10 +33,10 @@ public class PreBuiltCacheFactory {
      *
      * ONE               Exactly one version is stored. Useful for analyzers which do not store version information
      * LUCENE            Exactly one version for each lucene version is stored. Useful to prevent different analyzers with the same version
-     * ELASTICSEARCH     Exactly one version per elasticsearch version is stored. Useful if you change an analyzer between elasticsearch
+     * OPENSEARCH     Exactly one version per opensearch version is stored. Useful if you change an analyzer between opensearch
      *                   releases, when the lucene version does not change
      */
-    public enum CachingStrategy { ONE, LUCENE, ELASTICSEARCH }
+    public enum CachingStrategy { ONE, LUCENE, OPENSEARCH }
 
     public interface PreBuiltCache<T> {
 
@@ -55,8 +55,8 @@ public class PreBuiltCacheFactory {
                 return new PreBuiltCacheStrategyOne<>();
             case LUCENE:
                 return new PreBuiltCacheStrategyLucene<>();
-            case ELASTICSEARCH:
-                return new PreBuiltCacheStrategyElasticsearch<>();
+            case OPENSEARCH:
+                return new PreBuiltCacheStrategyOpenSearch<>();
             default:
                 throw new OpenSearchException("No action configured for caching strategy[" + cachingStrategy + "]");
         }
@@ -86,9 +86,9 @@ public class PreBuiltCacheFactory {
     }
 
     /**
-     * This cache contains one version for each elasticsearch version object
+     * This cache contains one version for each opensearch version object
      */
-    private static class PreBuiltCacheStrategyElasticsearch<T> implements PreBuiltCache<T> {
+    private static class PreBuiltCacheStrategyOpenSearch<T> implements PreBuiltCache<T> {
 
         Map<Version, T> mapModel = new HashMap<>(2);
 
@@ -121,7 +121,7 @@ public class PreBuiltCacheFactory {
         }
 
         @Override
-        public void put(org.elasticsearch.Version version, T model) {
+        public void put(org.opensearch.Version version, T model) {
             mapModel.put(version.luceneVersion, model);
         }
 

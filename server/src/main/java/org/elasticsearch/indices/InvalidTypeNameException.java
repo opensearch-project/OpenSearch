@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.indices;
+package org.opensearch.indices;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.mapper.MapperException;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 

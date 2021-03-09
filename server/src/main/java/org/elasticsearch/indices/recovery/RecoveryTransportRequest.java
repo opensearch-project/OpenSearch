@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.transport.TransportRequest;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -51,7 +51,7 @@ public abstract class RecoveryTransportRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_9_0)) {
+        if (out.getVersion().onOrAfter(org.opensearch.Version.V_7_9_0)) {
             out.writeLong(requestSeqNo);
         }
     }

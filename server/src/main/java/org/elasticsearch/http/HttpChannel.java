@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.network.CloseableChannel;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.network.CloseableChannel;
 
 import java.net.InetSocketAddress;
 

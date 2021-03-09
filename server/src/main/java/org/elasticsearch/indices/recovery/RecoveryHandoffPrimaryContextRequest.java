@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.seqno.ReplicationTracker;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.indices;
+package org.opensearch.indices;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.OpenSearchWrapperException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchWrapperException;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 

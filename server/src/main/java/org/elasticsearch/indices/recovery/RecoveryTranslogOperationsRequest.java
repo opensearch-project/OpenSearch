@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.Version;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.List;
@@ -94,7 +94,7 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
     /**
      * Returns the mapping version which is at least as up to date as the mapping version that the primary used to index
      * the translog operations in this request. If the mapping version on the replica is not older this version, we should not
-     * retry on {@link org.elasticsearch.index.mapper.MapperException}; otherwise we should wait for a new mapping then retry.
+     * retry on {@link org.opensearch.index.mapper.MapperException}; otherwise we should wait for a new mapping then retry.
      */
     long mappingVersionOnPrimary() {
         return mappingVersionOnPrimary;

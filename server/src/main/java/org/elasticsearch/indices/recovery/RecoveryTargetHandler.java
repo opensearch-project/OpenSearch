@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.recovery;
+package org.opensearch.indices.recovery;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.index.seqno.ReplicationTracker;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.translog.Translog;
 
 import java.util.List;
 
@@ -68,7 +68,7 @@ public interface RecoveryTargetHandler {
      * @param mappingVersionOnPrimary             the mapping version which is at least as up to date as the mapping version that the
      *                                            primary used to index translog {@code operations} in this request.
      *                                            If the mapping version on the replica is not older this version, we should not retry on
-     *                                            {@link org.elasticsearch.index.mapper.MapperException}; otherwise we should wait for a
+     *                                            {@link org.opensearch.index.mapper.MapperException}; otherwise we should wait for a
      *                                            new mapping then retry.
      * @param listener                            a listener which will be notified with the local checkpoint on the target
      *                                            after these operations are successfully indexed on the target.

@@ -17,38 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.analysis;
+package org.opensearch.indices.analysis;
 
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
-import org.elasticsearch.index.analysis.LowercaseNormalizerProvider;
-import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
-import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
-import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
-import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
-import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.SimpleAnalyzerProvider;
-import org.elasticsearch.index.analysis.StandardAnalyzerProvider;
-import org.elasticsearch.index.analysis.StandardTokenizerFactory;
-import org.elasticsearch.index.analysis.StopAnalyzerProvider;
-import org.elasticsearch.index.analysis.StopTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.NamedRegistry;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AbstractTokenFilterFactory;
+import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.analysis.AnalyzerProvider;
+import org.opensearch.index.analysis.CharFilterFactory;
+import org.opensearch.index.analysis.HunspellTokenFilterFactory;
+import org.opensearch.index.analysis.KeywordAnalyzerProvider;
+import org.opensearch.index.analysis.LowercaseNormalizerProvider;
+import org.opensearch.index.analysis.PreBuiltAnalyzerProviderFactory;
+import org.opensearch.index.analysis.PreConfiguredCharFilter;
+import org.opensearch.index.analysis.PreConfiguredTokenFilter;
+import org.opensearch.index.analysis.PreConfiguredTokenizer;
+import org.opensearch.index.analysis.ShingleTokenFilterFactory;
+import org.opensearch.index.analysis.SimpleAnalyzerProvider;
+import org.opensearch.index.analysis.StandardAnalyzerProvider;
+import org.opensearch.index.analysis.StandardTokenizerFactory;
+import org.opensearch.index.analysis.StopAnalyzerProvider;
+import org.opensearch.index.analysis.StopTokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.index.analysis.WhitespaceAnalyzerProvider;
+import org.opensearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,7 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
+import static org.opensearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
 /**
  * Sets up {@link AnalysisRegistry}.

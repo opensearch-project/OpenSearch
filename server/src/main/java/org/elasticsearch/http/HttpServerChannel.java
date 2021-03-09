@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
-import org.elasticsearch.common.network.CloseableChannel;
+import org.opensearch.common.network.CloseableChannel;
 
 import java.net.InetSocketAddress;
 

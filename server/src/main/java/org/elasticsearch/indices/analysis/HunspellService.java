@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.analysis;
+package org.opensearch.indices.analysis;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,13 +24,13 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.OpenSearchException;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -73,7 +73,7 @@ import java.util.function.Function;
  *     strict_affix_parsing: false
  * </code></pre>
  *
- * @see org.elasticsearch.index.analysis.HunspellTokenFilterFactory
+ * @see org.opensearch.index.analysis.HunspellTokenFilterFactory
  */
 public class HunspellService {
 

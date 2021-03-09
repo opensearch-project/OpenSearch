@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.mapper;
+package org.opensearch.indices.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.index.mapper.AllFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.plugins.MapperPlugin;
+import org.opensearch.Version;
+import org.opensearch.index.mapper.AllFieldMapper;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.plugins.MapperPlugin;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

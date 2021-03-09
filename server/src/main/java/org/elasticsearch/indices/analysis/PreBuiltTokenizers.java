@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.analysis;
+package org.opensearch.indices.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.elasticsearch.Version;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
+import org.opensearch.Version;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 public enum PreBuiltTokenizers {
 
