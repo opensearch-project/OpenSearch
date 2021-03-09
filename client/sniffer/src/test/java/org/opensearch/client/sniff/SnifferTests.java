@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.opensearch.client.sniff;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientTestCase;
-import org.elasticsearch.client.sniff.Sniffer.DefaultScheduler;
-import org.elasticsearch.client.sniff.Sniffer.Scheduler;
+import org.opensearch.client.sniff.Sniffer.DefaultScheduler;
+import org.opensearch.client.sniff.Sniffer.Scheduler;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 

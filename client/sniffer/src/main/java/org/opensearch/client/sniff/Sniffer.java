@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.opensearch.client.sniff;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Class responsible for sniffing nodes from some source (default is elasticsearch itself) and setting them to a provided instance of
+ * Class responsible for sniffing nodes from some source (default is opensearch itself) and setting them to a provided instance of
  * {@link RestClient}. Must be created via {@link SnifferBuilder}, which allows to set all of the different options or rely on defaults.
  * A background task fetches the nodes through the {@link NodesSniffer} and sets them to the {@link RestClient} instance.
  * It is possible to perform sniffing on failure by creating a {@link SniffOnFailureListener} and providing it as an argument to

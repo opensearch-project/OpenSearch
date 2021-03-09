@@ -2,14 +2,14 @@
 
 # Recreates the v_nodes_http.json files in this directory. This is
 # meant to be an "every once in a while" thing that we do only when
-# we want to add a new version of Elasticsearch or configure the
+# we want to add a new version of OpenSearch or configure the
 # nodes differently. That is why we don't do this in gradle. It also
 # allows us to play fast and loose with error handling. If something
 # goes wrong you have to manually clean up which is good because it
 # leaves around the kinds of things that we need to debug the failure.
 
 # I built this file so the next time I have to regenerate these
-# v_nodes_http.json files I won't have to reconfigure Elasticsearch
+# v_nodes_http.json files I won't have to reconfigure OpenSearch
 # from scratch. While I was at it I took the time to make sure that
 # when we do rebuild the files they don't jump around too much. That
 # way the diffs are smaller.
@@ -40,11 +40,11 @@ function do_version() {
     mkdir -p ${version}
     pushd ${version} >> /dev/null
 
-    tar xf ../elasticsearch-${version}.tar.gz
+    tar xf ../opensearch-${version}.tar.gz
     local http_port=9200
     for node in ${nodes}; do
         mkdir ${node}
-        cp -r elasticsearch-${version}/* ${node}
+        cp -r opensearch-${version}/* ${node}
         local master=$([[ "$node" =~ ^m.* ]] && echo true || echo false)
         local data=$([[ "$node" =~ ^d.* ]] && echo true || echo false)
         # m2 is always master and data for these test just so we have a node like that
@@ -52,7 +52,7 @@ function do_version() {
         local attr=$([ ${version} == '2.0.0' ] && echo '' || echo '.attr')
         local transport_port=$((http_port+100))
 
-        cat >> ${node}/config/elasticsearch.yml << __ES_YML
+        cat >> ${node}/config/opensearch.yml << __ES_YML
 node.name:          ${node}
 node.master:        ${master}
 node.data:          ${data}
@@ -70,7 +70,7 @@ __ES_YML
         fi
 
         echo "starting ${version}/${node}..."
-        ${node}/bin/elasticsearch -d -p ${node}/pidfile
+        ${node}/bin/opensearch -d -p ${node}/pidfile
 
         ((http_port++))
     done

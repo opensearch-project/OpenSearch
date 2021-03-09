@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff.documentation;
+package org.opensearch.client.sniff.documentation;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
-import org.elasticsearch.client.sniff.NodesSniffer;
-import org.elasticsearch.client.sniff.SniffOnFailureListener;
-import org.elasticsearch.client.sniff.Sniffer;
+import org.opensearch.client.sniff.OpenSearchNodesSniffer;
+import org.opensearch.client.sniff.NodesSniffer;
+import org.opensearch.client.sniff.SniffOnFailureListener;
+import org.opensearch.client.sniff.Sniffer;
 
 import java.io.IOException;
 import java.util.List;
@@ -94,10 +94,10 @@ public class SnifferDocumentation {
             RestClient restClient = RestClient.builder(
                     new HttpHost("localhost", 9200, "http"))
                     .build();
-            NodesSniffer nodesSniffer = new ElasticsearchNodesSniffer(
+            NodesSniffer nodesSniffer = new OpenSearchNodesSniffer(
                     restClient,
-                    ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT,
-                    ElasticsearchNodesSniffer.Scheme.HTTPS);
+                    OpenSearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT,
+                    OpenSearchNodesSniffer.Scheme.HTTPS);
             Sniffer sniffer = Sniffer.builder(restClient)
                     .setNodesSniffer(nodesSniffer).build();
             //end::sniffer-https
@@ -107,10 +107,10 @@ public class SnifferDocumentation {
             RestClient restClient = RestClient.builder(
                 new HttpHost("localhost", 9200, "http"))
                 .build();
-            NodesSniffer nodesSniffer = new ElasticsearchNodesSniffer(
+            NodesSniffer nodesSniffer = new OpenSearchNodesSniffer(
                 restClient,
                 TimeUnit.SECONDS.toMillis(5),
-                ElasticsearchNodesSniffer.Scheme.HTTP);
+                OpenSearchNodesSniffer.Scheme.HTTP);
             Sniffer sniffer = Sniffer.builder(restClient)
                 .setNodesSniffer(nodesSniffer).build();
             //end::sniff-request-timeout
