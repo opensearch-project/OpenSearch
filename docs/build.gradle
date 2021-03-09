@@ -162,7 +162,7 @@ buildRestTests.setups['messages'] = '''
           refresh: true
           body: |
             {"index":{"_id": "0"}}
-            {"message": "trying out Elasticsearch"}
+            {"message": "trying out OpenSearch"}
             {"index":{"_id": "1"}}
             {"message": "some message with the number 1"}
             {"index":{"_id": "2"}}
@@ -342,15 +342,15 @@ buildRestTests.setups['stackoverflow'] = '''
           refresh: true
           body: |'''
 
-// Make Kibana strongly connected to elasticsearch and logstash
+// Make Kibana strongly connected to opensearch and logstash
 // Make Kibana rarer (and therefore higher-ranking) than JavaScript
 // Make JavaScript strongly connected to jquery and angular
-// Make Cabana strongly connected to elasticsearch but only as a result of a single author
+// Make Cabana strongly connected to opensearch but only as a result of a single author
 
 for (int i = 0; i < 150; i++) {
   buildRestTests.setups['stackoverflow'] += """
             {"index":{}}
-            {"author": "very_relevant_$i", "tags": ["elasticsearch", "kibana"]}"""
+            {"author": "very_relevant_$i", "tags": ["opensearch", "kibana"]}"""
 }
 for (int i = 0; i < 50; i++) {
   buildRestTests.setups['stackoverflow'] += """
@@ -370,7 +370,7 @@ for (int i = 0; i < 200; i++) {
 for (int i = 0; i < 50; i++) {
   buildRestTests.setups['stackoverflow'] += """
             {"index":{}}
-            {"author": "noisy author", "tags": ["elasticsearch", "cabana"]}"""
+            {"author": "noisy author", "tags": ["opensearch", "cabana"]}"""
 }
 buildRestTests.setups['stackoverflow'] += """
 """
@@ -415,12 +415,12 @@ for (int i = 0; i < 100; i++) {
 for (int i = 0; i < 20; i++) {
   buildRestTests.setups['news'] += """
             {"index":{}}
-            {"source": "partially_relevant_$i", "content": "elasticsearch dupFiller dupFiller dupFiller dupFiller pozmantier"}"""
+            {"source": "partially_relevant_$i", "content": "opensearch dupFiller dupFiller dupFiller dupFiller pozmantier"}"""
 }
 for (int i = 0; i < 10; i++) {
   buildRestTests.setups['news'] += """
             {"index":{}}
-            {"source": "partially_relevant_$i", "content": "elasticsearch logstash kibana"}"""
+            {"source": "partially_relevant_$i", "content": "opensearch logstash kibana"}"""
 }
 buildRestTests.setups['news'] += """
 """
