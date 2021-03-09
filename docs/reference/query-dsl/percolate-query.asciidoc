@@ -123,7 +123,7 @@ TIP: To provide a simple example, this documentation uses one index `my-index-00
 This set-up can work well when there are just a few percolate queries registered. However, with heavier usage it is recommended
 to store queries and documents in separate indices. Please see <<how-it-works, How it Works Under the Hood>> for more details.
 
-// TODO: Correct the version numbers for Opensearch
+// TODO: Correct the version numbers for OpenSearch
 [discrete]
 ==== Parameters
 

@@ -1,2 +1,2 @@
-// These attributes define common links in the Opensearch Reference
+// These attributes define common links in the OpenSearch Reference
 
