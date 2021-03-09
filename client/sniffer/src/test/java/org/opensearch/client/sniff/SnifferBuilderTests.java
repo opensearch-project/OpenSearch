@@ -22,7 +22,7 @@ package org.opensearch.client.sniff;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientTestCase;
+import org.opensearch.client.RestClientTestCase;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
