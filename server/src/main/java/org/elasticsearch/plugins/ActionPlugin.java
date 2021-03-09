@@ -186,7 +186,7 @@ public interface ActionPlugin {
 
     /**
      * Returns a collection of validators that are used by {@link RequestValidators} to validate a
-     * {@link PutMappingRequest} before the executing it.
+     * {@link org.opensearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
      */
     default Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
         return Collections.emptyList();

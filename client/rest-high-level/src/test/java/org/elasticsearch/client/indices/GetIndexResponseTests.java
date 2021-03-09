@@ -167,7 +167,7 @@ public class GetIndexResponseTests extends ESTestCase {
     }
 
     private static void toXContent(GetIndexResponse response, XContentBuilder builder) throws IOException {
-        // first we need to repackage from GetIndexResponse to GetIndexResponse
+        // first we need to repackage from GetIndexResponse to org.opensearch.action.admin.indices.get.GetIndexResponse
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> allMappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
