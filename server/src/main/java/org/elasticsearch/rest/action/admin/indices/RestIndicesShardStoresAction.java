@@ -19,9 +19,9 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.opensearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.opensearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;

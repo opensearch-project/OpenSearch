@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;

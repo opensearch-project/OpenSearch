@@ -20,8 +20,8 @@
 package org.elasticsearch.indices.state;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
+import org.opensearch.action.admin.indices.close.CloseIndexResponse;
+import org.opensearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;

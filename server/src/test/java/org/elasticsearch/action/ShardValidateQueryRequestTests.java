@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.admin.indices.validate.query.ShardValidateQueryRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.opensearch.action.admin.indices.validate.query.ShardValidateQueryRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

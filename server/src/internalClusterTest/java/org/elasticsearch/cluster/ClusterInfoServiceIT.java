@@ -24,7 +24,7 @@ import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

@@ -48,33 +48,33 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class CloseIndexResponseTests extends
-    AbstractResponseTestCase<org.elasticsearch.action.admin.indices.close.CloseIndexResponse, CloseIndexResponse> {
+    AbstractResponseTestCase<org.opensearch.action.admin.indices.close.CloseIndexResponse, CloseIndexResponse> {
 
     @Override
-    protected org.elasticsearch.action.admin.indices.close.CloseIndexResponse createServerTestInstance(XContentType xContentType) {
+    protected org.opensearch.action.admin.indices.close.CloseIndexResponse createServerTestInstance(XContentType xContentType) {
         boolean acknowledged = true;
         final String[] indicesNames = generateRandomStringArray(10, 10, false, true);
 
-        final List<org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult> indexResults = new ArrayList<>();
+        final List<org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult> indexResults = new ArrayList<>();
         for (String indexName : indicesNames) {
             final Index index = new Index(indexName, randomAlphaOfLength(5));
             if (randomBoolean()) {
-                indexResults.add(new org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult(index));
+                indexResults.add(new org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult(index));
             } else {
                 if (randomBoolean()) {
                     acknowledged = false;
                     Exception exception = randomFrom(new IndexNotFoundException(index), new ActionNotFoundTransportException("test"));
-                    indexResults.add(new org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult(index, exception));
+                    indexResults.add(new org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult(index, exception));
                 } else {
                     final int nbShards = randomIntBetween(1, 5);
-                    org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult[] shards =
-                        new org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult[nbShards];
+                    org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult[] shards =
+                        new org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult[nbShards];
                     for (int i = 0; i < nbShards; i++) {
-                        org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure[] failures = null;
+                        org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure[] failures = null;
                         if (randomBoolean()) {
                             acknowledged = false;
                             int nbFailures = randomIntBetween(1, 3);
-                            failures = new org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure[nbFailures];
+                            failures = new org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure[nbFailures];
                             for (int j = 0; j < failures.length; j++) {
                                 String nodeId = null;
                                 if (frequently()) {
@@ -83,15 +83,15 @@ public class CloseIndexResponseTests extends
                                 failures[j] = newFailure(indexName, i, nodeId);
                             }
                         }
-                        shards[i] = new org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult(i, failures);
+                        shards[i] = new org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult(i, failures);
                     }
-                    indexResults.add(new org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult(index, shards));
+                    indexResults.add(new org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult(index, shards));
                 }
             }
         }
 
         final boolean shardsAcknowledged = acknowledged ? randomBoolean() : false;
-        return new org.elasticsearch.action.admin.indices.close.CloseIndexResponse(acknowledged, shardsAcknowledged, indexResults);
+        return new org.opensearch.action.admin.indices.close.CloseIndexResponse(acknowledged, shardsAcknowledged, indexResults);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class CloseIndexResponseTests extends
     }
 
     @Override
-    protected void assertInstances(final org.elasticsearch.action.admin.indices.close.CloseIndexResponse serverInstance,
+    protected void assertInstances(final org.opensearch.action.admin.indices.close.CloseIndexResponse serverInstance,
                                    final CloseIndexResponse clientInstance) {
         assertNotSame(serverInstance, clientInstance);
         assertThat(clientInstance.isAcknowledged(), equalTo(serverInstance.isAcknowledged()));
@@ -129,9 +129,9 @@ public class CloseIndexResponseTests extends
             if (expectedIndexResult.getShards() != null) {
                 assertThat(actualIndexResult.getException(), nullValue());
 
-                List<org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult> failedShardResults =
+                List<org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult> failedShardResults =
                     Arrays.stream(expectedIndexResult.getShards())
-                        .filter(org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult::hasFailures)
+                        .filter(org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult::hasFailures)
                         .collect(Collectors.toList());
 
                 if (failedShardResults.isEmpty()) {
@@ -156,7 +156,7 @@ public class CloseIndexResponseTests extends
                     assertThat(actualShardResult.getFailures().length, equalTo(failedShardResult.getFailures().length));
 
                     for (int i = 0; i < failedShardResult.getFailures().length; i++) {
-                        org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure expectedFailure =
+                        org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure expectedFailure =
                             failedShardResult.getFailures()[i];
                         CloseIndexResponse.ShardResult.Failure actualFailure = actualShardResult.getFailures()[i];
                         assertThat(actualFailure.getNodeId(), equalTo(expectedFailure.getNodeId()));
@@ -209,13 +209,13 @@ public class CloseIndexResponseTests extends
         }
     }
 
-    private org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure newFailure(final String indexName,
-                                                                                                           final int shard,
-                                                                                                           final String nodeId) {
+    private org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure newFailure(final String indexName,
+                                                                                                        final int shard,
+                                                                                                        final String nodeId) {
         Exception exception = randomFrom(new IndexNotFoundException(indexName),
             new ActionNotFoundTransportException("test"),
             new IOException("boom", new NullPointerException()),
             new OpenSearchStatusException("something", RestStatus.TOO_MANY_REQUESTS));
-        return new org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure(indexName, shard, exception, nodeId);
+        return new org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure(indexName, shard, exception, nodeId);
     }
 }

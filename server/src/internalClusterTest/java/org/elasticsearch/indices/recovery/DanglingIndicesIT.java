@@ -19,12 +19,12 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
-import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
+import org.opensearch.action.admin.indices.dangling.DanglingIndexInfo;
+import org.opensearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
+import org.opensearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
+import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
+import org.opensearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;

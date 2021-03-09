@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

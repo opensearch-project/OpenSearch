@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.indices.validate.query.QueryExplanation;
 
 import java.io.IOException;
 
