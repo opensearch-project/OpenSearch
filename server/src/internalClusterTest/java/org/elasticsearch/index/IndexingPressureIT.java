@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index;
 
-import org.elasticsearch.action.ActionFuture;
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkRequest;

@@ -19,9 +19,9 @@
 
 package org.opensearch.action.admin.indices.template.post;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ValidateActions;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ValidateActions;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Nullable;

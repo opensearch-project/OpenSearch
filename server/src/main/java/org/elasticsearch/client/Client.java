@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -74,8 +74,8 @@ import java.util.Map;
  * A client provides a one stop interface for performing actions/operations against the cluster.
  * <p>
  * All operations performed are asynchronous by nature. Each action/operation has two flavors, the first
- * simply returns an {@link org.elasticsearch.action.ActionFuture}, while the second accepts an
- * {@link org.elasticsearch.action.ActionListener}.
+ * simply returns an {@link org.opensearch.action.ActionFuture}, while the second accepts an
+ * {@link ActionListener}.
  * <p>
  * A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
  * to one or more nodes using {@link org.elasticsearch.client.transport.TransportClient}.

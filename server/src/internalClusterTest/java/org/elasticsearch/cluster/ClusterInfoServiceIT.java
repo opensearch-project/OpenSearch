@@ -21,8 +21,8 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;

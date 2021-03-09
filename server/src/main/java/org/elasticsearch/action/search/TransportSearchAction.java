@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;

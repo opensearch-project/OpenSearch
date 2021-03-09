@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;

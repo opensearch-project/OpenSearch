@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.datastream;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction.Request;
 import org.elasticsearch.cluster.ClusterName;

@@ -19,7 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Nullable;

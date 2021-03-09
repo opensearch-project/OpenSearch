@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * ActionType for cancelling running tasks

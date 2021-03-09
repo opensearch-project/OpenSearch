@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ClearVotingConfigExclusionsAction extends ActionType<ClearVotingConfigExclusionsResponse> {
     public static final ClearVotingConfigExclusionsAction INSTANCE = new ClearVotingConfigExclusionsAction();

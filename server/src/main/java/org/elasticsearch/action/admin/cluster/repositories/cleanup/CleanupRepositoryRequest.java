@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupRepositoryRequest> {
 

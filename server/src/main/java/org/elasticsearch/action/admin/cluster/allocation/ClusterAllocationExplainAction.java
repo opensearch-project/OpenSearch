@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * ActionType for explaining shard allocation for a shard in the cluster

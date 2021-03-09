@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;

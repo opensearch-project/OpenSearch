@@ -22,8 +22,8 @@ package org.opensearch.action.admin.indices.mapping.put;
 import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -47,7 +47,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Puts mapping definition registered under a specific type into one or more indices. Best created with

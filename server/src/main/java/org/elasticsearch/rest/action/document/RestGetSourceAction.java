@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;

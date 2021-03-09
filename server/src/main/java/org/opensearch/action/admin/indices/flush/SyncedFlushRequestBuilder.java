@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OpenSearchClient;
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class GetStoredScriptAction extends ActionType<GetStoredScriptResponse> {
 

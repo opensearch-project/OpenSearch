@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public final class CleanupRepositoryAction extends ActionType<CleanupRepositoryResponse> {
 

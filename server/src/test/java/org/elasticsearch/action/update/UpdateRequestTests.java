@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;

@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class GetIndexTemplatesAction extends ActionType<GetIndexTemplatesResponse> {
 

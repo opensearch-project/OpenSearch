@@ -22,7 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;

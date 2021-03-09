@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ListenableActionFuture;
 
 import java.util.ArrayList;
 import java.util.List;

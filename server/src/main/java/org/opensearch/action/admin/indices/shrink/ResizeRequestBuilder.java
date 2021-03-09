@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.indices.shrink;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;

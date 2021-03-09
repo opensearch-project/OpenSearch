@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;

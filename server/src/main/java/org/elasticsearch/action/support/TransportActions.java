@@ -21,8 +21,8 @@ package org.elasticsearch.action.support;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.UnavailableShardsException;
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.UnavailableShardsException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardNotFoundException;

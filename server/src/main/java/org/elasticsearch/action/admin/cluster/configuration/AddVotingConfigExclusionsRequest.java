@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;

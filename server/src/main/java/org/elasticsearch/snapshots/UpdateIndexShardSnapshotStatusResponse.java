@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.node.liveness;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;

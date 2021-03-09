@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
