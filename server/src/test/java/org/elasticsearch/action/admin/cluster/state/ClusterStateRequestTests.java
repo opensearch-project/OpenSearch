@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 

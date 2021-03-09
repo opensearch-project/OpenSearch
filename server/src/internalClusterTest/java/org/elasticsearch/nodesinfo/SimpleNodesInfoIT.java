@@ -19,8 +19,8 @@
 
 package org.elasticsearch.nodesinfo;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -31,7 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.List;
 
-import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.INDICES;
+import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.INDICES;
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

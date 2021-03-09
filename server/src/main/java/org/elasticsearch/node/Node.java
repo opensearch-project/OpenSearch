@@ -30,7 +30,7 @@ import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;

@@ -19,9 +19,9 @@
 package org.elasticsearch.snapshots;
 
 import org.opensearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.bulk.BulkItemResponse;

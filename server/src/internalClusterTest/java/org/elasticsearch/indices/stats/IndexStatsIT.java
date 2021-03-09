@@ -21,7 +21,7 @@ package org.elasticsearch.indices.stats;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.stats.CommonStats;

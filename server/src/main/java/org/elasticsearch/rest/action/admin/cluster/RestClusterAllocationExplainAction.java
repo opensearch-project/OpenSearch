@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

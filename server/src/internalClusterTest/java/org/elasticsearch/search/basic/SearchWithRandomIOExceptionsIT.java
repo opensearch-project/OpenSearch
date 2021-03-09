@@ -22,7 +22,7 @@ package org.elasticsearch.search.basic;
 import org.apache.lucene.util.English;
 import org.elasticsearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;

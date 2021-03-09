@@ -36,6 +36,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.hamcrest.Matchers;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 
 import java.io.IOException;
 import java.util.Collections;

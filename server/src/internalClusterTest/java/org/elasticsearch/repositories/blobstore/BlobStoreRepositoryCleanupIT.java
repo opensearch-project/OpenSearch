@@ -19,7 +19,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.opensearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.common.settings.Settings;
