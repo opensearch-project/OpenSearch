@@ -411,7 +411,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testBasicAllQuery() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
@@ -435,7 +435,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithDate() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
@@ -462,7 +462,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithLotsOfTypes() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
@@ -495,12 +495,12 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testDocWithAllTypes() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        String docBody = copyToStringFromClasspath("/org.opensearch.search/query/all-example-document.json");
+        String docBody = copyToStringFromClasspath("/org/opensearch/search/query/all-example-document.json");
         reqs.add(client().prepareIndex("test", "_doc", "1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
