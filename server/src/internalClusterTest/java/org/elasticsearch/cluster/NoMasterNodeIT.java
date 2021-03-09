@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;

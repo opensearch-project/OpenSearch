@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.flush;
 
 import org.apache.lucene.index.Term;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;

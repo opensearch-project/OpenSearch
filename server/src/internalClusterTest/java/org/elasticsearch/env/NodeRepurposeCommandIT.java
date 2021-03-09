@@ -19,7 +19,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.NoShardAvailableActionException;
+import org.opensearch.action.NoShardAvailableActionException;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;

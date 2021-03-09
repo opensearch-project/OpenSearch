@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;

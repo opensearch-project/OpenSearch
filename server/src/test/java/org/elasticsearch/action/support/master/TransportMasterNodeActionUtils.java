@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 
 public class TransportMasterNodeActionUtils {

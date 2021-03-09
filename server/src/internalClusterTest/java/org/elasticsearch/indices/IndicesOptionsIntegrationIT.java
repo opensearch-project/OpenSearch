@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.indices;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.opensearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;

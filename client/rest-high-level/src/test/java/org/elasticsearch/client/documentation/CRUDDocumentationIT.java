@@ -21,10 +21,10 @@ package org.elasticsearch.client.documentation;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.LatchedActionListener;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;

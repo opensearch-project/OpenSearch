@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class GetScriptLanguageAction extends ActionType<GetScriptLanguageResponse> {
     public static final GetScriptLanguageAction INSTANCE = new GetScriptLanguageAction();

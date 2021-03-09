@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ClusterHealthAction extends ActionType<ClusterHealthResponse> {
 

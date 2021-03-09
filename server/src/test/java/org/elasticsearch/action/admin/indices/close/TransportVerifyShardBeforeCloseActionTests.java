@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;

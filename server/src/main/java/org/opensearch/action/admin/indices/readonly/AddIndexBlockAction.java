@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.readonly;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class AddIndexBlockAction extends ActionType<AddIndexBlockResponse> {
 

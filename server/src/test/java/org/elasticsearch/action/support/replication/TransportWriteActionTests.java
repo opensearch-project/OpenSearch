@@ -20,7 +20,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;

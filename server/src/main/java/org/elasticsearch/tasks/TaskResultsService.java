@@ -24,7 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;

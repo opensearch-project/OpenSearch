@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;

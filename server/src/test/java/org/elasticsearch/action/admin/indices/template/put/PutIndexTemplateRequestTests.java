@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;

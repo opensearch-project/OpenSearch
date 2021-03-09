@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.segments;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class IndicesSegmentsAction extends ActionType<IndicesSegmentResponse> {
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
@@ -56,7 +56,7 @@ import java.util.function.IntConsumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import org.elasticsearch.action.RequestValidators;
+import org.opensearch.action.RequestValidators;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;

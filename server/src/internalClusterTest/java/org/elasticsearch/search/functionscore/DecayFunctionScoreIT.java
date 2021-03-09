@@ -20,7 +20,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
+import org.opensearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;

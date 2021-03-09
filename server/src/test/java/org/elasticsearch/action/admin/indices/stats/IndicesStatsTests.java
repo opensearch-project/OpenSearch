@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.ActionFuture;
+import org.opensearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;

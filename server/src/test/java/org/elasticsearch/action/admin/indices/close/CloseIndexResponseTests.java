@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.NoShardAvailableActionException;
+import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;

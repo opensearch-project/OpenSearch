@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;

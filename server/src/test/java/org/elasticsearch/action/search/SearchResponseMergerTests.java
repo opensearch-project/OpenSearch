@@ -22,7 +22,7 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.text.Text;

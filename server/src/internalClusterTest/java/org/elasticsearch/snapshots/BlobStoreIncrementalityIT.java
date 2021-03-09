@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;

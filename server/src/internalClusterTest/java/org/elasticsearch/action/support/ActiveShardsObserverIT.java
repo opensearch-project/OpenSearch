@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.ActionFuture;
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;

@@ -21,8 +21,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;

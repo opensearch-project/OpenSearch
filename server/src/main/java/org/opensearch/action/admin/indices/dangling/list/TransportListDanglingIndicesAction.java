@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.dangling.list;
 
-import org.elasticsearch.action.FailedNodeException;
+import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;

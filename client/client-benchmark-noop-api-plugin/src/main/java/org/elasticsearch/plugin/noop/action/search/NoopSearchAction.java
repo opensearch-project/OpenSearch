@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.plugin.noop.action.search;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
 
 public class NoopSearchAction extends ActionType<SearchResponse> {

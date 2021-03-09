@@ -21,12 +21,12 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
