@@ -21,7 +21,7 @@ or similar cases where there is no response coming back from the server.
 
 In cases where the server returns a `4xx` or `5xx` error code, the high-level
 client tries to parse the response body error details instead and then throws
-a generic `ElasticsearchException` and adds the original `ResponseException` as a
+a generic `OpenSearchException` and adds the original `ResponseException` as a
 suppressed exception to it.
 
 [id="{upid}-{api}-async"]

@@ -71,7 +71,7 @@ include-tagged::{doc-tests-file}[{api}-response]
 <3> Number of shards where the clear cache has failed
 <4> A list of failures if the operation failed on one or more shards
 
-By default, if the indices were not found, an `ElasticsearchException` will be thrown:
+By default, if the indices were not found, an `OpenSearchException` will be thrown:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

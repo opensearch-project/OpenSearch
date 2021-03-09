@@ -114,7 +114,7 @@ include-tagged::{doc-tests-file}[{api}-indexnotfound]
 --------------------------------------------------
 <1> `getResponse` is null.
 <2> `getFailure` isn't and contains an `Exception`.
-<3> That `Exception` is actually an `ElasticsearchException`
+<3> That `Exception` is actually an `OpenSearchException`
 <4> and it has a status of `NOT_FOUND`. It'd have been an HTTP 404 if this
 wasn't a multi get.
 <5> `getMessage` explains the actual cause, `no such index`.
@@ -128,7 +128,7 @@ include-tagged::{doc-tests-file}[{api}-conflict]
 --------------------------------------------------
 <1> `getResponse` is null.
 <2> `getFailure` isn't and contains an `Exception`.
-<3> That `Exception` is actually an `ElasticsearchException`
+<3> That `Exception` is actually an `OpenSearchException`
 <4> and it has a status of `CONFLICT`. It'd have been an HTTP 409 if this
 wasn't a multi get.
 <5> `getMessage` explains the actual cause, `
