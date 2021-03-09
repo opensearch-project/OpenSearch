@@ -366,7 +366,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
     }
 
     public void testBulk() throws Exception {
-        byte[] bulkAction = unZipData("/org.opensearch.search/geo/gzippedmap.gz");
+        byte[] bulkAction = unZipData("/org/opensearch/search/geo/gzippedmap.gz");
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
