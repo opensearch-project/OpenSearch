@@ -46,6 +46,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
 
 import java.io.IOException;
 import java.util.List;

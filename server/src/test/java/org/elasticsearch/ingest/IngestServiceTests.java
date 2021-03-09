@@ -26,7 +26,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;

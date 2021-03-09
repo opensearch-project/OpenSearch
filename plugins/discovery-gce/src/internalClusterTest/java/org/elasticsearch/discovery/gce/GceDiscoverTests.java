@@ -21,7 +21,7 @@ package org.elasticsearch.discovery.gce;
 
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.cluster.node.DiscoveryNode;

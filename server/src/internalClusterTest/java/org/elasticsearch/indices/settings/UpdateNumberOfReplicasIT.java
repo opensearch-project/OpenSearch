@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;

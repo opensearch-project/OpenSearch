@@ -20,7 +20,7 @@
 package org.opensearch.transport.netty4;
 
 import io.netty.channel.Channel;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.transport.TcpServerChannel;
 

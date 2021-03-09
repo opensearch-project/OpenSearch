@@ -21,10 +21,10 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -58,7 +58,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
+import static org.opensearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;

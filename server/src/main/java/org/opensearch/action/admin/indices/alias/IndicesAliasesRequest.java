@@ -21,8 +21,8 @@ package org.opensearch.action.admin.indices.alias;
 
 import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.AliasesRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -53,7 +53,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 

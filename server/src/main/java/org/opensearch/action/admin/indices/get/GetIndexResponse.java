@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;

@@ -29,6 +29,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;

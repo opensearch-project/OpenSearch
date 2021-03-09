@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.ArrayUtils;

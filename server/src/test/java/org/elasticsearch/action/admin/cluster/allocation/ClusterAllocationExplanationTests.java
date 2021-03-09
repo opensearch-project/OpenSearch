@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;

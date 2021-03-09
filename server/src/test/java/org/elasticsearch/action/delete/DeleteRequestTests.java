@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -50,6 +50,6 @@ public class DeleteRequestTests extends ESTestCase {
 
             assertThat(validate, not(nullValue()));
             assertThat(validate.validationErrors(), hasItems("id is missing"));
-        }        
+        }
     }
 }

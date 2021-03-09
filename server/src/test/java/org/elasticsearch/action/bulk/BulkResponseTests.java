@@ -21,8 +21,8 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponseTests;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponseTests;

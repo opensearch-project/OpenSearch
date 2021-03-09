@@ -27,7 +27,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;

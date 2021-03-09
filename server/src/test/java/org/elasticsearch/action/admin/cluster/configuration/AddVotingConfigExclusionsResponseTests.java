@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
 
 import java.io.IOException;
 

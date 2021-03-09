@@ -20,8 +20,8 @@
 package org.elasticsearch.routing;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.RoutingMissingException;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;

@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.broadcast.node;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.IndicesRequest;
+import org.opensearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.PlainActionFuture;

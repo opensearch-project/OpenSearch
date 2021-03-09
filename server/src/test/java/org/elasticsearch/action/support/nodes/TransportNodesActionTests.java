@@ -20,7 +20,7 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.FailedNodeException;
+import org.opensearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeActionTests;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

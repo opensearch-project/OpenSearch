@@ -19,8 +19,8 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocWriteRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.bytes.BytesArray;

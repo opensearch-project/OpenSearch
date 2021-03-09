@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.settings.SettingsUpdater;
 
 import java.util.ArrayList;
 import java.util.Collections;

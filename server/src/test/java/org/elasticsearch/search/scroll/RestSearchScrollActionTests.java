@@ -20,7 +20,7 @@
 package org.elasticsearch.search.scroll;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.node.NodeClient;

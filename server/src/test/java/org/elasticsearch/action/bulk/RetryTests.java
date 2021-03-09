@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest.OpType;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;

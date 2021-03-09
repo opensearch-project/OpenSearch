@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;

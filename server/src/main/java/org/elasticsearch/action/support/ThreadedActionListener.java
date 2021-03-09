@@ -21,8 +21,8 @@ package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRunnable;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;

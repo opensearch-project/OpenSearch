@@ -20,9 +20,9 @@
 package org.elasticsearch.update;
 
 import org.elasticsearch.OpenSearchTimeoutException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;

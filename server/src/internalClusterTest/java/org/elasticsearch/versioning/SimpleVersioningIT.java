@@ -19,9 +19,9 @@
 package org.elasticsearch.versioning;
 
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;

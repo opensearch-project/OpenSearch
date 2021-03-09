@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.document;
 
-import org.elasticsearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;

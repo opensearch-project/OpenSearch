@@ -36,17 +36,17 @@ import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse,
+public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.opensearch.action.admin.cluster.remote.RemoteInfoResponse,
         RemoteInfoResponse> {
 
     @Override
-    protected org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse createServerTestInstance(XContentType xContentType) {
+    protected org.opensearch.action.admin.cluster.remote.RemoteInfoResponse createServerTestInstance(XContentType xContentType) {
         int numRemoteInfos = randomIntBetween(0, 8);
         List<RemoteConnectionInfo> remoteInfos = new ArrayList<>();
         for (int i = 0; i < numRemoteInfos; i++) {
             remoteInfos.add(createRandomRemoteConnectionInfo());
         }
-        return new org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse(remoteInfos);
+        return new org.opensearch.action.admin.cluster.remote.RemoteInfoResponse(remoteInfos);
     }
 
     @Override
@@ -55,7 +55,7 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse serverTestInstance,
+    protected void assertInstances(org.opensearch.action.admin.cluster.remote.RemoteInfoResponse serverTestInstance,
                                    RemoteInfoResponse clientInstance) {
         assertThat(clientInstance.getInfos().size(), equalTo(serverTestInstance.getInfos().size()));
         Map<String, RemoteConnectionInfo> serverInfos = serverTestInstance.getInfos().stream()

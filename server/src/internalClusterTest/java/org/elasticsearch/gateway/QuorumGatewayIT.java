@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.test.ESIntegTestCase;

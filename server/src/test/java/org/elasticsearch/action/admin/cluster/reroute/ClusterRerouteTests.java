@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -43,6 +43,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.opensearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 
 import java.io.IOException;
 import java.util.Collections;

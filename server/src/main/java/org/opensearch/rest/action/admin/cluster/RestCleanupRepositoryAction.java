@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;

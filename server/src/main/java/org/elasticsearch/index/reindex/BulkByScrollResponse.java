@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;

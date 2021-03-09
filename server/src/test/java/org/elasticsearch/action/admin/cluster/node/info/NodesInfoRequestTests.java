@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 
 import java.util.HashSet;
 import java.util.Set;

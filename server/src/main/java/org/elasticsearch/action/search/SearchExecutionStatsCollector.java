@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.query.QuerySearchResult;

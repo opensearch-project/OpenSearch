@@ -21,9 +21,9 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.RealtimeRequest;
-import org.elasticsearch.action.ValidateActions;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.RealtimeRequest;
+import org.opensearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;

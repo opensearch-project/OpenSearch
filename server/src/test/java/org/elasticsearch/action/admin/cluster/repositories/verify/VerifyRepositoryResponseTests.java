@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 
 import java.util.ArrayList;
 import java.util.List;

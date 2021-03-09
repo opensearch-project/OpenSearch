@@ -39,7 +39,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.DocWriteRequest.OpType;
+import static org.opensearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.client.Requests.clearIndicesCacheRequest;
 import static org.elasticsearch.client.Requests.getRequest;
 import static org.elasticsearch.client.Requests.indexRequest;

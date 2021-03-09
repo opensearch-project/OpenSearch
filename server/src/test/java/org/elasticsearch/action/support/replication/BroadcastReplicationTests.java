@@ -19,9 +19,9 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.UnavailableShardsException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.admin.indices.flush.TransportFlushAction;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;

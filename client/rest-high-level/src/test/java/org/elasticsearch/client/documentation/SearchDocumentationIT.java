@@ -21,8 +21,8 @@ package org.elasticsearch.client.documentation;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.explain.ExplainRequest;

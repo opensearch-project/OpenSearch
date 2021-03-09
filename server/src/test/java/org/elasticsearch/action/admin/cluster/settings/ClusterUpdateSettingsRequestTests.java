@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 
 import java.io.IOException;
 import java.util.Collections;

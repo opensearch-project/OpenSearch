@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;

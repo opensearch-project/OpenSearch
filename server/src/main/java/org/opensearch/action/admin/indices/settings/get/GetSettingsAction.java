@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class GetSettingsAction extends ActionType<GetSettingsResponse> {
 

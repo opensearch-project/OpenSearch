@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.dangling.find;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * Represents a request to find a particular dangling index by UUID.

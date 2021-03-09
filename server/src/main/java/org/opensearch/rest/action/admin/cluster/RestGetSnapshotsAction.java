@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.opensearch.rest.BaseRestHandler;

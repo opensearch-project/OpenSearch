@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;

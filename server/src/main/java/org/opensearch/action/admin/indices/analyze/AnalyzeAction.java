@@ -20,9 +20,9 @@
 package org.opensearch.action.admin.indices.analyze;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -44,7 +44,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 

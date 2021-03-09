@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
@@ -43,9 +43,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
-import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
-import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.opensearch.action.DocWriteResponse.Result.DELETED;
+import static org.opensearch.action.DocWriteResponse.Result.NOT_FOUND;
+import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;

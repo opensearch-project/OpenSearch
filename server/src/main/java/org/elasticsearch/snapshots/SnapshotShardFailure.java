@@ -20,7 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
