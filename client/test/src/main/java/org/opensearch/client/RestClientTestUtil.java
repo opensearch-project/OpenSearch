@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.opensearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;

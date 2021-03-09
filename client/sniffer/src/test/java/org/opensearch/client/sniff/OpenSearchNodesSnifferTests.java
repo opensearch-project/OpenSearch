@@ -34,7 +34,7 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientTestCase;
+import org.opensearch.client.RestClientTestCase;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.After;
 import org.junit.Before;
