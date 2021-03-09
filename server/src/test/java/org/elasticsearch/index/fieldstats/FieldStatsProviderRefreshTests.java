@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fieldstats;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;

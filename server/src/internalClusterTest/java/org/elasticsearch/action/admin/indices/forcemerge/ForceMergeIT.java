@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -30,6 +30,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 
 import java.io.IOException;
 

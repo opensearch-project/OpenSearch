@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;

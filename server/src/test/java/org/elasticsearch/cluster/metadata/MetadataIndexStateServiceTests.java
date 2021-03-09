@@ -20,9 +20,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
+import org.opensearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.close.CloseIndexResponse;
+import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamRequestTests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.action.admin.indices.rollover.Condition;
-import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.opensearch.action.admin.indices.rollover.Condition;
+import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;

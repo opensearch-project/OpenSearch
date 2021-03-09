@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 
 import java.util.ArrayList;
 import java.util.List;

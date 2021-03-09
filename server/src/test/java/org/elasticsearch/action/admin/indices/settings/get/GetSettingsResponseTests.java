@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -27,7 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.node.NodeClient;

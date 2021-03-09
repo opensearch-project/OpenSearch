@@ -21,11 +21,11 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.segments.IndexSegments;
-import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.opensearch.action.admin.indices.segments.IndexSegments;
+import org.opensearch.action.admin.indices.segments.IndexShardSegments;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
+import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;

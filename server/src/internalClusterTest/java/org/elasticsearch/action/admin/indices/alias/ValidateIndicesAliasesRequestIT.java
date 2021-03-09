@@ -20,9 +20,10 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.RequestValidators;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

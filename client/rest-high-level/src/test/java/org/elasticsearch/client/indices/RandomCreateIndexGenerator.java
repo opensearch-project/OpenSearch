@@ -40,7 +40,7 @@ public class RandomCreateIndexGenerator {
             // Create a random server request, and copy its contents into the HLRC request.
             // Because client requests only accept typeless mappings, we must swap out the
             // mapping definition for one that does not contain types.
-            org.elasticsearch.action.admin.indices.create.CreateIndexRequest serverRequest =
+            org.opensearch.action.admin.indices.create.CreateIndexRequest serverRequest =
                 org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
             return new CreateIndexRequest(serverRequest.index())
                 .settings(serverRequest.settings())

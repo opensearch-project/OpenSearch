@@ -20,11 +20,11 @@ package org.elasticsearch.indices.flush;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
+import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

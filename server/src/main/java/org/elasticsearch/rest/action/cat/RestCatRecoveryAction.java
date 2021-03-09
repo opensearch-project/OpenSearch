@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.action.admin.indices.recovery.RecoveryRequest;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.routing.RecoverySource;

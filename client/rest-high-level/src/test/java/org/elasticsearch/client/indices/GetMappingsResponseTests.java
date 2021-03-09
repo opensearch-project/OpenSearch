@@ -110,8 +110,8 @@ public class GetMappingsResponseTests extends ESTestCase {
             allMappings.put(indexEntry.getKey(), mappings.build());
         }
 
-        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse serverResponse =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse(allMappings.build());
+        org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse serverResponse =
+            new org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse(allMappings.build());
 
         builder.startObject();
         serverResponse.toXContent(builder, params);

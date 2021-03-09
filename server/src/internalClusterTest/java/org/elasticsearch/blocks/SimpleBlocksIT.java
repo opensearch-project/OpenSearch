@@ -21,10 +21,10 @@ package org.elasticsearch.blocks;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.opensearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;

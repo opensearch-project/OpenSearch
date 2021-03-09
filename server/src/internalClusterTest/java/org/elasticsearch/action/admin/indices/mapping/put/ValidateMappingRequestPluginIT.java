@@ -25,6 +25,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 
 import java.util.Arrays;
 import java.util.Collection;
