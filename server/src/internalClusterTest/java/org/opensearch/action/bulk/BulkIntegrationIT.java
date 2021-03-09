@@ -68,7 +68,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     public void testBulkIndexCreatesMapping() throws Exception {
-        String bulkAction = copyToStringFromClasspath("/org.opensearch.action/bulk/bulk-log.json");
+        String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
         bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         bulkBuilder.get();
@@ -126,7 +126,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
 
     public void testBulkWithGlobalDefaults() throws Exception {
         // all requests in the json are missing index and type parameters: "_index" : "test", "_type" : "type1",
-        String bulkAction = copyToStringFromClasspath("/org.opensearch.action/bulk/simple-bulk-missing-index-type.json");
+        String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk-missing-index-type.json");
         {
             BulkRequestBuilder bulkBuilder = client().prepareBulk();
             bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
