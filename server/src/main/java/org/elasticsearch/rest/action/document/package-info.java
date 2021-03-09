@@ -18,6 +18,6 @@
  */
 
 /**
- * {@link org.opensearch.rest.RestHandler}s for actions that can be taken on documents like index, update, get, and delete.
+ * {@link org.elasticsearch.rest.RestHandler}s for actions that can be taken on documents like index, update, get, and delete.
  */
-package org.opensearch.rest.action.document;
+package org.elasticsearch.rest.action.document;
