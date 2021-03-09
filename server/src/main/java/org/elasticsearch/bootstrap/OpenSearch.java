@@ -41,7 +41,7 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * This class starts elasticsearch.
+ * This class starts opensearch.
  */
 class OpenSearch extends EnvironmentAwareCommand {
 
@@ -70,7 +70,7 @@ class OpenSearch extends EnvironmentAwareCommand {
     }
 
     /**
-     * Main entry point for starting elasticsearch
+     * Main entry point for starting opensearch
      */
     public static void main(final String[] args) throws Exception {
         overrideDnsCachePolicyProperties();
@@ -88,8 +88,8 @@ class OpenSearch extends EnvironmentAwareCommand {
 
         });
         LogConfigurator.registerErrorListener();
-        final OpenSearch elasticsearch = new OpenSearch();
-        int status = main(args, elasticsearch, Terminal.DEFAULT);
+        final OpenSearch opensearch = new OpenSearch();
+        int status = main(args, opensearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
             final String basePath = System.getProperty("es.logs.base_path");
             // It's possible to fail before logging has been configured, in which case there's no point
@@ -122,8 +122,8 @@ class OpenSearch extends EnvironmentAwareCommand {
         }
     }
 
-    static int main(final String[] args, final OpenSearch elasticsearch, final Terminal terminal) throws Exception {
-        return elasticsearch.main(args, terminal);
+    static int main(final String[] args, final OpenSearch opensearch, final Terminal terminal) throws Exception {
+        return opensearch.main(args, terminal);
     }
 
     @Override
@@ -181,7 +181,7 @@ class OpenSearch extends EnvironmentAwareCommand {
      * http://commons.apache.org/proper/commons-daemon/procrun.html
      *
      * NOTE: If this method is renamed and/or moved, make sure to
-     * update elasticsearch-service.bat!
+     * update opensearch-service.bat!
      */
     static void close(String[] args) throws IOException {
         Bootstrap.stop();
