@@ -19,9 +19,9 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.opensearch.action.admin.indices.template.post.SimulateIndexTemplateAction;
+import org.opensearch.action.admin.indices.template.post.SimulateIndexTemplateRequest;
+import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.rest.BaseRestHandler;

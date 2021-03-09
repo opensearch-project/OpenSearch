@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.admin.cluster.dangling;
 
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
+import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;

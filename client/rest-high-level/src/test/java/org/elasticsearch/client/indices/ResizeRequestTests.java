@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 public class ResizeRequestTests extends AbstractRequestTestCase<ResizeRequest,
-    org.elasticsearch.action.admin.indices.shrink.ResizeRequest> {
+        org.opensearch.action.admin.indices.shrink.ResizeRequest> {
 
     @Override
     protected ResizeRequest createClientTestInstance() {
@@ -38,16 +38,16 @@ public class ResizeRequestTests extends AbstractRequestTestCase<ResizeRequest,
     }
 
     @Override
-    protected org.elasticsearch.action.admin.indices.shrink.ResizeRequest doParseToServerInstance(XContentParser parser)
+    protected org.opensearch.action.admin.indices.shrink.ResizeRequest doParseToServerInstance(XContentParser parser)
         throws IOException {
-        org.elasticsearch.action.admin.indices.shrink.ResizeRequest req
-            = new org.elasticsearch.action.admin.indices.shrink.ResizeRequest("target", "source");
+        org.opensearch.action.admin.indices.shrink.ResizeRequest req
+            = new org.opensearch.action.admin.indices.shrink.ResizeRequest("target", "source");
         req.fromXContent(parser);
         return req;
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.admin.indices.shrink.ResizeRequest serverInstance,
+    protected void assertInstances(org.opensearch.action.admin.indices.shrink.ResizeRequest serverInstance,
                                    ResizeRequest clientTestInstance) {
         assertEquals(serverInstance.getSourceIndex(), clientTestInstance.getSourceIndex());
         assertEquals(serverInstance.getTargetIndexRequest().index(), clientTestInstance.getTargetIndex());

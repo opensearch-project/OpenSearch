@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.mapper.size;
 
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;

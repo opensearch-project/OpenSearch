@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,6 +43,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Before;
+import org.opensearch.action.admin.indices.rollover.Condition;
+import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;

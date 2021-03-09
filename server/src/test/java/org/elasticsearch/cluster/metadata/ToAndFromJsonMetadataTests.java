@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;

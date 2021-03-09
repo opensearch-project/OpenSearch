@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;

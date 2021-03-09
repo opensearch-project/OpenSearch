@@ -39,6 +39,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.settings.get.TransportGetSettingsAction;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;

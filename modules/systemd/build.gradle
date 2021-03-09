@@ -18,7 +18,7 @@
  */
 
 esplugin {
-  description 'Integrates Elasticsearch with systemd'
-  classname 'org.elasticsearch.systemd.SystemdPlugin'
+  description 'Integrates OpenSearch with systemd'
+  classname 'org.opensearch.systemd.SystemdPlugin'
 }
 

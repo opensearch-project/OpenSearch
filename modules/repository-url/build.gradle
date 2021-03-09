@@ -17,17 +17,17 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.PropertyNormalization
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.AntFixture
+import org.opensearch.gradle.PropertyNormalization
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.AntFixture
 
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 
 esplugin {
   description 'Module for URL repository'
-  classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
+  classname 'org.opensearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
 restResources {
@@ -47,7 +47,7 @@ task urlFixture(type: AntFixture) {
   }
   env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
+  args 'org.opensearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }
 yamlRestTest {
   dependsOn urlFixture

@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.opensearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;

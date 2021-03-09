@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.searchafter;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;

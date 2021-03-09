@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;

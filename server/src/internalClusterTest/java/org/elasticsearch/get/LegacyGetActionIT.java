@@ -20,7 +20,7 @@
 package org.elasticsearch.get;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;

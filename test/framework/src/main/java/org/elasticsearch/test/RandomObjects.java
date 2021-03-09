@@ -25,8 +25,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
+import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
+import org.opensearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
 import org.elasticsearch.cluster.block.ClusterBlockException;

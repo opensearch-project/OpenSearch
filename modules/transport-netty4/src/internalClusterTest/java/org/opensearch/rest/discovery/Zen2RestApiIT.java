@@ -20,7 +20,7 @@
 package org.opensearch.rest.discovery;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.ESNetty4IntegTestCase;
+import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Node;
@@ -48,7 +48,7 @@ import static org.hamcrest.core.Is.is;
 // proper transport implementation, and they cannot be REST tests today since they need to restart nodes. When #35599 and friends land we
 // should be able to move these tests to run against a proper cluster instead. TODO do this.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoManageMasterNodes = false)
-public class Zen2RestApiIT extends ESNetty4IntegTestCase {
+public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {

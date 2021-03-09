@@ -20,11 +20,11 @@
 package org.elasticsearch.aliases;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;

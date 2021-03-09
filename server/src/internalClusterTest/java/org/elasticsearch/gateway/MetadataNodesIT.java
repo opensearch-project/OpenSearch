@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;

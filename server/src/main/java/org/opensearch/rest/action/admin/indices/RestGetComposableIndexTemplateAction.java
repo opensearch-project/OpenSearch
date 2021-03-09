@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
+import org.opensearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;

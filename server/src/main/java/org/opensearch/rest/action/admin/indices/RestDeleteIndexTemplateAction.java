@@ -18,7 +18,7 @@
  */
 package org.opensearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;

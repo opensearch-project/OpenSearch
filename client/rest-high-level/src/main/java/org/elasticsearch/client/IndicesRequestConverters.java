@@ -24,20 +24,20 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.opensearch.action.admin.indices.open.OpenIndexRequest;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.admin.indices.shrink.ResizeType;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateDataStreamRequest;
@@ -155,7 +155,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request createIndex(org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest)
+    static Request createIndex(org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest)
             throws IOException {
         String endpoint = RequestConverters.endpoint(createIndexRequest.indices());
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -195,11 +195,11 @@ final class IndicesRequestConverters {
     }
 
     /**
-     * converter for the legacy server-side {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} that still supports
+     * converter for the legacy server-side {@link org.opensearch.action.admin.indices.mapping.put.PutMappingRequest} that still supports
      * types
      */
     @Deprecated
-    static Request putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest) throws IOException {
+    static Request putMapping(org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest) throws IOException {
         // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
         if (putMappingRequest.getConcreteIndex() != null) {
             throw new IllegalArgumentException("concreteIndex cannot be set on PutMapping requests made over the REST API");
@@ -231,7 +231,7 @@ final class IndicesRequestConverters {
     }
 
     @Deprecated
-    static Request getMappings(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest) {
+    static Request getMappings(org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest) {
         String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
         String[] types = getMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.types();
 
@@ -267,7 +267,7 @@ final class IndicesRequestConverters {
     }
 
     @Deprecated
-    static Request getFieldMapping(org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest) {
+    static Request getFieldMapping(org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest) {
         String[] indices = getFieldMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.indices();
         String[] types = getFieldMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.types();
         String[] fields = getFieldMappingsRequest.fields() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.fields();
@@ -371,7 +371,7 @@ final class IndicesRequestConverters {
     }
 
     @Deprecated
-    static Request split(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
+    static Request split(org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.SPLIT) {
             throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices split request");
         }
@@ -383,7 +383,7 @@ final class IndicesRequestConverters {
     }
 
     @Deprecated
-    static Request shrink(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
+    static Request shrink(org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.SHRINK) {
             throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices shrink request");
         }
@@ -395,7 +395,7 @@ final class IndicesRequestConverters {
     }
 
     @Deprecated
-    static Request clone(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
+    static Request clone(org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.CLONE) {
             throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices clone request");
         }
@@ -418,7 +418,7 @@ final class IndicesRequestConverters {
     }
 
     @Deprecated
-    private static Request resize(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
+    private static Request resize(org.opensearch.action.admin.indices.shrink.ResizeRequest resizeRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPart(resizeRequest.getSourceIndex())
             .addPathPartAsIs("_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT))
             .addPathPart(resizeRequest.getTargetIndexRequest().index()).build();
@@ -451,7 +451,7 @@ final class IndicesRequestConverters {
     }
 
     @Deprecated
-    static Request rollover(org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest) throws IOException {
+    static Request rollover(org.opensearch.action.admin.indices.rollover.RolloverRequest rolloverRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPart(rolloverRequest.getRolloverTarget())
             .addPathPartAsIs("_rollover").addPathPart(rolloverRequest.getNewIndexName()).build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -486,11 +486,11 @@ final class IndicesRequestConverters {
     }
 
     /**
-     * converter for the legacy server-side {@link org.elasticsearch.action.admin.indices.get.GetIndexRequest} that
+     * converter for the legacy server-side {@link org.opensearch.action.admin.indices.get.GetIndexRequest} that
      * still supports types
      */
     @Deprecated
-    static Request getIndex(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest) {
+    static Request getIndex(org.opensearch.action.admin.indices.get.GetIndexRequest getIndexRequest) {
         String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
 
         String endpoint = RequestConverters.endpoint(indices);
@@ -524,11 +524,11 @@ final class IndicesRequestConverters {
     }
 
     /**
-     * converter for the legacy server-side {@link org.elasticsearch.action.admin.indices.get.GetIndexRequest} that
+     * converter for the legacy server-side {@link org.opensearch.action.admin.indices.get.GetIndexRequest} that
      * still supports types
      */
     @Deprecated
-    static Request indicesExist(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest) {
+    static Request indicesExist(org.opensearch.action.admin.indices.get.GetIndexRequest getIndexRequest) {
         // this can be called with no indices as argument by transport client, not via REST though
         if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
             throw new IllegalArgumentException("indices are mandatory");
@@ -582,7 +582,7 @@ final class IndicesRequestConverters {
      * Use (@link {@link #putTemplate(PutIndexTemplateRequest)} instead
      */
     @Deprecated
-    static Request putTemplate(org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest)
+    static Request putTemplate(org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest)
             throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template")
             .addPathPart(putIndexTemplateRequest.name()).build();

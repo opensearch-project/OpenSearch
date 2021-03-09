@@ -1,1 +1,1 @@
-org.elasticsearch.index.rankeval.RankEvalNamedXContentProvider
+org.opensearch.index.rankeval.RankEvalNamedXContentProvider
