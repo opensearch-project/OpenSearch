@@ -260,7 +260,7 @@ field support has a `nested` sort option with the following properties:
 ==== Nested sorting examples
 
 In the below example `offer` is a field of type `nested`.
-The nested `path` needs to be specified; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
+The nested `path` needs to be specified; otherwise, {opensearch} doesn't know on what nested level sort values need to be captured.
 
 [source,console]
 --------------------------------------------------
@@ -287,7 +287,7 @@ POST /_search
 --------------------------------------------------
 
 In the below example `parent` and `child` fields are of type `nested`.
-The `nested_path` needs to be specified at each level; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
+The `nested_path` needs to be specified at each level; otherwise, {opensearch} doesn't know on what nested level sort values need to be captured.
 
 [source,console]
 --------------------------------------------------
@@ -385,7 +385,7 @@ GET /_search
 --------------------------------------------------
 
 If any of the indices that are queried doesn't have a mapping for `price`
-then Elasticsearch will handle it as if there was a mapping of type
+then {opensearch} will handle it as if there was a mapping of type
 `long`, with all documents in this index having no value for this field.
 
 [discrete]
