@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.opensearch.client.sniff;
 
 import org.elasticsearch.client.RestClient;
 
@@ -37,7 +37,7 @@ public final class SnifferBuilder {
     private NodesSniffer nodesSniffer;
 
     /**
-     * Creates a new builder instance by providing the {@link RestClient} that will be used to communicate with elasticsearch
+     * Creates a new builder instance by providing the {@link RestClient} that will be used to communicate with opensearch
      */
     SnifferBuilder(RestClient restClient) {
         Objects.requireNonNull(restClient, "restClient cannot be null");
@@ -69,8 +69,8 @@ public final class SnifferBuilder {
     }
 
     /**
-     * Sets the {@link NodesSniffer} to be used to read hosts. A default instance of {@link ElasticsearchNodesSniffer}
-     * is created when not provided. This method can be used to change the configuration of the {@link ElasticsearchNodesSniffer},
+     * Sets the {@link NodesSniffer} to be used to read hosts. A default instance of {@link OpenSearchNodesSniffer}
+     * is created when not provided. This method can be used to change the configuration of the {@link OpenSearchNodesSniffer},
      * or to provide a different implementation (e.g. in case hosts need to taken from a different source).
      */
     public SnifferBuilder setNodesSniffer(NodesSniffer nodesSniffer) {
@@ -84,7 +84,7 @@ public final class SnifferBuilder {
      */
     public Sniffer build() {
         if (nodesSniffer == null) {
-            this.nodesSniffer = new ElasticsearchNodesSniffer(restClient);
+            this.nodesSniffer = new OpenSearchNodesSniffer(restClient);
         }
         return new Sniffer(restClient, nodesSniffer, sniffIntervalMillis, sniffAfterFailureDelayMillis);
     }

@@ -31,7 +31,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
+import org.opensearch.client.sniff.OpenSearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -431,10 +431,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * {@link RestClientBuilder} for a client with that metadata.
      */
     protected final RestClientBuilder getClientBuilderWithSniffedHosts() throws IOException {
-        ElasticsearchNodesSniffer.Scheme scheme =
-            ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
-        ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(
-                adminClient(), ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+        OpenSearchNodesSniffer.Scheme scheme =
+            OpenSearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
+        OpenSearchNodesSniffer sniffer = new OpenSearchNodesSniffer(
+                adminClient(), OpenSearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;

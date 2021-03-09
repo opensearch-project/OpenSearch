@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.sniff;
+package org.opensearch.client.sniff;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.http.HttpHost;
