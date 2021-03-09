@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.client;
+package org.opensearch.transport.client;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
@@ -28,7 +28,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.opensearch.join.ParentJoinPlugin;
-import org.elasticsearch.percolator.PercolatorPlugin;
+import org.opensearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.opensearch.script.mustache.MustachePlugin;
 import org.opensearch.transport.Netty4Plugin;
