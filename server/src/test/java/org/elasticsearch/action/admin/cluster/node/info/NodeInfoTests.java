@@ -26,6 +26,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;

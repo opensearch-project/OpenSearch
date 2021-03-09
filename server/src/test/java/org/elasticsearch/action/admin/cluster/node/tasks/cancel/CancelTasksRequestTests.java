@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 
 import java.util.Collections;
 

@@ -19,9 +19,9 @@
 package org.elasticsearch.repositories;
 
 import org.opensearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetadata;

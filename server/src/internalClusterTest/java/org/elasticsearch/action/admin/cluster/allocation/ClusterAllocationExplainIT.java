@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,6 +48,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 
 import java.io.IOException;
 import java.util.Collections;

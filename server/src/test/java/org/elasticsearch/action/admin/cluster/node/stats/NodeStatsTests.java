@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 
 import java.io.IOException;
 import java.util.ArrayList;

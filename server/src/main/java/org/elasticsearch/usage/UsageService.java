@@ -38,7 +38,7 @@
 
 package org.elasticsearch.usage;
 
-import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
+import org.opensearch.action.admin.cluster.node.usage.NodeUsage;
 import org.elasticsearch.rest.BaseRestHandler;
 
 import java.util.HashMap;

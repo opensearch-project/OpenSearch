@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,7 +38,7 @@ import java.util.Objects;
 /**
  * Information about successfully completed restore operation.
  * <p>
- * Returned as part of {@link org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse}
+ * Returned as part of {@link RestoreSnapshotResponse}
  */
 public class RestoreInfo implements ToXContentObject, Writeable {
 

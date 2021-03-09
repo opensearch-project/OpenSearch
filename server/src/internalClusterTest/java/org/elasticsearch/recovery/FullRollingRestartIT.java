@@ -19,8 +19,8 @@
 
 package org.elasticsearch.recovery;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

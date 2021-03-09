@@ -37,12 +37,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Locale;
 
-import static org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction.findShardToExplain;
+import static org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction.findShardToExplain;
 
 /**
  * Tests for the {@link TransportClusterAllocationExplainAction} class.

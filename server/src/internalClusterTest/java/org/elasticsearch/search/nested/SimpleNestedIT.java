@@ -22,7 +22,7 @@ package org.elasticsearch.search.nested;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
