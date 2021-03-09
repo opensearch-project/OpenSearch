@@ -7,8 +7,9 @@ or from our <<deb-repo,APT repository>>. It can be used to install
 
 include::license.asciidoc[]
 
-The latest stable version of Elasticsearch can be found on the
-link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
+// TODO: Correct the links for Opensearch
+The latest stable version of {opensearch} can be found on the
+link:/downloads/elasticsearch[Download {opensearch}] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
 NOTE: {opensearch} includes a bundled version of https://openjdk.java.net[OpenJDK]

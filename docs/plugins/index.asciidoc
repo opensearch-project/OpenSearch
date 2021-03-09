@@ -19,9 +19,9 @@ such plugins with a rolling restart.
 
 This documentation distinguishes two categories of plugins:
 
-Core Plugins::    This category identifies plugins that are part of Elasticsearch
-project. Delivered at the same time as Elasticsearch, their version number always
-matches the version number of Elasticsearch itself. These plugins are maintained
+Core Plugins::    This category identifies plugins that are part of {opensearch}
+project. Delivered at the same time as {opensearch}, their version number always
+matches the version number of {opensearch} itself. These plugins are maintained
 by the Elastic team with the appreciated help of amazing community members (for
 open source plugins). Issues and bug reports can be reported on the
 https://github.com/elastic/elasticsearch[Github project page].

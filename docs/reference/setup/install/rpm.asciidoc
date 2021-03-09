@@ -11,8 +11,9 @@ such as SLES 11 and CentOS 5.  Please see <<targz>> instead.
 
 include::license.asciidoc[]
 
-The latest stable version of Elasticsearch can be found on the
-link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
+// TODO: Correct the links for Opensearch
+The latest stable version of {Opensearch} can be found on the
+link:/downloads/elasticsearch[Download {Opensearch}] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
 NOTE: {opensearch} includes a bundled version of https://openjdk.java.net[OpenJDK]

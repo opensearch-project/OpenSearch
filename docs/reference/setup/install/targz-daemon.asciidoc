@@ -1,6 +1,6 @@
 ==== Running as a daemon
 
-To run Elasticsearch as a daemon, specify `-d` on the command line, and record
+To run {opensearch} as a daemon, specify `-d` on the command line, and record
 the process ID in a file using the `-p` option:
 
 [source,sh]
@@ -14,7 +14,7 @@ details.
 
 Log messages can be found in the `$ES_HOME/logs/` directory.
 
-To shut down Elasticsearch, kill the process ID recorded in the `pid` file:
+To shut down {opensearch}, kill the process ID recorded in the `pid` file:
 
 [source,sh]
 --------------------------------------------

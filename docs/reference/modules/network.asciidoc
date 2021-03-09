@@ -1,7 +1,7 @@
 [[modules-network]]
 === Network settings
 
-Elasticsearch binds to localhost only by default.  This is sufficient for you
+{opensearch} binds to localhost only by default.  This is sufficient for you
 to run a local development server (or even a development cluster, if you start
 multiple nodes on the same machine), but you will need to configure some
 <<common-network-settings,basic network settings>> in order to run a real
@@ -114,7 +114,7 @@ two network cards, or a site-local address and a local address. Defaults to
 `network.publish_host`::
 The publish host is the single interface that the node advertises to other nodes
 in the cluster, so that those nodes can connect to it. Currently an
-Elasticsearch node may be bound to multiple addresses, but only publishes one.
+{opensearch} node may be bound to multiple addresses, but only publishes one.
 If not specified, this defaults to the ``best'' address from `network.host`,
 sorted by IPv4/IPv6 stack preference, then by reachability. If you set a
 `network.host` that results in multiple bind addresses yet rely on a specific
