@@ -537,14 +537,6 @@ Mapping types have been removed. See <<mapping>>.
 
 See <<query-filter-context>>.
 
-[role="exclude",id="esms"]
-=== {esms}
-
-We have stopped adding new customers to our {esms}.
-
-If you are interested in similar capabilities, contact
-https://support.elastic.co[Elastic Support] to discuss available options.
-
 [role="exclude",id="analysis-pathhierarchy-tokenizer-examples"]
 === Path hierarchy tokenizer examples
 
