@@ -541,7 +541,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testKeywordWithWhitespace() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
@@ -561,7 +561,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
@@ -608,7 +608,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testFieldAlias() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
         ensureGreen("test");
 
@@ -628,7 +628,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testFieldAliasWithWildcardField() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
         ensureGreen("test");
 
@@ -648,7 +648,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testFieldAliasOnDisallowedFieldType() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
         ensureGreen("test");
 

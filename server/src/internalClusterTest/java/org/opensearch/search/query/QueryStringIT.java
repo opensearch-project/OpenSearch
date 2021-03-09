@@ -62,7 +62,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
     }
@@ -149,7 +149,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
     public void testDocWithAllTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        String docBody = copyToStringFromClasspath("/org.opensearch.search/query/all-example-document.json");
+        String docBody = copyToStringFromClasspath("/org/opensearch/search/query/all-example-document.json");
         reqs.add(client().prepareIndex("test", "_doc", "1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
@@ -208,7 +208,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
     }
 
     public void testAllFields() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org.opensearch.search/query/all-query-index.json");
+        String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
 
         Settings.Builder settings = Settings.builder().put("index.query.default_field", "*");
         prepareCreate("test_1").setSource(indexBody, XContentType.JSON).setSettings(settings).get();
