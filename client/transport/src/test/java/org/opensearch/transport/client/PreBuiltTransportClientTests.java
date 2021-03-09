@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.opensearch.index.reindex.ReindexPlugin;
 import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
