@@ -37,14 +37,15 @@ POST /hockey/_explain/1
 Which shows that the class of `doc.first` is
 `org.opensearch.index.fielddata.ScriptDocValues.Longs` by responding with:
 
+// TODO: Change the class path after renaming or test will be failed
 [source,console-result]
 ---------------------------------------------------------
 {
    "error": {
       "type": "script_exception",
       "to_string": "[1, 9, 27]",
-      "painless_class": "org.opensearch.index.fielddata.ScriptDocValues.Longs",
-      "java_class": "org.opensearch.index.fielddata.ScriptDocValues$Longs",
+      "painless_class": "org.elasticsearch.index.fielddata.ScriptDocValues.Longs",
+      "java_class": "org.elasticsearch.index.fielddata.ScriptDocValues$Longs",
       ...
    },
    "status": 400
