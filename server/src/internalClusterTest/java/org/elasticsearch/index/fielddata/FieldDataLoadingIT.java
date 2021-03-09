@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;

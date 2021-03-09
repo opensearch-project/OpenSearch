@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class IndicesStatsAction extends ActionType<IndicesStatsResponse> {
 

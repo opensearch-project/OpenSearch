@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class RefreshAction extends ActionType<RefreshResponse> {
 

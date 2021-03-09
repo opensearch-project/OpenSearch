@@ -20,7 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import com.carrotsearch.hppc.IntArrayList;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

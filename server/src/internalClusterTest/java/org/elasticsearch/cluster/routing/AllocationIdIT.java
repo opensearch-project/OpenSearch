@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Requests;

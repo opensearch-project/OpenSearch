@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class TermVectorsAction extends ActionType<TermVectorsResponse> {
 

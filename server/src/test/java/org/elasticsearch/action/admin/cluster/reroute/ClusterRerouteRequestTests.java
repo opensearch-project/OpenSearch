@@ -42,6 +42,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterRerouteAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 
 import java.io.IOException;
 import java.util.Arrays;

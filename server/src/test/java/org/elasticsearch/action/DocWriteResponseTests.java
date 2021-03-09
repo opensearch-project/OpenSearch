@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.DocWriteResponse.Result;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;

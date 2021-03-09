@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.shards;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 /**
  * ActionType for {@link TransportIndicesShardStoresAction}

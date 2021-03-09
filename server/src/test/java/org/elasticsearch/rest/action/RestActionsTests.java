@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action;
 
 import com.fasterxml.jackson.core.io.JsonEOFException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;

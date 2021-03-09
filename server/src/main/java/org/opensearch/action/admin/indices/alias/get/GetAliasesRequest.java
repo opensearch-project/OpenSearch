@@ -19,8 +19,8 @@
 package org.opensearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.AliasesRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
