@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,23 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.opensearch.action.bulk;
 
-import org.opensearch.action.ActionType;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.TransportRequestOptions;
+import org.opensearch.action.ActionListener;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.shard.ShardId;
 
-public class BulkAction extends ActionType<BulkResponse> {
+public interface MappingUpdatePerformer {
 
-    public static final BulkAction INSTANCE = new BulkAction();
-    public static final String NAME = "indices:data/write/bulk";
+    /**
+     * Update the mappings on the master.
+     */
+    void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener);
 
-    private BulkAction() {
-        super(NAME, BulkResponse::new);
-    }
-
-    @Override
-    public TransportRequestOptions transportOptions(Settings settings) {
-        return TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK).build();
-    }
 }

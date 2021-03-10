@@ -65,8 +65,8 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
-import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
-import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.wrapBulkResponse;
+import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.wrapBulkResponse;
 
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
