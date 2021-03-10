@@ -1,4 +1,4 @@
-[[elasticsearch-intro]]
+[[opensearch-intro]]
 == What is {es}?
 _**You know, for search (and analysis)**_
 
