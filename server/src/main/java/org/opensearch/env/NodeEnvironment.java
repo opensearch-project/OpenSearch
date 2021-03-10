@@ -476,7 +476,7 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Acquires, then releases, all {@code write.lock} files in the given
      * shard paths. The "write.lock" file is assumed to be under the shard
-     * path's "index" directory as used by OpenSearchh.
+     * path's "index" directory as used by OpenSearch.
      *
      * @throws LockObtainFailedException if any of the locks could not be acquired
      */
