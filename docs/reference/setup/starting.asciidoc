@@ -1,4 +1,4 @@
-[[starting-elasticsearch]]
+[[starting-opensearch]]
 == Starting Elasticsearch
 
 The method for starting {es} varies depending on how you installed it. 
