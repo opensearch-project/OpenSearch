@@ -11,6 +11,7 @@ A filtering aggregation used to limit any sub aggregations' processing to a samp
 * Reducing the running cost of aggregations that can produce useful results using only samples e.g. `significant_terms`
  
 
+// TODO: Replace the examples for OpenSearch
 Example:
 
 A query on StackOverflow data for the popular term `javascript` OR the rarer term

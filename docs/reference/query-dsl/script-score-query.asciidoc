@@ -21,7 +21,7 @@ GET /_search
   "query": {
     "script_score": {
       "query": {
-        "match": { "message": "elasticsearch" }
+        "match": { "message": "opensearch" }
       },
       "script": {
         "source": "doc['my-int'].value / 10 "
@@ -347,7 +347,7 @@ GET /my-index-000001/_explain/0
   "query": {
     "script_score": {
       "query": {
-        "match": { "message": "elasticsearch" }
+        "match": { "message": "opensearch" }
       },
       "script": {
         "source": """

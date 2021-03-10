@@ -126,7 +126,7 @@ GET index/_search
   "query": {
     "script_score": {
       "query": {
-        "match": { "body": "elasticsearch" }
+        "match": { "body": "opensearch" }
       },
       "script": {
         "source": "_score * saturation(doc['pagerank'].value, 10)" <1>
@@ -171,7 +171,7 @@ GET _search
   "query": {
     "bool": {
       "must": {
-        "match": { "body": "elasticsearch" }
+        "match": { "body": "opensearch" }
       },
       "should": {
         "rank_feature": {

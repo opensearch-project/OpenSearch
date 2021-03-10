@@ -24,6 +24,7 @@ number of documents collected on any one shard which share a common value. The d
 The aggregation will throw an error if the choice of `field` or `script` produces multiple values for a single document (de-duplication using multi-valued fields is not supported due to efficiency concerns).
 
 
+// TODO: Replace the examples for OpenSearch
 Example:
 
 We might want to see which tags are strongly associated with `#elasticsearch` on StackOverflow
