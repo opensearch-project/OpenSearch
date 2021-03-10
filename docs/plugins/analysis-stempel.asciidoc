@@ -2,7 +2,7 @@
 === Stempel Polish Analysis Plugin
 
 The Stempel Analysis plugin integrates Lucene's Stempel analysis
-module for Polish into elasticsearch.
+module for Polish into {opensearch}.
 
 :plugin_name: analysis-stempel
 include::install_remove.asciidoc[]
