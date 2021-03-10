@@ -29,8 +29,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotState;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

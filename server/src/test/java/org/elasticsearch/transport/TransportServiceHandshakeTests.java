@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;

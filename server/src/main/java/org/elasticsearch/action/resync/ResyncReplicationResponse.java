@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.resync;
 
-import org.elasticsearch.action.support.WriteResponse;
+import org.opensearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 

@@ -25,7 +25,7 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAl
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.TransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;

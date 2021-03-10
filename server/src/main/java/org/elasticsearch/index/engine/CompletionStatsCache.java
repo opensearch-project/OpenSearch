@@ -27,7 +27,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.regex.Regex;

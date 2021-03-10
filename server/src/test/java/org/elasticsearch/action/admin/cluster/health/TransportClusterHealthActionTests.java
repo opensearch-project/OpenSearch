@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

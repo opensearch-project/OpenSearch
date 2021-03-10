@@ -25,7 +25,7 @@ import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;

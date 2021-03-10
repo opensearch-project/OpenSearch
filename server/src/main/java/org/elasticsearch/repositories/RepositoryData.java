@@ -27,9 +27,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;

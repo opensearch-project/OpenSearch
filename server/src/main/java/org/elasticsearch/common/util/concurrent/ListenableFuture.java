@@ -21,7 +21,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.opensearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;

@@ -19,7 +19,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;

@@ -22,7 +22,7 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.opensearch.rest.BaseRestHandler;

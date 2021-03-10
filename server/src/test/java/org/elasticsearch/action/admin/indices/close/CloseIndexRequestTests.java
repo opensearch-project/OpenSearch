@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.TaskId;

@@ -40,8 +40,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;

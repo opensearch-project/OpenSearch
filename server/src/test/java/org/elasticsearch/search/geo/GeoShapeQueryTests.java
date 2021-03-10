@@ -55,8 +55,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
-import static org.apache.lucene.util.LuceneTestCase.random;
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;

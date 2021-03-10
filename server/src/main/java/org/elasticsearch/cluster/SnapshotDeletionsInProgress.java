@@ -29,9 +29,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryOperation;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -42,8 +42,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collections;

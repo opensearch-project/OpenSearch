@@ -27,7 +27,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;

@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.support.AutoCreateIndex;
 
 import java.util.HashMap;
 import java.util.List;

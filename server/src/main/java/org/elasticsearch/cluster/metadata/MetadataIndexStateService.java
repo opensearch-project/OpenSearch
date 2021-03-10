@@ -73,9 +73,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.RestoreService;
+import org.opensearch.snapshots.SnapshotInProgressException;
+import org.opensearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 

@@ -48,9 +48,9 @@ import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRe
 import org.opensearch.action.admin.indices.validate.query.QueryExplanation;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.GetAliasesResponse;

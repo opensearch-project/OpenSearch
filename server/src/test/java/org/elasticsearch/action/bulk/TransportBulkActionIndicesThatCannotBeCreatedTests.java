@@ -24,7 +24,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;

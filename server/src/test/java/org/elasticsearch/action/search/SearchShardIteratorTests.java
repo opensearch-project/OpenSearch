@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;

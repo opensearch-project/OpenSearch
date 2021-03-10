@@ -43,7 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.opensearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Collections;
 

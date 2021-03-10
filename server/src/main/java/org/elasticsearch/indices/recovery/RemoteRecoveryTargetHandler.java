@@ -27,7 +27,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.support.RetryableAction;
+import org.opensearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;

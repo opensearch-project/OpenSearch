@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 
 /**
  * Needs to be implemented by all {@link org.opensearch.action.ActionRequest} subclasses that relate to

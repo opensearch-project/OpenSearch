@@ -30,7 +30,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.elasticsearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

@@ -21,8 +21,8 @@ package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.Version;
 import org.opensearch.action.FailedNodeException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeActionTests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
