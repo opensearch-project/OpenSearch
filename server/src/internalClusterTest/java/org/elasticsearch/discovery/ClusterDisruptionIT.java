@@ -21,9 +21,9 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -67,8 +67,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
-import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.opensearch.action.DocWriteResponse.Result.CREATED;
+import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -171,7 +171,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
-                            } catch (ElasticsearchException e) {
+                            } catch (OpenSearchException e) {
                                 exceptedExceptions.add(e);
                                 final String docId = id;
                                 logger.trace(() -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
@@ -478,7 +478,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
                         ackedDocs.add(response.getId());
-                    } catch (ElasticsearchException ignore) {
+                    } catch (OpenSearchException ignore) {
                         logger.info("--> fail to index id={}", id);
                     }
                 }

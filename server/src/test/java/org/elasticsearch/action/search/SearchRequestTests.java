@@ -20,7 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

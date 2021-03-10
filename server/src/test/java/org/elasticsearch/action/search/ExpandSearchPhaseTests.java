@@ -20,7 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.BoolQueryBuilder;

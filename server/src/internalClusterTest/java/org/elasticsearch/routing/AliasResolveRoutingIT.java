@@ -19,7 +19,7 @@
 
 package org.elasticsearch.routing;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;

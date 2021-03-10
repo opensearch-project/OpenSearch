@@ -21,12 +21,12 @@ package org.elasticsearch.indices.flush;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.StepListener;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -553,7 +553,7 @@ public class SyncedFlushService implements IndexEventListener {
             case PENDING_OPERATIONS:
                 return new ShardSyncedFlushResponse("pending operations");
             default:
-                throw new ElasticsearchException("unknown synced flush result [" + result + "]");
+                throw new OpenSearchException("unknown synced flush result [" + result + "]");
         }
     }
 

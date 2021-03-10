@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 
 /**
  * An {@link ActionListener} for search requests that allows to track progress of the {@link SearchAction}.

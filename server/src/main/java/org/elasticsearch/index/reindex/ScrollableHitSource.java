@@ -20,9 +20,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -449,7 +449,7 @@ public abstract class ScrollableHitSource {
             builder.field(REASON_FIELD);
             {
                 builder.startObject();
-                ElasticsearchException.generateThrowableXContent(builder, params, reason);
+                OpenSearchException.generateThrowableXContent(builder, params, reason);
                 builder.endObject();
             }
             builder.endObject();

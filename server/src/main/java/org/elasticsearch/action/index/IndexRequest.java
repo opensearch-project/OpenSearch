@@ -20,12 +20,12 @@
 package org.elasticsearch.action.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.RoutingMissingException;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -55,7 +55,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -433,7 +433,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map<String, ?> source) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source) throws OpenSearchGenerationException {
         return source(source, Requests.INDEX_CONTENT_TYPE);
     }
 
@@ -442,13 +442,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source, XContentType contentType) throws OpenSearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -506,7 +506,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             builder.endObject();
             return source(builder);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
+            throw new OpenSearchGenerationException("Failed to generate", e);
         }
     }
 

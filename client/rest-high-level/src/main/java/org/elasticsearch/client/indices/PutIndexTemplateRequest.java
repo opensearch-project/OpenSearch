@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.OpenSearchGenerationException;
+import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
@@ -50,7 +50,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -262,7 +262,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 throw new UncheckedIOException("failed to convert source to json", e);
             }
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -320,7 +320,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                throw new ElasticsearchParseException("unknown key [{}] in the template ", name);
+                throw new OpenSearchParseException("unknown key [{}] in the template ", name);
             }
         }
         return this;
@@ -368,7 +368,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             builder.map(source);
             return aliases(BytesReference.bytes(builder));
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
@@ -400,7 +400,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             }
             return this;
         } catch(IOException e) {
-            throw new ElasticsearchParseException("Failed to parse aliases", e);
+            throw new OpenSearchParseException("Failed to parse aliases", e);
         }
     }
 

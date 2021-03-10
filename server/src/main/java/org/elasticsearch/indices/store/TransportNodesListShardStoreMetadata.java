@@ -20,11 +20,11 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.FailedNodeException;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -116,7 +116,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
         try {
             return new NodeStoreFilesMetadata(clusterService.localNode(), listStoreMetadata(request));
         } catch (IOException e) {
-            throw new ElasticsearchException("Failed to list store metadata for shard [" + request.shardId + "]", e);
+            throw new OpenSearchException("Failed to list store metadata for shard [" + request.shardId + "]", e);
         }
     }
 
@@ -157,7 +157,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
                         customDataPath = new IndexSettings(metadata, settings).customDataPath();
                     } else {
                         logger.trace("{} node doesn't have meta data for the requests index", shardId);
-                        throw new ElasticsearchException("node doesn't have meta data for index " + shardId.getIndex());
+                        throw new OpenSearchException("node doesn't have meta data for index " + shardId.getIndex());
                     }
                 }
             }

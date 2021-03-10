@@ -19,13 +19,13 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
+import org.opensearch.action.TaskOperationFailure;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -111,7 +111,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::list-tasks-response-calc
 
         // tag::list-tasks-response-failures
-        List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
+        List<OpenSearchException> nodeFailures = response.getNodeFailures(); // <1>
         List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
         // end::list-tasks-response-failures
 

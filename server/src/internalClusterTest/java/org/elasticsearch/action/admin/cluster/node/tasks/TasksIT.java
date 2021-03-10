@@ -18,22 +18,22 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.TaskOperationFailure;
+import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshAction;
+import org.opensearch.action.admin.indices.upgrade.post.UpgradeAction;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
@@ -669,7 +669,7 @@ public class TasksIT extends ESIntegTestCase {
 
             for (Throwable failure : failures) {
                 assertNotNull(
-                        ExceptionsHelper.unwrap(failure, ElasticsearchTimeoutException.class, ReceiveTimeoutTransportException.class));
+                        ExceptionsHelper.unwrap(failure, OpenSearchTimeoutException.class, ReceiveTimeoutTransportException.class));
             }
         } finally {
             // Now we can unblock those requests
@@ -718,7 +718,7 @@ public class TasksIT extends ESIntegTestCase {
             .setTimeout(timeValueSeconds(10)).get();
 
         // It should finish quickly and without complaint and list the list tasks themselves
-        assertThat(response.getNodeFailures(), emptyCollectionOf(ElasticsearchException.class));
+        assertThat(response.getNodeFailures(), emptyCollectionOf(OpenSearchException.class));
         assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
     }

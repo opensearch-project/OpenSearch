@@ -20,11 +20,11 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -152,10 +152,10 @@ public class MetadataCreateDataStreamService {
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
         } catch (ResourceAlreadyExistsException e) {
-            // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
+            // Rethrow as OpenSearchStatusException, so that bulk transport action doesn't ignore it during
             // auto index/data stream creation.
             // (otherwise bulk execution fails later, because data stream will also not have been created)
-            throw new ElasticsearchStatusException("data stream could not be created because backing index [{}] already exists",
+            throw new OpenSearchStatusException("data stream could not be created because backing index [{}] already exists",
                 RestStatus.BAD_REQUEST, e, firstBackingIndexName);
         }
         IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);

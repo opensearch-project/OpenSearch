@@ -21,8 +21,8 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -48,17 +48,17 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.join.aggregations.Children;
-import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
+import org.opensearch.join.aggregations.Children;
+import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
-import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
-import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
-import org.elasticsearch.script.mustache.SearchTemplateRequest;
-import org.elasticsearch.script.mustache.SearchTemplateResponse;
+import org.opensearch.script.mustache.MultiSearchTemplateRequest;
+import org.opensearch.script.mustache.MultiSearchTemplateResponse;
+import org.opensearch.script.mustache.MultiSearchTemplateResponse.Item;
+import org.opensearch.script.mustache.SearchTemplateRequest;
+import org.opensearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -71,8 +71,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.RareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
+import org.opensearch.search.aggregations.matrix.stats.MatrixStats;
+import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -340,7 +340,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             searchSourceBuilder.size(0);
             searchRequest.source(searchSourceBuilder);
 
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class,
                     () -> execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync));
             assertEquals(RestStatus.BAD_REQUEST, exception.status());
         }
@@ -722,11 +722,11 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertTrue(clearScrollResponse.isSucceeded());
 
             SearchScrollRequest scrollRequest = new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2));
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> execute(scrollRequest,
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> execute(scrollRequest,
                     highLevelClient()::scroll, highLevelClient()::scrollAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertThat(exception.getRootCause(), instanceOf(ElasticsearchException.class));
-            ElasticsearchException rootCause = (ElasticsearchException) exception.getRootCause();
+            assertThat(exception.getRootCause(), instanceOf(OpenSearchException.class));
+            OpenSearchException rootCause = (OpenSearchException) exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("No search context found for"));
         }
     }
@@ -954,7 +954,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchTemplateRequest.setScript("non-existent");
         searchTemplateRequest.setScriptParams(Collections.emptyMap());
 
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+        OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class,
             () -> execute(searchTemplateRequest,
                 highLevelClient()::searchTemplate,
                 highLevelClient()::searchTemplateAsync));
@@ -1073,7 +1073,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchTemplateRequest.add(badRequest2);
 
         // The whole HTTP request should fail if no nested search requests are valid
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+        OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class,
                 () -> execute(multiSearchTemplateRequest, highLevelClient()::msearchTemplate,
                         highLevelClient()::msearchTemplateAsync));
 
@@ -1149,12 +1149,12 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         {
             ExplainRequest explainRequest = new ExplainRequest("non_existent_index", "1");
             explainRequest.query(QueryBuilders.matchQuery("field", "value"));
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync));
             assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(exception.getIndex().getName(), equalTo("non_existent_index"));
             assertThat(exception.getDetailedMessage(),
-                containsString("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
+                containsString("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             ExplainRequest explainRequest = new ExplainRequest("index1", "999");
@@ -1298,7 +1298,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             .indices("non-existent")
             .fields("rating");
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        OpenSearchException exception = expectThrows(OpenSearchException.class,
             () -> execute(request, highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;

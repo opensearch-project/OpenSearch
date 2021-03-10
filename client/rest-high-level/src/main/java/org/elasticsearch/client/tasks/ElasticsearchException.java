@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.elasticsearch.client.tasks;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
@@ -30,7 +31,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 
 /**
  * client side counterpart of server side
- * {@link org.elasticsearch.ElasticsearchException}
+ * {@link OpenSearchException}
  * It wraps the same content but it is not throwable.
  */
 public class ElasticsearchException {
@@ -215,7 +216,7 @@ public class ElasticsearchException {
 
     @Override
     public String toString() {
-        return "ElasticsearchException{" +
+        return "OpenSearchException{" +
             "msg='" + msg + '\'' +
             ", cause=" + cause +
             ", headers=" + headers +

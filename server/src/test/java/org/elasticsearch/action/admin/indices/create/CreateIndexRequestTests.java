@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 
 import java.io.IOException;
 import java.util.Map;
@@ -82,7 +83,7 @@ public class CreateIndexRequestTests extends ESTestCase {
                 + "}";
 
         CreateIndexRequest request = new CreateIndexRequest();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class,
                 () -> {request.source(createIndex, XContentType.JSON);});
         assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
@@ -202,7 +203,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         builder.startObject().startArray("settings").endArray().endObject();
 
         CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
         assertThat(e.getMessage(), equalTo("key [settings] must be an object"));
     }
 

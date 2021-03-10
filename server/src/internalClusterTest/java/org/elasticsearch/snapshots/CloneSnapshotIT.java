@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -39,7 +39,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 
-import org.elasticsearch.action.ActionRunnable;
+import org.opensearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

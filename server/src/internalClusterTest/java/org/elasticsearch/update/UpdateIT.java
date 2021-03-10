@@ -19,11 +19,11 @@
 
 package org.elasticsearch.update;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.OpenSearchTimeoutException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -752,7 +752,7 @@ public class UpdateIT extends ESIntegTestCase {
                     try {
                         waitForOutstandingRequests(TimeValue.timeValueSeconds(60), updateRequestsOutstanding, maxUpdateRequests, "Update");
                         waitForOutstandingRequests(TimeValue.timeValueSeconds(60), deleteRequestsOutstanding, maxDeleteRequests, "Delete");
-                    } catch (ElasticsearchTimeoutException ete) {
+                    } catch (OpenSearchTimeoutException ete) {
                         failures.add(ete);
                     }
                     latch.countDown();
@@ -779,7 +779,7 @@ public class UpdateIT extends ESIntegTestCase {
                         //Just keep swimming
                     }
                 } while ((System.currentTimeMillis() - start) < timeOut.getMillis());
-                throw new ElasticsearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" +
+                throw new OpenSearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" +
                     name + "]" );
             }
         }

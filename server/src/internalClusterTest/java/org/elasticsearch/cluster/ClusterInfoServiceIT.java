@@ -20,11 +20,11 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -102,7 +102,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         @Override
         protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
             if (blockedActions.contains(action)) {
-                throw new ElasticsearchException("force exception on [" + action + "]");
+                throw new OpenSearchException("force exception on [" + action + "]");
             }
             return true;
         }

@@ -25,7 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
@@ -56,20 +56,20 @@ public final class ExceptionsHelper {
         if (e instanceof RuntimeException) {
             return (RuntimeException) e;
         }
-        return new ElasticsearchException(e);
+        return new OpenSearchException(e);
     }
 
-    public static ElasticsearchException convertToElastic(Exception e) {
-        if (e instanceof ElasticsearchException) {
-            return (ElasticsearchException) e;
+    public static OpenSearchException convertToElastic(Exception e) {
+        if (e instanceof OpenSearchException) {
+            return (OpenSearchException) e;
         }
-        return new ElasticsearchException(e);
+        return new OpenSearchException(e);
     }
 
     public static RestStatus status(Throwable t) {
         if (t != null) {
-            if (t instanceof ElasticsearchException) {
-                return ((ElasticsearchException) t).status();
+            if (t instanceof OpenSearchException) {
+                return ((OpenSearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof JsonParseException) {
@@ -84,7 +84,7 @@ public final class ExceptionsHelper {
     public static Throwable unwrapCause(Throwable t) {
         int counter = 0;
         Throwable result = t;
-        while (result instanceof ElasticsearchWrapperException) {
+        while (result instanceof OpenSearchWrapperException) {
             if (result.getCause() == null) {
                 return result;
             }
@@ -166,7 +166,7 @@ public final class ExceptionsHelper {
             main = useOrSuppress(main, ex);
         }
         if (main != null) {
-            throw new ElasticsearchException(main);
+            throw new OpenSearchException(main);
         }
     }
 
@@ -331,8 +331,8 @@ public final class ExceptionsHelper {
             //which does not include the cluster alias.
             String indexName = failure.index();
             if (indexName == null) {
-                if (cause instanceof ElasticsearchException) {
-                    final Index index = ((ElasticsearchException) cause).getIndex();
+                if (cause instanceof OpenSearchException) {
+                    final Index index = ((OpenSearchException) cause).getIndex();
                     if (index != null) {
                         indexName = index.getName();
                     }

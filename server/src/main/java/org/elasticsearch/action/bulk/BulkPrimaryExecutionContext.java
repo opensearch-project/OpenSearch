@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;

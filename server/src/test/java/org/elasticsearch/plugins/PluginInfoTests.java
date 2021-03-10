@@ -20,7 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;

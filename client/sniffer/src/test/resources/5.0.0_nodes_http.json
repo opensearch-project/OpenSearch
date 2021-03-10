@@ -4,7 +4,7 @@
     "successful": 8,
     "failed": 0
   },
-  "cluster_name": "elasticsearch",
+  "cluster_name": "opensearch",
   "nodes": {
     "0S4r3NurTYSFSb8R9SxwWA": {
       "name": "m1",

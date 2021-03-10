@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.TimestampParsingException;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.TimestampParsingException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -113,10 +113,10 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
 
         BytesReference exceptionBytes = toShuffledXContent(actual, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
-        ElasticsearchException parsedException;
+        OpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, exceptionBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedException = ElasticsearchException.fromXContent(parser);
+            parsedException = OpenSearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }

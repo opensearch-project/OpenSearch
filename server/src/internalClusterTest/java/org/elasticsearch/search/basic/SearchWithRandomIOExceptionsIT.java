@@ -20,10 +20,10 @@
 package org.elasticsearch.search.basic;
 
 import org.apache.lucene.util.English;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -147,7 +147,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                     numCreated++;
                     added[i] = true;
                 }
-            } catch (ElasticsearchException ex) {
+            } catch (OpenSearchException ex) {
             }
 
         }

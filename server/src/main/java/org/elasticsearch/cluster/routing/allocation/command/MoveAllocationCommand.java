@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -190,23 +190,23 @@ public class MoveAllocationCommand implements AllocationCommand {
                 } else if ("to_node".equals(currentFieldName) || "toNode".equals(currentFieldName)) {
                     toNode = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("[{}] command does not support field [{}]", NAME, currentFieldName);
+                    throw new OpenSearchParseException("[{}] command does not support field [{}]", NAME, currentFieldName);
                 }
             } else {
-                throw new ElasticsearchParseException("[{}] command does not support complex json tokens [{}]", NAME, token);
+                throw new OpenSearchParseException("[{}] command does not support complex json tokens [{}]", NAME, token);
             }
         }
         if (index == null) {
-            throw new ElasticsearchParseException("[{}] command missing the index parameter", NAME);
+            throw new OpenSearchParseException("[{}] command missing the index parameter", NAME);
         }
         if (shardId == -1) {
-            throw new ElasticsearchParseException("[{}] command missing the shard parameter", NAME);
+            throw new OpenSearchParseException("[{}] command missing the shard parameter", NAME);
         }
         if (fromNode == null) {
-            throw new ElasticsearchParseException("[{}] command missing the from_node parameter", NAME);
+            throw new OpenSearchParseException("[{}] command missing the from_node parameter", NAME);
         }
         if (toNode == null) {
-            throw new ElasticsearchParseException("[{}] command missing the to_node parameter", NAME);
+            throw new OpenSearchParseException("[{}] command missing the to_node parameter", NAME);
         }
         return new MoveAllocationCommand(index, shardId, fromNode, toNode);
     }

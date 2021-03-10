@@ -23,9 +23,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.English;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -120,7 +120,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                     numCreated++;
                     added[i] = true;
                 }
-            } catch (ElasticsearchException ex) {
+            } catch (OpenSearchException ex) {
             }
         }
         logger.info("Start Refresh");

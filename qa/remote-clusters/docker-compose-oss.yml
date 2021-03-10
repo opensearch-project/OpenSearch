@@ -1,24 +1,24 @@
 # Only used for testing the docker images
 version: '3.7'
 services:
-  elasticsearch-oss-1:
-    image: elasticsearch:test
+  opensearch-oss-1:
+    image: opensearch:test
     environment:
-       - node.name=elasticsearch-oss-1
-       - cluster.initial_master_nodes=elasticsearch-oss-1
-       - cluster.name=elasticsearch-oss-1
+       - node.name=opensearch-oss-1
+       - cluster.initial_master_nodes=opensearch-oss-1
+       - cluster.name=opensearch-oss-1
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-       - path.repo=/tmp/es-repo
+       - path.repo=/tmp/opensearch-repo
        - node.attr.testattr=test
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/oss-repo:/tmp/es-repo
-       - ./build/logs/oss-1:/usr/share/elasticsearch/logs
+       - ./build/oss-repo:/tmp/opensearch-repo
+       - ./build/logs/oss-1:/usr/share/opensearch/logs
     ports:
       - "9200"
       - "9300"
@@ -35,24 +35,24 @@ services:
       interval: 10s
       timeout: 2s
       retries: 5
-  elasticsearch-oss-2:
-    image: elasticsearch:test
+  opensearch-oss-2:
+    image: opensearch:test
     environment:
-       - node.name=elasticsearch-oss-2
-       - cluster.initial_master_nodes=elasticsearch-oss-2
-       - cluster.name=elasticsearch-oss-2
+       - node.name=opensearch-oss-2
+       - cluster.initial_master_nodes=opensearch-oss-2
+       - cluster.name=opensearch-oss-2
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-       - path.repo=/tmp/es-repo
+       - path.repo=/tmp/opensearch-repo
        - node.attr.testattr=test
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/oss-repo:/tmp/es-repo
-       - ./build/logs/oss-2:/usr/share/elasticsearch/logs
+       - ./build/oss-repo:/tmp/opensearch-repo
+       - ./build/logs/oss-2:/usr/share/opensearch/logs
     ports:
       - "9200"
       - "9300"

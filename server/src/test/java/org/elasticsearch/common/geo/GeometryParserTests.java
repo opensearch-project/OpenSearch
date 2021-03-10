@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -174,7 +174,7 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+            OpenSearchParseException ex = expectThrows(OpenSearchParseException.class,
                 () -> new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
             assertEquals("shape must be an object consisting of type and coordinates", ex.getMessage());
         }
@@ -224,7 +224,7 @@ public class GeometryParserTests extends ESTestCase {
                 Arrays.asList(expectedPoint, expectedPoint, expectedPoint, expectedPoint, expectedLine, expectedPolygon)
             )
         );
-        expectThrows(ElasticsearchParseException.class, () -> testBasics(parser, "not a geometry", null));
+        expectThrows(OpenSearchParseException.class, () -> testBasics(parser, "not a geometry", null));
     }
 
     private void testBasics(GeometryParser parser, Object value, Geometry expected) {

@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -433,7 +433,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             assertTrue(listener.isDone());
             listener.get();
         } else {
-            ElasticsearchException t = new ElasticsearchException("test");
+            OpenSearchException t = new OpenSearchException("test");
             t.addHeader("header", "is here");
             transport.handleRemoteError(capturedRequest.requestId, t);
             assertTrue(listener.isDone());
@@ -442,8 +442,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 fail("Expected exception but returned proper result");
             } catch (ExecutionException ex) {
                 final Throwable cause = ex.getCause().getCause();
-                assertThat(cause, instanceOf(ElasticsearchException.class));
-                final ElasticsearchException es = (ElasticsearchException) cause;
+                assertThat(cause, instanceOf(OpenSearchException.class));
+                final OpenSearchException es = (OpenSearchException) cause;
                 assertThat(es.getMessage(), equalTo(t.getMessage()));
                 assertThat(es.getHeader("header"), equalTo(t.getHeader("header")));
             }

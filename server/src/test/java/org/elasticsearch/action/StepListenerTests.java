@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.StepListener;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;

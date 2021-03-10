@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponseTests;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponseTests;
@@ -76,7 +76,7 @@ public class BulkResponseTests extends ESTestCase {
                 String type = randomAlphaOfLength(5);
                 String id = randomAlphaOfLength(5);
 
-                Tuple<Throwable, ElasticsearchException> failures = randomExceptions();
+                Tuple<Throwable, OpenSearchException> failures = randomExceptions();
 
                 Exception bulkItemCause = (Exception) failures.v1();
                 bulkItems[i] = new BulkItemResponse(i, opType,

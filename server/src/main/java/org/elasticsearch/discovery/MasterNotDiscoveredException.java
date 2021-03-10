@@ -19,13 +19,13 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class MasterNotDiscoveredException extends ElasticsearchException {
+public class MasterNotDiscoveredException extends OpenSearchException {
 
     public MasterNotDiscoveredException() {
         super("");

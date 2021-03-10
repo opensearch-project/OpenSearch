@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Request;
+import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.opensearch.action.admin.indices.datastream.GetDataStreamAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;

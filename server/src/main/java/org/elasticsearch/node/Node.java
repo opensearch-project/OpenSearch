@@ -25,12 +25,12 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -107,7 +107,6 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.IndicesModule;
@@ -725,7 +724,7 @@ public class Node implements Closeable {
 
             success = true;
         } catch (IOException ex) {
-            throw new ElasticsearchException("failed to bind service", ex);
+            throw new OpenSearchException("failed to bind service", ex);
         } finally {
             if (!success) {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
@@ -882,7 +881,7 @@ public class Node implements Closeable {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
-                    throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+                    throw new OpenSearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
             }
         }

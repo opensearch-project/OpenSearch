@@ -19,10 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.admin.indices.close.CloseIndexResponse;
+import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -247,7 +248,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         return new CloseIndexResponse(acknowledged, shardsAcknowledged, indexResults);
     }
 
-    private static ElasticsearchException randomException(final Index index, final int id) {
+    private static OpenSearchException randomException(final Index index, final int id) {
         return randomFrom(
             new IndexNotFoundException(index),
             new ActionNotFoundTransportException("test"),

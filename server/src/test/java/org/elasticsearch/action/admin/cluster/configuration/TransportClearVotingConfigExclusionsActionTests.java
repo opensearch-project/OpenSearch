@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
@@ -47,6 +47,10 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
+import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -149,7 +153,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
                 containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
         final Throwable rootCause = responseHolder.get().getRootCause();
-        assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
+        assertThat(rootCause, instanceOf(OpenSearchTimeoutException.class));
         assertThat(rootCause.getMessage(),
             startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. ["));
     }

@@ -22,16 +22,16 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
+import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -589,9 +589,9 @@ public class ElasticsearchAssertions {
             extraInfo += " with status [" + status + "]";
         }
 
-        Throwable expected = expectThrowsAnyOf(Arrays.asList(exceptionClass, ElasticsearchException.class), future::actionGet);
-        if (expected instanceof ElasticsearchException) {
-            assertThat(extraInfo, ((ElasticsearchException) expected).unwrapCause(), instanceOf(exceptionClass));
+        Throwable expected = expectThrowsAnyOf(Arrays.asList(exceptionClass, OpenSearchException.class), future::actionGet);
+        if (expected instanceof OpenSearchException) {
+            assertThat(extraInfo, ((OpenSearchException) expected).unwrapCause(), instanceOf(exceptionClass));
         } else {
             assertThat(extraInfo, expected, instanceOf(exceptionClass));
         }

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;

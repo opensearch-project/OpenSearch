@@ -19,19 +19,19 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 
 public class DeleteByQueryRequestBuilder extends
         AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
 
-    public DeleteByQueryRequestBuilder(ElasticsearchClient client, ActionType<BulkByScrollResponse> action) {
+    public DeleteByQueryRequestBuilder(OpenSearchClient client, ActionType<BulkByScrollResponse> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE));
     }
 
-    private DeleteByQueryRequestBuilder(ElasticsearchClient client,
+    private DeleteByQueryRequestBuilder(OpenSearchClient client,
                                         ActionType<BulkByScrollResponse> action,
                                         SearchRequestBuilder search) {
         super(client, action, search, new DeleteByQueryRequest(search.request()));

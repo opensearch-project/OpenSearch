@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.plugin.noop.action.bulk;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.bulk.BulkResponse;
 
 public class NoopBulkAction extends ActionType<BulkResponse> {

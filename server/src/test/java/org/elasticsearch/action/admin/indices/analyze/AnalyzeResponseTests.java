@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
+import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
+import org.opensearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;

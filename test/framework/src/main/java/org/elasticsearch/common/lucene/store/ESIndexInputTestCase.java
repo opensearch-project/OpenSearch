@@ -19,7 +19,7 @@
 package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;

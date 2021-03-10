@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;

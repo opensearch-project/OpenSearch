@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;

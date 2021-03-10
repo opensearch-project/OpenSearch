@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.ElasticsearchCorruptionException;
+import org.elasticsearch.OpenSearchCorruptionException;
 
 /**
  * This exception is thrown when Elasticsearch detects
  * an inconsistency in one of it's persistent states.
  */
-public class CorruptStateException extends ElasticsearchCorruptionException {
+public class CorruptStateException extends OpenSearchCorruptionException {
 
     /**
      * Creates a new {@link CorruptStateException}

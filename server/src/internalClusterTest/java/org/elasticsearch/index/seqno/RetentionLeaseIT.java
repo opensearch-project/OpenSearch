@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -394,7 +394,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     replicaTransportService.connectToNode(primaryNode);
                 } else {
                     // return an exception to the FINALIZE action
-                    throw new ElasticsearchException("failing recovery for test purposes");
+                    throw new OpenSearchException("failing recovery for test purposes");
                 }
             }
             connection.sendRequest(requestId, action, request, options);

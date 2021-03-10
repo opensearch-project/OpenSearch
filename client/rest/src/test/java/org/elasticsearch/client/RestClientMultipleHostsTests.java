@@ -24,6 +24,7 @@ import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.junit.After;
+import org.opensearch.client.RestClientTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,10 +38,10 @@ import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
-import static org.elasticsearch.client.RestClientTestUtil.randomErrorRetryStatusCode;
-import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
-import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
+import static org.opensearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
+import static org.opensearch.client.RestClientTestUtil.randomErrorRetryStatusCode;
+import static org.opensearch.client.RestClientTestUtil.randomHttpMethod;
+import static org.opensearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;

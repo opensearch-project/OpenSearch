@@ -30,7 +30,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -62,7 +62,7 @@ public class Queries {
     }
 
     public static Query newLenientFieldQuery(String field, RuntimeException e) {
-        String message = ElasticsearchException.getExceptionName(e) + ":[" + e.getMessage() + "]";
+        String message = OpenSearchException.getExceptionName(e) + ":[" + e.getMessage() + "]";
         return Queries.newMatchNoDocsQuery("failed [" + field + "] query, caused by " + message);
     }
 

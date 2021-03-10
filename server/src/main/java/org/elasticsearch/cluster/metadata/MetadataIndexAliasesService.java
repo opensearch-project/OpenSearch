@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -145,7 +145,7 @@ public class MetadataIndexAliasesService {
                                     indexService = indicesService.createIndex(index, emptyList(), false);
                                     indicesToClose.add(index.getIndex());
                                 } catch (IOException e) {
-                                    throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
+                                    throw new OpenSearchException("Failed to create temporary index for parsing the alias", e);
                                 }
                                 indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY);
                             }

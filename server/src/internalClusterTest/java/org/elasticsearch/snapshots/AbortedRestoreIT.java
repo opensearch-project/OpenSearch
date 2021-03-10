@@ -19,9 +19,9 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;

@@ -21,19 +21,19 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.indices.recovery.RecoveryRequest;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -139,8 +139,8 @@ import java.util.stream.StreamSupport;
 
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
-import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.opensearch.action.DocWriteResponse.Result.CREATED;
+import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -1802,7 +1802,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                             .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
-                    } catch (IllegalStateException | ElasticsearchException ignored) {
+                    } catch (IllegalStateException | OpenSearchException ignored) {
                     }
                 }
             });

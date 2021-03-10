@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.OpenSearchTimeoutException;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -62,7 +62,7 @@ public class ListenerTimeoutsTests extends ESTestCase {
         wrapped.onFailure(new IOException("incorrect exception"));
 
         assertFalse(success.get());
-        assertThat(exception.get(), instanceOf(ElasticsearchTimeoutException.class));
+        assertThat(exception.get(), instanceOf(OpenSearchTimeoutException.class));
     }
 
     public void testFinishNormallyBeforeTimeout() {

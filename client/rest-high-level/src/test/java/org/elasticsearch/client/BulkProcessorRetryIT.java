@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;

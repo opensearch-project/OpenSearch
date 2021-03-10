@@ -21,12 +21,12 @@ package org.elasticsearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -55,7 +55,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
@@ -158,7 +158,7 @@ public class TaskResultsService {
             taskResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
             index.setSource(builder);
         } catch (IOException e) {
-            throw new ElasticsearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
+            throw new OpenSearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
         }
         doStoreResult(STORE_BACKOFF_POLICY.iterator(), index, listener);
     }

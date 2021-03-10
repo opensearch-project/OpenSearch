@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;

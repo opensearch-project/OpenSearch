@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds "built in" analyzers to Elasticsearch.'
-  classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
+  description 'Adds "built in" analyzers to OpenSearch.'
+  classname 'org.opensearch.analysis.common.CommonAnalysisPlugin'
   extendedPlugins = ['lang-painless']
 }
 

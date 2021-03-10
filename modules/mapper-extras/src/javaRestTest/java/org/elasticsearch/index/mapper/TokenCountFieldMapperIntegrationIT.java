@@ -21,8 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -212,7 +212,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
             } else if (id.equals("multibulk2")) {
                 assertSearchHit(hit, new int[]{6, 10}, new int[]{3, 9});
             } else {
-                throw new ElasticsearchException("Unexpected response!");
+                throw new OpenSearchException("Unexpected response!");
             }
         }
     }

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.indices.analyze;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
+import org.opensearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;

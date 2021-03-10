@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 
 import java.io.IOException;
 import java.util.List;

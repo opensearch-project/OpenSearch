@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;

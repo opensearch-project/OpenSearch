@@ -19,35 +19,35 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
-import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.open.OpenIndexRequest;
+import org.opensearch.action.admin.indices.open.OpenIndexResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.admin.indices.shrink.ResizeRequest;
+import org.opensearch.action.admin.indices.shrink.ResizeResponse;
+import org.opensearch.action.admin.indices.shrink.ResizeType;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.opensearch.action.admin.indices.validate.query.QueryExplanation;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -246,7 +246,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist");
                 client.indices().delete(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -851,7 +851,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 OpenIndexRequest request = new OpenIndexRequest("does_not_exist");
                 client.indices().open(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.BAD_REQUEST) {
                     // <1>
                 }
@@ -920,7 +920,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 RefreshRequest request = new RefreshRequest("does_not_exist");
                 client.indices().refresh(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -997,7 +997,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 FlushRequest request = new FlushRequest("does_not_exist");
                 client.indices().flush(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -1085,7 +1085,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 SyncedFlushRequest request = new SyncedFlushRequest("does_not_exist");
                 client.indices().flushSynced(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -1355,7 +1355,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 ForceMergeRequest request = new ForceMergeRequest("does_not_exist");
                 client.indices().forcemerge(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -1440,7 +1440,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             try {
                 ClearIndicesCacheRequest request = new ClearIndicesCacheRequest("does_not_exist");
                 client.indices().clearCache(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
+            } catch (OpenSearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>
                 }
@@ -2009,7 +2009,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::get-alias-response-error
             RestStatus status = response.status(); // <1>
-            ElasticsearchException exception = response.getException(); // <2>
+            OpenSearchException exception = response.getException(); // <2>
             String error = response.getError(); // <3>
             // end::get-alias-response-error
 

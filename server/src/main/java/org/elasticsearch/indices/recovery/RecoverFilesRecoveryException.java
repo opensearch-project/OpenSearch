@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchWrapperException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,7 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RecoverFilesRecoveryException extends ElasticsearchException implements ElasticsearchWrapperException {
+public class RecoverFilesRecoveryException extends OpenSearchException implements OpenSearchWrapperException {
 
     private final int numberOfFiles;
 

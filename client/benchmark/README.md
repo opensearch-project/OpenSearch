@@ -1,8 +1,8 @@
 ### Steps to execute the benchmark
 
 1. Build `client-benchmark-noop-api-plugin` with `./gradlew :client:client-benchmark-noop-api-plugin:assemble`
-2. Install it on the target host with `bin/elasticsearch-plugin install file:///full/path/to/client-benchmark-noop-api-plugin.zip`.
-3. Start Elasticsearch on the target host (ideally *not* on the machine
+2. Install it on the target host with `bin/opensearch-plugin install file:///full/path/to/client-benchmark-noop-api-plugin.zip`.
+3. Start OpenSearch on the target host (ideally *not* on the machine
 that runs the benchmarks)
 4. Run the benchmark with
 ```
@@ -21,7 +21,7 @@ In general, you should define a few GC-related settings `-Xms8192M -Xmx8192M -XX
 
 #### Bulk indexing
 
-Download benchmark data from http://benchmarks.elasticsearch.org.s3.amazonaws.com/corpora/geonames and decompress them.
+Download benchmark data from http://benchmarks.opensearch.org.s3.amazonaws.com/corpora/geonames and decompress them.
 
 Example invocation:
 
@@ -36,7 +36,7 @@ The parameters are all in the `'`s and are in order:
 
 * Client type: Use either "rest" or "transport"
 * Benchmark type: Use either "bulk" or "search"
-* Benchmark target host IP (the host where Elasticsearch is running)
+* Benchmark target host IP (the host where OpenSearch is running)
 * full path to the file that should be bulk indexed
 * name of the index
 * name of the (sole) type in the index
@@ -56,7 +56,7 @@ The parameters are in order:
 
 * Client type: Use either "rest" or "transport"
 * Benchmark type: Use either "bulk" or "search"
-* Benchmark target host IP (the host where Elasticsearch is running)
+* Benchmark target host IP (the host where OpenSearch is running)
 * name of the index
 * a search request body (remember to escape double quotes). The `TransportClientBenchmark` uses `QueryBuilders.wrapperQuery()` internally which automatically adds a root key `query`, so it must not be present in the command line parameter.
 * A comma-separated list of target throughput rates

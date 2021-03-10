@@ -19,14 +19,14 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class InvalidIndexNameException extends ElasticsearchException {
+public class InvalidIndexNameException extends OpenSearchException {
 
     public InvalidIndexNameException(String name, String desc) {
         super("Invalid index name [" + name + "], " + desc);

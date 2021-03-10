@@ -32,14 +32,14 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -1564,7 +1564,7 @@ public class IndexShardTests extends IndexShardTestCase {
             } else {
                 exceptionToThrow.set(() -> new IOException("Test IOException"));
             }
-            ElasticsearchException e = expectThrows(ElasticsearchException.class, shard::storeStats);
+            OpenSearchException e = expectThrows(OpenSearchException.class, shard::storeStats);
             assertTrue(failureCallbackTriggered.get());
 
             if (corruptIndexException && !throwWhenMarkingStoreCorrupted.get()) {

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -224,7 +224,7 @@ public class TypeParsers {
         } else if (INDEX_OPTIONS_DOCS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS;
         } else {
-            throw new ElasticsearchParseException("failed to parse index option [{}]", value);
+            throw new OpenSearchParseException("failed to parse index option [{}]", value);
         }
     }
 

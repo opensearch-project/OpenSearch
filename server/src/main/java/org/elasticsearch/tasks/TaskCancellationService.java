@@ -21,11 +21,11 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.OpenSearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.StepListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -124,7 +124,7 @@ public class TaskCancellationService {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
+                        assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
                         logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", taskId, node);
                         groupedListener.onFailure(exp);
                     }
@@ -140,7 +140,7 @@ public class TaskCancellationService {
             transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
-                    assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
+                    assert ExceptionsHelper.unwrapCause(exp) instanceof OpenSearchSecurityException == false;
                     logger.info("failed to remove the parent ban for task {} on node {}", request.parentTaskId, node);
                 }
             });

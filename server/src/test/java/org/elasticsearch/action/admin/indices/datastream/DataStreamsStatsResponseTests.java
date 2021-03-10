@@ -19,11 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,7 +63,7 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
         List<DefaultShardOperationFailedException> exceptions = new ArrayList<>();
         for (int i = 0; i < failedShards; i++) {
             exceptions.add(new DefaultShardOperationFailedException(randomAlphaOfLength(8).toLowerCase(Locale.getDefault()),
-                randomInt(totalShards), new ElasticsearchException("boom")));
+                randomInt(totalShards), new OpenSearchException("boom")));
         }
         return new DataStreamsStatsAction.Response(totalShards, successfulShards, failedShards, exceptions,
             dataStreamCount, backingIndicesTotal, new ByteSizeValue(totalStoreSize),

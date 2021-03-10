@@ -29,9 +29,9 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.Build;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -688,7 +688,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         try {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (ClassNotFoundException e) {
-            throw new ElasticsearchException("Could not find plugin class [" + className + "]", e);
+            throw new OpenSearchException("Could not find plugin class [" + className + "]", e);
         }
     }
 

@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -40,7 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskResponse> {
 
@@ -123,7 +123,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<UpdatePersistentTaskStatusAction.Request,
             PersistentTaskResponse, UpdatePersistentTaskStatusAction.RequestBuilder> {
 
-        protected RequestBuilder(ElasticsearchClient client, UpdatePersistentTaskStatusAction action) {
+        protected RequestBuilder(OpenSearchClient client, UpdatePersistentTaskStatusAction action) {
             super(client, action, new Request());
         }
 

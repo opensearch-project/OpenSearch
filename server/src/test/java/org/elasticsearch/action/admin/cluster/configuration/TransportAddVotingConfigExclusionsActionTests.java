@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
@@ -53,6 +53,10 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
+import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -64,7 +68,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING;
+import static org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING;
 import static org.elasticsearch.cluster.ClusterState.builder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -506,7 +510,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         final Throwable rootCause = exceptionHolder.get().getRootCause();
-        assertThat(rootCause,instanceOf(ElasticsearchTimeoutException.class));
+        assertThat(rootCause,instanceOf(OpenSearchTimeoutException.class));
         assertThat(rootCause.getMessage(), startsWith("timed out waiting for voting config exclusions [{other1}"));
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
 

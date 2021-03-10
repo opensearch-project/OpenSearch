@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.RealtimeRequest;
-import org.elasticsearch.action.ValidateActions;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.RealtimeRequest;
+import org.opensearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -453,10 +453,10 @@ public class MultiGetRequest extends ActionRequest
                             fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(),
                                 new String[]{parser.text()}, fetchSourceContext.excludes());
                         } else {
-                            throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
+                            throw new OpenSearchParseException("illegal type for _source: [{}]", token);
                         }
                     } else {
-                        throw new ElasticsearchParseException("failed to parse multi get request. unknown field [{}]", currentFieldName);
+                        throw new OpenSearchParseException("failed to parse multi get request. unknown field [{}]", currentFieldName);
                     }
                 } else if (token == Token.START_ARRAY) {
                     if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -488,7 +488,7 @@ public class MultiGetRequest extends ActionRequest
                                 } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
                                     currentList = excludes != null ? excludes : (excludes = new ArrayList<>(2));
                                 } else {
-                                    throw new ElasticsearchParseException("source definition may not contain [{}]", parser.text());
+                                    throw new OpenSearchParseException("source definition may not contain [{}]", parser.text());
                                 }
                             } else if (token == Token.START_ARRAY) {
                                 while ((token = parser.nextToken()) != Token.END_ARRAY) {
@@ -497,7 +497,7 @@ public class MultiGetRequest extends ActionRequest
                             } else if (token.isValue()) {
                                 currentList.add(parser.text());
                             } else {
-                                throw new ElasticsearchParseException("unexpected token while parsing source settings");
+                                throw new OpenSearchParseException("unexpected token while parsing source settings");
                             }
                         }
 

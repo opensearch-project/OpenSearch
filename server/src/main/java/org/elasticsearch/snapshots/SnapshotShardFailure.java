@@ -19,8 +19,8 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -130,10 +130,10 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
         String status = (String) args[5];
 
         if (index == null) {
-            throw new ElasticsearchParseException("index name was not set");
+            throw new OpenSearchParseException("index name was not set");
         }
         if (intShardId == null) {
-            throw new ElasticsearchParseException("index shard was not set");
+            throw new OpenSearchParseException("index shard was not set");
         }
 
         ShardId shardId = new ShardId(index, indexUuid != null ? indexUuid : IndexMetadata.INDEX_UUID_NA_VALUE, intShardId);

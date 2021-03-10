@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,7 +75,7 @@ public class HoltWintersModel extends MovAvgModel {
                 for (SeasonalityType policy : values()) {
                     validNames.add(policy.getName());
                 }
-                throw new ElasticsearchParseException("failed to parse seasonality type [{}]. accepted values are [{}]", text, validNames);
+                throw new OpenSearchParseException("failed to parse seasonality type [{}]. accepted values are [{}]", text, validNames);
             }
             return result;
         }

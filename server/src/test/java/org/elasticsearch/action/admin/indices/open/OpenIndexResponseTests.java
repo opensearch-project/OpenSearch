@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.open;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.indices.open.OpenIndexResponse;
 
 public class OpenIndexResponseTests extends AbstractSerializingTestCase<OpenIndexResponse> {
 

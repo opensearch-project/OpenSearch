@@ -24,11 +24,11 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -278,7 +278,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private void ensureRefCount() {
         if (refCount() <= 0) {
-            throw new ElasticsearchException("RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " +
+            throw new OpenSearchException("RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " +
                     "calls");
         }
     }

@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.SloppyMath;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ESSloppyMath;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -89,7 +89,7 @@ public final class GeoTileUtils {
      * @param parser {@link XContentParser} to parse the value from
      * @return int representing precision
      */
-    static int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
+    static int parsePrecision(XContentParser parser) throws IOException, OpenSearchParseException {
         final Object node = parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER)
             ? Integer.valueOf(parser.intValue())
             : parser.text();

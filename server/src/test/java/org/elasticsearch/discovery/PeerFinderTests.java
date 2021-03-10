@@ -19,9 +19,9 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -133,7 +133,7 @@ public class PeerFinderTests extends ESTestCase {
                                 listener.onResponse(discoveryNode);
                                 return;
                             } else {
-                                listener.onFailure(new ElasticsearchException("non-master node " + discoveryNode));
+                                listener.onFailure(new OpenSearchException("non-master node " + discoveryNode));
                                 return;
                             }
                         }

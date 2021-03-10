@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,7 +45,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  */
 public class AliasValidator {
     /**
-     * Allows to validate an {@link org.elasticsearch.action.admin.indices.alias.Alias} and make sure
+     * Allows to validate an {@link Alias} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */

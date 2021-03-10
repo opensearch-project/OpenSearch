@@ -22,33 +22,33 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
-import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.OpenSearchStatusException;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.open.OpenIndexRequest;
+import org.opensearch.action.admin.indices.open.OpenIndexResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.admin.indices.shrink.ResizeRequest;
+import org.opensearch.action.admin.indices.shrink.ResizeResponse;
+import org.opensearch.action.admin.indices.shrink.ResizeType;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -207,8 +207,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String indexName = "test_index_exists_index_present";
         createIndex(indexName, Settings.EMPTY);
 
-        org.elasticsearch.action.admin.indices.get.GetIndexRequest request
-            = new org.elasticsearch.action.admin.indices.get.GetIndexRequest();
+        org.opensearch.action.admin.indices.get.GetIndexRequest request
+            = new org.opensearch.action.admin.indices.get.GetIndexRequest();
         request.indices(indexName);
 
         boolean response = execute(request, highLevelClient().indices()::exists, highLevelClient().indices()::existsAsync);
@@ -278,10 +278,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             String indexName = "plain_index";
             assertFalse(indexExists(indexName));
 
-            org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
-                new org.elasticsearch.action.admin.indices.create.CreateIndexRequest(indexName);
+            org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
+                new org.opensearch.action.admin.indices.create.CreateIndexRequest(indexName);
 
-            org.elasticsearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
+            org.opensearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
                 createIndexRequest,
                 highLevelClient().indices()::create,
                 highLevelClient().indices()::createAsync,
@@ -295,8 +295,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             String indexName = "rich_index";
             assertFalse(indexExists(indexName));
 
-            org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
-                new org.elasticsearch.action.admin.indices.create.CreateIndexRequest(indexName);
+            org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
+                new org.opensearch.action.admin.indices.create.CreateIndexRequest(indexName);
 
             Alias alias = new Alias("alias_name");
             alias.filter("{\"term\":{\"year\":2016}}");
@@ -313,7 +313,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             mappingBuilder.endObject().endObject().endObject();
             createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder);
 
-            org.elasticsearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
+            org.opensearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
                 createIndexRequest,
                 highLevelClient().indices()::create,
                 highLevelClient().indices()::createAsync,
@@ -362,7 +362,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(indexExists(nonExistentIndex));
 
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(nonExistentIndex);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        OpenSearchException exception = expectThrows(OpenSearchException.class,
             () -> execute(getSettingsRequest, highLevelClient().indices()::getSettings, highLevelClient().indices()::getSettingsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
@@ -481,9 +481,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
         createIndex(indexName, basicSettings, mappings);
 
-        org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
-                new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(indexName).includeDefaults(false);
-        org.elasticsearch.action.admin.indices.get.GetIndexResponse getIndexResponse = execute(getIndexRequest,
+        org.opensearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
+                new org.opensearch.action.admin.indices.get.GetIndexRequest().indices(indexName).includeDefaults(false);
+        org.opensearch.action.admin.indices.get.GetIndexResponse getIndexResponse = execute(getIndexRequest,
                 highLevelClient().indices()::get, highLevelClient().indices()::getAsync,
                 expectWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE));
 
@@ -531,7 +531,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(indexExists(nonExistentIndex));
 
         GetIndexRequest getIndexRequest = new GetIndexRequest(nonExistentIndex);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        OpenSearchException exception = expectThrows(OpenSearchException.class,
             () -> execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
@@ -561,8 +561,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String indexName = "mapping_index";
         createIndex(indexName, Settings.EMPTY);
 
-        org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
-            new org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest(indexName);
+        org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
+            new org.opensearch.action.admin.indices.mapping.put.PutMappingRequest(indexName);
         putMappingRequest.type("some_type");
 
         XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
@@ -637,10 +637,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> getIndexResponse = getAsMap(indexName);
         assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
 
-        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest request =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest().indices(indexName);
+        org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest request =
+            new org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest().indices(indexName);
 
-        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse getMappingsResponse = execute(
+        org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse getMappingsResponse = execute(
             request,
             highLevelClient().indices()::getMapping,
             highLevelClient().indices()::getMappingAsync,
@@ -704,23 +704,23 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
         assertTrue(putMappingResponse.isAcknowledged());
 
-        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest()
+        org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
+            new org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest()
             .indices(indexName)
             .types("_doc")
             .fields("field");
 
-        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMappingsResponse =
+        org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMappingsResponse =
             execute(getFieldMappingsRequest,
                 highLevelClient().indices()::getFieldMapping,
                 highLevelClient().indices()::getFieldMappingAsync,
                 expectWarnings(RestGetFieldMappingAction.TYPES_DEPRECATION_MESSAGE));
 
-        final Map<String, org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata>
+        final Map<String, org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata>
             fieldMappingMap = getFieldMappingsResponse.mappings().get(indexName).get("_doc");
 
-        final  org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata metadata =
-            new  org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata("field",
+        final  org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata metadata =
+            new  org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata("field",
                 new BytesArray("{\"field\":{\"type\":\"text\"}}"));
         assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metadata)));
     }
@@ -745,7 +745,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(nonExistentIndex);
 
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> execute(deleteIndexRequest, highLevelClient().indices()::delete, highLevelClient().indices()::deleteAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
@@ -815,7 +815,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         IndicesAliasesRequest nonExistentIndexRequest = new IndicesAliasesRequest();
         nonExistentIndexRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index(nonExistentIndex).alias(alias));
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(nonExistentIndexRequest,
+        OpenSearchException exception = expectThrows(OpenSearchException.class, () -> execute(nonExistentIndexRequest,
                 highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(),
@@ -826,7 +826,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         IndicesAliasesRequest mixedRequest = new IndicesAliasesRequest();
         mixedRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).indices(index).aliases(alias));
         mixedRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).indices(nonExistentIndex).alias(alias));
-        exception = expectThrows(ElasticsearchStatusException.class,
+        exception = expectThrows(OpenSearchStatusException.class,
                 () -> execute(mixedRequest, highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(),
@@ -839,7 +839,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         IndicesAliasesRequest removeIndexRequest = new IndicesAliasesRequest();
         removeIndexRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index(nonExistentIndex).alias(alias));
         removeIndexRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE_INDEX).indices(nonExistentIndex));
-        exception = expectThrows(ElasticsearchException.class, () -> execute(removeIndexRequest, highLevelClient().indices()::updateAliases,
+        exception = expectThrows(OpenSearchException.class, () -> execute(removeIndexRequest, highLevelClient().indices()::updateAliases,
                 highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(),
@@ -873,7 +873,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(indexExists(nonExistentIndex));
 
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(nonExistentIndex);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
 
@@ -885,7 +885,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         strictOpenIndexRequest.indicesOptions(IndicesOptions.strictExpandOpen());
-        ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
+        OpenSearchException strictException = expectThrows(OpenSearchException.class,
                 () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
         assertEquals(RestStatus.NOT_FOUND, strictException.status());
     }
@@ -921,7 +921,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(indexExists(nonExistentIndex));
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(nonExistentIndex);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(closeIndexRequest, highLevelClient().indices()::close, highLevelClient().indices()::closeAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
@@ -954,7 +954,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             String nonExistentIndex = "non_existent_index";
             assertFalse(indexExists(nonExistentIndex));
             RefreshRequest refreshRequest = new RefreshRequest(nonExistentIndex);
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(refreshRequest, highLevelClient().indices()::refresh, highLevelClient().indices()::refreshAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
@@ -980,7 +980,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             String nonExistentIndex = "non_existent_index";
             assertFalse(indexExists(nonExistentIndex));
             FlushRequest flushRequest = new FlushRequest(nonExistentIndex);
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> execute(flushRequest, highLevelClient().indices()::flush, highLevelClient().indices()::flushAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
@@ -1006,8 +1006,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             String nonExistentIndex = "non_existent_index";
             assertFalse(indexExists(nonExistentIndex));
             SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(nonExistentIndex);
-            ElasticsearchException exception = expectThrows(
-                ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
                 () ->
                     execute(
                         syncedFlushRequest,
@@ -1041,7 +1041,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             String nonExistentIndex = "non_existent_index";
             assertFalse(indexExists(nonExistentIndex));
             ClearIndicesCacheRequest clearCacheRequest = new ClearIndicesCacheRequest(nonExistentIndex);
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> execute(clearCacheRequest, highLevelClient().indices()::clearCache,
                             highLevelClient().indices()::clearCacheAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
@@ -1070,7 +1070,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             String nonExistentIndex = "non_existent_index";
             assertFalse(indexExists(nonExistentIndex));
             ForceMergeRequest forceMergeRequest = new ForceMergeRequest(nonExistentIndex);
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(forceMergeRequest, highLevelClient().indices()::forcemerge, highLevelClient().indices()::forcemergeAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
 
@@ -1110,7 +1110,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                         .put("index.number_of_replicas", 0)
                         .putNull("index.routing.allocation.require._name")
                         .build();
-        resizeRequest.setTargetIndex(new org.elasticsearch.action.admin.indices.create.CreateIndexRequest("target")
+        resizeRequest.setTargetIndex(new org.opensearch.action.admin.indices.create.CreateIndexRequest("target")
             .settings(targetSettings)
             .alias(new Alias("alias")));
         ResizeResponse resizeResponse = execute(resizeRequest, highLevelClient().indices()::shrink,
@@ -1135,7 +1135,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SPLIT);
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build();
-        resizeRequest.setTargetIndex(new org.elasticsearch.action.admin.indices.create.CreateIndexRequest("target")
+        resizeRequest.setTargetIndex(new org.opensearch.action.admin.indices.create.CreateIndexRequest("target")
             .settings(targetSettings)
             .alias(new Alias("alias")));
         ResizeResponse resizeResponse = execute(resizeRequest, highLevelClient().indices()::split, highLevelClient().indices()::splitAsync);
@@ -1159,7 +1159,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.CLONE);
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
-        resizeRequest.setTargetIndex(new org.elasticsearch.action.admin.indices.create.CreateIndexRequest("target")
+        resizeRequest.setTargetIndex(new org.opensearch.action.admin.indices.create.CreateIndexRequest("target")
             .settings(targetSettings)
             .alias(new Alias("alias")));
         ResizeResponse resizeResponse = execute(resizeRequest, highLevelClient().indices()::clone, highLevelClient().indices()::cloneAsync);
@@ -1235,12 +1235,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         highLevelClient().index(new IndexRequest("test").id("2").source("field", "value")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
 
-        org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
-            new org.elasticsearch.action.admin.indices.rollover.RolloverRequest("alias", "test_new");
+        org.opensearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
+            new org.opensearch.action.admin.indices.rollover.RolloverRequest("alias", "test_new");
         rolloverRequest.addMaxIndexDocsCondition(1);
         rolloverRequest.getCreateIndexRequest().mapping("_doc", "field2", "type=keyword");
 
-        org.elasticsearch.action.admin.indices.rollover.RolloverResponse rolloverResponse = execute(
+        org.opensearch.action.admin.indices.rollover.RolloverResponse rolloverResponse = execute(
             rolloverRequest,
             highLevelClient().indices()::rollover,
             highLevelClient().indices()::rolloverAsync,
@@ -1491,7 +1491,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(staticSetting.getDefault(Settings.EMPTY), not(staticSettingValue));
         UpdateSettingsRequest staticSettingRequest = new UpdateSettingsRequest(index);
         staticSettingRequest.settings(Settings.builder().put(staticSettingKey, staticSettingValue).build());
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(staticSettingRequest,
+        OpenSearchException exception = expectThrows(OpenSearchException.class, () -> execute(staticSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.getMessage(),
                 startsWith("Elasticsearch exception [type=illegal_argument_exception, "
@@ -1511,13 +1511,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(unmodifiableSetting.getDefault(Settings.EMPTY), not(unmodifiableSettingValue));
         UpdateSettingsRequest unmodifiableSettingRequest = new UpdateSettingsRequest(index);
         unmodifiableSettingRequest.settings(Settings.builder().put(unmodifiableSettingKey, unmodifiableSettingValue).build());
-        exception = expectThrows(ElasticsearchException.class, () -> execute(unmodifiableSettingRequest,
+        exception = expectThrows(OpenSearchException.class, () -> execute(unmodifiableSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.getMessage(), startsWith(
                 "Elasticsearch exception [type=illegal_argument_exception, "
                 + "reason=Can't update non dynamic settings [[index.number_of_shards]] for open indices [[index/"));
         closeIndex(index);
-        exception = expectThrows(ElasticsearchException.class, () -> execute(unmodifiableSettingRequest,
+        exception = expectThrows(OpenSearchException.class, () -> execute(unmodifiableSettingRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.getMessage(), startsWith(
                 "Elasticsearch exception [type=illegal_argument_exception, "
@@ -1532,14 +1532,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         int value = 10;
         indexUpdateSettingsRequest.settings(Settings.builder().put(setting, value).build());
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
+        OpenSearchException exception = expectThrows(OpenSearchException.class, () -> execute(indexUpdateSettingsRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
         assertThat(exception.getMessage(),
             equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
 
         createIndex(index, Settings.EMPTY);
-        exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
+        exception = expectThrows(OpenSearchException.class, () -> execute(indexUpdateSettingsRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
@@ -1550,8 +1550,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPutTemplateWithTypes() throws Exception {
-        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
-            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()
+        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
+            new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest()
             .name("my-template")
             .patterns(Arrays.asList("pattern-1", "name-*"))
             .order(10)
@@ -1651,7 +1651,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
 
-        ElasticsearchStatusException badMappingError = expectThrows(ElasticsearchStatusException.class,
+        OpenSearchStatusException badMappingError = expectThrows(OpenSearchStatusException.class,
                 () -> execute(putTemplateRequest,
                         highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync));
         assertThat(badMappingError.getDetailedMessage(),
@@ -1660,8 +1660,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPutTemplateWithNoTypesUsingTypedApi() throws Exception {
-        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
-            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()
+        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
+            new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest()
             .name("my-template")
             .patterns(Arrays.asList("pattern-1", "name-*"))
             .order(10)
@@ -1708,7 +1708,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2").patterns(Arrays.asList("qa-*", "prod-*"));
         assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
         goodTemplate.create(true);
-        ElasticsearchException alreadyExistsError = expectThrows(ElasticsearchException.class,
+        OpenSearchException alreadyExistsError = expectThrows(OpenSearchException.class,
             () -> execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
         assertThat(alreadyExistsError.getDetailedMessage(),
             containsString("[type=illegal_argument_exception, reason=index_template [t2] already exists]"));
@@ -1719,7 +1719,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         PutIndexTemplateRequest unknownSettingTemplate = new PutIndexTemplateRequest("t3")
             .patterns(Collections.singletonList("any"))
             .settings(Settings.builder().put("this-setting-does-not-exist", 100));
-        ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
+        OpenSearchStatusException unknownSettingError = expectThrows(OpenSearchStatusException.class,
             () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
         assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
     }
@@ -1770,14 +1770,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testCRUDIndexTemplateWithTypes() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate1 =
-            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-1")
+        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate1 =
+            new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-1")
             .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
         assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync
                 , expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
             .isAcknowledged(), equalTo(true));
-        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate2 =
-            new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-2")
+        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate2 =
+            new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-2")
             .patterns(Arrays.asList("pattern-2", "name-2"))
             .mapping("custom_doc_type", "name", "type=text")
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
@@ -1785,7 +1785,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
                 .isAcknowledged(), equalTo(true));
 
-        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate1 = execute(
+        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate1 = execute(
                 new GetIndexTemplatesRequest("template-1"),
                 client.indices()::getTemplate, client.indices()::getTemplateAsync,
                 expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
@@ -1796,7 +1796,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(template1.aliases().containsKey("alias-1"));
 
         //Check the typed version of the call
-        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate2 =
+        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate2 =
             execute(new GetIndexTemplatesRequest("template-2"),
                 client.indices()::getTemplate, client.indices()::getTemplateAsync,
                 expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
@@ -1814,7 +1814,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             ? Arrays.asList("*plate-1", "template-2")
             : Arrays.asList("template-*");
         GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest(names);
-        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getBoth = execute(
+        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getBoth = execute(
                 getBothRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync,
                 expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getBoth.getIndexTemplates(), hasSize(2));
@@ -1822,7 +1822,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             arrayContainingInAnyOrder("template-1", "template-2"));
 
         GetIndexTemplatesRequest getAllRequest = new GetIndexTemplatesRequest();
-        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getAll = execute(
+        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getAll = execute(
                 getAllRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync,
                 expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getAll.getIndexTemplates().size(), greaterThanOrEqualTo(2));
@@ -1832,9 +1832,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(execute(new DeleteIndexTemplateRequest("template-1"),
             client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
-        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-1"),
+        assertThat(expectThrows(OpenSearchException.class, () -> execute(new GetIndexTemplatesRequest("template-1"),
             client.indices()::getTemplate, client.indices()::getTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new DeleteIndexTemplateRequest("template-1"),
+        assertThat(expectThrows(OpenSearchException.class, () -> execute(new DeleteIndexTemplateRequest("template-1"),
             client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
 
         assertThat(execute(new GetIndexTemplatesRequest("template-*"),
@@ -1847,7 +1847,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(execute(new DeleteIndexTemplateRequest("template-*"),
             client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
-        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-*"),
+        assertThat(expectThrows(OpenSearchException.class, () -> execute(new GetIndexTemplatesRequest("template-*"),
             client.indices()::getTemplate, client.indices()::getTemplateAsync,
               expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))).status(), equalTo(RestStatus.NOT_FOUND));
     }
@@ -1913,9 +1913,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(execute(new DeleteIndexTemplateRequest("template-1"),
             client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
-        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-1"),
+        assertThat(expectThrows(OpenSearchException.class, () -> execute(new GetIndexTemplatesRequest("template-1"),
             client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new DeleteIndexTemplateRequest("template-1"),
+        assertThat(expectThrows(OpenSearchException.class, () -> execute(new DeleteIndexTemplateRequest("template-1"),
             client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
 
         assertThat(execute(new GetIndexTemplatesRequest("template-*"),
@@ -1926,7 +1926,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(execute(new DeleteIndexTemplateRequest("template-*"),
             client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
-        assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-*"),
+        assertThat(expectThrows(OpenSearchException.class, () -> execute(new GetIndexTemplatesRequest("template-*"),
             client.indices()::getIndexTemplate, client.indices()::getIndexTemplateAsync)).status(), equalTo(RestStatus.NOT_FOUND));
     }
 
@@ -2077,7 +2077,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         getDataStreamRequest = new GetDataStreamRequest(dataStreamName);
         GetDataStreamRequest finalGetDataStreamRequest = getDataStreamRequest;
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> execute(finalGetDataStreamRequest,
+        OpenSearchStatusException e = expectThrows(OpenSearchStatusException.class, () -> execute(finalGetDataStreamRequest,
             indices::getDataStream, indices::getDataStreamAsync));
         assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
     }
@@ -2117,7 +2117,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             highLevelClient().indices()::deleteIndexTemplateAsync);
         assertThat(response.isAcknowledged(), equalTo(true));
 
-        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
+        OpenSearchStatusException statusException = expectThrows(OpenSearchStatusException.class,
             () -> execute(getComposableIndexTemplateRequest,
                 highLevelClient().indices()::getIndexTemplate, highLevelClient().indices()::getIndexTemplateAsync));
 

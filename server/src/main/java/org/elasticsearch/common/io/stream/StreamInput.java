@@ -28,7 +28,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
@@ -80,7 +80,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.ElasticsearchException.readStackTrace;
+import static org.elasticsearch.OpenSearchException.readStackTrace;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
@@ -1019,7 +1019,7 @@ public abstract class StreamInput extends InputStream {
             switch (key) {
                 case 0:
                     final int ord = readVInt();
-                    return (T) ElasticsearchException.readException(this, ord);
+                    return (T) OpenSearchException.readException(this, ord);
                 case 1:
                     String msg1 = readOptionalString();
                     String resource1 = readOptionalString();

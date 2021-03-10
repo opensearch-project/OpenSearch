@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComponentTemplateTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.template.get.GetComponentTemplateAction;
 
 import java.io.IOException;
 import java.util.Collections;

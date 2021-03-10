@@ -23,7 +23,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -505,7 +505,7 @@ public class XContentMapValues {
         if (node instanceof Map) {
             return (Map<String, Object>) node;
         } else {
-            throw new ElasticsearchParseException(desc + " should be a hash but was of type: " + node.getClass());
+            throw new OpenSearchParseException(desc + " should be a hash but was of type: " + node.getClass());
         }
     }
 

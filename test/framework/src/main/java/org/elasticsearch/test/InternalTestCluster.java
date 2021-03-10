@@ -29,14 +29,14 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.OpenSearchException;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -2249,7 +2249,7 @@ public final class InternalTestCluster extends TestCluster {
                     Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
                 ));
             } catch (Exception e) {
-                throw new ElasticsearchException("failed to update minimum master node to [{}] (current masters [{}])", e,
+                throw new OpenSearchException("failed to update minimum master node to [{}] (current masters [{}])", e,
                     minMasterNodes, getMasterNodesCount());
             }
         }

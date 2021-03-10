@@ -22,19 +22,19 @@ package org.elasticsearch.persistent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.TaskOperationFailure;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -480,7 +480,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
     public static class TestTasksRequestBuilder extends TasksRequestBuilder<TestTasksRequest, TestTasksResponse, TestTasksRequestBuilder> {
 
-        protected TestTasksRequestBuilder(ElasticsearchClient client) {
+        protected TestTasksRequestBuilder(OpenSearchClient client) {
             super(client, TestTaskAction.INSTANCE, new TestTasksRequest());
         }
 

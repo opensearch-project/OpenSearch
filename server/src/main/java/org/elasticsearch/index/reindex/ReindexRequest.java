@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParseField;
@@ -52,7 +52,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
