@@ -23,8 +23,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import java.io.IOException;

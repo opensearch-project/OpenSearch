@@ -30,7 +30,7 @@ import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -152,7 +152,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.RestController;
+import org.opensearch.rest.RestController;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -161,11 +161,11 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
-import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotShardsService;
-import org.elasticsearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.InternalSnapshotsInfoService;
+import org.opensearch.snapshots.RestoreService;
+import org.opensearch.snapshots.SnapshotShardsService;
+import org.opensearch.snapshots.SnapshotsInfoService;
+import org.opensearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskResultsService;
@@ -330,7 +330,7 @@ public class Node implements Closeable {
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
             if (Build.CURRENT.isProductionRelease() == false) {
                 logger.warn(
-                    "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+                    "version [{}] is a pre-release version of OpenSearch and is not suitable for production",
                     Build.CURRENT.getQualifiedVersion());
             }
 

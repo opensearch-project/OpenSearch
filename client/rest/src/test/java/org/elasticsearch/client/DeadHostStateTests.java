@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import org.opensearch.client.RestClientTestCase;
+
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 

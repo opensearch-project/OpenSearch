@@ -20,12 +20,13 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 

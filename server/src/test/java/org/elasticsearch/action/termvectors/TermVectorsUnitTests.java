@@ -44,7 +44,7 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.action.document.RestTermVectorsAction;
+import org.opensearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.hamcrest.Matchers;
@@ -254,13 +254,13 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testMultiParser() throws Exception {
-        byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
+        byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/opensearch/action/termvectors/multiRequest1.json");
         XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);
         checkParsedParameters(request);
 
-        bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
+        bytes = StreamsUtils.copyToBytesFromClasspath("/org/opensearch/action/termvectors/multiRequest2.json");
         data = createParser(JsonXContent.jsonXContent, new BytesArray(bytes));
         request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);
@@ -292,7 +292,7 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     // issue #12311
     public void testMultiParserFilter() throws Exception {
-        byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest3.json");
+        byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/opensearch/action/termvectors/multiRequest3.json");
         XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);

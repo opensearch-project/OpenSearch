@@ -32,12 +32,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkResponse;
 
 import java.io.IOException;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
 import static org.elasticsearch.action.bulk.BulkItemResponseTests.assertBulkItemResponse;
-import static org.elasticsearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
+import static org.opensearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 

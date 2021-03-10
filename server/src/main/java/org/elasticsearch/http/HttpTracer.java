@@ -26,8 +26,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 

@@ -37,6 +37,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -21,8 +21,8 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestStatus;
 
 import java.util.Arrays;
 import java.util.HashMap;

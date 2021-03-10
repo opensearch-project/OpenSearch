@@ -148,7 +148,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1296,7 +1296,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final OpenSearchDirectoryReader openSearchDirectoryReader =
             OpenSearchDirectoryReader.getOpenSearchDirectoryReader(engineSearcher.getDirectoryReader());
         if (openSearchDirectoryReader == null) {
-            throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
+            throw new IllegalStateException("Can't wrap non opensearch directory reader");
         }
         NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
         DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);

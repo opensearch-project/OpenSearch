@@ -26,7 +26,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Node.Roles;
-import org.elasticsearch.client.RestClientTestCase;
+import org.opensearch.client.RestClientTestCase;
 import org.opensearch.client.sniff.OpenSearchNodesSniffer.Scheme;
 
 import java.io.IOException;

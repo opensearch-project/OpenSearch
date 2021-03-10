@@ -20,8 +20,9 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.IndicesOptions.Option;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions.Option;
+import org.opensearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;

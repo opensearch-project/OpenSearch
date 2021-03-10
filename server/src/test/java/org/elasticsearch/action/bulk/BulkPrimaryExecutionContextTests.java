@@ -25,13 +25,16 @@ import org.elasticsearch.action.bulk.TransportShardBulkActionTests.FakeDeleteRes
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests.FakeIndexResult;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.bulk.BulkItemRequest;
+import org.opensearch.action.bulk.BulkPrimaryExecutionContext;
+import org.opensearch.action.bulk.BulkShardRequest;
 
 import java.util.ArrayList;
 

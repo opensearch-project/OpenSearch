@@ -53,6 +53,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
+import org.opensearch.client.RestClientTestCase;
+import org.opensearch.client.RestClientTestUtil;
 
 import javax.net.ssl.SSLHandshakeException;
 import java.io.IOException;
@@ -74,10 +76,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
-import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
-import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
-import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
+import static org.opensearch.client.RestClientTestUtil.getAllErrorStatusCodes;
+import static org.opensearch.client.RestClientTestUtil.getHttpMethods;
+import static org.opensearch.client.RestClientTestUtil.getOkStatusCodes;
+import static org.opensearch.client.RestClientTestUtil.randomStatusCode;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -519,7 +521,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * Emulates Elasticsearch's HeaderWarningLogger.formatWarning in simple
+     * Emulates OpenSearch's HeaderWarningLogger.formatWarning in simple
      * cases. We don't have that available because we're testing against 1.7.
      */
     private static String formatWarningWithoutDate(String warningBody) {

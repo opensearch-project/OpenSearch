@@ -28,8 +28,8 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.AutoCreateIndex;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -42,7 +42,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.opensearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -56,6 +56,11 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.bulk.TransportBulkAction;
+import org.opensearch.action.bulk.TransportShardBulkAction;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -183,7 +188,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     private void runTestTook(boolean controlled) throws Exception {
-        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
+        String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk.json");
         // translate Windows line endings (\r\n) to standard ones (\n)
         if (Constants.WINDOWS) {
             bulkAction = Strings.replace(bulkAction, "\r\n", "\n");

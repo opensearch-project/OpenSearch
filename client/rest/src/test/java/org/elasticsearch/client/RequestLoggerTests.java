@@ -40,6 +40,7 @@ import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
+import org.opensearch.client.RestClientTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

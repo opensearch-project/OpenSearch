@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.opensearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchHitsTests;
@@ -173,7 +173,7 @@ public class SearchResponseTests extends ESTestCase {
 
     /**
      * The "_shard/total/failures" section makes if impossible to directly compare xContent, because
-     * the failures in the parsed SearchResponse are wrapped in an extra ElasticSearchException on the client side.
+     * the failures in the parsed SearchResponse are wrapped in an extra OpenSearchException on the client side.
      * Because of this, in this special test case we compare the "top level" fields for equality
      * and the subsections xContent equivalence independently
      */
@@ -196,11 +196,11 @@ public class SearchResponseTests extends ESTestCase {
                 assertEquals(originalFailure.shard(), parsedFailure.shard());
                 assertEquals(originalFailure.shardId(), parsedFailure.shardId());
                 String originalMsg = originalFailure.getCause().getMessage();
-                assertEquals(parsedFailure.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" +
+                assertEquals(parsedFailure.getCause().getMessage(), "OpenSearch exception [type=parsing_exception, reason=" +
                         originalMsg + "]");
                 String nestedMsg = originalFailure.getCause().getCause().getMessage();
                 assertEquals(parsedFailure.getCause().getCause().getMessage(),
-                        "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+                        "OpenSearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
             }
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());

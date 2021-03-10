@@ -26,7 +26,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestRequest;
+import org.opensearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -115,9 +115,9 @@ public class SettingsFilterTests extends ESTestCase {
 
         Setting<String> filteredSetting = Setting.simpleString("key", Property.Filtered);
         assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger),
-            new MockLogAppender.SeenEventExpectation("secure logging", "org.elasticsearch.test", Level.INFO, "updating [key]"),
-            new MockLogAppender.UnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
-            new MockLogAppender.UnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
+            new MockLogAppender.SeenEventExpectation("secure logging", "org.opensearch.test", Level.INFO, "updating [key]"),
+            new MockLogAppender.UnseenEventExpectation("unwanted old setting name", "org.opensearch.test", Level.INFO, "*old*"),
+            new MockLogAppender.UnseenEventExpectation("unwanted new setting name", "org.opensearch.test", Level.INFO, "*new*")
         );
     }
 
@@ -127,13 +127,13 @@ public class SettingsFilterTests extends ESTestCase {
 
         Setting<String> regularSetting = Setting.simpleString("key");
         assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(regularSetting, newSettings, oldSettings, testLogger),
-            new MockLogAppender.SeenEventExpectation("regular logging", "org.elasticsearch.test", Level.INFO,
+            new MockLogAppender.SeenEventExpectation("regular logging", "org.opensearch.test", Level.INFO,
             "updating [key] from [old] to [new]"));
     }
 
     private void assertExpectedLogMessages(Consumer<Logger> consumer,
                                            MockLogAppender.LoggingExpectation ... expectations) throws IllegalAccessException {
-        Logger testLogger = LogManager.getLogger("org.elasticsearch.test");
+        Logger testLogger = LogManager.getLogger("org.opensearch.test");
         MockLogAppender appender = new MockLogAppender();
         Loggers.addAppender(testLogger, appender);
         try {

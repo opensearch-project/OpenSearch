@@ -22,7 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.opensearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 import org.elasticsearch.common.Nullable;
@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;

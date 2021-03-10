@@ -19,8 +19,8 @@
 package org.opensearch.client.benchmark.transport;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,7 +35,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
 import org.elasticsearch.plugin.noop.action.search.NoopSearchAction;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.opensearch.transport.client.PreBuiltTransportClient;
 

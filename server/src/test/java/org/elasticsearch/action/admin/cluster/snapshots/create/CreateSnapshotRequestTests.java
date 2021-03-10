@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions.Option;
+import org.opensearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.snapshots.SnapshotInfoTests.randomUserMetadata;
+import static org.opensearch.snapshots.SnapshotInfoTests.randomUserMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 

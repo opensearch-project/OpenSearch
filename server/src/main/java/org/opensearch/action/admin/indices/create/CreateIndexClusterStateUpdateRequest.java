@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

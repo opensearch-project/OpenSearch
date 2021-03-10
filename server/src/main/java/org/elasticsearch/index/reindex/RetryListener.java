@@ -22,7 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 

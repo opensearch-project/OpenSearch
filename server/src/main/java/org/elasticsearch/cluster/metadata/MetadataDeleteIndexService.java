@@ -37,9 +37,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.RestoreService;
+import org.opensearch.snapshots.SnapshotInProgressException;
+import org.opensearch.snapshots.SnapshotsService;
 
 import java.util.Arrays;
 import java.util.HashMap;
