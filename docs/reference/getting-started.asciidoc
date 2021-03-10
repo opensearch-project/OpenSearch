@@ -16,7 +16,7 @@ Step through this getting started tutorial to:
 
 Need more context?
 
-Check out the <<elasticsearch-intro,
+Check out the <<opensearch-intro,
 {es} Introduction>> to learn the lingo and understand the basics of
 how {es} works. If you're already familiar with {es} and want to see how it works
 with the rest of the stack, you might want to jump to the
@@ -205,7 +205,7 @@ Installing {es} from an archive file enables you to easily install and run
 multiple instances locally so you can try things out. To run a single instance,
 you can  run {es} in a Docker container, install {es} using the DEB or RPM
 packages on Linux, install using Homebrew on macOS, or install using the zip
-package on Windows. See <<install-elasticsearch>> for more information.
+package on Windows. See <<install-opensearch>> for more information.
 
 [[getting-started-index]]
 == Index some documents
