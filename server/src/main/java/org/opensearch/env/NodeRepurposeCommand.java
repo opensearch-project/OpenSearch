@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.env;
+package org.opensearch.env;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import joptsimple.OptionParser;
@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
+import static org.opensearch.env.NodeEnvironment.INDICES_FOLDER;
 
 public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 

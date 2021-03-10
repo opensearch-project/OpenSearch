@@ -27,7 +27,7 @@ import org.apache.lucene.analysis.ko.KoreanTokenizer;
 import org.apache.lucene.analysis.ko.dict.UserDictionary;
 import org.apache.lucene.analysis.ko.POS;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import static org.elasticsearch.index.analysis.NoriPartOfSpeechStopFilterFactory.resolvePOSList;
