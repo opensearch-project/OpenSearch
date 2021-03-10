@@ -48,7 +48,7 @@ ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-[elasticsearch]
+[opensearch]
 name=OpenSearch repository for {major-version} packages
 baseurl=https://artifacts.elastic.co/packages/{major-version}/yum
 gpgcheck=1
@@ -64,7 +64,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-[elasticsearch]
+[opensearch]
 name=OpenSearch repository for {major-version} packages
 baseurl=https://artifacts.elastic.co/packages/{major-version}-prerelease/yum
 gpgcheck=1
