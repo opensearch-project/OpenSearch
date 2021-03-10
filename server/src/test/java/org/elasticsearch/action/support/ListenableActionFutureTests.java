@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
+import org.opensearch.action.support.PlainListenableActionFuture;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

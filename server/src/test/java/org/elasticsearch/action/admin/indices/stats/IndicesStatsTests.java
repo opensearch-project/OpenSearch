@@ -21,8 +21,8 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.opensearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;

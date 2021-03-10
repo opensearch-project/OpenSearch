@@ -21,7 +21,7 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;

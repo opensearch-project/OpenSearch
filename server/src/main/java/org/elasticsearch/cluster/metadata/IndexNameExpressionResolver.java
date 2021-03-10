@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.opensearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -359,7 +359,7 @@ public class IndexNameExpressionResolver {
 
     /**
      * Utility method that allows to resolve an index expression to its corresponding single concrete index.
-     * Callers should make sure they provide proper {@link org.elasticsearch.action.support.IndicesOptions}
+     * Callers should make sure they provide proper {@link org.opensearch.action.support.IndicesOptions}
      * that require a single index as a result. The indices resolution must in fact return a single index when
      * using this method, an {@link IllegalArgumentException} gets thrown otherwise.
      *

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.IndicesRequest;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;

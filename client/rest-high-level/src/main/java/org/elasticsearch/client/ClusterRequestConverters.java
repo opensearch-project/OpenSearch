@@ -26,7 +26,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.indices.ComponentTemplatesExistRequest;
 import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;

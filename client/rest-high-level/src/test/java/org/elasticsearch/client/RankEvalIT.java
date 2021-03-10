@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.rankeval.DiscountedCumulativeGain;
 import org.opensearch.index.rankeval.EvalQueryQuality;

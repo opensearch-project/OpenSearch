@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.shrink;
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
