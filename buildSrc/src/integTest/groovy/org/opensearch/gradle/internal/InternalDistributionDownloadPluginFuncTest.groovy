@@ -21,7 +21,12 @@ package org.opensearch.gradle.internal
 
 import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
+import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
+
+import java.lang.management.ManagementFactory
 
 class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 

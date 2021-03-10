@@ -20,7 +20,10 @@
 package org.opensearch.gradle
 
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
+import org.gradle.testkit.runner.GradleRunner
 import spock.lang.IgnoreIf
+import spock.lang.Requires
+import spock.util.environment.OperatingSystem
 
 import static org.opensearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
 
