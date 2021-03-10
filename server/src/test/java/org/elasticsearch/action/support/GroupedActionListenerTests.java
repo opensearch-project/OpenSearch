@@ -20,6 +20,7 @@ package org.elasticsearch.action.support;
 
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.support.GroupedActionListener;
 
 import java.io.IOException;
 import java.util.ArrayList;

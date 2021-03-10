@@ -19,7 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

@@ -27,7 +27,7 @@ import org.elasticsearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;

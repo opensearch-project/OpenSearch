@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.MergePolicyConfig;

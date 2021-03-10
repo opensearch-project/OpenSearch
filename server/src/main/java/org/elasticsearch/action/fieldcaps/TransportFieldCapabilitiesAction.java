@@ -21,8 +21,8 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;

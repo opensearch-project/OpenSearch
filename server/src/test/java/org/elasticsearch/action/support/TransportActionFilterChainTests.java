@@ -34,6 +34,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.support.ActionFilter;
+import org.opensearch.action.support.ActionFilterChain;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.TransportAction;
 
 import java.io.IOException;
 import java.util.ArrayList;

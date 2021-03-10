@@ -38,7 +38,7 @@ import java.util.stream.Stream;
 
 import static java.lang.Math.abs;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

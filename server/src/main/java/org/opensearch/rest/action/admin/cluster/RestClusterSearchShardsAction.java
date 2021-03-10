@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;

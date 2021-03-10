@@ -23,7 +23,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;

@@ -21,7 +21,7 @@ package org.opensearch.rest.action.cat;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
