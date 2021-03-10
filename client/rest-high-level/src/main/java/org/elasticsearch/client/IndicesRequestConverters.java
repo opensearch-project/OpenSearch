@@ -66,7 +66,7 @@ import org.elasticsearch.common.Strings;
 import java.io.IOException;
 import java.util.Locale;
 
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.opensearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 final class IndicesRequestConverters {
 

@@ -35,7 +35,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.opensearch.plugin.noop.NoopPlugin;
 import org.opensearch.plugin.noop.action.bulk.NoopBulkAction;
 import org.opensearch.plugin.noop.action.search.NoopSearchAction;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.opensearch.transport.client.PreBuiltTransportClient;
 

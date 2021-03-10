@@ -22,7 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -131,7 +131,7 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
             assertThat(getAliasesResponse.getError(), nullValue());
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
+                    equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]"));
         }
     }
 

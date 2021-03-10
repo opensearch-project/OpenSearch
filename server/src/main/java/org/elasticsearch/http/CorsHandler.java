@@ -38,9 +38,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.rest.RestUtils;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -69,8 +69,8 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
  * files: io.netty.handler.codec.http.cors.CorsHandler, io.netty.handler.codec.http.cors.CorsConfig, and
  * io.netty.handler.codec.http.cors.CorsConfigBuilder.
  *
- * It modifies the original netty code to operate on Elasticsearch http request/response abstractions.
- * Additionally, it removes CORS features that are not used by Elasticsearch.
+ * It modifies the original netty code to operate on OpenSearch http request/response abstractions.
+ * Additionally, it removes CORS features that are not used by OpenSearch.
  */
 public class CorsHandler {
 

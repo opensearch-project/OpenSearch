@@ -20,8 +20,8 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
+import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestRequest;
 
 public class NullDispatcher implements HttpServerTransport.Dispatcher {
 

@@ -35,10 +35,10 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -174,7 +174,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.http.HttpTracer:trace",
+        value = "org.opensearch.http.HttpTracer:trace",
         reason = "to ensure we log REST requests on TRACE level")
     public void testTracerLog() throws Exception {
         final String includeSettings;
@@ -225,7 +225,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                 .build());
             MockLogAppender appender = new MockLogAppender();
-            final String traceLoggerName = "org.elasticsearch.http.HttpTracer";
+            final String traceLoggerName = "org.opensearch.http.HttpTracer";
             try {
                 appender.start();
                 Loggers.addAppender(LogManager.getLogger(traceLoggerName), appender);
