@@ -19,9 +19,9 @@
 
 package org.opensearch.analysis.common;
 
-import org.elasticsearch.painless.spi.PainlessExtension;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.opensearch.painless.spi.PainlessExtension;
+import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.Collections;
