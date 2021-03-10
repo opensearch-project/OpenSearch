@@ -47,7 +47,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
+import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
 
 /**
  * Create snapshot request

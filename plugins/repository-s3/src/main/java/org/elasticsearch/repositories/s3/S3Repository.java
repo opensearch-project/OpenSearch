@@ -45,9 +45,9 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -163,7 +163,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Artificial delay to introduce after a snapshot finalization or delete has finished so long as the repository is still using the
      * backwards compatible snapshot format from before
-     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link org.elasticsearch.Version#V_7_6_0}).
+     * {@link org.opensearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link org.elasticsearch.Version#V_7_6_0}).
      * This delay is necessary so that the eventually consistent nature of AWS S3 does not randomly result in repository corruption when
      * doing repository operations in rapid succession on a repository in the old metadata format.
      * This setting should not be adjusted in production when working with an AWS S3 backed repository. Doing so risks the repository

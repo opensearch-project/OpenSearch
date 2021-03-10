@@ -59,7 +59,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.opensearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Arrays;
 import java.util.Collections;

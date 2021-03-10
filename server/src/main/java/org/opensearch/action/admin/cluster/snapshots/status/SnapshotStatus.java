@@ -33,8 +33,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.ArrayList;
