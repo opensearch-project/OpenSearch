@@ -24,8 +24,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.MultiLine;
+import org.opensearch.geometry.Line;
+import org.opensearch.geometry.MultiLine;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
 import org.locationtech.jts.geom.Coordinate;
@@ -224,7 +224,7 @@ public class ElasticsearchGeoAssertions {
             Assert.assertEquals(s1, s2);
         } else if (s1 instanceof Object[] && s2 instanceof Object[]) {
             Assert.assertArrayEquals((Object[]) s1, (Object[]) s2);
-        } else if (s1 instanceof org.elasticsearch.geometry.Geometry && s2 instanceof org.elasticsearch.geometry.Geometry) {
+        } else if (s1 instanceof org.opensearch.geometry.Geometry && s2 instanceof org.opensearch.geometry.Geometry) {
             Assert.assertEquals(s1, s2);
         } else {
             //We want to know the type of the shape because we test shape equality in a special way...
@@ -246,7 +246,7 @@ public class ElasticsearchGeoAssertions {
                 unwrapJTS(shape) instanceof MultiPolygon);
         } else {
             assertTrue("expected Polygon[] but found " + shape.getClass().getName(),
-                shape instanceof org.elasticsearch.geometry.MultiPolygon);
+                shape instanceof org.opensearch.geometry.MultiPolygon);
         }
     }
 
@@ -256,7 +256,7 @@ public class ElasticsearchGeoAssertions {
                 + unwrapJTS(shape).getClass().getName(), unwrapJTS(shape) instanceof Polygon);
         } else {
             assertTrue("expected Polygon but found " + shape.getClass().getName(),
-                shape instanceof org.elasticsearch.geometry.Polygon);
+                shape instanceof org.opensearch.geometry.Polygon);
         }
     }
 

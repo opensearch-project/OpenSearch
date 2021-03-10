@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
-import org.elasticsearch.geometry.Geometry;
+import org.opensearch.geometry.Geometry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
