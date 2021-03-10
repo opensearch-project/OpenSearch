@@ -1,4 +1,4 @@
-[[elasticsearch-reference]]
+[[opensearch-reference]]
 = Elasticsearchリファレンス
 
 include::../Versions.asciidoc[]
