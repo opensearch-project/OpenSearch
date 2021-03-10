@@ -10,12 +10,12 @@ POST my-index-000001/_search
 {
   "query" : {
     "match": {
-      "message": "tring out OpenSearch"
+      "message": "tring out Elasticsearch"
     }
   },
   "suggest" : {
     "my-suggestion" : {
-      "text" : "tring out OpenSearch",
+      "text" : "tring out Elasticsearch",
       "term" : {
         "field" : "message"
       }
@@ -53,7 +53,7 @@ POST _search
 {
   "suggest": {
     "my-suggest-1" : {
-      "text" : "tring out OpenSearch",
+      "text" : "tring out Elasticsearch",
       "term" : {
         "field" : "message"
       }
@@ -95,9 +95,9 @@ in the suggest text and if found an arbitrary number of options.
       "length": 3,
       "options": []
     }, {
-      "text": "opensearch",
+      "text": "elasticsearch",
       "offset": 10,
-      "length": 10,
+      "length": 13,
       "options": []
     } ],
     "my-suggest-2": ...
@@ -128,7 +128,7 @@ and applies to the `my-suggest-1` and `my-suggest-2` suggestions.
 POST _search
 {
   "suggest": {
-    "text" : "tring out OpenSearch",
+    "text" : "tring out Elasticsearch",
     "my-suggest-1" : {
       "term" : {
         "field" : "message"
