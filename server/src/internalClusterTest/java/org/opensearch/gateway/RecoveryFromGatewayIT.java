@@ -20,6 +20,7 @@
 package org.opensearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.main;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
 
 public class MainRequestBuilder extends ActionRequestBuilder<MainRequest, MainResponse> {

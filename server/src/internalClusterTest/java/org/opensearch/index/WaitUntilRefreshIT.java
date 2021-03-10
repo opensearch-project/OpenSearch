@@ -36,6 +36,7 @@ import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
 import org.junit.Before;
 
 import java.util.Collection;

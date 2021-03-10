@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ClusterStatsAction extends ActionType<ClusterStatsResponse> {
 

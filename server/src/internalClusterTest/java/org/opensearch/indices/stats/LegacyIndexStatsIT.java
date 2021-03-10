@@ -29,6 +29,7 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
-    
+
     public void testEmptyShards() {
         final ReplicationTracker tracker = newTracker(AllocationId.newInitializing());
         assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -91,7 +91,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         tracker.updateLocalCheckpoint(allocationId, localCheckpoint);
         assertThat(updatedGlobalCheckpoint.get(), equalTo(tracker.getGlobalCheckpoint()));
     }
-    
+
     public void testGlobalCheckpointUpdate() {
         final long initialClusterStateVersion = randomNonNegativeLong();
         Map<AllocationId, Long> allocations = new HashMap<>();
@@ -411,7 +411,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertFalse(tracker.pendingInSync.contains(trackingAllocationId.getId()));
         thread.join();
     }
-    
+
     private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     private ReplicationTracker newTracker(final AllocationId allocationId) {

@@ -20,10 +20,10 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionListenerResponseHandler;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;

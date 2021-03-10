@@ -55,6 +55,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.CollectionAssertions;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
+
 import org.junit.Before;
 
 import java.io.IOException;

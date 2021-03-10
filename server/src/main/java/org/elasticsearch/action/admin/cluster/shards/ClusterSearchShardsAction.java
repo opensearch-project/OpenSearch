@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ClusterSearchShardsAction extends ActionType<ClusterSearchShardsResponse> {
 

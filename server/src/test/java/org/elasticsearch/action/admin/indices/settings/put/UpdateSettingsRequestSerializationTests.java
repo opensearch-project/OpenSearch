@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 
 import java.util.ArrayList;
 import java.util.Arrays;

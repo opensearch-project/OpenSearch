@@ -19,6 +19,7 @@
 package org.opensearch.snapshots;
 
 import org.apache.lucene.index.IndexCommit;
+
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;

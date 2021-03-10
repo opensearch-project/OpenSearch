@@ -20,6 +20,7 @@
 package org.opensearch.search.basic;
 
 import org.apache.lucene.util.English;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -39,6 +40,7 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.store.MockFSDirectoryFactory;
 import org.opensearch.test.store.MockFSIndexStore;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;

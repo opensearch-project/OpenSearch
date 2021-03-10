@@ -83,6 +83,7 @@ import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.InternalSettingsPlugin;
+
 import org.junit.Assert;
 
 import java.io.IOException;

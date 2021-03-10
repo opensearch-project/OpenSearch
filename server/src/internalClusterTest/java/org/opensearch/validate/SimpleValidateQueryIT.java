@@ -34,6 +34,7 @@ import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 
 /**

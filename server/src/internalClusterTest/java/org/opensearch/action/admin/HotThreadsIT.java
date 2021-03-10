@@ -25,6 +25,7 @@ import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReques
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
 import org.hamcrest.Matcher;
 
 import java.util.Map;

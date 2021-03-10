@@ -29,6 +29,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
+
 import org.hamcrest.Matcher;
 
 import java.util.List;

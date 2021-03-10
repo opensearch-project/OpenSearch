@@ -19,7 +19,6 @@
 
 package org.opensearch.action.admin.indices.refresh;
 
-
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 

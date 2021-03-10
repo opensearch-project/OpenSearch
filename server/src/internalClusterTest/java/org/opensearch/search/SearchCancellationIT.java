@@ -20,6 +20,7 @@
 package org.opensearch.search;
 
 import org.apache.logging.log4j.LogManager;
+
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;

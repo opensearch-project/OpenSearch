@@ -30,6 +30,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;

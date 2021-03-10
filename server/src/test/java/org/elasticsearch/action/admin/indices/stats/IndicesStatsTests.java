@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.ActionFuture;
+import org.opensearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -32,6 +32,9 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;

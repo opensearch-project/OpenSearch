@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to explain the allocation of a shard in the cluster

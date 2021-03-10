@@ -20,6 +20,7 @@
 package org.opensearch.search.slice;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;

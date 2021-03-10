@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class NodesReloadSecureSettingsAction extends ActionType<NodesReloadSecureSettingsResponse> {
 

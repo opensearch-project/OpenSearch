@@ -39,6 +39,7 @@ import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.MockKeywordPlugin;
+
 import org.junit.Before;
 
 import java.io.IOException;

@@ -35,6 +35,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;

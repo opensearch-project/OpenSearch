@@ -46,6 +46,7 @@ import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 

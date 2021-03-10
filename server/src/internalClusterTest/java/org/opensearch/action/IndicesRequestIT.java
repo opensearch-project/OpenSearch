@@ -97,8 +97,11 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
+
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.IndicesRequest;
 
 import java.util.ArrayList;
 import java.util.Arrays;

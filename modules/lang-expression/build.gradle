@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 esplugin {
-  description 'Lucene expressions integration for Elasticsearch'
-  classname 'org.elasticsearch.script.expression.ExpressionPlugin'
+  description 'Lucene expressions integration for OpenSearch'
+  classname 'org.opensearch.script.expression.ExpressionPlugin'
 }
 
 dependencies {

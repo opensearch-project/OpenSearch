@@ -21,6 +21,7 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
+
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestBuilder;
@@ -59,8 +60,10 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.opensearch.action.DocWriteResponse.Result.CREATED;
+
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;

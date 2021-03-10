@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.opensearch.indices.analyze;
 
 import org.opensearch.action.admin.indices.alias.Alias;

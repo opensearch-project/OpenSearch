@@ -21,6 +21,7 @@ package org.opensearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.NoShardAvailableActionException;

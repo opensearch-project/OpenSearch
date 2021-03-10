@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 package org.opensearch.action.bulk;
 
 import org.opensearch.OpenSearchException;

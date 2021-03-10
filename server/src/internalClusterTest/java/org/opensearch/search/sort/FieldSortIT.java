@@ -22,6 +22,7 @@ package org.opensearch.search.sort;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -47,6 +48,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
