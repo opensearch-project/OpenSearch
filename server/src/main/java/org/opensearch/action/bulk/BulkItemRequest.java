@@ -84,7 +84,7 @@ public class BulkItemRequest implements Writeable, Accountable {
     }
 
     /**
-     * Abort this request, and store a {@link BulkItemResponse.Failure} response.
+     * Abort this request, and store a {@link org.opensearch.action.bulk.BulkItemResponse.Failure} response.
      *
      * @param index The concrete index that was resolved for this request
      * @param cause The cause of the rejection (may not be null)

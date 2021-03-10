@@ -171,7 +171,7 @@ public class BulkProcessor implements Closeable {
          *
          * The default is to back off exponentially.
          *
-         * @see BackoffPolicy#exponentialBackoff()
+         * @see org.opensearch.action.bulk.BackoffPolicy#exponentialBackoff()
          */
         public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
             if (backoffPolicy == null) {
@@ -217,7 +217,7 @@ public class BulkProcessor implements Closeable {
      * @return the builder for BulkProcessor
      * @deprecated Use {@link #builder(java.util.function.BiConsumer, BulkProcessor.Listener)}
      * with client::bulk as the first argument, or {@link #builder(org.elasticsearch.client.Client,
-     * BulkProcessor.Listener, org.elasticsearch.threadpool.Scheduler,
+     * org.opensearch.action.bulk.BulkProcessor.Listener, org.elasticsearch.threadpool.Scheduler,
      * org.elasticsearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
      */
     @Deprecated
