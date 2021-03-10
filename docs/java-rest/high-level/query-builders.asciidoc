@@ -4,7 +4,7 @@
 This page lists all the available search queries with their corresponding `QueryBuilder` class name and helper method name in the
 `QueryBuilders` utility class.
 
-:query-ref:             {elasticsearch-javadoc}/org/opensearch/index/query
+:query-ref:             {opensearch-javadoc}/org/opensearch/index/query
 :mapper-extras-ref:     {mapper-extras-client-javadoc}/org/opensearch/index/query
 :parentjoin-ref:        {parent-join-client-javadoc}/org/opensearch/join/query
 :percolate-ref:         {percolator-client-javadoc}/org/opensearch/percolator

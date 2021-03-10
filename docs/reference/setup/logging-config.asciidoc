@@ -253,7 +253,7 @@ logs streams when parsing.
 appender.rolling.layout.type = OpenSearchJsonLayoutLayout
 appender.rolling.layout.type_name = server
 --------------------------------------------------
-:es-json-layout-java-doc: {elasticsearch-javadoc}/org/opensearch/common/logging/OpenSearchJsonLayout.html
+:es-json-layout-java-doc: {opensearch-javadoc}/org/opensearch/common/logging/OpenSearchJsonLayout.html
 
 Each line contains a single JSON document with the properties configured in `OpenSearchJsonLayout`.
 See this class {es-json-layout-java-doc}[javadoc] for more details.

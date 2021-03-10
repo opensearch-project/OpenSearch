@@ -4,7 +4,7 @@
 This page lists all the available aggregations with their corresponding `AggregationBuilder` class name and helper method name in the
 `AggregationBuilders` or `PipelineAggregatorBuilders` utility classes.
 
-:agg-ref:        {elasticsearch-javadoc}/org/opensearch/search/aggregations
+:agg-ref:        {opensearch-javadoc}/org/opensearch/search/aggregations
 :parentjoin-ref: {parent-join-client-javadoc}/org/opensearch/join/aggregations
 :matrixstats-ref: {matrixstats-client-javadoc}/org/opensearch/search/aggregations
 
