@@ -1,14 +1,14 @@
 # Developer Guide
 
-So you want to contribute code to RENAMEME?  Excellent!  We're glad you're here.  Here's what you need to do:
+So you want to contribute code to OpenSearch?  Excellent!  We're glad you're here.  Here's what you need to do:
 
 ## Get project source code
 
-### RENAMEE Repo : https://github.com/opendistro-for-elasticsearch/RENAMEME
+### OpenSearch Repo : https://github.com/opensearch-project
 
 ###Importing the project into IntelliJ IDEA directly
 
-RENAMEME builds using Java 14. When importing into IntelliJ you will need
+OpenSearch builds using Java 14. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
 "14"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
@@ -16,14 +16,14 @@ SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
 simply report a problem and will refuse to build until resolved.
 
-You can import the RENAMAME project into IntelliJ IDEA via:
+You can import the OpenSearch project into IntelliJ IDEA via:
 
  - Select **File > Open**
  - In the subsequent dialog navigate to the root `build.gradle` file
  - In the subsequent dialog select **Open as Project**
 
-###Git clone RENAMAME repo:
- git clone https://github.com/opendistro-for-elasticsearch/RENAMEME
+###Git clone OpenSearch repo:
+ git clone https://github.com/opensearch-project
 
 
 ## Project layout
@@ -47,26 +47,26 @@ general purpose enough to *belong* in maven central. We're still working out
 what to do here.
 
 #### `modules`
-Features that are shipped with RENAMEME by default but are not built in to
+Features that are shipped with OpenSearch by default but are not built in to
 the server. We typically separate features from the server because they require
-permissions that we don't believe *all* of RENAMEME should have or because
-they depend on libraries that we don't believe *all* of RENAMEME should
+permissions that we don't believe *all* of OpenSearch should have or because
+they depend on libraries that we don't believe *all* of OpenSearch should
 depend on.
 
 For example, reindex requires the `connect` permission so it can perform
-reindex-from-remote but we don't believe that the *all* of RENAMEME should
+reindex-from-remote but we don't believe that the *all* of OpenSearch should
 have the "connect". For another example, Painless is implemented using antlr4
-and asm and we don't believe that *all* of RENAMEME should have access to
+and asm and we don't believe that *all* of OpenSearch should have access to
 them.
 
 #### `plugins`
-Officially supported plugins to RENAMEME. We decide that a feature should
+Officially supported plugins to OpenSearch. We decide that a feature should
 be a plugin rather than shipped as a module because we feel that it is only
 important to a subset of users, especially if it requires extra dependencies.
 
 The canonical example of this is the ICU analysis plugin. It is important for
 folks who want the fairly language neutral ICU analyzer but the library to
-implement the analyzer is 11MB so we don't ship it with RENAMEME by
+implement the analyzer is 11MB so we don't ship it with OpenSearch by
 default.
 
 Another example is the `discovery-gce` plugin. It is *vital* to folks running
@@ -75,7 +75,7 @@ dozen extra jars.
 
 ## Project Tools
 
-JDK 14 is required to build RENAMEME. You must have a JDK 14 installed
+JDK 14 is required to build OpenSearch. You must have a JDK 14 installed
 with the environment variable `JAVA_HOME` referencing the path to Java home for
 your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since RENNAMEME supports JDK 8, the build supports compiling with
@@ -86,7 +86,7 @@ be used to test against other JDKs as well, this is not only limited to JDK 8.
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
 and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
 
-RENAMEME uses the Gradle wrapper for its build. You can execute Gradle
+OpenSearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
@@ -95,19 +95,19 @@ We support development in IntelliJ versions IntelliJ 2019.2 and
 onwards. We would like to support Eclipse, but few of us use it and has fallen
 into [disrepair][eclipse].
 
-[Docker](https://docs.docker.com/install/) is required for building some RENNAMEME artifacts and executing certain test suites. You can run RENAMEME without building all the artifacts with:
+[Docker](https://docs.docker.com/install/) is required for building some OpenSearch artifacts and executing certain test suites. You can run OpenSearch without building all the artifacts with:
 
     ./gradlew :run
 
-That'll spend a while building RENAMEME and then it'll start RENAMEME,
+That'll spend a while building OpenSearch and then it'll start OpenSearch,
 writing its log above Gradle's status message. We log a lot of stuff on startup,
-specifically these lines tell you that RENAMEME is ready:
+specifically these lines tell you that OpenSearch is ready:
 
     [2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
     [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
 
 But to be honest its typically easier to wait until the console stops scrolling
-and then run `curl` in another window like this to check if RENAMEME instance is running:
+and then run `curl` in another window like this to check if OpenSearch instance is running:
 
 RENAMEME this needs to be replaced:
 
@@ -116,7 +116,7 @@ RENAMEME this needs to be replaced:
 
 ## Java Language Formatting Guidelines
 
-Java files in the RENAMEME codebase are formatted with the Eclipse JDT
+Java files in the OpenSearch codebase are formatted with the Eclipse JDT
 formatter, using the [Spotless
 Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
 plugin. This plugin is configured on a project-by-project basis, via
@@ -195,12 +195,14 @@ by running Gradle with `-Dspotless.paddedcell`.
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 
-## Creating A Distribution/Make a RENAMEME build
+## Creating A Distribution/Make a OpenSearch build
 
 Run all build commands from within the root directory:
 
+RENAMEME is this right?
+
 ```sh
-cd RENAMEME/
+cd opensearch-project/
 ```
 
 To build a darwin-tar distribution, run this command:
@@ -230,7 +232,7 @@ The archive distributions (tar and zip) can be found under:
 
 ## Running The Full Test Suite
 
-**Note:  RENAMEME hasn't made any changes to the test suite yet beyond fixing tests that broke after removing non-Apache licensed code and non-Apache licensed code checks**
+**Note:  OpenSearch hasn't made any changes to the test suite yet beyond fixing tests that broke after removing non-Apache licensed code and non-Apache licensed code checks**
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
