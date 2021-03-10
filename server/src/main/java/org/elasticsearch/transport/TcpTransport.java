@@ -26,7 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.ThreadedActionListener;
+import org.opensearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;

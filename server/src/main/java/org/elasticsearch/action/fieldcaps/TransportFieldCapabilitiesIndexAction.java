@@ -26,9 +26,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -70,7 +70,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;
 
 public class TransportFieldCapabilitiesIndexAction
         extends HandledTransportAction<FieldCapabilitiesIndexRequest, FieldCapabilitiesIndexResponse> {

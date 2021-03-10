@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OpenSearchClient;
 
 public abstract class BroadcastOperationRequestBuilder<
