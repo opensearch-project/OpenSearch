@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
+import org.opensearch.cli.Command;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 import java.io.ByteArrayInputStream;

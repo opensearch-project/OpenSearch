@@ -22,7 +22,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.cli.Terminal;
+import org.opensearch.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.io.IOException;

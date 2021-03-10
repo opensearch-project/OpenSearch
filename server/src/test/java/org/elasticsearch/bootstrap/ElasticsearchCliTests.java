@@ -20,7 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cli.ExitCodes;
+import org.opensearch.cli.ExitCodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 

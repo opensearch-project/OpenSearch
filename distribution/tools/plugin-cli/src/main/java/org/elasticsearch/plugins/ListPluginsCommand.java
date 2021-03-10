@@ -22,7 +22,7 @@ package org.elasticsearch.plugins;
 import joptsimple.OptionSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
-import org.elasticsearch.cli.Terminal;
+import org.opensearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;

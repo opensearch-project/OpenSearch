@@ -25,10 +25,10 @@ import java.util.Arrays;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.ExitCodes;
+import org.opensearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
+import org.opensearch.cli.Terminal;
+import org.opensearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 /**

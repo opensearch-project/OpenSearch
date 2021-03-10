@@ -21,6 +21,8 @@ package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.opensearch.cli.Command;
+import org.opensearch.cli.Terminal;
 
 /**
  * A base test case for cli tools.

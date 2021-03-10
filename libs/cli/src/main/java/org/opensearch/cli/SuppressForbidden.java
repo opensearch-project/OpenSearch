@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cli;
+package org.opensearch.cli;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
