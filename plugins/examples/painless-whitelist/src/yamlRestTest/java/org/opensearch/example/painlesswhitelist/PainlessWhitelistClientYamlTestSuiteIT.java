@@ -22,9 +22,9 @@ package org.opensearch.example.painlesswhitelist;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
-public class PainlessWhitelistClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class PainlessWhitelistClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     public PainlessWhitelistClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -32,7 +32,7 @@ public class PainlessWhitelistClientYamlTestSuiteIT extends ESClientYamlSuiteTes
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
 

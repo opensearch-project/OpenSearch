@@ -38,7 +38,7 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 
 /**
  * Creates and returns {@link NioSelectorGroup} instances. It will return a shared group for

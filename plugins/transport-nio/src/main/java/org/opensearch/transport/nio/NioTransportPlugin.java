@@ -30,7 +30,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.nio.NioHttpServerTransport;
@@ -57,7 +57,7 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",
-            (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
+            (s) -> Integer.toString(OpenSearchExecutors.allocatedProcessors(s)),
             (s) -> Setting.parseInt(s, 1, "transport.nio.worker_count"), Setting.Property.NodeScope);
     public static final Setting<Integer> NIO_HTTP_WORKER_COUNT =
         intSetting("http.nio.worker_count", 0, 0, Setting.Property.NodeScope);

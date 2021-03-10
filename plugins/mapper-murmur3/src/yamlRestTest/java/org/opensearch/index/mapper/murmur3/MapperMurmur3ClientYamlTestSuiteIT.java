@@ -23,9 +23,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
-public class MapperMurmur3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class MapperMurmur3ClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     public MapperMurmur3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

@@ -22,9 +22,9 @@ package org.opensearch.cloud.gce;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
-public class GCEDiscoveryClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class GCEDiscoveryClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     public GCEDiscoveryClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -32,6 +32,6 @@ public class GCEDiscoveryClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }

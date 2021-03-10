@@ -38,7 +38,7 @@ import java.nio.file.Path;
 public class TikaDocTests extends OpenSearchTestCase {
 
     /** some test files from tika test suite, zipped up */
-    static final String TIKA_FILES = "/org.opensearch.ingest/attachment/test/tika-files/";
+    static final String TIKA_FILES = "/org/opensearch/ingest/attachment/test/tika-files/";
 
     public void testFiles() throws Exception {
         Path tmp = createTempDir();

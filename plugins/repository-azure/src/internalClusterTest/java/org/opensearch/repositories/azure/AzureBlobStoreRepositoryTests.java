@@ -33,7 +33,7 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
-public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
+public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
 
     @Override
     protected String repositoryType() {
