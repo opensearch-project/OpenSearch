@@ -253,7 +253,7 @@ logs streams when parsing.
 appender.rolling.layout.type = ESJsonLayout
 appender.rolling.layout.type_name = server
 --------------------------------------------------
-:es-json-layout-java-doc: {elasticsearch-javadoc}/org/elasticsearch/common/logging/ESJsonLayout.html
+:es-json-layout-java-doc: {opensearch-javadoc}/org/elasticsearch/common/logging/ESJsonLayout.html
 
 Each line contains a single JSON document with the properties configured in `ESJsonLayout`.
 See this class {es-json-layout-java-doc}[javadoc] for more details.
