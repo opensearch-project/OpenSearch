@@ -1,4 +1,4 @@
-[[stopping-elasticsearch]]
+[[stopping-opensearch]]
 == Stopping Elasticsearch
 
 An orderly shutdown of Elasticsearch ensures that Elasticsearch has a chance to cleanup and close
