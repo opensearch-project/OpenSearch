@@ -181,7 +181,7 @@ include::check-running.asciidoc[]
 [[deb-configuring]]
 ==== Configuring Elasticsearch
 
-include::etc-elasticsearch.asciidoc[]
+include::etc-opensearch.asciidoc[]
 
 The Debian package also has a system configuration file (`/etc/default/opensearch`),
 which allows you to set the following parameters:
