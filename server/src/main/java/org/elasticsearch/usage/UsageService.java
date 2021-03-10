@@ -39,7 +39,7 @@
 package org.elasticsearch.usage;
 
 import org.opensearch.action.admin.cluster.node.usage.NodeUsage;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A service to monitor usage of Elasticsearch features.
+ * A service to monitor usage of OpenSearch features.
  */
 public class UsageService {
 

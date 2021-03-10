@@ -73,7 +73,7 @@ import org.opensearch.index.rankeval.RankEvalSpec;
 import org.opensearch.index.rankeval.RatedDocument;
 import org.opensearch.index.rankeval.RatedRequest;
 import org.opensearch.index.rankeval.RatedSearchHit;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptType;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.MultiSearchTemplateResponse;

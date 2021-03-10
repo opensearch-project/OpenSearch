@@ -52,7 +52,7 @@ import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
@@ -422,7 +422,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (int i = 0; i < indexRequestBuilders.length; i++) {
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
-                            .field("title", "This is a test on the highlighting bug present in elasticsearch")
+                            .field("title", "This is a test on the highlighting bug present in opensearch")
                             .startArray("attachments")
                                 .startObject().field("body", "attachment 1").endObject()
                                 .startObject().field("body", "attachment 2").endObject()
@@ -436,7 +436,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
 
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            assertHighlight(search, i, "title", 0, equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+            assertHighlight(search, i, "title", 0, equalTo("This is a test on the highlighting <em>bug</em> present in opensearch"));
         }
 
         search = client().prepareSearch()
@@ -475,7 +475,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (int i = 0; i < indexRequestBuilders.length; i++) {
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
-                            .field("title", "This is a test on the highlighting bug present in elasticsearch")
+                            .field("title", "This is a test on the highlighting bug present in opensearch")
                             .startArray("attachments")
                                 .startObject().field("body", "attachment 1").endObject()
                                 .startObject().field("body", "attachment 2").endObject()
@@ -489,7 +489,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
 
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            assertHighlight(search, i, "title", 0, equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+            assertHighlight(search, i, "title", 0, equalTo("This is a test on the highlighting <em>bug</em> present in opensearch"));
         }
 
         search = client().prepareSearch()
@@ -527,7 +527,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (int i = 0; i < indexRequestBuilders.length; i++) {
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
-                            .array("title", "This is a test on the highlighting bug present in elasticsearch. Hopefully it works.",
+                            .array("title", "This is a test on the highlighting bug present in opensearch. Hopefully it works.",
                                     "This is the second bug to perform highlighting on.")
                             .startArray("attachments")
                                 .startObject().field("body", "attachment for this test").endObject()
@@ -543,7 +543,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (int i = 0; i < indexRequestBuilders.length; i++) {
             assertHighlight(search, i, "title", 0,
-                    equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch. Hopefully it works."));
+                    equalTo("This is a test on the highlighting <em>bug</em> present in opensearch. Hopefully it works."));
             assertHighlight(search, i, "title", 1, 2, equalTo("This is the second <em>bug</em> to perform highlighting on."));
         }
 
@@ -554,7 +554,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (int i = 0; i < indexRequestBuilders.length; i++) {
             assertHighlight(search, i, "title", 0,
-                equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch. Hopefully it works."));
+                equalTo("This is a test on the highlighting <em>bug</em> present in opensearch. Hopefully it works."));
             assertHighlight(search, i, "title", 1, 2,
                 equalTo("This is the second <em>bug</em> to perform highlighting on."));
         }
@@ -576,7 +576,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         "title", "type=text,store=false",
                         "titleTV", "type=text,store=false,term_vector=with_positions_offsets"));
 
-        String[] titles = new String[] {"This is a test on the highlighting bug present in elasticsearch", "The bug is bugging us"};
+        String[] titles = new String[] {"This is a test on the highlighting bug present in opensearch", "The bug is bugging us"};
         indexRandom(false, client().prepareIndex("test", "type1", "1").setSource("title", titles, "titleTV", titles));
 
         indexRandom(true, client().prepareIndex("test", "type1", "2")
@@ -587,9 +587,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(new HighlightBuilder().field("title", -1, 2).field("titleTV", -1, 2).requireFieldMatch(false))
                 .get();
 
-        assertHighlight(search, 0, "title", 0, equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+        assertHighlight(search, 0, "title", 0, equalTo("This is a test on the highlighting <em>bug</em> present in opensearch"));
         assertHighlight(search, 0, "title", 1, 2, equalTo("The <em>bug</em> is bugging us"));
-        assertHighlight(search, 0, "titleTV", 0, equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+        assertHighlight(search, 0, "titleTV", 0, equalTo("This is a test on the highlighting <em>bug</em> present in opensearch"));
         assertHighlight(search, 0, "titleTV", 1, 2, equalTo("The <em>bug</em> is bugging us"));
 
         search = client().prepareSearch()
@@ -1113,7 +1113,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
-                    .setSource("title", "This is a test on the highlighting bug present in elasticsearch");
+                    .setSource("title", "This is a test on the highlighting bug present in opensearch");
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -1124,7 +1124,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             assertHighlight(search, i, "title", 0, 1, equalTo("This is a test on the highlighting <em>bug</em> " +
-                "present in elasticsearch"));
+                "present in opensearch"));
         }
     }
 
@@ -1135,7 +1135,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
-                    .setSource("title", "This is a test on the highlighting bug present in elasticsearch");
+                    .setSource("title", "This is a test on the highlighting bug present in opensearch");
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -1146,7 +1146,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
-            assertHighlight(search, i, "title", 0, 1, equalTo("highlighting <em>bug</em> present in elasticsearch"));
+            assertHighlight(search, i, "title", 0, 1, equalTo("highlighting <em>bug</em> present in opensearch"));
         }
     }
 
@@ -1157,7 +1157,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
-                    .setSource("title", "This is a html escaping highlighting test for *&? elasticsearch");
+                    .setSource("title", "This is a html escaping highlighting test for *&? opensearch");
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -1179,7 +1179,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
-                    .setSource("title", "This is a html escaping highlighting test for *&? elasticsearch");
+                    .setSource("title", "This is a html escaping highlighting test for *&? opensearch");
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -1189,7 +1189,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .get();
 
         for (int i = 0; i < 5; i++) {
-            assertHighlight(search, i, "title", 0, 1, equalTo(" highlighting <em>test</em> for *&amp;? elasticsearch"));
+            assertHighlight(search, i, "title", 0, 1, equalTo(" highlighting <em>test</em> for *&amp;? opensearch"));
         }
     }
 
@@ -1628,7 +1628,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         "double", "type=double"));
         ensureGreen();
 
-        client().prepareIndex("test", "test", "1").setSource("text", "elasticsearch test",
+        client().prepareIndex("test", "test", "1").setSource("text", "opensearch test",
                 "byte", 25, "short", 42, "int", 100, "long", -1, "float", 3.2f, "double", 42.42).get();
         refresh();
 
@@ -1653,7 +1653,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .addMapping("type", "text", "type=text,analyzer=my_analyzer"));
         ensureGreen();
         client().prepareIndex("test", "type", "1")
-                .setSource("text", "elasticsearch test").get();
+                .setSource("text", "opensearch test").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -2204,7 +2204,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
             indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
-                    .setSource("title", "This is a html escaping highlighting test for *&? elasticsearch");
+                    .setSource("title", "This is a html escaping highlighting test for *&? opensearch");
         }
         indexRandom(true, indexRequestBuilders);
 
@@ -2214,7 +2214,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         for (int i = 0; i < indexRequestBuilders.length; i++) {
             assertHighlight(searchResponse, i, "title", 0, 1,
-                equalTo("This is a html escaping highlighting <em>test</em> for *&amp;? elasticsearch"));
+                equalTo("This is a html escaping highlighting <em>test</em> for *&amp;? opensearch"));
         }
     }
 

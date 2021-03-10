@@ -134,8 +134,8 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.search.MockSearchService;
@@ -214,7 +214,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 /**
  * {@link ESIntegTestCase} is an abstract base class to run integration
- * tests against a JVM private Elasticsearch Cluster. The test class supports 2 different
+ * tests against a JVM private OpenSearch Cluster. The test class supports 2 different
  * cluster scopes.
  * <ul>
  * <li>{@link Scope#TEST} - uses a new cluster for each individual test method.</li>

@@ -37,7 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.EOFException;
@@ -121,7 +121,7 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
         assertEquals(parsed.shardId(), 1);
         assertEquals(parsed.index(), "test");
         assertEquals(parsed.status(), RestStatus.INTERNAL_SERVER_ERROR);
-        assertEquals(parsed.getCause().getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+        assertEquals(parsed.getCause().getMessage(), "OpenSearch exception [type=exception, reason=foo]");
     }
 
     public void testSerialization() throws Exception {

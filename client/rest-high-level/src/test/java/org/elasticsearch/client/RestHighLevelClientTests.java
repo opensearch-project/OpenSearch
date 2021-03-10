@@ -64,7 +64,7 @@ import org.opensearch.index.rankeval.MetricDetail;
 import org.opensearch.index.rankeval.PrecisionAtK;
 import org.opensearch.index.rankeval.RecallAtK;
 import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -251,7 +251,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         {
             IllegalStateException ise = expectThrows(IllegalStateException.class,
                     () -> restHighLevelClient.parseEntity(new NStringEntity("", (ContentType) null), null));
-            assertEquals("Elasticsearch didn't return the [Content-Type] header, unable to parse response body", ise.getMessage());
+            assertEquals("OpenSearch didn't return the [Content-Type] header, unable to parse response body", ise.getMessage());
         }
         {
             NStringEntity entity = new NStringEntity("", ContentType.APPLICATION_SVG_XML);
@@ -314,7 +314,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             OpenSearchException openSearchException = restHighLevelClient.parseResponseException(responseException);
-            assertEquals("Elasticsearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
+            assertEquals("OpenSearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
             assertEquals(restStatus, openSearchException.status());
             assertSame(responseException, openSearchException.getSuppressed()[0]);
         }
@@ -393,7 +393,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         OpenSearchException openSearchException = expectThrows(OpenSearchException.class,
                 () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
-        assertEquals("Elasticsearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
+        assertEquals("OpenSearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
         assertEquals(restStatus, openSearchException.status());
         assertSame(responseException, openSearchException.getSuppressed()[0]);
     }
@@ -475,7 +475,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                         response -> {throw new IllegalStateException();}, Collections.singleton(404)));
         assertEquals(RestStatus.NOT_FOUND, openSearchException.status());
         assertSame(responseException, openSearchException.getSuppressed()[0]);
-        assertEquals("Elasticsearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
+        assertEquals("OpenSearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
     }
 
     public void testWrapResponseListenerOnSuccess() {
@@ -542,7 +542,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         responseListener.onFailure(responseException);
         assertThat(trackingActionListener.exception.get(), instanceOf(OpenSearchException.class));
         OpenSearchException openSearchException = (OpenSearchException)trackingActionListener.exception.get();
-        assertEquals("Elasticsearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
+        assertEquals("OpenSearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
         assertEquals(restStatus, openSearchException.status());
         assertSame(responseException, openSearchException.getSuppressed()[0]);
     }
@@ -630,7 +630,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         OpenSearchException openSearchException = (OpenSearchException)trackingActionListener.exception.get();
         assertEquals(RestStatus.NOT_FOUND, openSearchException.status());
         assertSame(responseException, openSearchException.getSuppressed()[0]);
-        assertEquals("Elasticsearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
+        assertEquals("OpenSearch exception [type=exception, reason=test error message]", openSearchException.getMessage());
     }
 
     public void testDefaultNamedXContents() {

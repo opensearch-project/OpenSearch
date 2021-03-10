@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -446,10 +446,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
-     * Returns the version of elasticsearch that the snapshot was created with.  Will only
+     * Returns the version of opensearch that the snapshot was created with.  Will only
      * return {@code null} if {@link #state()} returns {@code null} or {@link SnapshotState#INCOMPATIBLE}.
      *
-     * @return version of elasticsearch that the snapshot was created with
+     * @return version of opensearch that the snapshot was created with
      */
     @Nullable
     public Version version() {
