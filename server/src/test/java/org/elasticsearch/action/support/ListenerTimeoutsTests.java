@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
+import org.opensearch.action.support.ListenerTimeouts;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;

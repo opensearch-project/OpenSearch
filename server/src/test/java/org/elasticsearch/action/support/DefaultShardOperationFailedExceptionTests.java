@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 

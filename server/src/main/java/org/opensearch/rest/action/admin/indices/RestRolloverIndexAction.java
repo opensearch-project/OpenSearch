@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;

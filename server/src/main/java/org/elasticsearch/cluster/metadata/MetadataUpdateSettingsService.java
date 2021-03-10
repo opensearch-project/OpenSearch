@@ -56,7 +56,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.index.IndexSettings.same;
 
 /**

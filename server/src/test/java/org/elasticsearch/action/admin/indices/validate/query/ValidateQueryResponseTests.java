@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;

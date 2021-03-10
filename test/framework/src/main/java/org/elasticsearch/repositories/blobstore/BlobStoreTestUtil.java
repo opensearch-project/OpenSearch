@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;

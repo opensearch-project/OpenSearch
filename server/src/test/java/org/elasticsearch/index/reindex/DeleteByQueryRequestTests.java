@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 
