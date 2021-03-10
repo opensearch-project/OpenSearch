@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.TemplateScript;
 
 import java.util.Map;
 import java.util.function.BiConsumer;

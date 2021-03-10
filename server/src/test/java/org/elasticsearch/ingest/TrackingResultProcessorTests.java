@@ -21,11 +21,11 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.Mockito;

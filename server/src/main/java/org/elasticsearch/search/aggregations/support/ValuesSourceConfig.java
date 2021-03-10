@@ -25,8 +25,8 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.AggregationScript;
+import org.opensearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;

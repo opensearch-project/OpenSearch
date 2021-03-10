@@ -21,7 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.script.ScriptContext;
+import org.opensearch.script.ScriptContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,7 +37,7 @@ public class AugmentationTests extends ScriptTestCase {
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
         List<Whitelist> digestWhitelist = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.ingest.txt"));
+        digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
         contexts.put(DigestTestScript.CONTEXT, digestWhitelist);
 
         return contexts;

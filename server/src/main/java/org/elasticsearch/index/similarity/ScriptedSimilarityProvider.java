@@ -23,10 +23,10 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SimilarityScript;
-import org.elasticsearch.script.SimilarityWeightScript;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.SimilarityScript;
+import org.opensearch.script.SimilarityWeightScript;
 
 /** Provider of scripted similarities. */
 final class ScriptedSimilarityProvider implements TriFunction<Settings, Version, ScriptService, Similarity> {

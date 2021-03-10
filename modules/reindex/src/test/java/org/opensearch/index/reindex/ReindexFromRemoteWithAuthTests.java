@@ -51,7 +51,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;

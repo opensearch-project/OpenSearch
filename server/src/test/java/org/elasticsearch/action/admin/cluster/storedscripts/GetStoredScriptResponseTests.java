@@ -20,8 +20,8 @@ package org.elasticsearch.action.admin.cluster.storedscripts;/*
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.StoredScriptSource;
+import org.opensearch.script.Script;
+import org.opensearch.script.StoredScriptSource;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 

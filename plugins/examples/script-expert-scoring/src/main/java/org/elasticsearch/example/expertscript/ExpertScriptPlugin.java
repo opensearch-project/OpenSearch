@@ -25,11 +25,11 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ScoreScript;
-import org.elasticsearch.script.ScoreScript.LeafFactory;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptFactory;
+import org.opensearch.script.ScoreScript;
+import org.opensearch.script.ScoreScript.LeafFactory;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptEngine;
+import org.opensearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

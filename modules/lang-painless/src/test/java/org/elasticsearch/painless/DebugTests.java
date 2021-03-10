@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ScriptException;
+import org.opensearch.script.ScriptException;
 
 import java.io.IOException;
 import java.util.Map;

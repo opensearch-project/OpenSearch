@@ -22,7 +22,7 @@ package org.opensearch.index.reindex;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.util.HashMap;

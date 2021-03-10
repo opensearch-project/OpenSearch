@@ -27,7 +27,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;

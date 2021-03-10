@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.script.FieldScript;
+import org.opensearch.script.FieldScript;
 
 import java.util.ArrayList;
 import java.util.List;

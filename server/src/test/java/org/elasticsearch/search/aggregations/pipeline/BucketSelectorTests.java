@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
@@ -61,7 +61,7 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
     }
 
     public void testNoParent() {
-        assertThat(validate(emptyList(), new BucketSelectorPipelineAggregationBuilder("foo", emptyMap(), new Script("foo"))), 
+        assertThat(validate(emptyList(), new BucketSelectorPipelineAggregationBuilder("foo", emptyMap(), new Script("foo"))),
             equalTo("Validation Failed: 1: bucket_selector aggregation [foo] must be declared inside of another aggregation;"));
     }
 }

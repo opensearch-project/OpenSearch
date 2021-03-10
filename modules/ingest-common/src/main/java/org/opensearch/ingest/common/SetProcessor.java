@@ -24,8 +24,8 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ValueSource;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.TemplateScript;
 
 import java.util.Map;
 

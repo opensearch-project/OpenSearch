@@ -35,8 +35,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.StoredScriptSource;
+import org.opensearch.script.Script;
+import org.opensearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Collections;

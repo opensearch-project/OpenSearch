@@ -24,8 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptException;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

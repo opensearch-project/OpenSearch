@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;

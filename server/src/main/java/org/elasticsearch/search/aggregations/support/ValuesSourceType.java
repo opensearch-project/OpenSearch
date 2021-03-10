@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.script.AggregationScript;
+import org.opensearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;

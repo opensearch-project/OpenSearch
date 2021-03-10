@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;

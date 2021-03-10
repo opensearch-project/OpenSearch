@@ -20,15 +20,15 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.IngestConditionalScript;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.MockScriptService;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.StoredScriptSource;
+import org.opensearch.script.IngestConditionalScript;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.MockScriptService;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
+import org.opensearch.script.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;

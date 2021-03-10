@@ -20,8 +20,8 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

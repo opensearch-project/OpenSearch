@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;

@@ -27,10 +27,10 @@ import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.painless.action.PainlessExecuteAction.Request;
 import org.elasticsearch.painless.action.PainlessExecuteAction.Response;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;

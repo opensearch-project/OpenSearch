@@ -1,7 +1,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ScriptContext;
+import org.opensearch.script.ScriptContext;
 
 import java.util.ArrayList;
 import java.util.Collections;

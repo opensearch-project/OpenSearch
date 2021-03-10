@@ -19,10 +19,10 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
+import org.opensearch.script.TemplateScript;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
+import static org.opensearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
 /**
  * Holds a value. If the value is requested a copy is made and optionally template snippets are resolved too.

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

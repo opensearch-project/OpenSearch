@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptException;
+import org.opensearch.script.ScriptException;
 
 import java.nio.CharBuffer;
 import java.util.Arrays;

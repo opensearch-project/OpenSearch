@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.StoredScriptSource;
+import org.opensearch.script.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 

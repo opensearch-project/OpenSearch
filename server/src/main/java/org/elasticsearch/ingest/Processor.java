@@ -23,7 +23,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.Map;

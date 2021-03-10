@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.time.ZonedDateTime;
 

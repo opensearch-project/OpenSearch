@@ -23,7 +23,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 import org.mockito.Mockito;
 
 import java.util.Map;

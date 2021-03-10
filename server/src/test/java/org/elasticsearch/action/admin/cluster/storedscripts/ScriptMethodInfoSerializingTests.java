@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo;
+import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

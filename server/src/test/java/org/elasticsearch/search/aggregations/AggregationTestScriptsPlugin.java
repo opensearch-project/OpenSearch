@@ -20,9 +20,9 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.MockScriptPlugin;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;

@@ -53,7 +53,7 @@ import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.script.ScriptException;
+import org.opensearch.script.ScriptException;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.Method;
 

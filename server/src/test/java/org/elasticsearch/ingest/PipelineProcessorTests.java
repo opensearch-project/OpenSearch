@@ -19,8 +19,8 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

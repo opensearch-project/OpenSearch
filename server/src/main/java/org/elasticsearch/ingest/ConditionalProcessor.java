@@ -20,12 +20,12 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.script.DynamicMap;
-import org.elasticsearch.script.IngestConditionalScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.DynamicMap;
+import org.opensearch.script.IngestConditionalScript;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
