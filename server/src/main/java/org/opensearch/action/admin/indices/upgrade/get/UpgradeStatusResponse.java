@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.upgrade.get;
 
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
