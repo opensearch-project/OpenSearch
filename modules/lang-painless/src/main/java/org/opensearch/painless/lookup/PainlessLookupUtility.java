@@ -364,7 +364,7 @@ public final class PainlessLookupUtility {
 
     /**
      * Constructs an array of injectable constants for a specific {@link PainlessMethod}
-     * derived from an {@link InjectConstantAnnotation}.
+     * derived from an {@link org.opensearch.painless.spi.annotation.InjectConstantAnnotation}.
      */
     public static Object[] buildInjections(PainlessMethod painlessMethod, Map<String, Object> constants) {
         if (painlessMethod.annotations.containsKey(InjectConstantAnnotation.class) == false) {
