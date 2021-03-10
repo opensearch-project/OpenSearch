@@ -35,9 +35,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;

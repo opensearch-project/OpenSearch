@@ -46,9 +46,9 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
