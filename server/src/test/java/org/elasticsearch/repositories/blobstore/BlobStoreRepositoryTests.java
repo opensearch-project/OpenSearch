@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;

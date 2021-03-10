@@ -22,7 +22,7 @@ import org.elasticsearch.Version;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;

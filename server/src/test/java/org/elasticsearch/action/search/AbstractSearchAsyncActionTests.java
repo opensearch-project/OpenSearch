@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.UUIDs;

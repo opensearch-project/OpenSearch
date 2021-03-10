@@ -34,7 +34,7 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.bulk.Retry;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.TransportAction;
+import org.opensearch.action.support.TransportAction;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;

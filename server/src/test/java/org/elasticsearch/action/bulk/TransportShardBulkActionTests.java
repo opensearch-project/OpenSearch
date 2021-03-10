@@ -31,7 +31,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;

@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;

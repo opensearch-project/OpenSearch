@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.Request;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 

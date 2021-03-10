@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;

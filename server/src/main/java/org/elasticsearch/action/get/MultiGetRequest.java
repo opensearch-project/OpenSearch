@@ -27,7 +27,7 @@ import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;

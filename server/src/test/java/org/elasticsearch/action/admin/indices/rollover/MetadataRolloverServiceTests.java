@@ -24,7 +24,7 @@ import org.elasticsearch.Version;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DataStreamTestHelper;

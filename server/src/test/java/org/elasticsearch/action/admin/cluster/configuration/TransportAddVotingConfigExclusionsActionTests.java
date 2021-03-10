@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.main;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;

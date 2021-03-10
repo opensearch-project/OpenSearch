@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.action.support.AdapterActionFuture;
 
 import java.util.Objects;
 import java.util.concurrent.BrokenBarrierException;
