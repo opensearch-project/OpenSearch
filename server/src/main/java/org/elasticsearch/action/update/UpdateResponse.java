@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.DocWriteResponse;
+import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;

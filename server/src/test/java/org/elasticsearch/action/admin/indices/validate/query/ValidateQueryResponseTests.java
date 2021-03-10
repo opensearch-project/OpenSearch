@@ -24,6 +24,8 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
+import org.opensearch.action.admin.indices.validate.query.QueryExplanation;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.cluster.stats.AnalysisStats;
+import org.opensearch.action.admin.cluster.stats.IndexFeatureStats;
 
 import java.io.IOException;
 import java.util.HashSet;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.IndicesRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,6 +39,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.settings.get.TransportGetSettingsAction;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;

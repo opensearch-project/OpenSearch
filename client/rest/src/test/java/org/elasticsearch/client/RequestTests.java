@@ -25,6 +25,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
+import org.opensearch.client.RestClientTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

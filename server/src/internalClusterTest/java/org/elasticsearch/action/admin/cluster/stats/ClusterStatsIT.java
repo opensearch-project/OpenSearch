@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -37,6 +37,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsIndices;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsNodes;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.opensearch.action.admin.cluster.stats.IndexFeatureStats;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -46,7 +50,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.OS;
+import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.OS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;

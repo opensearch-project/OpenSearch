@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
+import org.opensearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;

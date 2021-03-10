@@ -19,9 +19,9 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
+import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
+import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
+import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;

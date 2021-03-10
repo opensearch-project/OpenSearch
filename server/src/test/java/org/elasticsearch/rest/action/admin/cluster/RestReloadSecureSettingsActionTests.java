@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
+import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;

@@ -20,7 +20,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.action.ActionFuture;
+import org.opensearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;

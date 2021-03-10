@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 
 import java.io.IOException;
 

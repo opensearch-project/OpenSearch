@@ -22,7 +22,7 @@ package org.opensearch.transport.netty4;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
+import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;

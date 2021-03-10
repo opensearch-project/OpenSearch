@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -35,7 +35,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.

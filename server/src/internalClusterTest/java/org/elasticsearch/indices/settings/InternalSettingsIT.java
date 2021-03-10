@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;

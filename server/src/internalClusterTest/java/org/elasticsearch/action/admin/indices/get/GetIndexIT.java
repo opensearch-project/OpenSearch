@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -29,6 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.action.admin.indices.get.GetIndexRequestBuilder;
+import org.opensearch.action.admin.indices.get.GetIndexResponse;
 
 import java.util.ArrayList;
 import java.util.Arrays;

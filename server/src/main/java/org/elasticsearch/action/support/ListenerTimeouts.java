@@ -20,7 +20,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.OpenSearchTimeoutException;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;

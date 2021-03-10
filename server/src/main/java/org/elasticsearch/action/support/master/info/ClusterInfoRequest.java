@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.master.info;
 
-import org.elasticsearch.action.IndicesRequest;
+import org.opensearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;

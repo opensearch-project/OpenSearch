@@ -19,7 +19,7 @@
 package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;

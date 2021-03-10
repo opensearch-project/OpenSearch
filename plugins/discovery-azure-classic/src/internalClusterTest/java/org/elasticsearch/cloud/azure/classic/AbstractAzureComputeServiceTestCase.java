@@ -25,7 +25,7 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 import com.microsoft.windowsazure.management.compute.models.RoleInstancePowerState;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Management;

@@ -20,8 +20,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.TimestampParsingException;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.TimestampParsingException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;

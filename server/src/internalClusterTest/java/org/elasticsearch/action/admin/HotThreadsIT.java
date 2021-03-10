@@ -19,10 +19,10 @@
 package org.elasticsearch.action.admin;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
+import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
+import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;

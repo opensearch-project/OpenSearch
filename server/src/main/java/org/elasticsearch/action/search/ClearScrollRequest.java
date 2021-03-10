@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -32,7 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 public class ClearScrollRequest extends ActionRequest implements ToXContentObject {
 
@@ -44,7 +44,7 @@ public class ClearScrollRequest extends ActionRequest implements ToXContentObjec
         super(in);
         scrollIds = Arrays.asList(in.readStringArray());
     }
-    
+
     public List<String> getScrollIds() {
         return scrollIds;
     }

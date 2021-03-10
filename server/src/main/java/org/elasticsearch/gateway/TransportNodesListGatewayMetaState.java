@@ -19,9 +19,9 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.FailedNodeException;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;

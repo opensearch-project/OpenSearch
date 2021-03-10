@@ -28,6 +28,9 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
 
 public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<SnapshotIndexShardStatus> {
 

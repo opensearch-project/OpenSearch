@@ -19,10 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.dangling.list;
 
-import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.AggregatedDanglingIndexInfo;
+import org.opensearch.action.admin.indices.dangling.DanglingIndexInfo;
+import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
+import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.AggregatedDanglingIndexInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +33,7 @@ import java.util.UUID;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.resultsByIndexUUID;
+import static org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.resultsByIndexUUID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;

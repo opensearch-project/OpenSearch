@@ -26,7 +26,7 @@ import static org.elasticsearch.rest.RestStatus.ACCEPTED;
 import java.io.IOException;
 import java.util.List;
 
-import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.opensearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;

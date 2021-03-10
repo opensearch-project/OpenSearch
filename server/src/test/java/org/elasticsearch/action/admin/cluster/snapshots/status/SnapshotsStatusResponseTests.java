@@ -26,6 +26,8 @@ import java.util.function.Predicate;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 
 public class SnapshotsStatusResponseTests extends AbstractXContentTestCase<SnapshotsStatusResponse> {
 

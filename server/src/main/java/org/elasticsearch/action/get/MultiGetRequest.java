@@ -21,12 +21,12 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.RealtimeRequest;
-import org.elasticsearch.action.ValidateActions;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.RealtimeRequest;
+import org.opensearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;

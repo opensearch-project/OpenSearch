@@ -20,11 +20,11 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Request;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.TransportAction;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.Request;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
+import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.TransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
