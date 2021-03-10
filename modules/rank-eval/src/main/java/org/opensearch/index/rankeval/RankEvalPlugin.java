@@ -31,8 +31,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 
 import java.util.ArrayList;
 import java.util.Arrays;

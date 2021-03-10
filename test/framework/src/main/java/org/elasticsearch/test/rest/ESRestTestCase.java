@@ -58,7 +58,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -105,7 +105,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 
 /**
- * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
+ * Superclass for tests that interact with an external test cluster using OpenSearch's {@link RestClient}.
  */
 public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
@@ -141,11 +141,11 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static List<HttpHost> clusterHosts;
     /**
-     * A client for the running Elasticsearch cluster
+     * A client for the running OpenSearch cluster
      */
     private static RestClient client;
     /**
-     * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
+     * A client for the running OpenSearch cluster configured to take test administrative actions like remove all indexes after the test
      * completes
      */
     private static RestClient adminClient;
@@ -937,7 +937,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void expectSoftDeletesWarning(Request request, String indexName) {
         final List<String> expectedWarnings = Collections.singletonList(
-            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
+            "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. " +
             "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {

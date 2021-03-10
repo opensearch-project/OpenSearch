@@ -55,7 +55,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -221,7 +221,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     /**
-     * Versions of Elasticsearch before 2.1.0 don't support sort:_doc and instead need to use search_type=scan. Scan doesn't return
+     * Versions of OpenSearch before 2.1.0 don't support sort:_doc and instead need to use search_type=scan. Scan doesn't return
      * documents the first iteration but reindex doesn't like that. So we jump start strait to the next iteration.
      */
     public void testScanJumpStart() throws Exception {
@@ -255,8 +255,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals((Integer) 0, r.getFailures().get(0).getShardId());
             assertEquals("87A7NvevQxSrEwMbtRCecg", r.getFailures().get(0).getNodeId());
             assertThat(r.getFailures().get(0).getReason(), instanceOf(EsRejectedExecutionException.class));
-            assertEquals("rejected execution of org.elasticsearch.transport.TransportService$5@52d06af2 on "
-                    + "EsThreadPoolExecutor[search, queue capacity = 1000, org.elasticsearch.common.util.concurrent."
+            assertEquals("rejected execution of org.opensearch.transport.TransportService$5@52d06af2 on "
+                    + "EsThreadPoolExecutor[search, queue capacity = 1000, org.opensearch.common.util.concurrent."
                     + "EsThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, "
                     + "completed tasks = 4182]]", r.getFailures().get(0).getReason().getMessage());
             assertThat(r.getHits(), hasSize(1));
@@ -462,14 +462,14 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
     public void testInvalidJsonThinksRemoteIsNotES() throws IOException {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").start());
-        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
+        assertEquals("Error parsing the response, remote is likely not an OpenSearch instance",
                 e.getCause().getCause().getCause().getMessage());
     }
 
     public void testUnexpectedJsonThinksRemoteIsNotES() throws IOException {
         // Use the response from a main action instead of a proper start response to generate a parse error
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").start());
-        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
+        assertEquals("Error parsing the response, remote is likely not an OpenSearch instance",
                 e.getCause().getCause().getCause().getMessage());
     }
 

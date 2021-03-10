@@ -47,7 +47,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -124,7 +124,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             if (remoteVersion.before(Version.fromId(2000099))
                                     && re.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage(
-                                "Failed to clear scroll [{}] from pre-2.0 Elasticsearch. This is normal if the request terminated "
+                                "Failed to clear scroll [{}] from pre-2.0 OpenSearch. This is normal if the request terminated "
                                         + "normally as the scroll has already been cleared automatically.", scrollId), e);
                         return;
                     }

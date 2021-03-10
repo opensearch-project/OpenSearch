@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.opensearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
