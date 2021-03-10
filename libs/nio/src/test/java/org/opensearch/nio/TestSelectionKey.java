@@ -17,27 +17,49 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.nio;
 
-import org.opensearch.action.ActionListener;
-import org.elasticsearch.http.HttpServerChannel;
-import org.opensearch.nio.NioServerSocketChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.spi.AbstractSelectionKey;
 
-import java.nio.channels.ServerSocketChannel;
+public class TestSelectionKey extends AbstractSelectionKey {
 
-public class NioHttpServerChannel extends NioServerSocketChannel implements HttpServerChannel {
+    private int ops = 0;
+    private int readyOps;
 
-    public NioHttpServerChannel(ServerSocketChannel serverSocketChannel) {
-        super(serverSocketChannel);
+    public TestSelectionKey(int ops) {
+        this.ops = ops;
     }
 
     @Override
-    public void addCloseListener(ActionListener<Void> listener) {
-        addCloseListener(ActionListener.toBiConsumer(listener));
+    public SelectableChannel channel() {
+        return null;
     }
 
     @Override
-    public String toString() {
-        return "NioHttpServerChannel{localAddress=" + getLocalAddress() + "}";
+    public Selector selector() {
+        return null;
+    }
+
+    @Override
+    public int interestOps() {
+        return ops;
+    }
+
+    @Override
+    public SelectionKey interestOps(int ops) {
+        this.ops = ops;
+        return this;
+    }
+
+    @Override
+    public int readyOps() {
+        return readyOps;
+    }
+
+    public void setReadyOps(int readyOps) {
+        this.readyOps = readyOps;
     }
 }

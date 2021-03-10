@@ -26,7 +26,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
-import org.elasticsearch.nio.FlushOperation;
+import org.opensearch.nio.FlushOperation;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;

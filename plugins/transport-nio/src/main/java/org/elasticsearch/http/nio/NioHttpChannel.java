@@ -22,7 +22,7 @@ package org.elasticsearch.http.nio;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.nio.NioSocketChannel;
+import org.opensearch.nio.NioSocketChannel;
 
 import java.nio.channels.SocketChannel;
 

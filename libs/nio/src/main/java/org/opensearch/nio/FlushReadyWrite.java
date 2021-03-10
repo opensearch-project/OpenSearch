@@ -17,29 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.opensearch.nio;
 
-import org.elasticsearch.http.HttpPipelinedResponse;
-import org.opensearch.nio.SocketChannelContext;
-import org.opensearch.nio.WriteOperation;
-
+import java.nio.ByteBuffer;
 import java.util.function.BiConsumer;
 
-public class HttpWriteOperation implements WriteOperation {
+public class FlushReadyWrite extends FlushOperation implements WriteOperation {
 
     private final SocketChannelContext channelContext;
-    private final HttpPipelinedResponse response;
-    private final BiConsumer<Void, Exception> listener;
+    private final ByteBuffer[] buffers;
 
-    HttpWriteOperation(SocketChannelContext channelContext, HttpPipelinedResponse response, BiConsumer<Void, Exception> listener) {
+    public FlushReadyWrite(SocketChannelContext channelContext, ByteBuffer[] buffers, BiConsumer<Void, Exception> listener) {
+        super(buffers, listener);
         this.channelContext = channelContext;
-        this.response = response;
-        this.listener = listener;
-    }
-
-    @Override
-    public BiConsumer<Void, Exception> getListener() {
-        return listener;
+        this.buffers = buffers;
     }
 
     @Override
@@ -48,7 +39,7 @@ public class HttpWriteOperation implements WriteOperation {
     }
 
     @Override
-    public HttpPipelinedResponse getObject() {
-        return response;
+    public ByteBuffer[] getObject() {
+        return buffers;
     }
 }

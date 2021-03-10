@@ -31,12 +31,12 @@ import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpReadTimeoutException;
-import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioChannelHandler;
-import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.TaskScheduler;
-import org.elasticsearch.nio.WriteOperation;
+import org.opensearch.nio.FlushOperation;
+import org.opensearch.nio.InboundChannelBuffer;
+import org.opensearch.nio.NioChannelHandler;
+import org.opensearch.nio.SocketChannelContext;
+import org.opensearch.nio.TaskScheduler;
+import org.opensearch.nio.WriteOperation;
 
 import java.io.IOException;
 import java.util.ArrayList;

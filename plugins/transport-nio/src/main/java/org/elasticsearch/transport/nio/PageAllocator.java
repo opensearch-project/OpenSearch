@@ -21,7 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.nio.Page;
+import org.opensearch.nio.Page;
 
 import java.nio.ByteBuffer;
 import java.util.function.IntFunction;

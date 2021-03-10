@@ -16,23 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.publish'
+package org.opensearch.nio;
 
-dependencies {
-  api project(':libs:opensearch-core')
+import java.util.function.BiConsumer;
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+/**
+ * This is a basic write operation that can be queued with a channel. The only requirements of a write
+ * operation is that is has a listener and a reference to its channel. The actual conversion of the write
+ * operation implementation to bytes will be performed by the {@link NioChannelHandler}.
+ */
+public interface WriteOperation {
 
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-nio'
-  }
-}
+    BiConsumer<Void, Exception> getListener();
 
+    SocketChannelContext getChannel();
 
-tasks.named('forbiddenApisMain').configure {
-  // nio does not depend on core, so only jdk signatures should be checked
-  // es-all is not checked as we connect and accept sockets
-  replaceSignatureFiles 'jdk-signatures'
+    Object getObject();
+
 }

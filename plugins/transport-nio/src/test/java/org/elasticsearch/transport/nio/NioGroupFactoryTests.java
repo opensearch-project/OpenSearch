@@ -20,13 +20,13 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.nio.ChannelFactory;
-import org.elasticsearch.nio.Config;
-import org.elasticsearch.nio.NioGroup;
-import org.elasticsearch.nio.NioSelector;
-import org.elasticsearch.nio.NioServerSocketChannel;
-import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ServerChannelContext;
+import org.opensearch.nio.ChannelFactory;
+import org.opensearch.nio.Config;
+import org.opensearch.nio.NioGroup;
+import org.opensearch.nio.NioSelector;
+import org.opensearch.nio.NioServerSocketChannel;
+import org.opensearch.nio.NioSocketChannel;
+import org.opensearch.nio.ServerChannelContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
