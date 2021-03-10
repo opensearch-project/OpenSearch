@@ -19,11 +19,11 @@
 
 package org.elasticsearch.example.painlesswhitelist;
 
-import org.elasticsearch.painless.spi.PainlessExtension;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
-import org.elasticsearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
+import org.opensearch.painless.spi.PainlessExtension;
+import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.WhitelistInstanceBinding;
+import org.opensearch.painless.spi.WhitelistLoader;
+import org.opensearch.painless.spi.annotation.WhitelistAnnotationParser;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptContext;
 
