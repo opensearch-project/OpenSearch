@@ -78,7 +78,6 @@ to customize scoring:
 * <<decay-functions-numeric-fields>>
 * <<decay-functions-geo-fields>>
 * <<decay-functions-date-fields>>
-* <<script-score-functions-vector-fields>>
 
 We suggest using these predefined functions instead of writing your own.
 These functions take advantage of efficiencies from {es}' internal mechanisms.
@@ -218,11 +217,6 @@ You can read more about decay functions
 
 NOTE: Decay functions on dates are limited to dates in the default format
 and default time zone. Also calculations with `now` are not supported.
-
-[[script-score-functions-vector-fields]]
-====== Functions for vector fields
-<<vector-functions, Functions for vector fields>> are accessible through
-`script_score` query.
 
 ===== Allow expensive queries
 Script score queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
