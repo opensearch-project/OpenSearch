@@ -21,7 +21,7 @@ package org.elasticsearch.index.termvectors;
 
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -109,16 +109,16 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertThat(shard, notNullValue());
-        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);        
-        assertEquals(1, response.getFields().size());            
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
+        assertEquals(1, response.getFields().size());
 
         Terms terms = response.getFields().terms("text");
         TermsEnum iterator = terms.iterator();
         while (iterator.next() != null) {
             assertEquals(max, iterator.docFreq());
         }
-    }  
-    
+    }
+
     public void testWithIndexedPhrases() throws IOException {
         XContentBuilder mapping = jsonBuilder()
             .startObject()
@@ -126,7 +126,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
                     .startObject("properties")
                         .startObject("text")
                             .field("type", "text")
-                            .field("index_phrases", true)                            
+                            .field("index_phrases", true)
                             .field("term_vector", "with_positions_offsets_payloads")
                         .endObject()
                     .endObject()
@@ -152,7 +152,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertThat(shard, notNullValue());
-        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);        
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
         assertEquals(2, response.getFields().size());
 
         Terms terms = response.getFields().terms("text");
@@ -160,11 +160,11 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         while (iterator.next() != null) {
             assertEquals(max, iterator.docFreq());
         }
-                
+
         Terms phrases = response.getFields().terms("text._index_phrase");
         TermsEnum phraseIterator = phrases.iterator();
         while (phraseIterator.next() != null) {
             assertEquals(max, phraseIterator.docFreq());
         }
-    }  
+    }
 }

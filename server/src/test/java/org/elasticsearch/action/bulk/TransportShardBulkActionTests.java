@@ -57,6 +57,13 @@ import org.opensearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.opensearch.action.bulk.BulkItemRequest;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkPrimaryExecutionContext;
+import org.opensearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.bulk.BulkShardResponse;
+import org.opensearch.action.bulk.MappingUpdatePerformer;
+import org.opensearch.action.bulk.TransportShardBulkAction;
 
 import java.io.IOException;
 import java.util.Collections;
