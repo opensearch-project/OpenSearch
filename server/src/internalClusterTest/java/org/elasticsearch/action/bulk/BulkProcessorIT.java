@@ -35,7 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.MockTransportClient;
 

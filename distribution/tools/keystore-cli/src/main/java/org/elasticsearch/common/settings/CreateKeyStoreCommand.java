@@ -29,7 +29,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 /**
  * A sub-command for the keystore cli to create a new keystore.
