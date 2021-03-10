@@ -57,7 +57,7 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;

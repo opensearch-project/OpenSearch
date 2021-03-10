@@ -27,7 +27,7 @@ import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

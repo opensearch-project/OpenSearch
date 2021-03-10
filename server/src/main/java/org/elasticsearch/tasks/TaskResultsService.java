@@ -27,7 +27,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;

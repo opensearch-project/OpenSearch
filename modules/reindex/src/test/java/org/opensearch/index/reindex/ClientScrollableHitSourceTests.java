@@ -24,7 +24,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
