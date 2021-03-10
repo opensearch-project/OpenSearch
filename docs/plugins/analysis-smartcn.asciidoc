@@ -57,6 +57,7 @@ This filter only supports the predefined `_smartcn_` stopwords list.
 If you want to use a different predefined list, then use the
 {ref}/analysis-stop-tokenfilter.html[`stop` token filter] instead.
 
+// TODO: Replace the example for OpenSearch
 [source,console]
 --------------------------------------------------
 PUT smartcn_example
