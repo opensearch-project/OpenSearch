@@ -24,7 +24,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.opensearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -177,7 +177,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
             .source(XContentType.JSON, "field", "bulk1"));
         request.routing("1");
         bulk(request);
-        
+
         Iterable<SearchHit> emptyHits = searchAll(new SearchRequest("index").routing("xxx"));
         assertThat(emptyHits, is(emptyIterable()));
 
@@ -199,7 +199,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         Iterable<SearchHit> hits = searchAll(new SearchRequest("index").routing("globalRouting", "localRouting"));
         assertThat(hits, containsInAnyOrder(hasId("1"), hasId("2")));
     }
-    
+
     public void testGlobalIndexNoTypes() throws IOException {
         BulkRequest request = new BulkRequest("global_index");
         request.add(new IndexRequest().id("1")
@@ -211,20 +211,20 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
         Iterable<SearchHit> hits = searchAll("global_index");
         assertThat(hits, everyItem(hasIndex("global_index")));
-    }    
+    }
 
     private BulkResponse bulkWithTypes(BulkRequest request) throws IOException {
-        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync, 
+        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync,
                 expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertFalse(bulkResponse.hasFailures());
         return bulkResponse;
     }
-    
+
     private BulkResponse bulk(BulkRequest request) throws IOException {
         BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
         assertFalse(bulkResponse.hasFailures());
         return bulkResponse;
-    }    
+    }
 
     @SuppressWarnings("unchecked")
     private static <T> Function<SearchHit, T> fieldFromSource(String fieldName) {

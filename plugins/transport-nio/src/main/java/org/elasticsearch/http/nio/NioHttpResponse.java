@@ -25,7 +25,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResponse {
 

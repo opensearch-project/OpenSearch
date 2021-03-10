@@ -55,13 +55,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.rest.action.document.RestDeleteAction;
-import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
-import org.elasticsearch.rest.action.document.RestUpdateAction;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.rest.action.document.RestBulkAction;
+import org.opensearch.rest.action.document.RestDeleteAction;
+import org.opensearch.rest.action.document.RestGetAction;
+import org.opensearch.rest.action.document.RestIndexAction;
+import org.opensearch.rest.action.document.RestMultiGetAction;
+import org.opensearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -122,7 +122,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[" + docId + "]: " +
+            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[" + docId + "]: " +
                 "version conflict, required seqNo [2], primary term [2]. current document has seqNo [3] and primary term [1]]",
                 exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
@@ -151,7 +151,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             });
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[" +
+            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[" +
                 docId + "]: version conflict, current version [12] is higher or equal to the one provided [10]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
@@ -298,7 +298,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
+            assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         IndexRequest index = new IndexRequest("index").id("id");
@@ -311,7 +311,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             OpenSearchException exception = expectThrows(OpenSearchException.class,
                     () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, " + "reason=[id]: " +
+            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, " + "reason=[id]: " +
                     "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
@@ -412,7 +412,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id1", response.getResponses()[0].getFailure().getId());
             assertNull(response.getResponses()[0].getFailure().getType());
             assertEquals("index", response.getResponses()[0].getFailure().getIndex());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
+            assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[0].getFailure().getFailure().getMessage());
 
             assertTrue(response.getResponses()[1].isFailed());
@@ -420,7 +420,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id2", response.getResponses()[1].getId());
             assertNull(response.getResponses()[1].getType());
             assertEquals("index", response.getResponses()[1].getIndex());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
+            assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[1].getFailure().getFailure().getMessage());
         }
         BulkRequest bulk = new BulkRequest();
@@ -491,7 +491,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
+            assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         IndexRequest index = new IndexRequest("index").id("id");
@@ -512,7 +512,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=resource_not_found_exception, " +
+            assertEquals("OpenSearch exception [type=resource_not_found_exception, " +
                 "reason=Document not found [index]/[_doc]/[does_not_exist]]", exception.getMessage());
         }
         {
@@ -545,7 +545,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             getRequest.fetchSourceContext(new FetchSourceContext(false));
             OpenSearchException exception = expectThrows(OpenSearchException.class,
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
-            assertEquals("Elasticsearch exception [type=action_request_validation_exception, " +
+            assertEquals("OpenSearch exception [type=action_request_validation_exception, " +
                 "reason=Validation Failed: 1: fetching source can not be disabled;]", exception.getMessage());
         }
     }
@@ -602,7 +602,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 execute(wrongRequest, highLevelClient()::index, highLevelClient()::indexAsync);
             });
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[id]: " +
+            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[id]: " +
                          "version conflict, required seqNo [1], primary term [5]. current document has seqNo [2] and primary term [1]]",
                 exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
@@ -617,7 +617,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             });
 
             assertEquals(RestStatus.BAD_REQUEST, exception.status());
-            assertEquals("Elasticsearch exception [type=illegal_argument_exception, " +
+            assertEquals("OpenSearch exception [type=illegal_argument_exception, " +
                          "reason=pipeline with id [missing] does not exist]", exception.getMessage());
         }
         {
@@ -649,7 +649,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             });
 
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[with_create_op_type]: " +
+            assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[with_create_op_type]: " +
                          "version conflict, document already exists (current version [1])]", exception.getMessage());
         }
     }
@@ -678,7 +678,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () ->
                     execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=document_missing_exception, reason=[_doc][does_not_exist]: document missing]",
+            assertEquals("OpenSearch exception [type=document_missing_exception, reason=[_doc][does_not_exist]: document missing]",
                     exception.getMessage());
         }
         {
@@ -715,7 +715,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () ->
                     execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync));
                 assertEquals(exception.toString(),RestStatus.CONFLICT, exception.status());
-                assertThat(exception.getMessage(), containsString("Elasticsearch exception [type=version_conflict_engine_exception"));
+                assertThat(exception.getMessage(), containsString("OpenSearch exception [type=version_conflict_engine_exception"));
             }
             {
                 final UpdateRequest updateRequest = new UpdateRequest("index", "id");

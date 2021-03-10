@@ -37,7 +37,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.opensearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -484,11 +484,11 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) throws Exception {
         return indexDocs(processor, numDocs, "test", null, null, null, null);
     }
-    
+
     private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs) {
         assertResponseItems(bulkItemResponses, numDocs, MapperService.SINGLE_MAPPING_NAME);
     }
-    
+
     private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs, String expectedType) {
         assertThat(bulkItemResponses.size(), is(numDocs));
         int i = 1;

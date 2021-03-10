@@ -21,8 +21,8 @@ package org.opensearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestRequest;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.RestRequest;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.List;
@@ -30,8 +30,8 @@ import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
+import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
 public class RestRethrottleAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;

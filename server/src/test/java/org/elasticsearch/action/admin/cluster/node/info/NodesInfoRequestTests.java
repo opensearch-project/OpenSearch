@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Granular tests for the {@link NodesInfoRequest} class. Higher-level tests
- * can be found in {@link org.elasticsearch.rest.action.admin.cluster.RestNodesInfoActionTests}.
+ * can be found in {@link org.opensearch.rest.action.admin.cluster.RestNodesInfoActionTests}.
  */
 public class NodesInfoRequestTests extends ESTestCase {
 
