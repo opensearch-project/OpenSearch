@@ -58,7 +58,7 @@ GET /my-index-000001/_search
       "query": {
         "term": {
           "tag": {
-            "value": "Elasticsearch"
+            "value": "OpenSearch"
           }
         }
       }

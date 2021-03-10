@@ -9,7 +9,7 @@ query.
 GET /my-index-000001/_explain/0
 {
   "query" : {
-    "match" : { "message" : "elasticsearch" }
+    "match" : { "message" : "opensearch" }
   }
 }
 --------------------------------------------------
@@ -91,7 +91,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 GET /my-index-000001/_explain/0
 {
   "query" : {
-    "match" : { "message" : "elasticsearch" }
+    "match" : { "message" : "opensearch" }
   }
 }
 --------------------------------------------------

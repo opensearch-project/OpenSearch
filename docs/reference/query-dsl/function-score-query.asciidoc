@@ -140,7 +140,7 @@ GET /_search
   "query": {
     "function_score": {
       "query": {
-        "match": { "message": "elasticsearch" }
+        "match": { "message": "opensearch" }
       },
       "script_score": {
         "script": {
@@ -178,7 +178,7 @@ GET /_search
   "query": {
     "function_score": {
       "query": {
-        "match": { "message": "elasticsearch" }
+        "match": { "message": "opensearch" }
       },
       "script_score": {
         "script": {
