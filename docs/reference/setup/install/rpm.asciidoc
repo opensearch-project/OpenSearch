@@ -174,7 +174,7 @@ include::check-running.asciidoc[]
 [[rpm-configuring]]
 ==== Configuring Elasticsearch
 
-include::etc-elasticsearch.asciidoc[]
+include::etc-opensearch.asciidoc[]
 
 The RPM also has a system configuration file (`/etc/sysconfig/elasticsearch`),
 which allows you to set the following parameters:
