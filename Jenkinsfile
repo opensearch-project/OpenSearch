@@ -3,6 +3,7 @@ pipeline {
 
 
     stages {
+
         stage('DCO Check') {
             when { branch pattern: "PR-\\d+", comparator: "REGEXP"}
             steps {
