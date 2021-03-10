@@ -230,7 +230,7 @@ The API returns the following response:
         {
           "name": "lang-painless",
           "version": "{version}",
-          "description": "An easy, safe and fast scripting language for Elaticsearch",
+          "description": "An easy, safe and fast scripting language for OpenSearch",
           "classname": "org.opensearch.painless.PainlessPlugin",
           "has_native_controller": false
         }
