@@ -54,11 +54,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.snapshots.RestoreInfo;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
-import org.elasticsearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.RestoreInfo;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotShardFailure;
+import org.opensearch.snapshots.SnapshotState;
 
 import java.io.IOException;
 import java.util.Collections;

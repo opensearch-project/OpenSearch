@@ -28,8 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
