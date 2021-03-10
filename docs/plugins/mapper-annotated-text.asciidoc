@@ -186,12 +186,13 @@ PUT my-index-000001
 
 Applications would then typically provide content and discover it as follows:
 
+// TODO: Replace the example for OpenSearch
 [source,console]
 --------------------------
 # Example documents
 PUT my-index-000001/_doc/1
 {
-  "my_unstructured_text_field": "[Shay](%40kimchy) created opensearch",
+  "my_unstructured_text_field": "[Shay](%40kimchy) created elasticsearch",
   "my_twitter_handles": ["@kimchy"] <1>
 }
 
@@ -199,7 +200,7 @@ GET my-index-000001/_search
 {
   "query": {
     "query_string": {
-        "query": "opensearch OR logstash OR kibana",<2>
+        "query": "elasticsearch OR logstash OR kibana",<2>
         "default_field": "my_unstructured_text_field"
     }
   },

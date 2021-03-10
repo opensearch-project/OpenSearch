@@ -176,7 +176,7 @@ PUT icu_sample
 GET icu_sample/_analyze
 {
   "analyzer": "my_analyzer",
-  "text": "Elasticsearch. Wow!"
+  "text": "Opensearch. Wow!"
 }
 --------------------------------------------------
 
@@ -187,9 +187,9 @@ The above `analyze` request returns the following:
 {
    "tokens": [
       {
-         "token": "Elasticsearch. Wow!",
+         "token": "OpenSearch. Wow!",
          "start_offset": 0,
-         "end_offset": 19,
+         "end_offset": 16,
          "type": "<ALPHANUM>",
          "position": 0
       }
