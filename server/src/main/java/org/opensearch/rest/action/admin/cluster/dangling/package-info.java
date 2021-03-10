@@ -20,6 +20,6 @@
 /**
  * {@link org.opensearch.rest.RestHandler}s for managing dangling indices.
  *
- * @see org.elasticsearch.action.admin.indices.dangling
+ * @see org.opensearch.action.admin.indices.dangling
  */
 package org.opensearch.rest.action.admin.cluster.dangling;
