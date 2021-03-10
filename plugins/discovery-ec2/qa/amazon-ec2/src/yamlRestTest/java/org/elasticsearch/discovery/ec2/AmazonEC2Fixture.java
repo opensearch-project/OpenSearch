@@ -26,7 +26,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import javax.xml.XMLConstants;
