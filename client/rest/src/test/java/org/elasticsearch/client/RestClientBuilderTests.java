@@ -24,6 +24,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
+import org.opensearch.client.RestClientTestCase;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -163,9 +164,9 @@ public class RestClientBuilderTests extends RestClientTestCase {
 
     public void testBuildCloudId() throws IOException {
         String host = "us-east-1.aws.found.io";
-        String esId = "elasticsearch";
-        String kibanaId = "kibana";
-        String toEncode = host + "$" + esId + "$" + kibanaId;
+        String opensearchId = "opensearch";
+        String dashboardsId = "dashboards";
+        String toEncode = host + "$" + opensearchId + "$" + dashboardsId;
         String encodedId = Base64.getEncoder().encodeToString(toEncode.getBytes(UTF8));
         assertNotNull(RestClient.builder(encodedId));
         assertNotNull(RestClient.builder("humanReadable:" + encodedId));
@@ -187,7 +188,7 @@ public class RestClientBuilderTests extends RestClientTestCase {
 
         RestClient client = RestClient.builder(encodedId).build();
         assertThat(client.getNodes().size(), equalTo(1));
-        assertThat(client.getNodes().get(0).getHost().getHostName(), equalTo(esId + "." + host));
+        assertThat(client.getNodes().get(0).getHost().getHostName(), equalTo(opensearchId + "." + host));
         assertThat(client.getNodes().get(0).getHost().getPort(), equalTo(443));
         assertThat(client.getNodes().get(0).getHost().getSchemeName(), equalTo("https"));
         client.close();
@@ -195,20 +196,20 @@ public class RestClientBuilderTests extends RestClientTestCase {
 
     public void testBuildCloudIdWithPort() throws IOException {
         String host = "us-east-1.aws.found.io";
-        String esId = "elasticsearch";
-        String kibanaId = "kibana";
+        String opensearchId = "opensearch";
+        String dashboardsId = "dashboards";
         String port = "9443";
-        String toEncode = host + ":" + port + "$" + esId + "$" + kibanaId;
+        String toEncode = host + ":" + port + "$" + opensearchId + "$" + dashboardsId;
         String encodedId = Base64.getEncoder().encodeToString(toEncode.getBytes(UTF8));
 
         RestClient client = RestClient.builder("humanReadable:" + encodedId).build();
         assertThat(client.getNodes().size(), equalTo(1));
         assertThat(client.getNodes().get(0).getHost().getPort(), equalTo(9443));
-        assertThat(client.getNodes().get(0).getHost().getHostName(), equalTo(esId + "." + host));
+        assertThat(client.getNodes().get(0).getHost().getHostName(), equalTo(opensearchId + "." + host));
         assertThat(client.getNodes().get(0).getHost().getSchemeName(), equalTo("https"));
         client.close();
 
-        toEncode = host + ":" + "123:foo" + "$" + esId + "$" + kibanaId;
+        toEncode = host + ":" + "123:foo" + "$" + opensearchId + "$" + dashboardsId;
         encodedId = Base64.getEncoder().encodeToString(toEncode.getBytes(UTF8));
 
         try {

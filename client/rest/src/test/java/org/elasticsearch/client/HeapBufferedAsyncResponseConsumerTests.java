@@ -32,6 +32,7 @@ import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.protocol.HttpContext;
+import org.opensearch.client.RestClientTestCase;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
