@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.bulk.BulkRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

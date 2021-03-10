@@ -32,6 +32,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.bulk.BulkItemRequest;
+import org.opensearch.action.bulk.BulkPrimaryExecutionContext;
+import org.opensearch.action.bulk.BulkShardRequest;
 
 import java.util.ArrayList;
 
