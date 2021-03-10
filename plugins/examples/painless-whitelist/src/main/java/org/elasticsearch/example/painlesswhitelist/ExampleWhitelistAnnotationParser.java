@@ -19,7 +19,7 @@
 
 package org.elasticsearch.example.painlesswhitelist;
 
-import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
+import org.opensearch.painless.spi.annotation.WhitelistAnnotationParser;
 
 import java.util.Map;
 

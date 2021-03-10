@@ -1,0 +1,55 @@
+# whitelist for tests
+
+# TODO: remove this when the transition from Joda to Java datetimes is completed
+class org.opensearch.script.JodaCompatibleZonedDateTime {
+  (Instant, ZoneId)
+}
+
+# for unit tests only
+class org.opensearch.painless.api.Json {
+  def load(String)
+  String dump(def)
+  String dump(def,boolean)
+}
+
+class org.opensearch.painless.BindingsTests$BindingsTestScript {
+}
+
+class org.opensearch.painless.FeatureTestObject @no_import {
+  int z
+  ()
+  (int,int)
+  int getX()
+  int getY()
+  Integer getI()
+  void setX(int)
+  void setY(int)
+  void setI(Integer)
+  boolean overloadedStatic()
+  boolean overloadedStatic(boolean)
+  int staticNumberTest(Number)
+  int staticNumberArgument(int, int) @inject_constant[1="testInject0"]
+  Double mixedAdd(int, Byte, char, Float)
+  Object twoFunctionsOfX(Function,Function)
+  void listInput(List)
+  int injectTimesX(int, short) @inject_constant[1="testInject0"]
+  int timesSupplier(Function, short, int)
+  int injectWithLambda(int, Function, short) @inject_constant[1="testInject0"]
+  int org.opensearch.painless.FeatureTestAugmentationObject augmentInjectTimesX(int, short) @inject_constant[1="testInject0"]
+  int org.opensearch.painless.FeatureTestAugmentationObject augmentTimesSupplier(Function, short, int)
+  int org.opensearch.painless.FeatureTestAugmentationObject augmentInjectWithLambda(int, Function, short) @inject_constant[1="testInject0"]
+  int injectMultiTimesX(int, int, int, short) @inject_constant[1="testInject0", 2="testInject1", 3="testInject2"]
+  int injectMultiWithLambda(int, int, int, Function, short) @inject_constant[1="testInject0", 2="testInject1", 3="testInject0"]
+  int org.opensearch.painless.FeatureTestAugmentationObject augmentInjectMultiTimesX(int, int, short) @inject_constant[1="testInject1", 2="testInject2"]
+  int org.opensearch.painless.FeatureTestAugmentationObject augmentInjectMultiWithLambda(int, int, int, int, Function, short) @inject_constant[1="testInject2", 2="testInject1", 3="testInject1", 4="testInject2"]
+  int org.opensearch.painless.FeatureTestAugmentationObject getTotal()
+  int org.opensearch.painless.FeatureTestAugmentationObject addToTotal(int)
+}
+
+static_import {
+  int staticAddIntsTest(int, int) from_class org.opensearch.painless.StaticTestObject
+  float staticAddFloatsTest(float, float) from_class org.opensearch.painless.FeatureTestObject
+  int addWithState(int, int, int, double) bound_to org.opensearch.painless.BindingsTests$BindingTestClass
+  int addThisWithState(BindingsTests.BindingsTestScript, int, int, int, double) bound_to org.opensearch.painless.BindingsTests$ThisBindingTestClass
+  int addEmptyThisWithState(BindingsTests.BindingsTestScript, int) bound_to org.opensearch.painless.BindingsTests$EmptyThisBindingTestClass
+}
