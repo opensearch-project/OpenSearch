@@ -21,6 +21,7 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.index.query.QueryBuilders;

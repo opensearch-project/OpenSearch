@@ -52,6 +52,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
+
 import org.junit.After;
 
 import java.io.IOException;

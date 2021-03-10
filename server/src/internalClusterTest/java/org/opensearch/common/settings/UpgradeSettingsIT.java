@@ -26,6 +26,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.SniffConnectionStrategy;
+
 import org.junit.After;
 
 import java.util.Arrays;

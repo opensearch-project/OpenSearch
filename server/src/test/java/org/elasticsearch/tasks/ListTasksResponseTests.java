@@ -22,7 +22,7 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.OpenSearchException;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;

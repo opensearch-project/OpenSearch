@@ -36,7 +36,12 @@ import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+
 import org.hamcrest.Matchers;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsIndices;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsNodes;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.opensearch.action.admin.cluster.stats.IndexFeatureStats;
 
 import java.io.IOException;
 import java.util.HashMap;

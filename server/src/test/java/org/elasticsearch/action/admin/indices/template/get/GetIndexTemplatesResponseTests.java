@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.opensearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetIndexTemplatesResponseTests extends AbstractXContentTestCase<GetIndexTemplatesResponse> {

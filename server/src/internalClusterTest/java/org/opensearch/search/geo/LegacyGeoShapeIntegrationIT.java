@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.opensearch.search.geo;
 
 import org.opensearch.OpenSearchException;

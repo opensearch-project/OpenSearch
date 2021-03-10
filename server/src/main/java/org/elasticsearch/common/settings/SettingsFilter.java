@@ -22,7 +22,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.rest.RestRequest;
+import org.opensearch.rest.RestRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;

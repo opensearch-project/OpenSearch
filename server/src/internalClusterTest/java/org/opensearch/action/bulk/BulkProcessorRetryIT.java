@@ -19,6 +19,7 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;

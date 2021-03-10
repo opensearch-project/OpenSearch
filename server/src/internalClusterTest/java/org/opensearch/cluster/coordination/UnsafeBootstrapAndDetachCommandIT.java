@@ -19,6 +19,7 @@
 package org.opensearch.cluster.coordination;
 
 import joptsimple.OptionSet;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.cli.MockTerminal;

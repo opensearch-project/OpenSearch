@@ -46,8 +46,8 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
@@ -83,17 +83,17 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
         // Moving Function Pipeline Agg
         List<Whitelist> movFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        movFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.aggs.movfn.txt"));
+        movFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.aggs.movfn.txt"));
         map.put(MovingFunctionScript.CONTEXT, movFn);
 
         // Functions used for scoring docs
         List<Whitelist> scoreFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        scoreFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.score.txt"));
+        scoreFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.score.txt"));
         map.put(ScoreScript.CONTEXT, scoreFn);
 
         // Functions available to ingest pipelines
         List<Whitelist> ingest = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        ingest.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.ingest.txt"));
+        ingest.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
         map.put(IngestScript.CONTEXT, ingest);
 
         whitelists = map;

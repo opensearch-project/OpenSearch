@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.action.RestActions;
+import org.opensearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.Collections;

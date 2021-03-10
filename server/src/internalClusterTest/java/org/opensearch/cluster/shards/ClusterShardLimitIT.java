@@ -17,10 +17,10 @@
  * under the License.
  */
 
-
 package org.opensearch.cluster.shards;
 
 import org.opensearch.Version;
+
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;

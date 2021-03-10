@@ -46,6 +46,7 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
+
 import org.junit.After;
 
 import java.io.IOException;

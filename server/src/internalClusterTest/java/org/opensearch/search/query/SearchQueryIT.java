@@ -26,6 +26,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.English;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -1736,7 +1737,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testMatchPhrasePrefixQuery() throws ExecutionException, InterruptedException {
         createIndex("test1");
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("field", "Johnnie Walker Black Label"),
-        client().prepareIndex("test1", "type1", "2").setSource("field", "trying out Elasticsearch"));
+        client().prepareIndex("test1", "type1", "2").setSource("field", "trying out OpenSearch"));
 
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchPhrasePrefixQuery("field", "Johnnie la").slop(between(2, 5)))

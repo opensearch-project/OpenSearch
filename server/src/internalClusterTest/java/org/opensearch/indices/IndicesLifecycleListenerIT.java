@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.opensearch.indices;
 
 import org.opensearch.OpenSearchException;
@@ -41,6 +42,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.MockIndexEventListener;
+
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;

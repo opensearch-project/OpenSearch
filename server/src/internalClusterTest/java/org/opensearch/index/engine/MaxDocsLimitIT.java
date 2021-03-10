@@ -20,6 +20,7 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.IndexWriterMaxDocsChanger;
+
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -33,6 +34,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
+
 import org.junit.After;
 import org.junit.Before;
 

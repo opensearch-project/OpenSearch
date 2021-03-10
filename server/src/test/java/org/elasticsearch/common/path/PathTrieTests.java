@@ -20,7 +20,7 @@
 package org.elasticsearch.common.path;
 
 import org.elasticsearch.common.path.PathTrie.TrieMatchingMode;
-import org.elasticsearch.rest.RestUtils;
+import org.opensearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
