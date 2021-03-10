@@ -24,7 +24,7 @@ import java.util.Comparator;
 import java.util.Set;
 
 /**
- * Holds the action filters injected through plugins, properly sorted by {@link ActionFilter#order()}
+ * Holds the action filters injected through plugins, properly sorted by {@link org.opensearch.action.support.ActionFilter#order()}
  */
 public class ActionFilters {
 

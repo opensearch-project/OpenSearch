@@ -150,7 +150,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
      * Returns the indices options used to resolve indices. They tell for instance whether a single index is accepted, whether an empty
      * array will be converted to _all, and how wildcards will be expanded if needed.
      *
-     * @see IndicesOptions
+     * @see org.opensearch.action.support.IndicesOptions
      */
     public CountRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
