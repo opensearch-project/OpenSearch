@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.grok;
+package org.opensearch.grok;
 
-import org.elasticsearch.grok.GrokCaptureConfig.NativeExtracterMap;
+import org.opensearch.grok.GrokCaptureConfig.NativeExtracterMap;
 import org.joni.Region;
 
 import java.nio.charset.StandardCharsets;
