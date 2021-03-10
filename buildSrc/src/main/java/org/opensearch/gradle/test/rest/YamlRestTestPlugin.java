@@ -19,7 +19,7 @@
 
 package org.opensearch.gradle.test.rest;
 
-import org.opensearch.gradle.OpenSourceJavaPlugin;
+import org.opensearch.gradle.OpenSearchJavaPlugin;
 import org.opensearch.gradle.test.RestIntegTestTask;
 import org.opensearch.gradle.test.RestTestBasePlugin;
 import org.opensearch.gradle.testclusters.TestClustersPlugin;
@@ -41,7 +41,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
 
-        project.getPluginManager().apply(OpenSourceJavaPlugin.class);
+        project.getPluginManager().apply(OpenSearchJavaPlugin.class);
         project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(RestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);

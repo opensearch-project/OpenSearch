@@ -59,7 +59,7 @@ import static org.opensearch.gradle.util.Util.toStringable;
 /**
  * A wrapper around Gradle's Java plugin that applies our common configuration.
  */
-public class OpenSourceJavaPlugin implements Plugin<Project> {
+public class OpenSearchJavaPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project

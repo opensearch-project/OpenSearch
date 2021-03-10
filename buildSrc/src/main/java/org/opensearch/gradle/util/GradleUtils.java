@@ -18,7 +18,7 @@
  */
 package org.opensearch.gradle.util;
 
-import org.opensearch.gradle.OpenSourceJavaPlugin;
+import org.opensearch.gradle.OpenSearchJavaPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -119,7 +119,7 @@ public abstract class GradleUtils {
      * @return A task provider for the newly created test task
      */
     public static TaskProvider<?> addTestSourceSet(Project project, String sourceSetName) {
-        project.getPluginManager().apply(OpenSourceJavaPlugin.class);
+        project.getPluginManager().apply(OpenSearchJavaPlugin.class);
 
         // create our test source set and task
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

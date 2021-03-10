@@ -20,7 +20,7 @@
 package org.opensearch.gradle.test
 
 import groovy.transform.CompileStatic
-import org.opensearch.gradle.OpenSourceJavaPlugin
+import org.opensearch.gradle.OpenSearchJavaPlugin
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
@@ -43,7 +43,7 @@ class StandaloneTestPlugin implements Plugin<Project> {
             t.mustRunAfter(project.tasks.getByName('precommit'))
         }
 
-        OpenSourceJavaPlugin.configureCompile(project)
+        OpenSearchJavaPlugin.configureCompile(project)
         project.tasks.named('check').configure { it.dependsOn(project.tasks.named('test')) }
     }
 }

@@ -21,7 +21,7 @@
 package org.opensearch.gradle.test
 
 import groovy.transform.CompileStatic
-import org.opensearch.gradle.OpenSourceJavaPlugin
+import org.opensearch.gradle.OpenSearchJavaPlugin
 import org.opensearch.gradle.ExportOpenSearchBuildResourcesTask
 import org.opensearch.gradle.RepositoriesSetupPlugin
 import org.opensearch.gradle.info.BuildParams
@@ -63,8 +63,8 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.pluginManager.apply(RestTestBasePlugin)
 
         project.getTasks().register("buildResources", ExportOpenSearchBuildResourcesTask)
-        OpenSourceJavaPlugin.configureInputNormalization(project)
-        OpenSourceJavaPlugin.configureCompile(project)
+        OpenSearchJavaPlugin.configureInputNormalization(project)
+        OpenSearchJavaPlugin.configureCompile(project)
 
 
         project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion
