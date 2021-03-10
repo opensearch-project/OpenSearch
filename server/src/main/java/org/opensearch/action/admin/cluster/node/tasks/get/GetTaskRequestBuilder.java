@@ -22,7 +22,7 @@ package org.opensearch.action.admin.cluster.node.tasks.get;
 import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 
 /**
  * Builder for the request to retrieve the list of tasks running on the specified nodes

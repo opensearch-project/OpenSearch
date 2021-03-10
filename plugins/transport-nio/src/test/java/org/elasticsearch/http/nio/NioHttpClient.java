@@ -54,7 +54,7 @@ import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 
 import java.io.Closeable;
 import java.io.IOException;

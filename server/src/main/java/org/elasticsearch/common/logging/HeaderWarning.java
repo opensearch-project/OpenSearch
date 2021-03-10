@@ -22,7 +22,7 @@ package org.elasticsearch.common.logging;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.tasks;
+package org.opensearch.tasks;
 
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;

@@ -35,12 +35,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskManager;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
