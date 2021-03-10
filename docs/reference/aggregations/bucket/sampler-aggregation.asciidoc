@@ -60,7 +60,7 @@ Response:
         "bg_count": 650,
         "buckets": [
           {
-            "key": "elasticsearch",
+            "key": "opensearch",
             "doc_count": 150,
             "score": 1.078125,
             "bg_count": 200

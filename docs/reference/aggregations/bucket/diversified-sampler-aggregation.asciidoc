@@ -26,7 +26,7 @@ The aggregation will throw an error if the choice of `field` or `script` produce
 
 Example:
 
-We might want to see which tags are strongly associated with `#elasticsearch` on StackOverflow
+We might want to see which tags are strongly associated with `#opensearch` on StackOverflow
 forum posts but ignoring the effects of some prolific users with a tendency to misspell #Kibana as #Cabana.
 
 [source,console]
@@ -35,7 +35,7 @@ POST /stackoverflow/_search?size=0
 {
   "query": {
     "query_string": {
-      "query": "tags:elasticsearch"
+      "query": "tags:opensearch"
     }
   },
   "aggs": {
@@ -48,7 +48,7 @@ POST /stackoverflow/_search?size=0
         "keywords": {
           "significant_terms": {
             "field": "tags",
-            "exclude": [ "elasticsearch" ]
+            "exclude": [ "opensearch" ]
           }
         }
       }
@@ -147,7 +147,7 @@ Response:
             "bg_count": 50
           },
           {
-            "key": "elasticsearch",
+            "key": "opensearch",
             "doc_count": 3,
             "score": 1.34,
             "bg_count": 200
