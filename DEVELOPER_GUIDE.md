@@ -244,11 +244,11 @@ Before submitting your changes, run the test suite to make sure that nothing is 
 Honestly this is kind of in flux and we're not 100% sure where we'll end up.
 Right now the directory contains
 * Tests that require multiple modules or plugins to work
-* Tests that form a cluster made up of multiple versions of RENAMEME like
+* Tests that form a cluster made up of multiple versions of OpenSearch like
 full cluster restart, rolling restarts, and mixed version tests
-* Tests that test the RENAMEME clients in "interesting" places like the
+* Tests that test the OpenSearch clients in "interesting" places like the
 `wildfly` project.
-* Tests that test RENAMEME in funny configurations like with ingest
+* Tests that test OpenSearch in funny configurations like with ingest
 disabled
 * Tests that need to do strange things like install plugins that thrown
 uncaught `Throwable`s or add a shutdown hook
@@ -259,14 +259,14 @@ tests *do* belong in qa. Beyond that, we're not sure. If you want to add a new
 qa project, open a PR and be ready to discuss options.
 
 #### `server`
-The server component of RENAMEME that contains all of the modules and
+The server component of OpenSearch that contains all of the modules and
 plugins. Right now things like the high level rest client depend on the server
 but we'd like to fix that in the future.
 
 #### `test`
 Our test framework and test fixtures. We use the test framework for testing the
 server, the plugins, and modules, and pretty much everything else. We publish
-the test framework so folks who develop RENAMEME plugins can use it to
+the test framework so folks who develop OpenSearch plugins can use it to
 test the plugins. The test fixtures are external processes that we start before
 running specific tests that rely on them.
 
@@ -276,9 +276,9 @@ repository-hdfs plugin.
 
 ### Gradle Build
 
-We use Gradle to build RENAMEME because it is flexible enough to not only
-build and package RENAMEME, but also orchestrate all of the ways that we
-have to test RENAMEME.
+We use Gradle to build OpenSearch because it is flexible enough to not only
+build and package OpenSearch, but also orchestrate all of the ways that we
+have to test OpenSearch.
 
 ### Configurations
 
@@ -299,8 +299,8 @@ we do not accidentally compile against dependencies of our dependencies also
 known as "transitive" dependencies".</dd>
 <dt>`compileOnly`</dt><dd>Code that is on the classpath at compile time but that
 should not be shipped with the project because it is "provided" by the runtime
-somehow. RENAMEME plugins use this configuration to include dependencies
-that are bundled with RENAMEME's server.</dd>
+somehow. OpenSearch plugins use this configuration to include dependencies
+that are bundled with OpenSearch's server.</dd>
 <dt>`testImplementation`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>
@@ -317,7 +317,7 @@ Once your changes and tests are ready to submit for review:
 
 2. Rebase your changes
 
-Update your local repository with the most recent code from the main RENAMEME repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
+Update your local repository with the most recent code from the main OpenSearch repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
 
 3. Please provide detailed description on your change.
 
@@ -329,7 +329,7 @@ Update your local repository with the most recent code from the main RENAMEME re
 
     Push your local changes to your forked copy of the repository and [submit a pull request](https://help.github.com/articles/using-pull-requests). In the pull request, choose a title which sums up the changes that you have made, and in the body provide more details about what your changes do. Also mention the number of the issue where discussion has taken place, eg "Closes #123".
 
-Unless your change is trivial, there will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into RENAMEME.
+Unless your change is trivial, there will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into OpenSearch.
 
 5. Code review and approval
 
@@ -374,14 +374,14 @@ we'll do our best to address any further points you raise.
 ## Contributing as part of a class
 
 
-In general RENAMEME is happy to accept contributions that were created as
+In general OpenSearch is happy to accept contributions that were created as
 part of a class but strongly advise against making the contribution as part of
 the class. So if you have code you wrote for a class feel free to submit it.
 
-Please, please, please do not assign contributing to RENAMEME as part of a
-class. If you really want to assign writing code for RENAMEME as an
+Please, please, please do not assign contributing to OpenSearch as part of a
+class. If you really want to assign writing code for OpenSearch as an
 assignment then the code contributions should be made to your private clone and
-opening PRs against the primary RENAMEME clone must be optional, fully
+opening PRs against the primary OpenSearch clone must be optional, fully
 voluntary, not for a grade, and without any deadlines.
 
 Because:
