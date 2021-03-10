@@ -186,6 +186,7 @@ PUT my-index-000001
 
 Applications would then typically provide content and discover it as follows:
 
+// TODO: Replace the example for OpenSearch
 [source,console]
 --------------------------
 # Example documents
