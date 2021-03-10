@@ -474,7 +474,7 @@ See <<add-elasticsearch-nodes>>.
 [role="exclude",id="_installation"]
 === Installation
 
-See <<install-elasticsearch>>.
+See <<install-opensearch>>.
 
 [role="exclude",id="mapping-ttl-field"]
 === `_ttl` mappings
@@ -484,7 +484,7 @@ The `_ttl` mappings have been removed.
 [role="exclude",id="setup-service"]
 === Running as a service on Linux
 
-See <<starting-elasticsearch>>.
+See <<starting-opensearch>>.
 
 [role="exclude",id="modules-scripting-painless-syntax"]
 === Painless syntax

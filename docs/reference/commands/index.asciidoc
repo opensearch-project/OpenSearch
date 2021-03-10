@@ -7,7 +7,7 @@
 {es} provides the following tools for configuring security and performing other 
 tasks from the command line:
 
-* <<elasticsearch-keystore>>
+* <<opensearch-keystore>>
 * <<node-tool>>
 * <<shard-tool>>
 
