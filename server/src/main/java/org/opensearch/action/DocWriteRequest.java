@@ -29,8 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
-import org.opensearch.action.bulk.BulkRequest;
-import org.opensearch.action.bulk.BulkShardRequest;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -41,7 +39,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Generic interface to group ActionRequest, which perform writes to a single document
- * Action requests implementing this can be part of {@link BulkRequest}
+ * Action requests implementing this can be part of {@link org.opensearch.action.bulk.BulkRequest}
  */
 public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
@@ -232,9 +230,9 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     /**
      * Read a document write (index/delete/update) request
      *
-     * @param shardId shard id of the request. {@code null} when reading as part of a {@link BulkRequest}
+     * @param shardId shard id of the request. {@code null} when reading as part of a {@link org.opensearch.action.bulk.BulkRequest}
      *                that does not have a unique shard id or when reading from a stream of version older than
-     *                {@link BulkShardRequest#COMPACT_SHARD_ID_VERSION}
+     *                {@link org.opensearch.action.bulk.BulkShardRequest#COMPACT_SHARD_ID_VERSION}
      */
     static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         byte type = in.readByte();
