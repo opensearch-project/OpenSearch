@@ -44,7 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
-import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.opensearch.snapshots.SnapshotsInfoService;
 
 import java.util.ArrayList;
 import java.util.Collections;

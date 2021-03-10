@@ -59,11 +59,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.opensearch.snapshots.EmptySnapshotsInfoService;
+import org.opensearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;

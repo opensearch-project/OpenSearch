@@ -35,8 +35,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -122,7 +122,7 @@ public interface Repository extends LifecycleComponent {
      * @param metadata   cluster metadata
      *
      * @deprecated this method is only used when taking snapshots in a mixed version cluster where a master node older than
-     *             {@link org.elasticsearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION} is present.
+     *             {@link org.opensearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION} is present.
      */
     @Deprecated
     void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, Metadata metadata);
