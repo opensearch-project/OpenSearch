@@ -26,8 +26,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.rest.RestUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

@@ -22,7 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -36,6 +36,11 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkProcessor;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -306,7 +311,7 @@ public class BulkProcessorTests extends ESTestCase {
                 "Successful Bulks: " + successCount.get() + "\n" +
                 "Failed Bulks: " + failureCount.get() + "\n" +
                 "Total Documents: " + docCount.get() + "\n" +
-                "Max Documents: " + maxDocuments + "\n" +   
+                "Max Documents: " + maxDocuments + "\n" +
                 "Max Batch Size: " + maxBatchSize + "\n" +
                 "Concurrent Clients: " + concurrentClients + "\n" +
                 "Concurrent Bulk Requests: " + concurrentBulkRequests + "\n"

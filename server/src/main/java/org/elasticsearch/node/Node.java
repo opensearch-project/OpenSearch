@@ -28,9 +28,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.OpenSearchTimeoutException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -152,7 +152,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.RestController;
+import org.opensearch.rest.RestController;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -330,7 +330,7 @@ public class Node implements Closeable {
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
             if (Build.CURRENT.isProductionRelease() == false) {
                 logger.warn(
-                    "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+                    "version [{}] is a pre-release version of OpenSearch and is not suitable for production",
                     Build.CURRENT.getQualifiedVersion());
             }
 

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Granular tests for the {@link NodesInfoRequest} class. Higher-level tests
- * can be found in {@link org.elasticsearch.rest.action.admin.cluster.RestNodesInfoActionTests}.
+ * can be found in {@link org.opensearch.rest.action.admin.cluster.RestNodesInfoActionTests}.
  */
 public class NodesInfoRequestTests extends ESTestCase {
 

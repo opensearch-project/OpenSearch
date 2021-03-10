@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 
 import java.io.IOException;
 import java.util.Map;

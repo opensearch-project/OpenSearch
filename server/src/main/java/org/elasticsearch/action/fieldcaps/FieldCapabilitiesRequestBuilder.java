@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 

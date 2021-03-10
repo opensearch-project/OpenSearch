@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.build'
+apply plugin: 'opensearch.build'
 
 targetCompatibility = JavaVersion.VERSION_1_8
 sourceCompatibility = JavaVersion.VERSION_1_8
@@ -44,7 +44,7 @@ tasks.named('forbiddenApisTest').configure {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:elasticsearch-core
+// TODO: Not anymore. Now in :libs:opensearch-core
 jarHell.enabled = false
 
 // TODO: should we have licenses for our test deps?

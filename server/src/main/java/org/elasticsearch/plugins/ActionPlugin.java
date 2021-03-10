@@ -19,12 +19,12 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.RequestValidators;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.RequestValidators;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -36,9 +36,9 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.RestHeaderDefinition;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestHeaderDefinition;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -49,7 +49,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
- * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
+ * An additional extension point for {@link Plugin}s that extends OpenSearch's scripting functionality. Implement it like this:
  * <pre>{@code
  *   {@literal @}Override
  *   public List<ActionHandler<?, ?>> getActions() {
@@ -186,7 +186,7 @@ public interface ActionPlugin {
 
     /**
      * Returns a collection of validators that are used by {@link RequestValidators} to validate a
-     * {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
+     * {@link org.opensearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
      */
     default Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
         return Collections.emptyList();

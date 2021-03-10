@@ -32,6 +32,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.network.NetworkAddress;
@@ -60,6 +61,7 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nio.NioGroupFactory;
+
 import org.junit.After;
 import org.junit.Before;
 

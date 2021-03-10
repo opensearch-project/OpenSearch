@@ -1,10 +1,10 @@
 plugins {
-  id 'elasticsearch.build' apply false
+  id 'opensearch.build' apply false
 }
 
 allprojects {
   apply plugin: 'java'
-  apply plugin: 'elasticsearch.build'
+  apply plugin: 'opensearch.build'
 
   repositories {
     jcenter()
@@ -40,10 +40,10 @@ project(':all_classes_in_tasks') {
 project(':not_implementing_base') {
   testingConventions.naming {
     Tests {
-      baseClass 'org.elasticsearch.gradle.testkit.Unit'
+      baseClass 'org.opensearch.gradle.testkit.Unit'
     }
     IT {
-      baseClass 'org.elasticsearch.gradle.testkit.Integration'
+      baseClass 'org.opensearch.gradle.testkit.Integration'
     }
   }
   test {
@@ -70,10 +70,10 @@ project(':valid_setup_with_base') {
   }
   testingConventions.naming {
     Tests {
-      baseClass 'org.elasticsearch.gradle.testkit.Unit'
+      baseClass 'org.opensearch.gradle.testkit.Unit'
     }
     IT {
-      baseClass 'org.elasticsearch.gradle.testkit.Integration'
+      baseClass 'org.opensearch.gradle.testkit.Integration'
     }
   }
 }

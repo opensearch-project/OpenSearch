@@ -31,8 +31,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.indices.get.GetIndexResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

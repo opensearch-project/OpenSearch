@@ -25,6 +25,7 @@ import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
+
 import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;

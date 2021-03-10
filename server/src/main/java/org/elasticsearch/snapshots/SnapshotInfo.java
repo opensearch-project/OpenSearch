@@ -19,8 +19,8 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.opensearch.action.ShardOperationFailedException;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -446,10 +446,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
-     * Returns the version of elasticsearch that the snapshot was created with.  Will only
+     * Returns the version of opensearch that the snapshot was created with.  Will only
      * return {@code null} if {@link #state()} returns {@code null} or {@link SnapshotState#INCOMPATIBLE}.
      *
-     * @return version of elasticsearch that the snapshot was created with
+     * @return version of opensearch that the snapshot was created with
      */
     @Nullable
     public Version version() {

@@ -42,6 +42,8 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.client.RestClientTestCase;
+import org.opensearch.client.RestClientTestUtil;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -60,10 +62,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
-import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
-import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
-import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
+import static org.opensearch.client.RestClientTestUtil.getAllStatusCodes;
+import static org.opensearch.client.RestClientTestUtil.getHttpMethods;
+import static org.opensearch.client.RestClientTestUtil.randomHttpMethod;
+import static org.opensearch.client.RestClientTestUtil.randomStatusCode;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;

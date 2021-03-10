@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 esplugin {
   description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-  classname 'org.elasticsearch.percolator.PercolatorPlugin'
+  classname 'org.opensearch.percolator.PercolatorPlugin'
   hasClientJar = true
 }
 

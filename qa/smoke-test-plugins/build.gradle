@@ -17,13 +17,13 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.MavenFilteringHack
+import org.opensearch.gradle.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.rest-test'
+apply plugin: 'opensearch.rest-resources'
 
 int pluginsCount = 0
 

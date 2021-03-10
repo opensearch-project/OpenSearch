@@ -20,8 +20,8 @@
 package org.elasticsearch.usage;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestRequest;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class UsageServiceTests extends ESTestCase {
 
     /**
-     * Test that we can not add a null reference to a {@link org.elasticsearch.rest.RestHandler} to the {@link UsageService}.
+     * Test that we can not add a null reference to a {@link org.opensearch.rest.RestHandler} to the {@link UsageService}.
      */
     public void testHandlerCanNotBeNull() {
         final UsageService service = new UsageService();
@@ -47,7 +47,7 @@ public class UsageServiceTests extends ESTestCase {
     }
 
     /**
-     * Test that we can not add an instance of a {@link org.elasticsearch.rest.RestHandler} with no name to the {@link UsageService}.
+     * Test that we can not add an instance of a {@link org.opensearch.rest.RestHandler} with no name to the {@link UsageService}.
      */
     public void testAHandlerWithNoName() {
         final UsageService service = new UsageService();
@@ -55,11 +55,11 @@ public class UsageServiceTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.addRestHandler(horse));
         assertThat(
             e.getMessage(),
-            equalTo("handler of type [org.elasticsearch.usage.UsageServiceTests$MockRestHandler] does not have a name"));
+            equalTo("handler of type [org.opensearch.usage.UsageServiceTests$MockRestHandler] does not have a name"));
     }
 
     /**
-     * Test that we can add the same instance of a {@link org.elasticsearch.rest.RestHandler} to the {@link UsageService} multiple times.
+     * Test that we can add the same instance of a {@link org.opensearch.rest.RestHandler} to the {@link UsageService} multiple times.
      */
     public void testHandlerWithConflictingNamesButSameInstance() {
         final UsageService service = new UsageService();
@@ -71,7 +71,7 @@ public class UsageServiceTests extends ESTestCase {
     }
 
     /**
-     * Test that we can not add different instances of {@link org.elasticsearch.rest.RestHandler} with the same name to the
+     * Test that we can not add different instances of {@link org.opensearch.rest.RestHandler} with the same name to the
      * {@link UsageService}.
      */
     public void testHandlersWithConflictingNamesButDifferentInstances() {
@@ -84,7 +84,7 @@ public class UsageServiceTests extends ESTestCase {
         final String expected = String.format(
             Locale.ROOT,
             "handler of type [%s] conflicts with handler of type [%1$s] as they both have the same name [%s]",
-            "org.elasticsearch.usage.UsageServiceTests$MockRestHandler",
+            "org.opensearch.usage.UsageServiceTests$MockRestHandler",
             name
         );
         assertThat(e.getMessage(), equalTo(expected));

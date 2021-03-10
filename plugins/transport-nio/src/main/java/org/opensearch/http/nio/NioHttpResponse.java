@@ -23,6 +23,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.rest.RestStatus;

@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.transport.TcpTransport;
@@ -836,7 +836,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         ENGINE_EXCEPTION(org.elasticsearch.index.engine.EngineException.class, org.elasticsearch.index.engine.EngineException::new, 53,
             UNKNOWN_VERSION_ADDED),
         // 54 was DocumentAlreadyExistsException, which is superseded by VersionConflictEngineException
-        NO_SUCH_NODE_EXCEPTION(org.elasticsearch.action.NoSuchNodeException.class, org.elasticsearch.action.NoSuchNodeException::new, 55,
+        NO_SUCH_NODE_EXCEPTION(org.opensearch.action.NoSuchNodeException.class, org.opensearch.action.NoSuchNodeException::new, 55,
             UNKNOWN_VERSION_ADDED),
         SETTINGS_EXCEPTION(org.elasticsearch.common.settings.SettingsException.class,
                 org.elasticsearch.common.settings.SettingsException::new, 56, UNKNOWN_VERSION_ADDED),
@@ -861,9 +861,9 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 OpenSearchException::new, 68, UNKNOWN_VERSION_ADDED),
         SNAPSHOT_MISSING_EXCEPTION(org.elasticsearch.snapshots.SnapshotMissingException.class,
                 org.elasticsearch.snapshots.SnapshotMissingException::new, 69, UNKNOWN_VERSION_ADDED),
-        PRIMARY_MISSING_ACTION_EXCEPTION(org.elasticsearch.action.PrimaryMissingActionException.class,
-                org.elasticsearch.action.PrimaryMissingActionException::new, 70, UNKNOWN_VERSION_ADDED),
-        FAILED_NODE_EXCEPTION(org.elasticsearch.action.FailedNodeException.class, org.elasticsearch.action.FailedNodeException::new, 71,
+        PRIMARY_MISSING_ACTION_EXCEPTION(org.opensearch.action.PrimaryMissingActionException.class,
+                org.opensearch.action.PrimaryMissingActionException::new, 70, UNKNOWN_VERSION_ADDED),
+        FAILED_NODE_EXCEPTION(org.opensearch.action.FailedNodeException.class, org.opensearch.action.FailedNodeException::new, 71,
             UNKNOWN_VERSION_ADDED),
         SEARCH_PARSE_EXCEPTION(org.elasticsearch.search.SearchParseException.class, org.elasticsearch.search.SearchParseException::new, 72,
             UNKNOWN_VERSION_ADDED),
@@ -877,10 +877,10 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.index.engine.RecoveryEngineException::new, 76, UNKNOWN_VERSION_ADDED),
         UNCATEGORIZED_EXECUTION_EXCEPTION(org.elasticsearch.common.util.concurrent.UncategorizedExecutionException.class,
                 org.elasticsearch.common.util.concurrent.UncategorizedExecutionException::new, 77, UNKNOWN_VERSION_ADDED),
-        TIMESTAMP_PARSING_EXCEPTION(org.elasticsearch.action.TimestampParsingException.class,
-                org.elasticsearch.action.TimestampParsingException::new, 78, UNKNOWN_VERSION_ADDED),
-        ROUTING_MISSING_EXCEPTION(org.elasticsearch.action.RoutingMissingException.class,
-                org.elasticsearch.action.RoutingMissingException::new, 79, UNKNOWN_VERSION_ADDED),
+        TIMESTAMP_PARSING_EXCEPTION(org.opensearch.action.TimestampParsingException.class,
+                org.opensearch.action.TimestampParsingException::new, 78, UNKNOWN_VERSION_ADDED),
+        ROUTING_MISSING_EXCEPTION(org.opensearch.action.RoutingMissingException.class,
+                org.opensearch.action.RoutingMissingException::new, 79, UNKNOWN_VERSION_ADDED),
         // 80 was IndexFailedEngineException, deprecated in 6.0, removed in 7.0
         INDEX_SHARD_RESTORE_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardRestoreFailedException::new, 81, UNKNOWN_VERSION_ADDED),
@@ -936,8 +936,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.common.settings.NoClassSettingsException::new, 111, UNKNOWN_VERSION_ADDED),
         BIND_TRANSPORT_EXCEPTION(org.elasticsearch.transport.BindTransportException.class,
                 org.elasticsearch.transport.BindTransportException::new, 112, UNKNOWN_VERSION_ADDED),
-        ALIASES_NOT_FOUND_EXCEPTION(org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException.class,
-                org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException::new, 113, UNKNOWN_VERSION_ADDED),
+        ALIASES_NOT_FOUND_EXCEPTION(org.opensearch.rest.action.admin.indices.AliasesNotFoundException.class,
+                org.opensearch.rest.action.admin.indices.AliasesNotFoundException::new, 113, UNKNOWN_VERSION_ADDED),
         INDEX_SHARD_RECOVERING_EXCEPTION(org.elasticsearch.index.shard.IndexShardRecoveringException.class,
                 org.elasticsearch.index.shard.IndexShardRecoveringException::new, 114, UNKNOWN_VERSION_ADDED),
         TRANSLOG_EXCEPTION(org.elasticsearch.index.translog.TranslogException.class,
@@ -966,10 +966,10 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         SEARCH_SOURCE_BUILDER_EXCEPTION(org.elasticsearch.search.builder.SearchSourceBuilderException.class,
                 org.elasticsearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
         // 129 was EngineClosedException
-        NO_SHARD_AVAILABLE_ACTION_EXCEPTION(org.elasticsearch.action.NoShardAvailableActionException.class,
-                org.elasticsearch.action.NoShardAvailableActionException::new, 130, UNKNOWN_VERSION_ADDED),
-        UNAVAILABLE_SHARDS_EXCEPTION(org.elasticsearch.action.UnavailableShardsException.class,
-                org.elasticsearch.action.UnavailableShardsException::new, 131, UNKNOWN_VERSION_ADDED),
+        NO_SHARD_AVAILABLE_ACTION_EXCEPTION(org.opensearch.action.NoShardAvailableActionException.class,
+                org.opensearch.action.NoShardAvailableActionException::new, 130, UNKNOWN_VERSION_ADDED),
+        UNAVAILABLE_SHARDS_EXCEPTION(org.opensearch.action.UnavailableShardsException.class,
+                org.opensearch.action.UnavailableShardsException::new, 131, UNKNOWN_VERSION_ADDED),
         FLUSH_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.FlushFailedEngineException.class,
                 org.elasticsearch.index.engine.FlushFailedEngineException::new, 132, UNKNOWN_VERSION_ADDED),
         CIRCUIT_BREAKING_EXCEPTION(org.elasticsearch.common.breaker.CircuitBreakingException.class,

@@ -19,8 +19,8 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -110,7 +110,7 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;

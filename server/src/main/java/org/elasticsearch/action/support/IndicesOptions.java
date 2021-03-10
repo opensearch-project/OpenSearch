@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.rest.RestRequest;
+import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.EnumSet;

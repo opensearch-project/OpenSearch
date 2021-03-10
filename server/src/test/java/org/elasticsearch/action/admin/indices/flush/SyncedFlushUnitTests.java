@@ -21,7 +21,8 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse.ShardCounts;
+import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
+import org.opensearch.action.admin.indices.flush.SyncedFlushResponse.ShardCounts;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -30,7 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

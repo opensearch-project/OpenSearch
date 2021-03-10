@@ -1,12 +1,12 @@
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.util.GradleUtils
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.java-rest-test'
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'opensearch.java-rest-test'
+apply plugin: 'opensearch.esplugin'
 
 esplugin {
   description 'Die with dignity plugin'
-  classname 'org.elasticsearch.DieWithDignityPlugin'
+  classname 'org.opensearch.DieWithDignityPlugin'
 }
 
 // let the javaRestTest see the classpath of main

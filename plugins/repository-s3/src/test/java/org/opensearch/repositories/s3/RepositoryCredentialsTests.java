@@ -24,6 +24,7 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -120,11 +121,11 @@ public class RepositoryCredentialsTests extends OpenSearchSSingleNodeTestCase {
         assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
 
         assertWarnings(
-            "[secret_key] setting was deprecated in Opensearch and will be removed in a future release!"
+            "[secret_key] setting was deprecated in OpenSearch and will be removed in a future release!"
                 + " See the breaking changes documentation for the next major version.",
             "Using s3 access/secret key from repository settings. Instead store these in named clients and"
                 + " the opensearch keystore for secure settings.",
-            "[access_key] setting was deprecated in Opensearch and will be removed in a future release!"
+            "[access_key] setting was deprecated in OpenSearch and will be removed in a future release!"
                 + " See the breaking changes documentation for the next major version.");
     }
 
@@ -205,11 +206,11 @@ public class RepositoryCredentialsTests extends OpenSearchSSingleNodeTestCase {
 
         if (hasInsecureSettings) {
             assertWarnings(
-                "[secret_key] setting was deprecated in Opensearch and will be removed in a future release!"
+                "[secret_key] setting was deprecated in OpenSearch and will be removed in a future release!"
                     + " See the breaking changes documentation for the next major version.",
                 "Using s3 access/secret key from repository settings. Instead store these in named clients and"
                     + " the opensearch keystore for secure settings.",
-                "[access_key] setting was deprecated in Opensearch and will be removed in a future release!"
+                "[access_key] setting was deprecated in OpenSearch and will be removed in a future release!"
                     + " See the breaking changes documentation for the next major version.");
         }
     }

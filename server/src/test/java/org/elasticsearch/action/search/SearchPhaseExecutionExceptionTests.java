@@ -20,8 +20,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.TimestampParsingException;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.TimestampParsingException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 

@@ -27,9 +27,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
