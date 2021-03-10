@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.dissect;
+package org.opensearch.dissect;
 
 import java.util.EnumSet;
 import java.util.regex.Matcher;

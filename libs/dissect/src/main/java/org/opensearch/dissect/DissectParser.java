@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.dissect;
+package org.opensearch.dissect;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
