@@ -24,8 +24,8 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.OptionalMatchers;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.Scheduler;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Optional;

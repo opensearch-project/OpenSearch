@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool;
+package org.opensearch.threadpool;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +34,7 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
+public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
 
     public void testScalingThreadPoolConfiguration() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);

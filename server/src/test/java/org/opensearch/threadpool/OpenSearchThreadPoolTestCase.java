@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool;
+package org.opensearch.threadpool;
 
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public abstract class ESThreadPoolTestCase extends ESTestCase {
+public abstract class OpenSearchThreadPoolTestCase extends ESTestCase {
 
     protected final ThreadPool.Info info(final ThreadPool threadPool, final String name) {
         for (final ThreadPool.Info info : threadPool.info()) {

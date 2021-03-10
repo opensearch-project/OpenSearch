@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.TestThreadPool;
 import org.junit.Before;
 
 import java.util.Collections;

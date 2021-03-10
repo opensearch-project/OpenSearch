@@ -30,7 +30,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;

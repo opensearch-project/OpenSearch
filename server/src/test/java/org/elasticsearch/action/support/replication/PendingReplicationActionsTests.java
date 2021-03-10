@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.TestThreadPool;
 
 import java.util.Collections;
 

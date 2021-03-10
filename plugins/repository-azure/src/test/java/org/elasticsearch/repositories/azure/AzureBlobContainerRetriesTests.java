@@ -46,8 +46,8 @@ import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 

@@ -54,7 +54,7 @@ import org.opensearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4Plugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
