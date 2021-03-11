@@ -36,7 +36,7 @@
  * under the License.
  */
 
-package org.elasticsearch.usage;
+package org.opensearch.usage;
 
 import org.opensearch.action.admin.cluster.node.usage.NodeUsage;
 import org.opensearch.rest.BaseRestHandler;

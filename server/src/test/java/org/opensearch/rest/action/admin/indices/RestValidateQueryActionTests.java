@@ -41,7 +41,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.usage.UsageService;
+import org.opensearch.usage.UsageService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
