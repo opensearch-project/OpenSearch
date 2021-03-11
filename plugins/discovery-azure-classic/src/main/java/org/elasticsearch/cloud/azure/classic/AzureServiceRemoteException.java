@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.classic;
+package org.opensearch.cloud.azure.classic;
 
 public class AzureServiceRemoteException extends IllegalStateException {
     public AzureServiceRemoteException(String msg) {

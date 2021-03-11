@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -18,14 +18,14 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'opensearch.opensearchplugin'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.java-rest-test'
 
-esplugin {
+opensearchplugin {
   name 'rest-handler'
   description 'An example plugin showing how to register a REST handler'
-  classname 'org.elasticsearch.example.resthandler.ExampleRestHandlerPlugin'
+  classname 'org.opensearch.example.resthandler.ExampleRestHandlerPlugin'
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
@@ -33,11 +33,11 @@ esplugin {
 // No unit tests in this example
 test.enabled = false
 
-tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
+tasks.register("exampleFixture", org.opensearch.gradle.test.AntFixture) {
   dependsOn sourceSets.javaRestTest.runtimeClasspath
   env 'CLASSPATH', "${-> project.sourceSets.javaRestTest.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
+  args 'org.opensearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
 }
 
 javaRestTest {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.azure.classic;
+package org.opensearch.discovery.azure.classic;
 
 import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
 import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
@@ -27,19 +27,19 @@ import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cloud.azure.classic.AzureServiceDisableException;
-import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
-import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
-import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.SeedHostsProvider;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.cloud.azure.classic.AzureServiceDisableException;
+import org.opensearch.cloud.azure.classic.AzureServiceRemoteException;
+import org.opensearch.cloud.azure.classic.management.AzureComputeService;
+import org.opensearch.cloud.azure.classic.management.AzureComputeService.Discovery;
+import org.opensearch.common.Strings;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.discovery.SeedHostsProvider;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
