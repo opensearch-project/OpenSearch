@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.RemoteClusterAwareClient;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;

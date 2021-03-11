@@ -16,12 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportSettings;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;

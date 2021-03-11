@@ -17,9 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.ClusterConnectionManager;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
+import org.elasticsearch.transport.RemoteConnectionManager;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.TransportSettings;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;

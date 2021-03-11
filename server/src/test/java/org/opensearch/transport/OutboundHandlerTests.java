@@ -17,10 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.FakeTcpChannel;
+import org.elasticsearch.transport.Header;
+import org.elasticsearch.transport.InboundAggregator;
+import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.OutboundHandler;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.StatsTracker;
+import org.elasticsearch.transport.TestRequest;
+import org.elasticsearch.transport.TestResponse;
+import org.elasticsearch.transport.TransportMessageListener;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;

@@ -17,13 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.FakeTcpChannel;
+import org.elasticsearch.transport.Header;
+import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundHandler;
+import org.elasticsearch.transport.InboundMessage;
+import org.elasticsearch.transport.OutboundHandler;
+import org.elasticsearch.transport.OutboundMessage;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.StatsTracker;
+import org.elasticsearch.transport.TcpHeader;
+import org.elasticsearch.transport.TestRequest;
+import org.elasticsearch.transport.TestResponse;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportHandshaker;
+import org.elasticsearch.transport.TransportKeepAlive;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportStatus;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;

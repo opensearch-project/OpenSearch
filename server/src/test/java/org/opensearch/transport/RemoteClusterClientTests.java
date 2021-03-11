@@ -16,9 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.RemoteClusterConnection;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -37,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
-import static org.elasticsearch.transport.RemoteClusterConnectionTests.startTransport;
+import static org.opensearch.transport.RemoteClusterConnectionTests.startTransport;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterClientTests extends ESTestCase {
@@ -51,7 +56,7 @@ public class RemoteClusterClientTests extends ESTestCase {
 
     public void testConnectAndExecuteRequest() throws Exception {
         Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
-        try (MockTransportService remoteTransport = startTransport("remote_node", Collections.emptyList(), Version.CURRENT, threadPool,
+        try (MockTransportService remoteTransport = RemoteClusterConnectionTests.startTransport("remote_node", Collections.emptyList(), Version.CURRENT, threadPool,
             remoteSettings)) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
@@ -84,7 +89,7 @@ public class RemoteClusterClientTests extends ESTestCase {
         reason = "debug intermittent test failure")
     public void testEnsureWeReconnect() throws Exception {
         Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
-        try (MockTransportService remoteTransport = startTransport("remote_node", Collections.emptyList(), Version.CURRENT, threadPool,
+        try (MockTransportService remoteTransport = RemoteClusterConnectionTests.startTransport("remote_node", Collections.emptyList(), Version.CURRENT, threadPool,
             remoteSettings)) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             Settings localSettings = Settings.builder()

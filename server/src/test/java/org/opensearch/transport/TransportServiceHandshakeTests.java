@@ -17,9 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TestProfiles;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;

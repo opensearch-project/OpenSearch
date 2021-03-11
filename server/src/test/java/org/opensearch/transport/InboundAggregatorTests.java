@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -29,6 +29,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.Header;
+import org.elasticsearch.transport.InboundAggregator;
+import org.elasticsearch.transport.InboundMessage;
+import org.elasticsearch.transport.TransportStatus;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.common.AsyncBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,6 +25,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.FakeTcpChannel;
+import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TransportKeepAlive;
 import org.opensearch.threadpool.TestThreadPool;
 
 import java.io.IOException;

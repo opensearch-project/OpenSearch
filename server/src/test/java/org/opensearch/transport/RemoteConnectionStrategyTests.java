@@ -18,8 +18,19 @@
  */
 
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
+import org.elasticsearch.transport.ClusterConnectionManager;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.elasticsearch.transport.RemoteConnectionManager;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.elasticsearch.transport.TestProfiles;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

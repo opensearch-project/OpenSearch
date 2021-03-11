@@ -16,9 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterConnection;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.elasticsearch.transport.TransportConnectionListener;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportSettings;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;

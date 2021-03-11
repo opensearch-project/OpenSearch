@@ -16,11 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.ProxyConnectionStrategy;
+import org.elasticsearch.transport.RemoteClusterConnection;
+import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.elasticsearch.transport.RemoteConnectionManager;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;

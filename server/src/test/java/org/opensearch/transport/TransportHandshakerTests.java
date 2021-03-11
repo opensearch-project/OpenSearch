@@ -16,9 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TestTransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportHandshaker;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

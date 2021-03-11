@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,6 +28,13 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.transport.Header;
+import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.OutboundMessage;
+import org.elasticsearch.transport.TcpHeader;
+import org.elasticsearch.transport.TestRequest;
+import org.elasticsearch.transport.TestResponse;
+import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
 import java.util.ArrayList;

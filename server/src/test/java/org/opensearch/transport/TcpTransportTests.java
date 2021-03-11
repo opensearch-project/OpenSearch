@@ -17,12 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.FakeTcpChannel;
+import org.elasticsearch.transport.OutboundHandler;
+import org.elasticsearch.transport.StatsTracker;
+import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TcpServerChannel;
+import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;

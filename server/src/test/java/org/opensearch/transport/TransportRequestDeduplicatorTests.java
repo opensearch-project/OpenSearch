@@ -16,9 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestDeduplicator;
 import org.opensearch.action.ActionListener;
 import org.opensearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;

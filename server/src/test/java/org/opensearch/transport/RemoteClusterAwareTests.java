@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 public class RemoteClusterAwareTests extends ESTestCase {
 

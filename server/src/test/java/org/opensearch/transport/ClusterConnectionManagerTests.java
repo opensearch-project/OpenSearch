@@ -17,9 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.transport.CloseableConnection;
+import org.elasticsearch.transport.ClusterConnectionManager;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportConnectionListener;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
