@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.grok;
+package org.opensearch.grok;
 
 import org.joni.Region;
 
