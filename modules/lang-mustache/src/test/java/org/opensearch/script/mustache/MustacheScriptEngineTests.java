@@ -22,8 +22,8 @@ import com.github.mustachejava.MustacheFactory;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.TemplateScript;
+import org.opensearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

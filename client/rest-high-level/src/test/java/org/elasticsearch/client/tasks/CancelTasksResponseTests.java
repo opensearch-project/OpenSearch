@@ -31,9 +31,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -56,7 +56,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
 
     @Override
     protected CancelTasksResponseTests.ByNodeCancelTasksResponse createServerTestInstance(XContentType xContentType) {
-        List<org.elasticsearch.tasks.TaskInfo> tasks = new ArrayList<>();
+        List<org.opensearch.tasks.TaskInfo> tasks = new ArrayList<>();
         List<TaskOperationFailure> taskFailures = new ArrayList<>();
         List<OpenSearchException> nodeFailures = new ArrayList<>();
 
@@ -69,7 +69,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
         }
 
         for (int i = 0; i < 4; i++) {
-            tasks.add(new org.elasticsearch.tasks.TaskInfo(
+            tasks.add(new org.opensearch.tasks.TaskInfo(
                 new TaskId(NODE_ID, (long) i),
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),

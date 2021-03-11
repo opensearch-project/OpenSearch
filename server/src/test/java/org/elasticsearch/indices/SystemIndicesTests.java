@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.tasks.TaskResultsService;
+import org.opensearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -30,7 +30,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
+import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;

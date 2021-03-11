@@ -21,11 +21,11 @@ package org.elasticsearch.client;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -34,9 +34,9 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.tasks.RawTaskStatus;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.script.Script;
+import org.opensearch.tasks.RawTaskStatus;
+import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Collections;

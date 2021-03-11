@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.grok.MatcherWatchdog;
+import org.opensearch.grok.MatcherWatchdog;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;

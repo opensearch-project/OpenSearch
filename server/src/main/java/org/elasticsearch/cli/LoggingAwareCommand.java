@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cli;
 
+import org.opensearch.cli.Command;
+
 /**
  * A command that is aware of logging. This class should be preferred over the base {@link Command} class for any CLI tools that depend on
  * core Elasticsearch as they could directly or indirectly touch classes that touch logging and as such logging needs to be configured.

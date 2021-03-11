@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 
 import java.util.AbstractMap;
 import java.util.Collections;

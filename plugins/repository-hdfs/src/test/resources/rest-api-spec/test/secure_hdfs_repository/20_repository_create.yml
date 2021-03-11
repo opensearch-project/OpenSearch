@@ -11,9 +11,9 @@
             type: hdfs
             settings:
               uri: "hdfs://localhost:9998"
-              path: "/user/elasticsearch/test/repository_create"
+              path: "/user/opensearch/test/repository_create"
               security:
-                principal: "elasticsearch@BUILD.ELASTIC.CO"
+                principal: "opensearch@BUILD.OPENSEARCH.CO"
 
     # Get repository
     - do:
@@ -21,7 +21,7 @@
           repository: test_repository_create
 
     - is_true: test_repository_create
-    - match: {test_repository_create.settings.path : "/user/elasticsearch/test/repository_create"}
+    - match: {test_repository_create.settings.path : "/user/opensearch/test/repository_create"}
 
     # Remove our repository
     - do:

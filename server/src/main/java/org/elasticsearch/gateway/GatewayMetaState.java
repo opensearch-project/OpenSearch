@@ -52,7 +52,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.MetadataUpgrader;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;

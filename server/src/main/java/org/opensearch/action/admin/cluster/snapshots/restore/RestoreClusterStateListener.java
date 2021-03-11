@@ -28,10 +28,10 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.RestoreInfo;
-import org.elasticsearch.snapshots.RestoreService;
+import org.opensearch.snapshots.RestoreInfo;
+import org.opensearch.snapshots.RestoreService;
 
-import static org.elasticsearch.snapshots.RestoreService.restoreInProgress;
+import static org.opensearch.snapshots.RestoreService.restoreInProgress;
 
 public class RestoreClusterStateListener implements ClusterStateListener {
 

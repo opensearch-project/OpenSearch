@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.flush;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OpenSearchClient;
 
 public class SyncedFlushRequestBuilder extends ActionRequestBuilder<SyncedFlushRequest, SyncedFlushResponse> {

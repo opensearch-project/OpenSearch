@@ -23,6 +23,9 @@ import joptsimple.OptionSet;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.cli.Terminal;
+import org.opensearch.cli.UserException;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;

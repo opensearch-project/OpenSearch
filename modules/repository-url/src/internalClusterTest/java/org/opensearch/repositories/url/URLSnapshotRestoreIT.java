@@ -29,7 +29,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.opensearch.plugin.repository.url.URLRepositoryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.nio.file.Path;

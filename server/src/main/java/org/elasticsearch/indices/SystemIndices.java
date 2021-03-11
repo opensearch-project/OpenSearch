@@ -28,7 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.tasks.TaskResultsService;
+import org.opensearch.tasks.TaskResultsService;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -42,7 +42,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
+import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
 
 /**
  * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the

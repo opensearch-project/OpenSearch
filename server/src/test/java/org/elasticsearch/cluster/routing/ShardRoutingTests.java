@@ -24,9 +24,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotId;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.snapshots.Snapshot;
+import org.opensearch.snapshots.Snapshot;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

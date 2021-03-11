@@ -22,7 +22,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 
 /**
  * Builder for task-based requests

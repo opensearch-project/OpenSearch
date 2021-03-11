@@ -49,9 +49,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.script.NumberSortScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.StringSortScript;
+import org.opensearch.script.NumberSortScript;
+import org.opensearch.script.Script;
+import org.opensearch.script.StringSortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
