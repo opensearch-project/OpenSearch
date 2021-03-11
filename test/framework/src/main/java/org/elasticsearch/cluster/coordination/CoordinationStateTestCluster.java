@@ -27,6 +27,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.opensearch.cluster.coordination.ApplyCommitRequest;
+import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.coordination.CoordinationState;
+import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
+import org.opensearch.cluster.coordination.ElectionStrategy;
+import org.opensearch.cluster.coordination.InMemoryPersistedState;
+import org.opensearch.cluster.coordination.Join;
+import org.opensearch.cluster.coordination.PublishRequest;
+import org.opensearch.cluster.coordination.PublishResponse;
+import org.opensearch.cluster.coordination.StartJoinRequest;
 
 import java.util.ArrayList;
 import java.util.HashSet;

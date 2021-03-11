@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 
 import java.io.IOException;
 import java.nio.file.Path;

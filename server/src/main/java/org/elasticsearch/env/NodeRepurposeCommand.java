@@ -24,7 +24,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.OpenSearchException;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.OpenSearchNodeCommand;
+import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
