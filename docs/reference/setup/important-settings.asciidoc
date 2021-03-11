@@ -12,7 +12,7 @@ of items which *must* be considered before using your cluster in production:
 * <<heap-size,Heap size settings>>
 * <<heap-dump-path,JVM heap dump path setting>>
 * <<gc-logging,GC logging settings>>
-* <<es-tmpdir,Temporary directory settings>>
+* <<opensearch-tmpdir,Temporary directory settings>>
 * <<error-file-path,JVM fatal error log setting>>
 * <<important-settings-backups,Cluster backups>>
 

@@ -1,4 +1,4 @@
-[[es-tmpdir]]
+[[opensearch-tmpdir]]
 [discrete]
 === Temporary directory settings
 
