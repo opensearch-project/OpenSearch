@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.StoredScriptSource;
+import org.opensearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Objects;

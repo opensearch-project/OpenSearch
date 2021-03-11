@@ -39,7 +39,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.Script;
 import org.elasticsearch.search.sort.SortOrder;
 import org.opensearch.tasks.TaskId;
 

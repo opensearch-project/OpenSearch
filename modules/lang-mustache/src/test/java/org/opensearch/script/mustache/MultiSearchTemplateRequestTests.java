@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;

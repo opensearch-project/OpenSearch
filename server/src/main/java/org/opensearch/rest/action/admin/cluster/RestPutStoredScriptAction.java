@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
-import org.elasticsearch.script.StoredScriptSource;
+import org.opensearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.List;

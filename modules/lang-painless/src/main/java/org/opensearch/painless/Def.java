@@ -23,7 +23,7 @@ import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupUtility;
 import org.opensearch.painless.lookup.PainlessMethod;
 import org.opensearch.painless.symbol.FunctionTable;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;

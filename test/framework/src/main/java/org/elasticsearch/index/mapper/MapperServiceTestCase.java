@@ -47,8 +47,8 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 

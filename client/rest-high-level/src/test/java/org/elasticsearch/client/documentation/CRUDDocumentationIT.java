@@ -82,8 +82,8 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.tasks.TaskId;
 

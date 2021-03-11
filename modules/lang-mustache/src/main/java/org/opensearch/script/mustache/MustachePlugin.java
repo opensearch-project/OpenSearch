@@ -33,8 +33,8 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptEngine;
 
 import java.util.Arrays;
 import java.util.Collection;
