@@ -35,8 +35,6 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.opensearch.cluster.IncompatibleClusterStateVersionException;
-import org.opensearch.cluster.NotMasterException;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
