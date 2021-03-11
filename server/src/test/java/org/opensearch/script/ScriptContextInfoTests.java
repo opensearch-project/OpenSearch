@@ -105,7 +105,7 @@ public class ScriptContextInfoTests extends ESTestCase {
     }
 
     public void testCustomTypeContext() {
-        String ct = "org.elasticsearch.script.ScriptContextInfoTests$CustomType";
+        String ct = "org.opensearch.script.ScriptContextInfoTests$CustomType";
         String ct0 = ct + 0;
         String ct1 = ct + 1;
         String ct2 = ct + 2;
