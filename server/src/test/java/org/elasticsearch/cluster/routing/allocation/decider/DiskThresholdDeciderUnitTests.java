@@ -216,7 +216,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 .addAsNew(indexMetadata)
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
@@ -294,7 +294,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         routingTableBuilder.addAsNew(metadata.index("test"));
         routingTableBuilder.addAsNew(metadata.index("other"));
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTableBuilder.build()).build();
         RoutingAllocation allocation = new RoutingAllocation(null, null, clusterState, info, null, 0);
 
@@ -379,7 +379,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         routingTableBuilder.addAsNew(metadata.index("test"));
         routingTableBuilder.addAsNew(metadata.index("target"));
         routingTableBuilder.addAsNew(metadata.index("target2"));
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTableBuilder.build()).build();
 
         AllocationService allocationService = createAllocationService();

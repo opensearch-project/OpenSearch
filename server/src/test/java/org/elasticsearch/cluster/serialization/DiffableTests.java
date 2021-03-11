@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.opensearch.cluster.Diffable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -223,7 +222,7 @@ public class DiffableTests extends ESTestCase {
         }
 
         /**
-         * whether we operate on {@link Diffable} values
+         * whether we operate on {@link org.opensearch.cluster.Diffable} values
          */
         protected abstract boolean diffableValues();
 

@@ -58,7 +58,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         RoutingTable initialRoutingTable = RoutingTable.builder()
             .addAsNew(metadata.index("test")).addAsNew(metadata.index("test1")).build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding three node and performing rerouting");
@@ -118,7 +118,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         RoutingTable initialRoutingTable = RoutingTable.builder()
             .addAsNew(metadata.index("test")).addAsNew(metadata.index("test1")).build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding one node and performing rerouting");
@@ -193,7 +193,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding three node and performing rerouting");
