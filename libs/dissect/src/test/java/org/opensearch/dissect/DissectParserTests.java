@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.dissect;
+package org.opensearch.dissect;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

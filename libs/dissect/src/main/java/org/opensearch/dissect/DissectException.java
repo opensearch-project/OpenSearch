@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.dissect;
+package org.opensearch.dissect;
 
 /**
  * Parent class for all dissect related exceptions. Consumers may catch this exception or more specific child exceptions.
