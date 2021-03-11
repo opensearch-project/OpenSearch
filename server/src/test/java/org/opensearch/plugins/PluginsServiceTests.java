@@ -206,14 +206,14 @@ public class PluginsServiceTests extends ESTestCase {
                 "description", "fake",
                 "name", "fake",
                 "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
+                "opensearch.version", Version.CURRENT.toString(),
                 "java.version", System.getProperty("java.specification.version"),
                 "classname", "Fake",
                 "has.native.controller", "false");
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
         final String expected = String.format(
                 Locale.ROOT,
-                "found file [%s] from a failed attempt to remove the plugin [fake]; execute [elasticsearch-plugin remove fake]",
+                "found file [%s] from a failed attempt to remove the plugin [fake]; execute [opensearch-plugin remove fake]",
                 removing);
         assertThat(e, hasToString(containsString(expected)));
     }
@@ -591,7 +591,7 @@ public class PluginsServiceTests extends ESTestCase {
             "description", "whatever",
             "name", "myplugin",
             "version", "1.0.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "extended.plugins", "nonextensible",
             "classname", "test.DummyPlugin");
@@ -604,7 +604,7 @@ public class PluginsServiceTests extends ESTestCase {
             "description", "whatever",
             "name", "nonextensible",
             "version", "1.0.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "test.NonExtensiblePlugin");
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("non-extensible-plugin.jar")) {
@@ -638,7 +638,7 @@ public class PluginsServiceTests extends ESTestCase {
                 "description", "description",
                 "name", "fake",
                 "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
+                "opensearch.version", Version.CURRENT.toString(),
                 "java.version", System.getProperty("java.specification.version"),
                 "classname", "test.DummyPlugin");
 
@@ -681,7 +681,7 @@ public class PluginsServiceTests extends ESTestCase {
                 "description", "description",
                 "name", "fake",
                 "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
+                "opensearch.version", Version.CURRENT.toString(),
                 "java.version", System.getProperty("java.specification.version"),
                 "classname", "test.DummyPlugin");
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
@@ -706,7 +706,7 @@ public class PluginsServiceTests extends ESTestCase {
             "description", "description",
             "name", "fake",
             "version", "1.0.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
+            "opensearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", TestPlugin.class.getName()); // set a class defined outside the bundle (in parent class-loader of plugin)
 

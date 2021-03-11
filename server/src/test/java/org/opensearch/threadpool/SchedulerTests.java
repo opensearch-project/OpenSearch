@@ -19,9 +19,9 @@
 
 package org.opensearch.threadpool;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
