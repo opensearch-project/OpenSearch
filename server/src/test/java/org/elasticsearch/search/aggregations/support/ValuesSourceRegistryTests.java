@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.AggregationScript;
+import org.opensearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;

@@ -36,10 +36,10 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

@@ -22,7 +22,7 @@ package org.opensearch.analysis.common;
 import org.opensearch.painless.spi.PainlessExtension;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.script.ScriptContext;
+import org.opensearch.script.ScriptContext;
 
 import java.util.Collections;
 import java.util.List;

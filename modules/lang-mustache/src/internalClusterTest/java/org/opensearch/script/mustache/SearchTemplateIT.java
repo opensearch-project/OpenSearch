@@ -26,7 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 

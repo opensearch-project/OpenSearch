@@ -39,7 +39,7 @@ import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
-import org.elasticsearch.script.ScriptContext;
+import org.opensearch.script.ScriptContext;
 import org.opensearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 

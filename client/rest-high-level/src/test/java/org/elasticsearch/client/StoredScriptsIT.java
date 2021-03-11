@@ -26,8 +26,8 @@ import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.StoredScriptSource;
+import org.opensearch.script.Script;
+import org.opensearch.script.StoredScriptSource;
 
 import java.util.Collections;
 import java.util.Map;

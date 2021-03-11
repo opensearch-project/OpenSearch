@@ -20,10 +20,10 @@
 package org.opensearch.painless;
 
 import org.opensearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptFactory;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.ScriptFactory;
+import org.opensearch.script.TemplateScript;
 
 import java.util.Arrays;
 import java.util.Collections;

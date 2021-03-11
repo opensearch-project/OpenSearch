@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 

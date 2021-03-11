@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
 import java.util.Collections;

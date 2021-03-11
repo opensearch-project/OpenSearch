@@ -31,7 +31,7 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.util.Collection;

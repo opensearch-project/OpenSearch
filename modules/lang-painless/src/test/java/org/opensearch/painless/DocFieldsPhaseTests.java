@@ -24,7 +24,7 @@ import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.painless.symbol.ScriptScope;
-import org.elasticsearch.script.ScriptContext;
+import org.opensearch.script.ScriptContext;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
