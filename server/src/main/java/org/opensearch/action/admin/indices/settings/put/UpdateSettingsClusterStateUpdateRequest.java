@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 
 /**

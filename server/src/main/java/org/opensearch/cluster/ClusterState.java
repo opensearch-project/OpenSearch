@@ -24,11 +24,11 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
+import org.opensearch.cluster.block.ClusterBlock;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -64,7 +64,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 
 /**
  * Represents the current state of the cluster.

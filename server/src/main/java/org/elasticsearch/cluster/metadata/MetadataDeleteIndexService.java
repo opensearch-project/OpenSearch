@@ -26,8 +26,8 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateR
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
