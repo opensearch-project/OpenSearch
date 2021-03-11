@@ -41,7 +41,7 @@ import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.discovery.zen.ZenPing.PingResponse;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;

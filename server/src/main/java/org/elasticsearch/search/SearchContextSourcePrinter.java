@@ -20,7 +20,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 
 public class SearchContextSourcePrinter {
     private final SearchContext searchContext;

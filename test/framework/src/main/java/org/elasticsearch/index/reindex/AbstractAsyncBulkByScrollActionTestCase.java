@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
