@@ -24,6 +24,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.cluster.block.ClusterBlock;
+import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 

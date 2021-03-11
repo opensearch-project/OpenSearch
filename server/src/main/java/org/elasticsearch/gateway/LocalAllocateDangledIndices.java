@@ -27,7 +27,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;

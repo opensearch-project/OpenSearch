@@ -33,6 +33,7 @@ import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.cluster.coordination.JoinTaskExecutor;
 
 import java.util.HashSet;
 

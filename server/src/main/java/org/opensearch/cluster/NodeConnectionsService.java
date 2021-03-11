@@ -26,7 +26,7 @@ import org.elasticsearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainListenableActionFuture;
-import org.elasticsearch.cluster.coordination.FollowersChecker;
+import org.opensearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;

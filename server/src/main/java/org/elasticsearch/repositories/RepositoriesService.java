@@ -34,7 +34,7 @@ import org.opensearch.cluster.RepositoryCleanupInProgress;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
