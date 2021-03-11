@@ -33,8 +33,8 @@ import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateR
 import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ActiveShardsObserver;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.AckedClusterStateUpdateTask;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;

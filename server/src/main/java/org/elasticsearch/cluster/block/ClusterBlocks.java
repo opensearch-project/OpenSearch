@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.block;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diff;
+import org.opensearch.cluster.AbstractDiffable;
+import org.opensearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Nullable;

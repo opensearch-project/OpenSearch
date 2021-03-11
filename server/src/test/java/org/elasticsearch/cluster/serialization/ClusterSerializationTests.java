@@ -20,16 +20,16 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.cluster.Diff;
+import org.opensearch.cluster.AbstractNamedDiffable;
+import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState.Custom;
+import org.opensearch.cluster.Diff;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.opensearch.cluster.NamedDiff;
+import org.opensearch.cluster.RestoreInProgress;
+import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;

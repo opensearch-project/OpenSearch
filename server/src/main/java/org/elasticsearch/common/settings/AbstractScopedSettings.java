@@ -413,7 +413,7 @@ public abstract class AbstractScopedSettings {
     /**
      * Adds a settings consumer.
      * <p>
-     * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
+     * Note: Only settings registered in {@link org.opensearch.cluster.ClusterModule} can be changed dynamically.
      * </p>
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {

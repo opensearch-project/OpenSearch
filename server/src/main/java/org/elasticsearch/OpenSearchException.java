@@ -35,6 +35,8 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.cluster.IncompatibleClusterStateVersionException;
+import org.opensearch.cluster.NotMasterException;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -871,8 +873,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.snapshots.ConcurrentSnapshotExecutionException::new, 73, UNKNOWN_VERSION_ADDED),
         BLOB_STORE_EXCEPTION(org.elasticsearch.common.blobstore.BlobStoreException.class,
                 org.elasticsearch.common.blobstore.BlobStoreException::new, 74, UNKNOWN_VERSION_ADDED),
-        INCOMPATIBLE_CLUSTER_STATE_VERSION_EXCEPTION(org.elasticsearch.cluster.IncompatibleClusterStateVersionException.class,
-                org.elasticsearch.cluster.IncompatibleClusterStateVersionException::new, 75, UNKNOWN_VERSION_ADDED),
+        INCOMPATIBLE_CLUSTER_STATE_VERSION_EXCEPTION(org.opensearch.cluster.IncompatibleClusterStateVersionException.class,
+                org.opensearch.cluster.IncompatibleClusterStateVersionException::new, 75, UNKNOWN_VERSION_ADDED),
         RECOVERY_ENGINE_EXCEPTION(org.elasticsearch.index.engine.RecoveryEngineException.class,
                 org.elasticsearch.index.engine.RecoveryEngineException::new, 76, UNKNOWN_VERSION_ADDED),
         UNCATEGORIZED_EXECUTION_EXCEPTION(org.elasticsearch.common.util.concurrent.UncategorizedExecutionException.class,
@@ -991,7 +993,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 ShardStateAction.NoLongerPrimaryShardException::new, 142, UNKNOWN_VERSION_ADDED),
         SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 143,
             UNKNOWN_VERSION_ADDED),
-        NOT_MASTER_EXCEPTION(org.elasticsearch.cluster.NotMasterException.class, org.elasticsearch.cluster.NotMasterException::new, 144,
+        NOT_MASTER_EXCEPTION(org.opensearch.cluster.NotMasterException.class, org.opensearch.cluster.NotMasterException::new, 144,
             UNKNOWN_VERSION_ADDED),
         STATUS_EXCEPTION(org.elasticsearch.OpenSearchStatusException.class, org.elasticsearch.OpenSearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
@@ -1029,8 +1031,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 156,
                 Version.V_7_5_0),
         INGEST_PROCESSOR_EXCEPTION(
-                org.elasticsearch.ingest.IngestProcessorException.class,
-                org.elasticsearch.ingest.IngestProcessorException::new,
+                org.opensearch.ingest.IngestProcessorException.class,
+                org.opensearch.ingest.IngestProcessorException::new,
                 157,
                 Version.V_7_5_0),
         PEER_RECOVERY_NOT_FOUND_EXCEPTION(

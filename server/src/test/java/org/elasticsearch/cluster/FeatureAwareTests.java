@@ -21,13 +21,14 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.ClusterState.FeatureAware;
+import org.opensearch.cluster.ClusterState.FeatureAware;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.cluster.Diff;
 
 import java.io.IOException;
 import java.util.Arrays;

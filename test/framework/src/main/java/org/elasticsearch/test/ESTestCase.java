@@ -51,7 +51,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;

@@ -20,8 +20,8 @@
 package org.opensearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;

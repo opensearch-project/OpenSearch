@@ -40,7 +40,7 @@ import org.apache.logging.log4j.status.StatusListener;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;

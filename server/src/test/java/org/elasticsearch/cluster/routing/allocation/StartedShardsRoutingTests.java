@@ -19,8 +19,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -57,7 +56,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
                 .putInSyncAllocationIds(1, Collections.singleton(allocationId.getId()))
                 .build();
         final Index index = indexMetadata.getIndex();
-        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState.Builder stateBuilder = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
                 .metadata(Metadata.builder().put(indexMetadata, false));
 
@@ -108,7 +107,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
                 relocatingReplica ? Sets.newHashSet(primaryId.getId(), replicaId.getId()) : Sets.newHashSet(primaryId.getId()))
             .build();
         final Index index = indexMetadata.getIndex();
-        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState.Builder stateBuilder = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))
                 .add(newNode("node3")).add(newNode("node4")))
             .metadata(Metadata.builder().put(indexMetadata, false));

@@ -20,8 +20,8 @@
 package org.opensearch.snapshots;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;

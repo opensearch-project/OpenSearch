@@ -21,8 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -53,7 +52,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder().put(IndexMetadata.builder(INDEX_NAME)
             .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)).build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index(INDEX_NAME)).build();
-        clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable)
+        clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         strategy = createAllocationService(Settings.EMPTY);
     }

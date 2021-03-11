@@ -22,8 +22,7 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -133,7 +132,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT))
                     .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build()).build();
         for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
@@ -146,7 +145,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT))
                     .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsRecovery(metadata.index("test")).build()).build();
         for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
@@ -159,7 +158,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT))
                     .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsFromCloseToOpen(metadata.index("test")).build()).build();
         for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
@@ -172,7 +171,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT))
                     .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsNewRestore(metadata.index("test"), new SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
@@ -189,7 +188,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT))
                     .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsRestore(metadata.index("test"),
                     new SnapshotRecoverySource(
@@ -206,7 +205,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT))
                     .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsFromDangling(metadata.index("test")).build()).build();
         for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
@@ -220,7 +219,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
         final Index index = metadata.index("test").getIndex();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsNew(metadata.index(index)).build()).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -263,7 +262,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
                 .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState)
@@ -295,7 +294,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
                 .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState)
@@ -352,7 +351,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build()).build();
         clusterState = ClusterState.builder(clusterState)
@@ -383,7 +382,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT).put(
                     UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest2)).numberOfShards(1).numberOfReplicas(1))
                 .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
                 .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build()).build();
         clusterState = ClusterState.builder(clusterState)

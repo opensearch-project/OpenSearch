@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -82,7 +82,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 .add(new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_2)
                     .getIndex()).initializeAsNew(metadata.index(TEST_INDEX_2)).build())
                 .build();
-        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+        this.clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(testRoutingTable).build();
     }
 

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster.serialization;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.DiffableUtils.MapDiff;
+import org.opensearch.cluster.AbstractDiffable;
+import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.DiffableUtils;
+import org.opensearch.cluster.DiffableUtils.MapDiff;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.Diffable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -222,7 +223,7 @@ public class DiffableTests extends ESTestCase {
         }
 
         /**
-         * whether we operate on {@link org.elasticsearch.cluster.Diffable} values
+         * whether we operate on {@link Diffable} values
          */
         protected abstract boolean diffableValues();
 

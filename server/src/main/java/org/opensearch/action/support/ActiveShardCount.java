@@ -21,7 +21,7 @@ package org.opensearch.action.support;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;

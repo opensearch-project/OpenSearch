@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 
 public interface PingContextProvider {
 

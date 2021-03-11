@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
