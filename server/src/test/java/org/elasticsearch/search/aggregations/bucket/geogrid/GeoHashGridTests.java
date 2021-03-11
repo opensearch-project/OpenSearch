@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.geometry.utils.Geohash;
+import org.opensearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.util.List;
