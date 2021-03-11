@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
+import org.opensearch.cluster.coordination.ClusterBootstrapService;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.discovery.SettingsBasedSeedHostsProvider;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.node.NodeValidationException;
+import org.opensearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;
 
 import java.net.InetAddress;
@@ -45,8 +45,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
+import static org.opensearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
+import static org.opensearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -287,7 +287,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                                 Collections.singletonList(check)));
                 assertThat(
                         e.getMessage(),
-                        containsString("memory locking requested for elasticsearch process but memory is not locked"));
+                        containsString("memory locking requested for opensearch process but memory is not locked"));
             } else {
                 // nothing should happen
                 BootstrapChecks.check(bootstrapContext, true, Collections.singletonList(check));
