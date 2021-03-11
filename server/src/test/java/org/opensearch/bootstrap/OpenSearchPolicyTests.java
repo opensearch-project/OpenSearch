@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.security.AccessControlContext;
 import java.security.AccessController;
@@ -28,12 +28,12 @@ import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 
-/** 
- * Tests for ESPolicy
+/**
+ * Tests for OpenSearchPolicy
  */
-public class ESPolicyTests extends ESTestCase {
+public class OpenSearchPolicyTests extends OpenSearchTestCase {
 
-    /** 
+    /**
      * test restricting privileges to no permissions actually works
      */
     public void testRestrictPrivileges() {

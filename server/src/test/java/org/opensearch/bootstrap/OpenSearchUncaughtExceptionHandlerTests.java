@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOError;
@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
+public class OpenSearchUncaughtExceptionHandlerTests extends OpenSearchTestCase {
 
     private Map<Class<? extends Error>, Integer> expectedStatus;
 
@@ -65,7 +65,7 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
         final AtomicInteger observedStatus = new AtomicInteger();
         final AtomicReference<String> threadNameReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
-        thread.setUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler() {
+        thread.setUncaughtExceptionHandler(new OpenSearchUncaughtExceptionHandler() {
 
             @Override
             void halt(int status) {
@@ -106,7 +106,7 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
         thread.setName(name);
         final AtomicReference<String> threadNameReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
-        thread.setUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler() {
+        thread.setUncaughtExceptionHandler(new OpenSearchUncaughtExceptionHandler() {
             @Override
             void halt(int status) {
                 fail();
@@ -140,11 +140,11 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
     }
 
     private void assertFatal(Throwable cause) {
-        assertTrue(ElasticsearchUncaughtExceptionHandler.isFatalUncaught(cause));
+        assertTrue(OpenSearchUncaughtExceptionHandler.isFatalUncaught(cause));
     }
 
     private void assertNonFatal(Throwable cause) {
-        assertFalse(ElasticsearchUncaughtExceptionHandler.isFatalUncaught(cause));
+        assertFalse(OpenSearchUncaughtExceptionHandler.isFatalUncaught(cause));
     }
 
 }

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.Build;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
 import java.util.Locale;
@@ -32,7 +32,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 
-public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
+public class OpenSearchCliTests extends BaseOpenSearchCliTestCase {
 
     public void testVersion() throws Exception {
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "-d");
@@ -149,7 +149,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 args);
     }
 
-    public void testElasticsearchSettings() throws Exception {
+    public void testOpenSearchSettings() throws Exception {
         runTest(
                 ExitCodes.OK,
                 true,
@@ -162,7 +162,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 "-Efoo=bar", "-E", "baz=qux");
     }
 
-    public void testElasticsearchSettingCanNotBeEmpty() throws Exception {
+    public void testOpenSearchSettingCanNotBeEmpty() throws Exception {
         runTest(
                 ExitCodes.USAGE,
                 false,
@@ -171,7 +171,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 "-E", "foo=");
     }
 
-    public void testElasticsearchSettingCanNotBeDuplicated() throws Exception {
+    public void testOpenSsearchSettingCanNotBeDuplicated() throws Exception {
         runTest(
                 ExitCodes.USAGE,
                 false,

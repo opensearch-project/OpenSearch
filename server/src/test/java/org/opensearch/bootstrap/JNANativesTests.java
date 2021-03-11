@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class JNANativesTests extends ESTestCase {
+public class JNANativesTests extends OpenSearchTestCase {
     public void testMlockall() {
         if (Constants.MAC_OS_X) {
             assertFalse("Memory locking is not available on OS X platforms", JNANatives.LOCAL_MLOCKALL);
