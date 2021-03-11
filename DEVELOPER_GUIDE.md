@@ -2,11 +2,7 @@
 
 So you want to contribute code to OpenSearch?  Excellent!  We're glad you're here.  Here's what you need to do:
 
-## Get project source code
-
-### OpenSearch Repo : https://github.com/opensearch-project
-
-###Importing the project into IntelliJ IDEA directly
+## Importing the project into IntelliJ IDEA directly
 
 OpenSearch builds using Java 14. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
@@ -22,7 +18,7 @@ You can import the OpenSearch project into IntelliJ IDEA via:
  - In the subsequent dialog navigate to the root `build.gradle` file
  - In the subsequent dialog select **Open as Project**
 
-###Git clone OpenSearch repo:
+## Git clone OpenSearch repo:
  git clone https://github.com/opensearch-project.git
 
 
@@ -200,9 +196,18 @@ Before submitting your changes, run the test suite to make sure that nothing is 
 ```sh
 ./gradlew check
 ```
+If we're still running down issues, you may want to start with just
+
+```sh
+./gradlew precommit
+```
+
 
 #### `qa`
-Honestly this is kind of in flux and we're not 100% sure where we'll end up.
+
+Honestly this is kind of in flux and we're not 100% sure where we'll end up.  We welcome your throughts and help.
+
+
 Right now the directory contains
 * Tests that require multiple modules or plugins to work
 * Tests that form a cluster made up of multiple versions of OpenSearch like
@@ -296,7 +301,6 @@ Unless your change is trivial, there will probably be discussion about the pull 
 
    Invite domain expert to review your code.
 
-
 Please adhere to the general guideline that you should never force push
 to a publicly shared branch. Once you have opened your pull request, you
 should consider your branch publicly shared. Instead of force pushing
@@ -316,52 +320,18 @@ We deeply appreciate everyone who takes the time to make a contribution.  We wil
 First and foremost, opening an issue and discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatable with our architectual direction.
 
 Additionally:
-1) Plesae make sure you've run `./gradlew check` before submitting (or './gradlew precommit' while we're still in alpha.  The better tested your change is, the higher our confidence will be in it.
+1) Plesae make sure you've run `./gradlew check` before submitting (or './gradlew precommit' while we're still in pre-alpha).  The better tested your change is, the higher our confidence will be in it.
 2) Please Make sure your change includes the tests that correspond with your changes, and is formatted well.
 3) Please make sure local tests pass, add unit tests for all the new code paths introduced by your change.
 4) Please write both unit tests and integration test for your change
 5) Smaller changes are easier to digest than large ones.
 6) Given the limits of the team, we will reject PRs that are simple refactorings or "tidying up".  So make sure you're clear about what problem your PR is solving.
 
-During the PR process, expect that they'll be some back and forth.  Please try to respond to comments in a timely fashion, and if you dont wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionall, if you stop responding, we may close the PR as abandonded.  In either case, if you feel this was done in error, please add a comment on the PR.
+During the PR process, expect that they'll be some back and forth.  Please try to respond to comments in a timely fashion, and if you don't wish to continue with the PR, let us know.  If a PR takes too many iterations for its complexity or size, we may reject it.  Additionall, if you stop responding, we may close the PR as abandonded.  In either case, if you feel this was done in error, please add a comment on the PR.
 
 If we accept the PR, we will merge your change and usually take care of backporting it to appropriate branches ourselves.
 
 If we reject the PR, we will close the pull request with a comment explaining why. This decision isn't always final: if you feel we have
-misunderstood your intended change or otherwise think that we should reconsider then please continue the conversation with a comment on the pull request and
-we'll do our best to address any further points you raise.
+misunderstood your intended change or otherwise think that we should reconsider then please continue the conversation with a comment on the pull request and we'll do our best to address any further points you raise.
 
 
-## Contributing as part of a class
-
-
-In general OpenSearch is happy to accept contributions that were created as
-part of a class but strongly advise against making the contribution as part of
-the class. So if you have code you wrote for a class feel free to submit it.
-
-Please, please, please do not assign contributing to OpenSearch as part of a
-class. If you really want to assign writing code for OpenSearch as an
-assignment then the code contributions should be made to your private clone and
-opening PRs against the primary OpenSearch clone must be optional, fully
-voluntary, not for a grade, and without any deadlines.
-
-Because:
-
-* While the code review process is likely very educational, it can take wildly
-varying amounts of time depending on who is available, where the change is, and
-how deep the change is. There is no way to predict how long it will take unless
-we rush.
-* We do not rush reviews without a very, very good reason. Class deadlines
-aren't a good enough reason for us to rush reviews.
-* We deeply discourage opening a PR you don't intend to work through the entire
-code review process because it wastes our time.
-* We don't have the capacity to absorb an entire class full of new contributors,
-especially when they are unlikely to become long time contributors.
-
-Finally, we require that you run `./gradlew check` before submitting a
-non-documentation contribution. This is mentioned above, but it is worth
-repeating in this section because it has come up in this context.
-
-[eclipse]: https://download.eclipse.org/eclipse/downloads/drops4/R-4.13-201909161045/
-[intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
-[shadow-plugin]: https://github.com/johnrengelman/shadow
