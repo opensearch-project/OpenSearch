@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.node.tasks.list;
 
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;

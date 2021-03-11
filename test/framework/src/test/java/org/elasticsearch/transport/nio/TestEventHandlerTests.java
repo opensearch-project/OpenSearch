@@ -28,7 +28,7 @@ import org.opensearch.nio.ServerChannelContext;
 import org.opensearch.nio.SocketChannelContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;

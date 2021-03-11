@@ -21,9 +21,9 @@ package org.opensearch.script.mustache;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.ScriptEngine;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 

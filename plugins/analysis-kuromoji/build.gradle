@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
-  description 'The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin'
+opensearchplugin {
+  description 'The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into opensearch.'
+  classname 'org.opensearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin'
 }
 
 dependencies {

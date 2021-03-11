@@ -32,8 +32,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskInfo;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskInfo;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

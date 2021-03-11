@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 
 import java.util.Arrays;
 

@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.script.StoredScriptSource;
+import org.opensearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Objects;

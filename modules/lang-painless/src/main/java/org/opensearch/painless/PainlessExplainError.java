@@ -23,7 +23,7 @@ import org.opensearch.painless.api.Debug;
 import org.opensearch.painless.lookup.PainlessClass;
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.script.ScriptException;
+import org.opensearch.script.ScriptException;
 
 import java.util.List;
 import java.util.Map;

@@ -28,18 +28,18 @@ import org.elasticsearch.common.geo.GeoLineDecomposer;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.geometry.Circle;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
-import org.elasticsearch.geometry.GeometryVisitor;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.geometry.MultiPolygon;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.Rectangle;
+import org.opensearch.geometry.Circle;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.GeometryCollection;
+import org.opensearch.geometry.GeometryVisitor;
+import org.opensearch.geometry.Line;
+import org.opensearch.geometry.LinearRing;
+import org.opensearch.geometry.MultiLine;
+import org.opensearch.geometry.MultiPoint;
+import org.opensearch.geometry.MultiPolygon;
+import org.opensearch.geometry.Point;
+import org.opensearch.geometry.Polygon;
+import org.opensearch.geometry.Rectangle;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -99,9 +99,9 @@ public class VectorGeoShapeQueryProcessor {
         }
 
         @Override
-        public Void visit(org.elasticsearch.geometry.Line line) {
+        public Void visit(org.opensearch.geometry.Line line) {
             if (line.isEmpty() == false) {
-                List<org.elasticsearch.geometry.Line> collector = new ArrayList<>();
+                List<org.opensearch.geometry.Line> collector = new ArrayList<>();
                 GeoLineDecomposer.decomposeLine(line, collector);
                 collectLines(collector);
             }
@@ -115,7 +115,7 @@ public class VectorGeoShapeQueryProcessor {
 
         @Override
         public Void visit(MultiLine multiLine) {
-            List<org.elasticsearch.geometry.Line> collector = new ArrayList<>();
+            List<org.opensearch.geometry.Line> collector = new ArrayList<>();
             GeoLineDecomposer.decomposeMultiLine(multiLine, collector);
             collectLines(collector);
             return null;
@@ -132,7 +132,7 @@ public class VectorGeoShapeQueryProcessor {
         @Override
         public Void visit(MultiPolygon multiPolygon) {
             if (multiPolygon.isEmpty() == false) {
-                List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+                List<org.opensearch.geometry.Polygon> collector = new ArrayList<>();
                 GeoPolygonDecomposer.decomposeMultiPolygon(multiPolygon, true, collector);
                 collectPolygons(collector);
             }
@@ -149,9 +149,9 @@ public class VectorGeoShapeQueryProcessor {
         }
 
         @Override
-        public Void visit(org.elasticsearch.geometry.Polygon polygon) {
+        public Void visit(org.opensearch.geometry.Polygon polygon) {
             if (polygon.isEmpty() == false) {
-                List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
+                List<org.opensearch.geometry.Polygon> collector = new ArrayList<>();
                 GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
                 collectPolygons(collector);
             }
@@ -166,13 +166,13 @@ public class VectorGeoShapeQueryProcessor {
             return null;
         }
 
-        private void collectLines(List<org.elasticsearch.geometry.Line> geometryLines) {
+        private void collectLines(List<org.opensearch.geometry.Line> geometryLines) {
             for (Line line: geometryLines) {
                 geometries.add(GeoShapeUtils.toLuceneLine(line));
             }
         }
 
-        private void collectPolygons(List<org.elasticsearch.geometry.Polygon> geometryPolygons) {
+        private void collectPolygons(List<org.opensearch.geometry.Polygon> geometryPolygons) {
             for (Polygon polygon : geometryPolygons) {
                 geometries.add(GeoShapeUtils.toLucenePolygon(polygon));
             }

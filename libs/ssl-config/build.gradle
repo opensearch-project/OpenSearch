@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "elasticsearch.publish"
+apply plugin: "opensearch.publish"
 
 dependencies {
-  api project(':libs:elasticsearch-core')
+  api project(':libs:opensearch-core')
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
+    exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
   }
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

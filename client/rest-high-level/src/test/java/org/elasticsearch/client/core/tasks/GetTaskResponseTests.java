@@ -24,10 +24,10 @@ import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.RawTaskStatus;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
+import org.opensearch.tasks.RawTaskStatus;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -70,7 +70,7 @@ public class GetTaskResponseTests extends ESTestCase {
         assertEquals(expectedInstance.isCompleted(), newInstance.isCompleted());
         assertEquals(expectedInstance.getTaskInfo(), newInstance.getTaskInfo());
     }
-    
+
     static TaskInfo randomTaskInfo() {
         TaskId taskId = randomTaskId();
         String type = randomAlphaOfLength(5);
@@ -103,5 +103,5 @@ public class GetTaskResponseTests extends ESTestCase {
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
-    }    
+    }
 }
