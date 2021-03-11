@@ -23,6 +23,10 @@ import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBui
 import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RoutingTable;
 
 public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest,
         ClusterStateResponse, ClusterStateRequestBuilder> {
@@ -53,7 +57,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.Metadata}. Defaults
+     * Should the cluster state result include the {@link Metadata}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setMetadata(boolean filter) {
@@ -62,7 +66,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.node.DiscoveryNodes}. Defaults
+     * Should the cluster state result include the {@link DiscoveryNodes}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setNodes(boolean filter) {
@@ -80,7 +84,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
+     * Should the cluster state result include the {@link RoutingTable}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setRoutingTable(boolean filter) {
@@ -89,7 +93,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * When {@link #setMetadata(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetadata}
+     * When {@link #setMetadata(boolean)} is set, which indices to return the {@link IndexMetadata}
      * for. Defaults to all indices.
      */
     public ClusterStateRequestBuilder setIndices(String... indices) {

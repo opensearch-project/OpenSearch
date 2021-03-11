@@ -22,9 +22,9 @@ package org.elasticsearch.discovery.zen;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.OpenSearchException;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.util.ArrayList;
 import java.util.Locale;

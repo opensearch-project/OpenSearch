@@ -20,8 +20,8 @@
 package org.elasticsearch.plugins;
 
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.ElectionStrategy;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.coordination.ElectionStrategy;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.SeedHostsProvider;
@@ -72,7 +72,7 @@ public interface DiscoveryPlugin {
      * the value is a supplier to construct the host provider when it is selected for use.
      *
      * @param transportService Use to form the {@link org.elasticsearch.common.transport.TransportAddress} portion
-     *                         of a {@link org.elasticsearch.cluster.node.DiscoveryNode}
+     *                         of a {@link DiscoveryNode}
      * @param networkService Use to find the publish host address of the current node
      */
     default Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,

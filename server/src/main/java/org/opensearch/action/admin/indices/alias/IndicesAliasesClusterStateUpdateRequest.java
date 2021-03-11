@@ -18,8 +18,8 @@
  */
 package org.opensearch.action.admin.indices.alias;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.metadata.AliasAction;
+import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
+import org.opensearch.cluster.metadata.AliasAction;
 
 import java.util.List;
 

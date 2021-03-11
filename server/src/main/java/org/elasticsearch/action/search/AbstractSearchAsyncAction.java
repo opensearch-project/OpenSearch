@@ -31,7 +31,7 @@ import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;

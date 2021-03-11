@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.service;
 
 import org.opensearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lease.Releasable;
@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.service.SourcePrioritizedRunnable;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;

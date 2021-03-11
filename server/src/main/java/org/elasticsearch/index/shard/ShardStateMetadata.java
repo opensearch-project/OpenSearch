@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;

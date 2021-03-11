@@ -20,12 +20,12 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.action.support.replication.ReplicationTask;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

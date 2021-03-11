@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
+import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;

@@ -20,7 +20,17 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.coordination.ApplyCommitRequest;
+import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.coordination.Join;
+import org.opensearch.cluster.coordination.JoinRequest;
+import org.opensearch.cluster.coordination.PreVoteRequest;
+import org.opensearch.cluster.coordination.PreVoteResponse;
+import org.opensearch.cluster.coordination.PublishRequest;
+import org.opensearch.cluster.coordination.PublishResponse;
+import org.opensearch.cluster.coordination.PublishWithJoinResponse;
+import org.opensearch.cluster.coordination.StartJoinRequest;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;

@@ -23,7 +23,7 @@ import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

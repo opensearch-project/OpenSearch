@@ -20,11 +20,15 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 
-import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
+import static org.opensearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 
 public class RoutingTableGenerator {
     private static int node_id = 1;

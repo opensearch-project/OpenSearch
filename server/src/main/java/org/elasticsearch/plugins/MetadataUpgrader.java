@@ -19,8 +19,8 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 
 import java.util.Collection;
 import java.util.HashMap;

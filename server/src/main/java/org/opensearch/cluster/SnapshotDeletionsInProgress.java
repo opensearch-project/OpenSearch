@@ -21,7 +21,7 @@ package org.opensearch.cluster;
 
 import org.elasticsearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

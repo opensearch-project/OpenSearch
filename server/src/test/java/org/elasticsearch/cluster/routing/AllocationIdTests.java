@@ -19,13 +19,16 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
+import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 
 import java.io.IOException;
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.operation.hash.murmur3;
 
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
+import org.opensearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.test.ESTestCase;
 
 public class Murmur3HashFunctionTests extends ESTestCase {

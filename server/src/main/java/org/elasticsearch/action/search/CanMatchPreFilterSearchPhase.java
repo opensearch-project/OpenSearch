@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.SearchShardTarget;

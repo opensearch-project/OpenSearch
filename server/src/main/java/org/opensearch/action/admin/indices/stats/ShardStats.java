@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
