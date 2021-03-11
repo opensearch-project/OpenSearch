@@ -51,7 +51,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptService;
+import org.opensearch.script.MockScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;

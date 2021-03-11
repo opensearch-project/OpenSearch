@@ -27,7 +27,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 
 /**

@@ -38,13 +38,13 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
 import org.apache.logging.log4j.status.StatusLogger;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.cli.UserException;
 import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 
 import java.io.IOException;
 import java.io.InputStream;

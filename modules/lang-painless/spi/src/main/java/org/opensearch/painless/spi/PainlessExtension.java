@@ -19,7 +19,7 @@
 
 package org.opensearch.painless.spi;
 
-import org.elasticsearch.script.ScriptContext;
+import org.opensearch.script.ScriptContext;
 
 import java.util.List;
 import java.util.Map;

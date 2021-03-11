@@ -19,10 +19,10 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
-import org.elasticsearch.cli.UserException;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.cli.Terminal;
+import org.opensearch.cli.Terminal.Verbosity;
+import org.opensearch.cli.UserException;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;

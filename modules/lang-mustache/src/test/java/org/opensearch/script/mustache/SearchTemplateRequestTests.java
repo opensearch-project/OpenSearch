@@ -20,7 +20,7 @@
 package org.opensearch.script.mustache;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.search.RandomSearchRequestGenerator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;

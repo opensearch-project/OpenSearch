@@ -28,8 +28,8 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.TermsSetQueryScript;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.TermsSetQueryScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 

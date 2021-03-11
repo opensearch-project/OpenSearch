@@ -25,8 +25,8 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SmallFloat;
-import org.elasticsearch.script.SimilarityScript;
-import org.elasticsearch.script.SimilarityWeightScript;
+import org.opensearch.script.SimilarityScript;
+import org.opensearch.script.SimilarityWeightScript;
 
 /**
  * A {@link Similarity} implementation that allows scores to be scripted.

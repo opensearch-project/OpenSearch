@@ -23,7 +23,7 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
-import org.elasticsearch.script.AggregationScript;
+import org.opensearch.script.AggregationScript;
 
 import java.io.IOException;
 import java.lang.reflect.Array;

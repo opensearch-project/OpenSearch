@@ -29,8 +29,8 @@ import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.Point;
 
 import java.io.IOException;
 import java.text.ParseException;

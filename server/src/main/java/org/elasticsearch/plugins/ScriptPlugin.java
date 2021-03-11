@@ -24,8 +24,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptEngine;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality.

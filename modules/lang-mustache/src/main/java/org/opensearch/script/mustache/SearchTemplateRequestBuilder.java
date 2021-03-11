@@ -22,7 +22,7 @@ package org.opensearch.script.mustache;
 import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.OpenSearchClient;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.ScriptType;
 
 import java.util.Map;
 
