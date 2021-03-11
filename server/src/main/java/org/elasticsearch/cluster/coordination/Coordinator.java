@@ -72,8 +72,8 @@ import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.opensearch.threadpool.Scheduler;
+import org.opensearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 

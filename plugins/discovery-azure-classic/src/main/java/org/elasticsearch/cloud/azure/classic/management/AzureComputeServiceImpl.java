@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.classic.management;
+package org.opensearch.cloud.azure.classic.management;
 
 import java.io.IOException;
 import java.security.AccessController;
@@ -35,13 +35,13 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.OpenSearchException;
+import org.opensearch.SpecialPermission;
+import org.opensearch.cloud.azure.classic.AzureServiceRemoteException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     implements AzureComputeService {

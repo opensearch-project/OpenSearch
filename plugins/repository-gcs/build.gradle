@@ -1,17 +1,17 @@
 import java.nio.file.Files
 import java.security.KeyPair
 import java.security.KeyPairGenerator
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.opensearch.gradle.MavenFilteringHack
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.test.rest.YamlRestTestPlugin
+import org.opensearch.gradle.test.InternalClusterTestPlugin
 
 import java.nio.file.Files
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -30,12 +30,12 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
-  classname 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
+  classname 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
 dependencies {
@@ -218,7 +218,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   gcsBasePath = 'integration_test'
   useFixture = true
 
-  apply plugin: 'elasticsearch.test.fixtures'
+  apply plugin: 'opensearch.test.fixtures'
   testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture')
   testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture-third-party')
 

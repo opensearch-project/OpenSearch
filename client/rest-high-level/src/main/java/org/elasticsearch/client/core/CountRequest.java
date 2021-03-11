@@ -22,7 +22,7 @@ package org.elasticsearch.client.core;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -150,7 +150,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
      * Returns the indices options used to resolve indices. They tell for instance whether a single index is accepted, whether an empty
      * array will be converted to _all, and how wildcards will be expanded if needed.
      *
-     * @see org.elasticsearch.action.support.IndicesOptions
+     * @see org.opensearch.action.support.IndicesOptions
      */
     public CountRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");

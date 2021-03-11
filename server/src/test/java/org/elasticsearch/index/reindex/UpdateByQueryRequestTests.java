@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -81,7 +81,7 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         assertEquals(original.getPipeline(), forSliced.getPipeline());
     }
 
-    // TODO: Implement standard to/from x-content parsing tests
+    plugins/transport-nio/src/internalClusterTest/java/org/opensearch/NioIntegTestCase.java
 
     @Override
     protected UpdateByQueryRequest createTestInstance() {

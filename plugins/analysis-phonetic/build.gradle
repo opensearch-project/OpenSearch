@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
+opensearchplugin {
   description 'The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin'
+  classname 'org.opensearch.plugin.analysis.AnalysisPhoneticPlugin'
 }
 
 dependencies {

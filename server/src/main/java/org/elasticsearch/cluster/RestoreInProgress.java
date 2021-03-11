@@ -31,7 +31,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.Snapshot;
+import org.opensearch.snapshots.Snapshot;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -24,7 +24,7 @@ import org.opensearch.action.ActionRunnable;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;

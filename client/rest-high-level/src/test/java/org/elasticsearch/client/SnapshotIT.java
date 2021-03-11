@@ -44,8 +44,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.snapshots.RestoreInfo;
-import org.elasticsearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.RestoreInfo;
+import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collections;

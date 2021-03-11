@@ -29,7 +29,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.OpenSearchException;;
 import org.elasticsearch.OpenSearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -48,7 +48,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -19,7 +19,7 @@
 package org.elasticsearch.plugin.noop.action.bulk;
 
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.opensearch.action.bulk.BulkResponse;
 
 public class NoopBulkAction extends ActionType<BulkResponse> {
     public static final String NAME = "mock:data/write/bulk";

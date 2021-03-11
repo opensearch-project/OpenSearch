@@ -45,7 +45,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 import org.opensearch.transport.NettyAllocator;
 
 import java.io.Closeable;

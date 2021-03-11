@@ -93,7 +93,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
-import org.elasticsearch.tasks.TaskCancelledException;
+import org.opensearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;

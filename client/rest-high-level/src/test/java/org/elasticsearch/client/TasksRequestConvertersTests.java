@@ -23,7 +23,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.client.tasks.CancelTasksRequest;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
