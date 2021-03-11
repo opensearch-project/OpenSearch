@@ -43,18 +43,6 @@ Elasticsearch offers the ability to configure the
 `default` and `best_compression` will get better compression with this change.
 
 [discrete]
-[[auc-roc-eval-class]]
-=== AUC ROC evaluation metrics for classification analysis
-
-{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[Area under the curve of receiver operating characteristic (AUC ROC)] 
-is an evaluation metric that has been available for {oldetection} since 7.3 and 
-now is available for {classification} analysis. AUC ROC represents the 
-performance of the {classification} process at different predicted probability 
-thresholds. The true positive rate for a specific class is compared against the 
-rate of all the other classes combined at the different threshold levels to 
-create the curve.
-
-[discrete]
 [[support-for-request-level-circuit-breakers]]
 === Request-level circuit breakers on coordinating nodes
 
