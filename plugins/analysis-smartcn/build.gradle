@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
-  description 'Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin'
+opensearchplugin {
+  description 'Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into opensearch.'
+  classname 'org.opensearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin'
 }
 
 dependencies {
