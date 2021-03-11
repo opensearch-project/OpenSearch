@@ -37,9 +37,9 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPoolInfo;
+import org.opensearch.threadpool.ThreadPoolStats;
 
 import java.util.Collections;
 import java.util.HashMap;

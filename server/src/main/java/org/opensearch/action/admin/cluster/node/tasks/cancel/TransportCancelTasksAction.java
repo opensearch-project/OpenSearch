@@ -27,9 +27,9 @@ import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.TaskInfo;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 

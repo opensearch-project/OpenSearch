@@ -32,8 +32,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.tasks.CancelTasksRequest;
 import org.elasticsearch.client.tasks.CancelTasksResponse;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.Arrays;

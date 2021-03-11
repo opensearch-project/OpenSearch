@@ -17,7 +17,6 @@
  * under the License.
  */
 package org.opensearch.plugins;
-
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;

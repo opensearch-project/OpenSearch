@@ -31,7 +31,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.secure_sm.SecureSM;
+import org.opensearch.secure_sm.SecureSM;
 import org.junit.Assert;
 
 import java.io.InputStream;

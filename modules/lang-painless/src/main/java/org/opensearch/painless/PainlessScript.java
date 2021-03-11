@@ -19,7 +19,7 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.script.ScriptException;
+import org.opensearch.script.ScriptException;
 
 import java.util.ArrayList;
 import java.util.BitSet;

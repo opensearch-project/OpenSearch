@@ -21,7 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cli.Terminal;
+import org.opensearch.cli.Terminal;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.IOError;

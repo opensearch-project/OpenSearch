@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import joptsimple.OptionSet;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.cli.Terminal;
+import org.opensearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;

@@ -45,8 +45,8 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskManager;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

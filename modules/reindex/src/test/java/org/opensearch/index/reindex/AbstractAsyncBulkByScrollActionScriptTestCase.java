@@ -28,8 +28,8 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.opensearch.index.reindex.AbstractAsyncBulkByScrollAction.OpType;
 import org.opensearch.index.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.UpdateScript;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.UpdateScript;
 import org.junit.Before;
 
 import java.util.Collections;

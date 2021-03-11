@@ -31,12 +31,12 @@ import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Rectangle;
+import org.opensearch.geometry.Line;
+import org.opensearch.geometry.LinearRing;
+import org.opensearch.geometry.MultiLine;
+import org.opensearch.geometry.MultiPoint;
+import org.opensearch.geometry.Point;
+import org.opensearch.geometry.Rectangle;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 

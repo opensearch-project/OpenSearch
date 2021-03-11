@@ -21,8 +21,8 @@ package org.opensearch.ingest.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.grok.Grok;
-import org.elasticsearch.grok.MatcherWatchdog;
+import org.opensearch.grok.Grok;
+import org.opensearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;

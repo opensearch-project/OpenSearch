@@ -19,8 +19,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cli.CommandLoggingConfigurator;
-import org.elasticsearch.cli.MultiCommand;
-import org.elasticsearch.cli.Terminal;
+import org.opensearch.cli.MultiCommand;
+import org.opensearch.cli.Terminal;
 import org.elasticsearch.env.NodeRepurposeCommand;
 import org.elasticsearch.env.OverrideNodeVersionCommand;
 

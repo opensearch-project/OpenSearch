@@ -24,7 +24,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.WrappingProcessor;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 
 import java.util.ArrayList;
 import java.util.List;

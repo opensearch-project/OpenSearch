@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.List;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.cli.Terminal;
+import org.opensearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 
 /**
