@@ -19,16 +19,16 @@
 
 package org.opensearch.rest.action;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestChannel;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponse.Empty;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestChannel;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponse.Empty;
 
 import java.util.concurrent.atomic.AtomicReference;
 

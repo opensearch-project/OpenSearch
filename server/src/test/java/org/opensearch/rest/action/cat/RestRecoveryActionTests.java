@@ -21,18 +21,18 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Table;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentOpenSearchExtension;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.Randomness;
+import org.opensearch.common.Table;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentOpenSearchExtension;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.opensearch.mock.orig.Mockito.when;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 

@@ -21,12 +21,12 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.common.Priority;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -19,13 +19,13 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestResponse;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;

@@ -20,9 +20,9 @@ package org.opensearch.rest;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.test.ESTestCase;
 
 import org.junit.Before;
 import org.mockito.InOrder;

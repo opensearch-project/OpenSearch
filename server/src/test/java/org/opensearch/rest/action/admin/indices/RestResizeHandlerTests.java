@@ -19,10 +19,10 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.Collections;

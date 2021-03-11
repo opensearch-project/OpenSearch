@@ -19,19 +19,19 @@
 
 package org.opensearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Table;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.Table;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.action.cat.AbstractCatAction;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestChannel;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestChannel;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;

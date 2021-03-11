@@ -20,21 +20,21 @@
 package org.opensearch.rest.action.document;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.opensearch.rest.action.document.RestIndexAction.CreateHandler;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicReference;

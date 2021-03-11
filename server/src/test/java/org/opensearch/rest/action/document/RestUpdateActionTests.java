@@ -20,14 +20,14 @@
 package org.opensearch.rest.action.document;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.VersionType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.util.HashMap;

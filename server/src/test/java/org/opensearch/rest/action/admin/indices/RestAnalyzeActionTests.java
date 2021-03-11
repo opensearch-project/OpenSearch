@@ -19,16 +19,16 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.analysis.NameOrDefinition;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.analysis.NameOrDefinition;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.client.NoOpNodeClient;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 

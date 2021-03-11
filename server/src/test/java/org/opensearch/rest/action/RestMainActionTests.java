@@ -19,19 +19,19 @@
 
 package org.opensearch.rest.action;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.main.MainResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.Build;
+import org.opensearch.Version;
+import org.opensearch.action.main.MainResponse;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
 import java.util.Map;

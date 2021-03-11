@@ -19,23 +19,23 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Table;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.health.ClusterIndexHealth;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.Table;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.LinkedHashMap;
 import java.util.List;

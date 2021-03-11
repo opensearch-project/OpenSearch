@@ -19,18 +19,18 @@
 
 package org.opensearch.rest;
 
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.http.HttpChannel;
+import org.opensearch.http.HttpRequest;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -19,19 +19,19 @@
 
 package org.opensearch.rest.action.document;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.get.GetResult;
+import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.get.GetResponse;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.index.get.GetResult;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.document.RestGetSourceAction.RestGetSourceResponseListener;
-import org.elasticsearch.test.rest.FakeRestChannel;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
+import org.opensearch.test.rest.FakeRestChannel;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -40,7 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 

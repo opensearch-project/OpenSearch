@@ -19,32 +19,32 @@
 
 package org.opensearch.rest;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.OpenSearchStatusException;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.ResourceAlreadyExistsException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.RemoteTransportException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
+import static org.opensearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;

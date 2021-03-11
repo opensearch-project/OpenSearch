@@ -19,12 +19,12 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.elasticsearch.common.Table;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.Table;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestResponse;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 import org.junit.Before;
 
 import java.util.ArrayList;

@@ -20,19 +20,19 @@
 package org.opensearch.rest.action.document;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.client.NoOpNodeClient;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
 import java.util.Map;

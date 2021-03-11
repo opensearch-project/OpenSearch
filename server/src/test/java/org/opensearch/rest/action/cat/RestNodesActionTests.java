@@ -19,19 +19,19 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.threadpool.TestThreadPool;
 import org.junit.Before;
 
 import java.util.Collections;
