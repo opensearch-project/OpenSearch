@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cli;
+package org.opensearch.cli;
 
 /**
  * POSIX exit codes.

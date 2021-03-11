@@ -24,7 +24,7 @@ import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
+import org.opensearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
