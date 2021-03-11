@@ -64,7 +64,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param name                  the name of the plugin
      * @param description           a description of the plugin
      * @param version               an opaque version identifier for the plugin
-     * @param opensearchVersion  the version of OpenSearch the plugin was built for
+     * @param opensearchVersion     the version of OpenSearch the plugin was built for
      * @param javaVersion           the version of Java the plugin was built with
      * @param classname             the entry point to the plugin
      * @param extendedPlugins       other plugins this plugin extends through SPI
@@ -110,7 +110,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         hasNativeController = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_6_0_0_beta2) && in.getVersion().before(Version.V_6_3_0)) {
             /*
-             * OpenSearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
+             * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
              * serialized into the plugin info. Therefore, we have to read and ignore this value from the stream.
              */
             in.readBoolean();
@@ -133,7 +133,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeBoolean(hasNativeController);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta2) && out.getVersion().before(Version.V_6_3_0)) {
             /*
-             * OpenSearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
+             * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
              * serialized into the plugin info. Therefore, we have to write out a value for this boolean.
              */
             out.writeBoolean(false);
