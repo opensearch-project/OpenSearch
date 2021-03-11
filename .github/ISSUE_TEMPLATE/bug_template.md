@@ -11,7 +11,7 @@ assignees: ''
 A clear and concise description of what the bug is.
 
 **Other plugins installed**
-Please mention if you are using this plugin along side any other plugin. Security for example.
+Please mention what plugins you have installed.
 
 **To Reproduce**
 Steps to reproduce the behavior:
