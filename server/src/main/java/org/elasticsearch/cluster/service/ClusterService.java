@@ -19,15 +19,15 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
-import org.elasticsearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateApplier;
+import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.cluster.ClusterStateTaskConfig;
+import org.opensearch.cluster.ClusterStateTaskExecutor;
+import org.opensearch.cluster.ClusterStateTaskListener;
+import org.opensearch.cluster.LocalNodeMasterListener;
+import org.opensearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RerouteService;

@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.NamedDiff;
+import org.opensearch.cluster.AbstractNamedDiffable;
+import org.opensearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;

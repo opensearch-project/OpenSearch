@@ -24,10 +24,10 @@ import org.opensearch.action.admin.indices.close.CloseIndexClusterStateUpdateReq
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamRequestTests;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.RestoreInProgress;
+import org.opensearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;

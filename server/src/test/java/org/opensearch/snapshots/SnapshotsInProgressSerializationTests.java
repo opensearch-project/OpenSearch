@@ -19,13 +19,13 @@
 
 package org.opensearch.snapshots;
 
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
-import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
-import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterState.Custom;
+import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.SnapshotsInProgress.Entry;
+import org.opensearch.cluster.SnapshotsInProgress.ShardState;
+import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;

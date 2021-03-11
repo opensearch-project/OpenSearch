@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.Diffable;
+import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;

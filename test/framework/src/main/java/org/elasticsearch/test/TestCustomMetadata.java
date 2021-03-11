@@ -20,8 +20,8 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.NamedDiff;
+import org.opensearch.cluster.AbstractNamedDiffable;
+import org.opensearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
