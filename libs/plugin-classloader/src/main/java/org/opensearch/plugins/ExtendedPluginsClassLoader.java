@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.opensearch.plugins;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
