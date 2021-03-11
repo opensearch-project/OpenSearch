@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;

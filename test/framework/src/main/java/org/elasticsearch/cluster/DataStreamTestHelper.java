@@ -29,6 +29,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.nodes;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.FailedNodeException;
-import org.elasticsearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

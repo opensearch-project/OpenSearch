@@ -19,7 +19,7 @@
 
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 

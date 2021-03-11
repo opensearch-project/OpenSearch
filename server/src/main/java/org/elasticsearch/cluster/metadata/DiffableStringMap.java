@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.Diffable;
+import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

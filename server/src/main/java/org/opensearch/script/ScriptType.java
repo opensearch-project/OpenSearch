@@ -44,7 +44,7 @@ public enum ScriptType implements Writeable {
     INLINE ( 0 , new ParseField("source", "inline")),
 
     /**
-     * STORED scripts are saved as part of the {@link org.elasticsearch.cluster.ClusterState}
+     * STORED scripts are saved as part of the {@link org.opensearch.cluster.ClusterState}
      * based on user requests.  They will be cached when they are first used in a query.
      * They are turned off by default because most languages are insecure
      * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}

@@ -22,7 +22,7 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;

@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.index.Index;
 
 import java.util.Collection;
