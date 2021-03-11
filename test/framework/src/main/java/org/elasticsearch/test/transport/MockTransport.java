@@ -30,7 +30,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;

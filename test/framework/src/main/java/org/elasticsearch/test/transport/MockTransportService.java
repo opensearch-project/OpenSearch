@@ -46,7 +46,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;

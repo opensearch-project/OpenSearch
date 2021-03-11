@@ -40,7 +40,7 @@ import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;

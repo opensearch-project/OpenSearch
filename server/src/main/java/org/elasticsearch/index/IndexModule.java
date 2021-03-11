@@ -63,7 +63,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;

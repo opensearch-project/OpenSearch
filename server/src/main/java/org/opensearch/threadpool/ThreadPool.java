@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool;
+package org.opensearch.threadpool;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

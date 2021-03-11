@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool;
+package org.opensearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.opensearch.threadpool.ThreadPool.Names;
 
 import java.lang.reflect.Field;
 import java.util.Set;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
+public class UpdateThreadPoolSettingsTests extends OpenSearchThreadPoolTestCase {
 
     public void testCorrectThreadPoolTypePermittedInSettings() throws InterruptedException {
         String threadPoolName = randomThreadPoolName();

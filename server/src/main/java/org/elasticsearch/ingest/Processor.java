@@ -24,7 +24,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.Scheduler;
+import org.opensearch.threadpool.Scheduler;
 
 import java.util.Map;
 import java.util.function.BiConsumer;

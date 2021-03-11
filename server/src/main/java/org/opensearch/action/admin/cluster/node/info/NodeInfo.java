@@ -35,7 +35,7 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
-import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.opensearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;

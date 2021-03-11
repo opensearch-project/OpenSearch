@@ -394,7 +394,7 @@ import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;

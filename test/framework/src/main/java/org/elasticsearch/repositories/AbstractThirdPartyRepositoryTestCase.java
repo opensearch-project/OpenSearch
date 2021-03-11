@@ -34,7 +34,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.util.Arrays;

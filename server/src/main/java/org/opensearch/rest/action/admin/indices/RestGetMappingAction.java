@@ -45,7 +45,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestBuilderListener;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
