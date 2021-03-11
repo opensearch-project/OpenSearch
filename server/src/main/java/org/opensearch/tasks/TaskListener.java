@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.tasks;
+package org.opensearch.tasks;
 
 /**
  * Listener for Task success or failure.

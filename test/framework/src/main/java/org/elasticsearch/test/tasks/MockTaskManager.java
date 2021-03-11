@@ -26,9 +26,9 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskAwareRequest;
-import org.elasticsearch.tasks.TaskManager;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskAwareRequest;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collection;

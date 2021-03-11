@@ -27,7 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.List;

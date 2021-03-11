@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;

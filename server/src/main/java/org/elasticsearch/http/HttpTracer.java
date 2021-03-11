@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;

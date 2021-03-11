@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.tasks;
 
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 
 /**
  * Listener for task registration/unregistration

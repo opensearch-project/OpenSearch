@@ -52,8 +52,8 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;

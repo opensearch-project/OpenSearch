@@ -16,9 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.opensearch.tasks;
+
+import org.elasticsearch.OpenSearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
- * Support for viewing and modifying in flight actions ({@link org.elasticsearch.tasks.Task}s) and saving their results to an index. This
- * includes getting detailed descriptions and canceling tasks that support it.
+ * A generic exception that can be thrown by a task when it's cancelled by the task manager API
  */
-package org.elasticsearch.tasks;
+public class TaskCancelledException  extends OpenSearchException {
+
+    public TaskCancelledException(String msg) {
+        super(msg);
+    }
+
+    public TaskCancelledException(StreamInput in) throws IOException{
+        super(in);
+    }
+}

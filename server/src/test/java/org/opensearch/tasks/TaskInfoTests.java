@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.tasks;
+package org.opensearch.tasks;
 
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;

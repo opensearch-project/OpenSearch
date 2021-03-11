@@ -84,7 +84,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.tasks.TaskManager;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 

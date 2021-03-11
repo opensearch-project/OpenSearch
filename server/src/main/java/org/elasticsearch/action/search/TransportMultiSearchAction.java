@@ -31,7 +31,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

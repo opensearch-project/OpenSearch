@@ -32,7 +32,7 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 
 import java.util.ArrayList;
 import java.util.List;

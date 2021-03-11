@@ -34,7 +34,7 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 
 import java.util.Arrays;
 import java.util.Collections;

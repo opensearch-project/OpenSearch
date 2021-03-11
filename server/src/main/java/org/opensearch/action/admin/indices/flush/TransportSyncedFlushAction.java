@@ -24,7 +24,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 /**

@@ -43,7 +43,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;

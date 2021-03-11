@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 
 import java.util.Map;
 import java.util.function.Predicate;
