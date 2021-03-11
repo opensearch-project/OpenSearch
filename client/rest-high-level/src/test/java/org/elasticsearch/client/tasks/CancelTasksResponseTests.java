@@ -56,7 +56,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
 
     @Override
     protected CancelTasksResponseTests.ByNodeCancelTasksResponse createServerTestInstance(XContentType xContentType) {
-        List<TaskInfo> tasks = new ArrayList<>();
+        List<org.opensearch.tasks.TaskInfo> tasks = new ArrayList<>();
         List<TaskOperationFailure> taskFailures = new ArrayList<>();
         List<OpenSearchException> nodeFailures = new ArrayList<>();
 
@@ -69,7 +69,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
         }
 
         for (int i = 0; i < 4; i++) {
-            tasks.add(new TaskInfo(
+            tasks.add(new org.opensearch.tasks.TaskInfo(
                 new TaskId(NODE_ID, (long) i),
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
