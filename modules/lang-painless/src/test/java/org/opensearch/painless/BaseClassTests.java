@@ -20,7 +20,7 @@
 package org.opensearch.painless;
 
 import org.opensearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ScriptContext;
+import org.opensearch.script.ScriptContext;
 
 import java.util.Collections;
 import java.util.HashMap;

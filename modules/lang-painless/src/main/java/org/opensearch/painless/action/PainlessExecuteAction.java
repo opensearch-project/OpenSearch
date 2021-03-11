@@ -72,12 +72,12 @@ import org.elasticsearch.indices.IndicesService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
-import org.elasticsearch.script.FilterScript;
-import org.elasticsearch.script.ScoreScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.FilterScript;
+import org.opensearch.script.ScoreScript;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

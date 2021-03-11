@@ -41,8 +41,8 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.script.SimilarityScript;
-import org.elasticsearch.script.SimilarityWeightScript;
+import org.opensearch.script.SimilarityScript;
+import org.opensearch.script.SimilarityWeightScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

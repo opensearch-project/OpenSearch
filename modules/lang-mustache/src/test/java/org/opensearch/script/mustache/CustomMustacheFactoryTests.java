@@ -19,9 +19,9 @@
 
 package org.opensearch.script.mustache;
 
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptEngine;
+import org.opensearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;

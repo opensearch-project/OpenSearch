@@ -57,8 +57,8 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.opensearch.index.reindex.remote.RemoteScrollableHitSource;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;

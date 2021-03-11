@@ -20,13 +20,13 @@
 grant {
   // needed to generate runtime classes
   permission java.lang.RuntimePermission "createClassLoader";
-  
+
   // expression runtime
-  permission org.elasticsearch.script.ClassPermission "java.lang.String";
-  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.expressions.Expression";
-  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.search.DoubleValues";
+  permission org.opensearch.script.ClassPermission "java.lang.String";
+  permission org.opensearch.script.ClassPermission "org.apache.lucene.expressions.Expression";
+  permission org.opensearch.script.ClassPermission "org.apache.lucene.search.DoubleValues";
   // available functions
-  permission org.elasticsearch.script.ClassPermission "java.lang.Math";
-  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.util.MathUtil";
-  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.util.SloppyMath";
+  permission org.opensearch.script.ClassPermission "java.lang.Math";
+  permission org.opensearch.script.ClassPermission "org.apache.lucene.util.MathUtil";
+  permission org.opensearch.script.ClassPermission "org.apache.lucene.util.SloppyMath";
 };

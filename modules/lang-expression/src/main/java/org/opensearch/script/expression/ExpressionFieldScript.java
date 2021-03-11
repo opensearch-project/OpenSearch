@@ -24,8 +24,8 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
-import org.elasticsearch.script.FieldScript;
-import org.elasticsearch.script.GeneralScriptException;
+import org.opensearch.script.FieldScript;
+import org.opensearch.script.GeneralScriptException;
 
 import java.io.IOException;
 

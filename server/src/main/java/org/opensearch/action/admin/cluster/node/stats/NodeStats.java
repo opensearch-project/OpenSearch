@@ -39,8 +39,8 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
-import org.elasticsearch.script.ScriptCacheStats;
-import org.elasticsearch.script.ScriptStats;
+import org.opensearch.script.ScriptCacheStats;
+import org.opensearch.script.ScriptStats;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 

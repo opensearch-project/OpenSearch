@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.Script;
 import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;

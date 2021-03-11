@@ -22,9 +22,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

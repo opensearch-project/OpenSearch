@@ -35,8 +35,8 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.ScoreScript;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.ScoreScript;
+import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.util.Map;

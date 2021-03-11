@@ -21,7 +21,7 @@ package org.opensearch.painless;
 
 import junit.framework.AssertionFailedError;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.script.ScriptException;
+import org.opensearch.script.ScriptException;
 
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.Collections;

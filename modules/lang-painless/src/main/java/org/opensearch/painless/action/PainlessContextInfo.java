@@ -31,7 +31,7 @@ import org.opensearch.painless.lookup.PainlessClassBinding;
 import org.opensearch.painless.lookup.PainlessInstanceBinding;
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.script.ScriptContext;
+import org.opensearch.script.ScriptContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
