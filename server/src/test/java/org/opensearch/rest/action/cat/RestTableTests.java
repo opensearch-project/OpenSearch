@@ -23,7 +23,7 @@ import org.opensearch.common.Table;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.junit.Before;
 
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
-public class RestTableTests extends ESTestCase {
+public class RestTableTests extends OpenSearchTestCase {
 
     private static final String APPLICATION_JSON = XContentType.JSON.mediaType();
     private static final String APPLICATION_YAML = XContentType.YAML.mediaType();

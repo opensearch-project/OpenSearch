@@ -21,7 +21,7 @@ package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -79,8 +79,8 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
 
         runScalingThreadPoolTest(builder.build(), (clusterSettings, threadPool) -> {
             final Executor executor = threadPool.executor(threadPoolName);
-            assertThat(executor, instanceOf(EsThreadPoolExecutor.class));
-            final EsThreadPoolExecutor esThreadPoolExecutor = (EsThreadPoolExecutor)executor;
+            assertThat(executor, instanceOf(OpenSearchThreadPoolExecutor.class));
+            final OpenSearchThreadPoolExecutor esThreadPoolExecutor = (OpenSearchThreadPoolExecutor)executor;
             final ThreadPool.Info info = info(threadPool, threadPoolName);
 
             assertThat(info.getName(), equalTo(threadPoolName));

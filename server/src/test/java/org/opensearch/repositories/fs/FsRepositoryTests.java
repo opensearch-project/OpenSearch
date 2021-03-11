@@ -60,7 +60,7 @@ import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -77,7 +77,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-public class FsRepositoryTests extends ESTestCase {
+public class FsRepositoryTests extends OpenSearchTestCase {
 
     public void testSnapshotAndRestore() throws IOException, InterruptedException {
         ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());

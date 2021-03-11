@@ -27,7 +27,7 @@ import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -35,7 +35,7 @@ import org.opensearch.test.rest.FakeRestRequest;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.is;
 
-public class RestTasksActionTests extends ESTestCase {
+public class RestTasksActionTests extends OpenSearchTestCase {
 
     public void testConsumesParameters() throws Exception {
         RestTasksAction action = new RestTasksAction(() -> DiscoveryNodes.EMPTY_NODES);

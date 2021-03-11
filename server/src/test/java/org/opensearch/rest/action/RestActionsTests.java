@@ -38,7 +38,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -48,7 +48,7 @@ import java.util.Arrays;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class RestActionsTests extends ESTestCase {
+public class RestActionsTests extends OpenSearchTestCase {
 
     private static NamedXContentRegistry xContentRegistry;
 

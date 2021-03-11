@@ -22,14 +22,14 @@ package org.opensearch.monitor.jvm;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class JvmGcMonitorServiceTests extends ESTestCase {
+public class JvmGcMonitorServiceTests extends OpenSearchTestCase {
 
     public void testSlowGcLogging() {
         final Logger logger = mock(Logger.class);

@@ -43,7 +43,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.VersionType;
@@ -312,7 +312,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
             threadPool.startForcingRejections();
             PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
-            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+            expectThrows(OpenSearchRejectedExecutionException.class, future::actionGet);
         } finally {
             threadPool.stopForcingRejections();
         }

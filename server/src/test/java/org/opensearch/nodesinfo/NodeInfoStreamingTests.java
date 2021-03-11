@@ -41,7 +41,7 @@ import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.search.aggregations.support.AggregationInfo;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolInfo;
@@ -59,7 +59,7 @@ import static java.util.Collections.emptySet;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class NodeInfoStreamingTests extends ESTestCase {
+public class NodeInfoStreamingTests extends OpenSearchTestCase {
 
     public void testNodeInfoStreaming() throws IOException {
         NodeInfo nodeInfo = createNodeInfo();

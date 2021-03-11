@@ -86,7 +86,7 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInProgressException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCaseCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.transport.ActionNotFoundTransportException;
 import org.opensearch.transport.ActionTransportException;
@@ -127,7 +127,7 @@ import static org.opensearch.test.TestSearchContext.SHARD_TARGET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class ExceptionSerializationTests extends ESTestCase {
+public class ExceptionSerializationTests extends OpenSearchTestCaseCase {
 
     public void testExceptionRegistration()
             throws ClassNotFoundException, IOException, URISyntaxException {
@@ -171,7 +171,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                 if (ignore.contains(clazz) || isAbstract(clazz.getModifiers()) || isInterface(clazz.getModifiers())) {
                     return;
                 }
-                if (isEsException(clazz) == false) {
+                if (isOpenSearchException(clazz) == false) {
                     return;
                 }
                 if (OpenSearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT) == false
@@ -189,7 +189,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                 }
             }
 
-            private boolean isEsException(Class<?> clazz) {
+            private boolean isOpenSearchException(Class<?> clazz) {
                 return OpenSearchException.class.isAssignableFrom(clazz);
             }
 
@@ -733,7 +733,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(56, org.opensearch.common.settings.SettingsException.class);
         ids.put(57, org.opensearch.indices.IndexTemplateMissingException.class);
         ids.put(58, org.opensearch.transport.SendRequestTransportException.class);
-        ids.put(59, null); // was EsRejectedExecutionException, which is no longer an instance of OpenSearchException
+        ids.put(59, null); // was OpenSearchRejectedExecutionException, which is no longer an instance of OpenSearchException
         ids.put(60, null); // EarlyTerminationException was removed in 6.0
         ids.put(61, null); // RoutingValidationException was removed in 5.0
         ids.put(62, org.opensearch.common.io.stream.NotSerializableExceptionWrapper.class);

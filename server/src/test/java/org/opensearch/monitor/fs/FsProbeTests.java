@@ -23,7 +23,7 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeEnvironment.NodePath;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
-public class FsProbeTests extends ESTestCase {
+public class FsProbeTests extends OpenSearchTestCase {
 
     public void testFsInfo() throws IOException {
 

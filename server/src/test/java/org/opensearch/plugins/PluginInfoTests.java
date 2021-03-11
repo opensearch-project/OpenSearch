@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PluginInfoTests extends ESTestCase {
+public class PluginInfoTests extends OpenSearchTestCase {
 
     public void testReadFromProperties() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");

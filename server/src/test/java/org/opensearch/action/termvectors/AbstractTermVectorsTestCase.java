@@ -398,7 +398,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                     assertNull("Missing payload test failed" + failDesc, esDocsPosEnum.getPayload());
                 }
             }
-            assertNull("Es returned terms are done but lucene isn't", luceneTermEnum.next());
+            assertNull("OpenSearch returned terms are done but lucene isn't", luceneTermEnum.next());
         }
     }
 

@@ -30,7 +30,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
-public class PluginsServiceTests extends ESTestCase {
+public class PluginsServiceTests extends OpenSearchTestCase {
     public static class AdditionalSettingsPlugin1 extends Plugin {
         @Override
         public Settings additionalSettings() {

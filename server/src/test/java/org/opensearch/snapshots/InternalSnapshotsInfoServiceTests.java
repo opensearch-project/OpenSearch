@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.IntHashSet;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -51,7 +51,7 @@ import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.test.ClusterServiceUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class InternalSnapshotsInfoServiceTests extends ESTestCase {
+public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
 
     private TestThreadPool threadPool;
     private ClusterService clusterService;
@@ -319,12 +319,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         if (randomBoolean()) {
             // simulate initialization and start of the shards
-            final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.builder()
+            final AllocationService allocationService = OpenSearchAllocationTestCase.createAllocationService(Settings.builder()
                 .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), nbShards)
                 .put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), nbShards)
                 .build(), snapshotsInfoService);
             applyClusterState("starting shards for " + indexName, clusterState ->
-                    ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, clusterState, indexName));
+                    OpenSearchAllocationTestCase.startInitializingShardsAndReroute(allocationService, clusterState, indexName));
             assertTrue(clusterService.state().routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty());
 
         } else {
@@ -418,7 +418,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private ClusterState demoteMasterNode(final ClusterState currentState) {
-        final DiscoveryNode node = new DiscoveryNode("other", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+        final DiscoveryNode node = new DiscoveryNode("other", OpenSearchTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
             DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 

@@ -43,8 +43,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
@@ -102,7 +102,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchPhaseControllerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
-    private EsThreadPoolExecutor fixedExecutor;
+    private OpenSearchThreadPoolExecutor fixedExecutor;
     private SearchPhaseController searchPhaseController;
     private List<Boolean> reductions;
 
@@ -132,8 +132,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             };
         });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
-        fixedExecutor = EsExecutors.newFixed("test", 1, 10,
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        fixedExecutor = OpenSearchExecutors.newFixed("test", 1, 10,
+            OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
     }
 
     @After
