@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.tasks;
+package org.opensearch.tasks;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;

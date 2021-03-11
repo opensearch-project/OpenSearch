@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.tasks;
+package org.opensearch.tasks;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.client.Requests;

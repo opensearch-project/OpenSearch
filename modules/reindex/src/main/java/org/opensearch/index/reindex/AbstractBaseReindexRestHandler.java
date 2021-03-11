@@ -29,8 +29,8 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.tasks.LoggingTaskListener;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.LoggingTaskListener;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.HashMap;

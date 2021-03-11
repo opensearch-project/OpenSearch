@@ -58,12 +58,12 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(2));
         boolean listTasksFound = false;
         for (TaskGroup taskGroup : response.getTaskGroups()) {
-            org.elasticsearch.tasks.TaskInfo parent = taskGroup.getTaskInfo();
+            org.opensearch.tasks.TaskInfo parent = taskGroup.getTaskInfo();
             if ("cluster:monitor/tasks/lists".equals(parent.getAction())) {
                 assertThat(taskGroup.getChildTasks().size(), equalTo(1));
                 TaskGroup childGroup = taskGroup.getChildTasks().iterator().next();
                 assertThat(childGroup.getChildTasks().isEmpty(), equalTo(true));
-                org.elasticsearch.tasks.TaskInfo child = childGroup.getTaskInfo();
+                org.opensearch.tasks.TaskInfo child = childGroup.getTaskInfo();
                 assertThat(child.getAction(), equalTo("cluster:monitor/tasks/lists[n]"));
                 assertThat(child.getParentTaskId(), equalTo(parent.getTaskId()));
                 listTasksFound = true;
@@ -101,7 +101,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         if (gtr.getWaitForCompletion()) {
             assertTrue(taskResponse.isCompleted());
         }
-        org.elasticsearch.tasks.TaskInfo info = taskResponse.getTaskInfo();
+        org.opensearch.tasks.TaskInfo info = taskResponse.getTaskInfo();
         assertTrue(info.isCancellable());
         assertEquals("reindex from [source1] to [dest][_doc]", info.getDescription());
         assertEquals("indices:data/write/reindex", info.getAction());
@@ -126,7 +126,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         );
         // in this case, probably no task will actually be cancelled.
         // this is ok, that case is covered in TasksIT.testTasksCancellation
-        org.elasticsearch.tasks.TaskInfo firstTask = listResponse.getTasks().get(0);
+        org.opensearch.tasks.TaskInfo firstTask = listResponse.getTasks().get(0);
         String node = listResponse.getPerNodeTasks().keySet().iterator().next();
 
         CancelTasksRequest cancelTasksRequest =  new CancelTasksRequest.Builder().withTaskId(

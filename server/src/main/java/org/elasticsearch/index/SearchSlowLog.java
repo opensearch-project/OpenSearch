@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.util.Arrays;
