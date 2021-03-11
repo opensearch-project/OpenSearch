@@ -30,7 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.usage.UsageService;
+import org.opensearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.List;

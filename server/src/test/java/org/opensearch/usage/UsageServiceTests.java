@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.usage;
+package org.opensearch.usage;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
