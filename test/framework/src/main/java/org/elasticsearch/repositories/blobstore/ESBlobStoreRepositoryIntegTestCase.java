@@ -44,7 +44,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;

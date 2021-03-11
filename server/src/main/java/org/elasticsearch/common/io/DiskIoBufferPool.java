@@ -20,7 +20,7 @@
 package org.elasticsearch.common.io;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;

@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool;
+package org.opensearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase {
+public class AutoQueueAdjustingExecutorBuilderTests extends OpenSearchThreadPoolTestCase {
 
     public void testValidatingMinMaxSettings() {
         Settings settings = Settings.builder()
