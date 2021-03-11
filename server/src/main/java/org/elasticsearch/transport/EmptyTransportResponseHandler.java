@@ -20,7 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 public class EmptyTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
 

@@ -20,18 +20,18 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;

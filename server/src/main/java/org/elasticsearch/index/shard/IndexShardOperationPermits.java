@@ -21,9 +21,9 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayList;

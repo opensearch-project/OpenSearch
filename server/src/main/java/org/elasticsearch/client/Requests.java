@@ -19,45 +19,45 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
+import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.opensearch.action.admin.indices.close.CloseIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.action.admin.indices.open.OpenIndexRequest;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.opensearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -168,7 +168,7 @@ public class Requests {
      *
      * @param indices The indices to check if they exists or not.
      * @return The indices exists request
-     * @see org.elasticsearch.client.IndicesAdminClient#exists(org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#exists(IndicesExistsRequest)
      */
     public static IndicesExistsRequest indicesExistsRequest(String... indices) {
         return new IndicesExistsRequest(indices);
@@ -179,7 +179,7 @@ public class Requests {
      *
      * @param index The index to create
      * @return The index create request
-     * @see org.elasticsearch.client.IndicesAdminClient#create(org.elasticsearch.action.admin.indices.create.CreateIndexRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#create(CreateIndexRequest)
      */
     public static CreateIndexRequest createIndexRequest(String index) {
         return new CreateIndexRequest(index);
@@ -190,7 +190,7 @@ public class Requests {
      *
      * @param index The index to delete
      * @return The delete index request
-     * @see org.elasticsearch.client.IndicesAdminClient#delete(org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#delete(DeleteIndexRequest)
      */
     public static DeleteIndexRequest deleteIndexRequest(String index) {
         return new DeleteIndexRequest(index);
@@ -201,7 +201,7 @@ public class Requests {
      *
      * @param index The index to close
      * @return The delete index request
-     * @see org.elasticsearch.client.IndicesAdminClient#close(org.elasticsearch.action.admin.indices.close.CloseIndexRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#close(CloseIndexRequest)
      */
     public static CloseIndexRequest closeIndexRequest(String index) {
         return new CloseIndexRequest(index);
@@ -212,7 +212,7 @@ public class Requests {
      *
      * @param index The index to open
      * @return The delete index request
-     * @see org.elasticsearch.client.IndicesAdminClient#open(org.elasticsearch.action.admin.indices.open.OpenIndexRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#open(OpenIndexRequest)
      */
     public static OpenIndexRequest openIndexRequest(String index) {
         return new OpenIndexRequest(index);
@@ -223,7 +223,7 @@ public class Requests {
      *
      * @param indices The indices to create mapping. Use {@code null} or {@code _all} to execute against all indices
      * @return The create mapping request
-     * @see org.elasticsearch.client.IndicesAdminClient#putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
      */
     public static PutMappingRequest putMappingRequest(String... indices) {
         return new PutMappingRequest(indices);
@@ -243,7 +243,7 @@ public class Requests {
      *
      * @param indices The indices to refresh. Use {@code null} or {@code _all} to execute against all indices
      * @return The refresh request
-     * @see org.elasticsearch.client.IndicesAdminClient#refresh(org.elasticsearch.action.admin.indices.refresh.RefreshRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#refresh(RefreshRequest)
      */
     public static RefreshRequest refreshRequest(String... indices) {
         return new RefreshRequest(indices);
@@ -254,7 +254,7 @@ public class Requests {
      *
      * @param indices The indices to flush. Use {@code null} or {@code _all} to execute against all indices
      * @return The flush request
-     * @see org.elasticsearch.client.IndicesAdminClient#flush(org.elasticsearch.action.admin.indices.flush.FlushRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#flush(FlushRequest)
      */
     public static FlushRequest flushRequest(String... indices) {
         return new FlushRequest(indices);
@@ -276,7 +276,7 @@ public class Requests {
      *
      * @param indices The indices to force merge. Use {@code null} or {@code _all} to execute against all indices
      * @return The force merge request
-     * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
      */
     public static ForceMergeRequest forceMergeRequest(String... indices) {
         return new ForceMergeRequest(indices);
@@ -317,7 +317,7 @@ public class Requests {
      * Creates a cluster state request.
      *
      * @return The cluster state request.
-     * @see org.elasticsearch.client.ClusterAdminClient#state(org.elasticsearch.action.admin.cluster.state.ClusterStateRequest)
+     * @see org.elasticsearch.client.ClusterAdminClient#state(ClusterStateRequest)
      */
     public static ClusterStateRequest clusterStateRequest() {
         return new ClusterStateRequest();
@@ -337,7 +337,7 @@ public class Requests {
      * @param indices The indices to provide additional cluster health information for.
      *                Use {@code null} or {@code _all} to execute against all indices
      * @return The cluster health request
-     * @see org.elasticsearch.client.ClusterAdminClient#health(org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest)
+     * @see org.elasticsearch.client.ClusterAdminClient#health(ClusterHealthRequest)
      */
     public static ClusterHealthRequest clusterHealthRequest(String... indices) {
         return new ClusterHealthRequest(indices);
@@ -361,7 +361,7 @@ public class Requests {
      * Creates a nodes info request against all the nodes.
      *
      * @return The nodes info request
-     * @see org.elasticsearch.client.ClusterAdminClient#nodesInfo(org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest)
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesInfo(NodesInfoRequest)
      */
     public static NodesInfoRequest nodesInfoRequest() {
         return new NodesInfoRequest();
@@ -372,7 +372,7 @@ public class Requests {
      *
      * @param nodesIds The nodes ids to get the status for
      * @return The nodes info request
-     * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest)
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(NodesStatsRequest)
      */
     public static NodesInfoRequest nodesInfoRequest(String... nodesIds) {
         return new NodesInfoRequest(nodesIds);
@@ -383,7 +383,7 @@ public class Requests {
      *
      * @param nodesIds The nodes ids to get the stats for
      * @return The nodes info request
-     * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest)
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(NodesStatsRequest)
      */
     public static NodesStatsRequest nodesStatsRequest(String... nodesIds) {
         return new NodesStatsRequest(nodesIds);
@@ -396,7 +396,7 @@ public class Requests {
      * @param nodesIds
      *            The nodes ids to get the usage for
      * @return The nodes usage request
-     * @see org.elasticsearch.client.ClusterAdminClient#nodesUsage(org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest)
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesUsage(NodesUsageRequest)
      */
     public static NodesUsageRequest nodesUsageRequest(String... nodesIds) {
         return new NodesUsageRequest(nodesIds);
@@ -406,7 +406,7 @@ public class Requests {
      * Creates a cluster stats request.
      *
      * @return The cluster stats request
-     * @see org.elasticsearch.client.ClusterAdminClient#clusterStats(org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest)
+     * @see org.elasticsearch.client.ClusterAdminClient#clusterStats(ClusterStatsRequest)
      */
     public static ClusterStatsRequest clusterStatsRequest() {
         return new ClusterStatsRequest();

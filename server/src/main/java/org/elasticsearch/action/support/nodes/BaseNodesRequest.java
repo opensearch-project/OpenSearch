@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.support.nodes;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -27,8 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportRequest;

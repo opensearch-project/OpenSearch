@@ -20,14 +20,14 @@
 package org.elasticsearch.search.scroll;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;

@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.cluster.state.ClusterStateAction;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;

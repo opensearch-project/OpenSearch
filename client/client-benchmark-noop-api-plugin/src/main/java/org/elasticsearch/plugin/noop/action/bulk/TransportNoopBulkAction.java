@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.plugin.noop.action.bulk;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;

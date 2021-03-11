@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

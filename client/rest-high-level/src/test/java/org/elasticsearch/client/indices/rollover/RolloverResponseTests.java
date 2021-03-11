@@ -19,16 +19,16 @@
 
 package org.elasticsearch.client.indices.rollover;
 
-import org.elasticsearch.action.admin.indices.rollover.Condition;
-import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.opensearch.action.admin.indices.rollover.Condition;
+import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.IOException;
@@ -85,8 +85,8 @@ public class RolloverResponseTests extends ESTestCase {
     private static void toXContent(RolloverResponse response, XContentBuilder builder) throws IOException {
         Params params = new ToXContent.MapParams(
             Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
-        org.elasticsearch.action.admin.indices.rollover.RolloverResponse serverResponse =
-            new org.elasticsearch.action.admin.indices.rollover.RolloverResponse(
+        org.opensearch.action.admin.indices.rollover.RolloverResponse serverResponse =
+            new org.opensearch.action.admin.indices.rollover.RolloverResponse(
                 response.getOldIndex(),
                 response.getNewIndex(),
                 response.getConditionStatus(),

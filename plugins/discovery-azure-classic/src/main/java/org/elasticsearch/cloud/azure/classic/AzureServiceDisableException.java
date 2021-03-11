@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.classic;
+package org.opensearch.cloud.azure.classic;
 
 public class AzureServiceDisableException extends IllegalStateException {
     public AzureServiceDisableException(String msg) {

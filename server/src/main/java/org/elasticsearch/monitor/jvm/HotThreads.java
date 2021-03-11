@@ -112,7 +112,7 @@ public class HotThreads {
                 methodName.equals("select")) {
                 return true;
             }
-            if (className.equals("org.elasticsearch.threadpool.ThreadPool$CachedTimeThread") &&
+            if (className.equals("org.opensearch.threadpool.ThreadPool$CachedTimeThread") &&
                 methodName.equals("run")) {
                 return true;
             }

@@ -33,7 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -27,6 +27,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.opensearch.client.RestClientTestCase;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;

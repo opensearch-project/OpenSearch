@@ -19,11 +19,11 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -57,8 +57,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;

@@ -39,7 +39,7 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;

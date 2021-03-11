@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.hamcrest;
 
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;

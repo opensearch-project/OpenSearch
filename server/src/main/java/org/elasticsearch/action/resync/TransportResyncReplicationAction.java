@@ -19,8 +19,8 @@
 package org.elasticsearch.action.resync;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -41,8 +41,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;

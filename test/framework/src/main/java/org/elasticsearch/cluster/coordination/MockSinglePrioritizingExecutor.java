@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
 

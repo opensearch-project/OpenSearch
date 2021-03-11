@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionListenerResponseHandler;
+import org.opensearch.action.ActionRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;

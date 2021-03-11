@@ -19,9 +19,9 @@
 
 package org.opensearch.script.mustache;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -39,7 +39,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute a search based on a search template.

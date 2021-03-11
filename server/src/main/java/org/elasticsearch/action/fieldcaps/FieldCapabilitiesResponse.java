@@ -20,7 +20,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;

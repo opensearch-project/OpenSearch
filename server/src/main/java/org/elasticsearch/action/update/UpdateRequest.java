@@ -21,8 +21,8 @@ package org.elasticsearch.action.update;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocWriteRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
@@ -54,7 +54,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 

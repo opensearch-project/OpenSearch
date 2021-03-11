@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.support.single.instance;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -42,8 +42,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;

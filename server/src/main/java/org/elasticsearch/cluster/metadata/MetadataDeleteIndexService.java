@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -37,9 +37,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.RestoreService;
+import org.opensearch.snapshots.SnapshotInProgressException;
+import org.opensearch.snapshots.SnapshotsService;
 
 import java.util.Arrays;
 import java.util.HashMap;

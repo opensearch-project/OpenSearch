@@ -19,9 +19,9 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -36,13 +36,13 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  *  This action can be used to add the record for the persistent action to the cluster state.

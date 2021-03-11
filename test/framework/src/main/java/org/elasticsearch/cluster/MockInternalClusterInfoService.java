@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.function.BiFunction;

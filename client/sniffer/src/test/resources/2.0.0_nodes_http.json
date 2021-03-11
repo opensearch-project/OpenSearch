@@ -1,5 +1,5 @@
 {
-  "cluster_name": "elasticsearch",
+  "cluster_name": "opensearch",
   "nodes": {
     "qr-SOrELSaGW8SlU8nflBw": {
       "name": "m1",

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,7 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

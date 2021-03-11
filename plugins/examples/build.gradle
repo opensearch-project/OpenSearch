@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.BuildParams
 
 // Subprojects aren't published so do not assemble
 gradle.projectsEvaluated {
@@ -20,8 +20,8 @@ gradle.projectsEvaluated {
 configure(project('painless-whitelist')) {
   configurations.all {
     resolutionStrategy.dependencySubstitution {
-      substitute module('org.elasticsearch.plugin:elasticsearch-scripting-painless-spi') with project(':modules:lang-painless:spi')
-      substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
+      substitute module('org.opensearch.plugin:opensearch-scripting-painless-spi') with project(':modules:lang-painless:spi')
+      substitute module('org.opensearch.test:logger-usage') with project(':test:logger-usage')
     }
   }
 }

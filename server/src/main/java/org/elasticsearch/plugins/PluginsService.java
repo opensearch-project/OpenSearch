@@ -31,7 +31,7 @@ import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.Build;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -43,7 +43,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;

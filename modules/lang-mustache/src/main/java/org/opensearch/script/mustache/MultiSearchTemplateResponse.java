@@ -21,7 +21,7 @@ package org.opensearch.script.mustache;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
