@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.grok;
+package org.opensearch.grok;
 
 import org.jcodings.specific.UTF8Encoding;
 import org.joni.Matcher;
@@ -291,7 +291,7 @@ public final class Grok {
     }
 
     /**
-     * Load built-in patterns. 
+     * Load built-in patterns.
      */
     private static Map<String, String> loadBuiltinPatterns() {
         String[] patternNames = new String[] {

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.grok;
+package org.opensearch.grok;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
