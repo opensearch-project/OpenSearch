@@ -21,6 +21,7 @@ package org.opensearch.action.admin.indices.flush;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
+import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.opensearch.action.admin.indices.flush.SyncedFlushResponse.ShardCounts;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;

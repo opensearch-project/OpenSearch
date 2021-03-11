@@ -19,6 +19,7 @@
 
 package org.opensearch.action.admin.indices.mapping.get;
 
+import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;

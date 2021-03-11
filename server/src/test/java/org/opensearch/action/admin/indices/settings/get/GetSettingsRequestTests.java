@@ -23,6 +23,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
 
 import java.io.IOException;
 

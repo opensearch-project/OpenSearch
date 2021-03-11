@@ -25,6 +25,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
+import org.opensearch.action.bulk.BulkRequestParser;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -28,6 +28,8 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.opensearch.action.admin.indices.segments.ShardSegments;
 
 import java.util.Collections;
 

@@ -27,6 +27,7 @@ import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsNodes;
 
 import java.util.Arrays;
 import java.util.Collections;

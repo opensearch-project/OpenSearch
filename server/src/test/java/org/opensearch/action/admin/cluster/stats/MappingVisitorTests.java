@@ -20,6 +20,7 @@
 package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.stats.MappingVisitor;
 
 import java.util.Arrays;
 import java.util.Collections;

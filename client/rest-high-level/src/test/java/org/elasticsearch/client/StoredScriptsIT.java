@@ -19,13 +19,13 @@ package org.elasticsearch.client;
  */
 
 import org.elasticsearch.OpenSearchStatusException;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StoredScriptSource;
 

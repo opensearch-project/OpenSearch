@@ -42,9 +42,14 @@ import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.XContentTestUtils;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
-import org.junit.Before;
+import org.opensearch.action.admin.indices.rollover.Condition;
+import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 
 import java.io.IOException;
+import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

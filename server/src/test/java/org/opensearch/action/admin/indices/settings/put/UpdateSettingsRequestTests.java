@@ -22,6 +22,7 @@ package org.opensearch.action.admin.indices.settings.put;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 
 import java.io.IOException;
 import java.util.function.Predicate;

@@ -33,6 +33,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.indices.get.GetIndexResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

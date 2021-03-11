@@ -20,6 +20,7 @@ package org.opensearch.action.admin.cluster.configuration;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 
 import java.io.IOException;
 

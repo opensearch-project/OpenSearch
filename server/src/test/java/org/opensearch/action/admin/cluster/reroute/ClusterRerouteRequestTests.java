@@ -42,6 +42,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 
 import java.io.IOException;
 import java.util.Arrays;

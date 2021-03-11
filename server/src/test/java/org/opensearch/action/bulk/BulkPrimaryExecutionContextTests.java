@@ -32,6 +32,9 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.bulk.BulkItemRequest;
+import org.opensearch.action.bulk.BulkPrimaryExecutionContext;
+import org.opensearch.action.bulk.BulkShardRequest;
 
 import java.util.ArrayList;
 

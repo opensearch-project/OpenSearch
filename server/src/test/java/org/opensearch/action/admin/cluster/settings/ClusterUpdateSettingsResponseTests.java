@@ -28,6 +28,7 @@ import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 
 import java.io.IOException;
 import java.util.List;

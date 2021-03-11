@@ -22,6 +22,7 @@ package org.opensearch.action.admin.cluster.snapshots.restore;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

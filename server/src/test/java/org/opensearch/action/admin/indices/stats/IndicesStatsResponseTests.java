@@ -29,6 +29,9 @@ import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

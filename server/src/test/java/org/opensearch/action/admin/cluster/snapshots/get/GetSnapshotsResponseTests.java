@@ -28,6 +28,7 @@ import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotInfoTests;
 import org.opensearch.snapshots.SnapshotShardFailure;
 import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

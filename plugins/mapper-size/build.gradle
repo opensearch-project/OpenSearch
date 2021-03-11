@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'The Mapper Size plugin allows document to record their uncompressed size at index time.'
-  classname 'org.elasticsearch.plugin.mapper.MapperSizePlugin'
+  classname 'org.opensearch.plugin.mapper.MapperSizePlugin'
 }
 
 restResources {

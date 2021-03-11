@@ -33,6 +33,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.NodeDisconnectedException;
+import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

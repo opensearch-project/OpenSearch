@@ -37,6 +37,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 

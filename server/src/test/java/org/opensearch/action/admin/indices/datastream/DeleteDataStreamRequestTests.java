@@ -20,6 +20,7 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction.Request;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;

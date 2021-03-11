@@ -34,6 +34,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
 
 import java.util.ArrayList;
 import java.util.List;

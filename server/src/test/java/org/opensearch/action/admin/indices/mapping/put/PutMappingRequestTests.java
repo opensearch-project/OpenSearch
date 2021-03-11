@@ -39,6 +39,8 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 
 import java.io.IOException;
 import java.util.Arrays;

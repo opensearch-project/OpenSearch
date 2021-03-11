@@ -37,6 +37,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.script.Script;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.bulk.BulkRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

@@ -41,6 +41,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 
 import java.io.IOException;
 import java.util.ArrayList;

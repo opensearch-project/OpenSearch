@@ -24,6 +24,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 
 import java.io.IOException;
 

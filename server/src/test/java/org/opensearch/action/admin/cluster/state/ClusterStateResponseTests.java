@@ -26,6 +26,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 
 public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<ClusterStateResponse> {
 

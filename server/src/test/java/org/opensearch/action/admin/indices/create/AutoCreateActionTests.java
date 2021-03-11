@@ -23,6 +23,8 @@ import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.indices.create.AutoCreateAction;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 
 import java.util.Collections;
 

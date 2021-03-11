@@ -30,6 +30,7 @@ import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 
 import java.io.IOException;
 

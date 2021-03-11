@@ -53,6 +53,10 @@ import org.opensearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
+import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 
 import java.io.IOException;
 import java.util.HashSet;

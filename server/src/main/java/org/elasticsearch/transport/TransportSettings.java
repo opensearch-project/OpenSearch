@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
+import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

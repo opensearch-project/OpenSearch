@@ -32,6 +32,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;

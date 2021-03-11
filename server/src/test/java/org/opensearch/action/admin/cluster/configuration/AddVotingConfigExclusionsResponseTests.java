@@ -19,6 +19,7 @@
 package org.opensearch.action.admin.cluster.configuration;
 
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
 
 import java.io.IOException;
 

@@ -37,6 +37,8 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 
 import java.util.ArrayList;
 import java.util.Collections;

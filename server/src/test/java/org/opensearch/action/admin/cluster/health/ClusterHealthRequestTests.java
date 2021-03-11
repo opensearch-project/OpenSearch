@@ -27,6 +27,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 
 import java.util.Locale;
 

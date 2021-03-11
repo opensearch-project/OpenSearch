@@ -27,6 +27,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.settings.SettingsUpdater;
 
 import java.util.ArrayList;
 import java.util.Collections;

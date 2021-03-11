@@ -24,6 +24,7 @@ import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 
 import java.util.ArrayList;
 import java.util.HashSet;

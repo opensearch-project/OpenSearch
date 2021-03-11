@@ -24,6 +24,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.action.support.AdapterActionFuture;
 
 import java.util.Objects;
 import java.util.concurrent.BrokenBarrierException;

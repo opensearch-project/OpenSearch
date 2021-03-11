@@ -58,6 +58,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.mockito.ArgumentCaptor;
+import org.opensearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 
 import java.util.Collections;
 import java.util.List;

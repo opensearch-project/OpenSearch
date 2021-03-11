@@ -21,6 +21,7 @@ package org.opensearch.action;
 
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.action.TaskOperationFailure;
 
 import java.io.IOException;
 

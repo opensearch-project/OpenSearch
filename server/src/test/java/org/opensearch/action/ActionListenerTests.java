@@ -21,6 +21,8 @@ package org.opensearch.action;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.ActionListener;
+
 
 import java.io.IOException;
 import java.util.ArrayList;

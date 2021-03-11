@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.rest-test'
+apply plugin: 'opensearch.test-with-dependencies'
 
 dependencies {
   testImplementation project(":client:rest-high-level")

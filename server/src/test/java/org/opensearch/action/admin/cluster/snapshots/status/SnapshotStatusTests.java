@@ -26,6 +26,9 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;

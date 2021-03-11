@@ -28,6 +28,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.StoredScriptSource;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 
 import java.io.IOException;
 import java.util.Collections;

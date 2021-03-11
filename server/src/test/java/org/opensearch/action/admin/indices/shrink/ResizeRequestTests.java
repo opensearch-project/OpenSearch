@@ -30,6 +30,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
+import org.opensearch.action.admin.indices.shrink.ResizeRequest;
 
 import java.io.IOException;
 import java.util.function.Consumer;

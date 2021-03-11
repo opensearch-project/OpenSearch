@@ -26,11 +26,11 @@ plugins {
   id 'java-test-fixtures'
 }
 
-group = 'org.elasticsearch.gradle'
+group = 'org.opensearch.gradle'
 
 String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
 if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
-  throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
+  throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build opensearch")
 }
 
 if (project == rootProject) {
@@ -47,7 +47,7 @@ if (project == rootProject) {
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
 Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
-version = props.getProperty("elasticsearch")
+version = props.getProperty("opensearch")
 
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
   outputFile = "${buildDir}/version.properties"
@@ -64,7 +64,7 @@ processResources {
  *****************************************************************************/
 
 if (JavaVersion.current() < JavaVersion.VERSION_11) {
-  throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
+  throw new GradleException('At least Java 11 is required to build opensearch gradle tools')
 }
 
 sourceSets {
@@ -142,8 +142,8 @@ if (project == rootProject) {
 // this happens when included as a normal project in the build, which we do
 // to enforce precommit checks like forbidden apis, as well as setup publishing
 if (project != rootProject) {
-  apply plugin: 'elasticsearch.build'
-  apply plugin: 'elasticsearch.publish'
+  apply plugin: 'opensearch.build'
+  apply plugin: 'opensearch.publish'
 
   allprojects {
     targetCompatibility = 10
@@ -159,7 +159,7 @@ if (project != rootProject) {
   disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
-  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
+  if (org.opensearch.gradle.info.BuildParams.inFipsJvm) {
     // We don't support running gradle with a JVM that is in FIPS 140 mode, so we don't test it.
     // WaitForHttpResourceTests tests would fail as they use JKS/PKCS12 keystores
     test.enabled = false
@@ -176,10 +176,10 @@ if (project != rootProject) {
     distribution project(':distribution:archives:oss-linux-tar')
     distribution project(':distribution:archives:oss-linux-aarch64-tar')
 
-    integTestRuntimeOnly(project(":libs:elasticsearch-core"))
+    integTestRuntimeOnly(project(":libs:opensearch-core"))
   }
 
-  // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
+  // for external projects we want to remove the marker file indicating we are running the OpenSearch project
   processResources {
     exclude 'buildSrc.marker'
     into('META-INF') {
@@ -213,10 +213,10 @@ if (project != rootProject) {
     naming.clear()
     naming {
       Tests {
-        baseClass 'org.elasticsearch.gradle.test.GradleUnitTestCase'
+        baseClass 'org.opensearch.gradle.test.GradleUnitTestCase'
       }
       IT {
-        baseClass 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
+        baseClass 'org.opensearch.gradle.test.GradleIntegrationTestCase'
       }
     }
   }
@@ -224,8 +224,8 @@ if (project != rootProject) {
   tasks.register("integTest", Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
-    maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
+    onlyIf { org.opensearch.gradle.info.BuildParams.inFipsJvm == false }
+    maxParallelForks = System.getProperty('tests.jvms', org.opensearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
   }
@@ -265,14 +265,14 @@ class VersionPropertiesLoader {
   }
 
   protected static void loadBuildSrcVersion(Properties loadedProps, Properties systemProperties) {
-    String elasticsearch = loadedProps.getProperty("elasticsearch")
-    if (elasticsearch == null) {
-      throw new IllegalStateException("Elasticsearch version is missing from properties.")
+    String opensearch = loadedProps.getProperty("opensearch")
+    if (opensearch == null) {
+      throw new IllegalStateException("OpenSearch version is missing from properties.")
     }
-    if (elasticsearch.matches("[0-9]+\\.[0-9]+\\.[0-9]+") == false) {
+    if (opensearch.matches("[0-9]+\\.[0-9]+\\.[0-9]+") == false) {
       throw new IllegalStateException(
-        "Expected elasticsearch version to be numbers only of the form  X.Y.Z but it was: " +
-          elasticsearch
+        "Expected opensearch version to be numbers only of the form  X.Y.Z but it was: " +
+          opensearch
       )
     }
     String qualifier = systemProperties.getProperty("build.version_qualifier", "");
@@ -280,12 +280,12 @@ class VersionPropertiesLoader {
       if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
         throw new IllegalStateException("Invalid qualifier: " + qualifier)
       }
-      elasticsearch += "-" + qualifier
+      opensearch += "-" + qualifier
     }
     final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
     switch (buildSnapshotSystemProperty) {
       case "true":
-        elasticsearch += "-SNAPSHOT"
+        opensearch += "-SNAPSHOT"
         break;
       case "false":
         // do nothing
@@ -294,6 +294,6 @@ class VersionPropertiesLoader {
         throw new IllegalArgumentException(
           "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]");
     }
-    loadedProps.put("elasticsearch", elasticsearch)
+    loadedProps.put("opensearch", opensearch)
   }
 }

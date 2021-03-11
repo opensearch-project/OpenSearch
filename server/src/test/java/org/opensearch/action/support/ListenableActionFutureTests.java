@@ -24,6 +24,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
+import org.opensearch.action.support.PlainListenableActionFuture;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

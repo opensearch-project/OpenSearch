@@ -39,6 +39,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 
 import java.io.IOException;
 import java.util.HashMap;

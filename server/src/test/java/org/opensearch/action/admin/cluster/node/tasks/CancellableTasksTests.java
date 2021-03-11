@@ -43,7 +43,6 @@ import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;

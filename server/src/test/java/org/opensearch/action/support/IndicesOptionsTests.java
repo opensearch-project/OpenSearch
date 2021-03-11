@@ -20,6 +20,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.Version;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.IndicesOptions.Option;
 import org.opensearch.action.support.IndicesOptions.WildcardStates;
 import org.opensearch.common.bytes.BytesReference;

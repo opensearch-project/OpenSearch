@@ -21,9 +21,9 @@ package org.elasticsearch.action.delete;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.DocWriteRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.CompositeIndicesRequest;
+import org.opensearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -36,7 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -157,7 +157,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public String type() {
         if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;                    
+            return MapperService.SINGLE_MAPPING_NAME;
         }
         return type;
     }
@@ -173,12 +173,12 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         this.type = type;
         return this;
     }
-    
+
     /**
      * Set the default type supplied to a bulk
      * request if this individual request's type is null
      * or empty
-     * 
+     *
      * @deprecated Types are in the process of being removed.
      */
     @Deprecated
@@ -188,7 +188,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             type = defaultType;
         }
         return this;
-    }    
+    }
 
     /**
      * The id of the document to delete.

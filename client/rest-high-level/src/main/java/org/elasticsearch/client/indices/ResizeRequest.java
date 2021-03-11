@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;

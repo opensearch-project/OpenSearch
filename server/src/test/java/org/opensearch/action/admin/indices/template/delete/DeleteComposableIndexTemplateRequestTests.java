@@ -21,6 +21,7 @@ package org.opensearch.action.admin.indices.template.delete;
 
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 
 import java.io.IOException;
 

@@ -76,6 +76,11 @@ import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.action.admin.indices.rollover.Condition;
+import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MetadataRolloverService;
+import org.opensearch.action.admin.indices.rollover.RolloverInfo;
+import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 
 import java.io.IOException;
 import java.util.Arrays;

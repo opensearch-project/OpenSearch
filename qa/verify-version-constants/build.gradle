@@ -17,13 +17,13 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.opensearch.gradle.Version
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
 
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {

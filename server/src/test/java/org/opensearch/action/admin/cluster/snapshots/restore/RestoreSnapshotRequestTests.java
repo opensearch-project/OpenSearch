@@ -29,6 +29,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;

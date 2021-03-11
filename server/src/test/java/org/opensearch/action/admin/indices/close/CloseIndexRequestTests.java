@@ -27,6 +27,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.action.admin.indices.close.CloseIndexRequest;
 
 public class CloseIndexRequestTests extends OpenSearchTestCase {
 

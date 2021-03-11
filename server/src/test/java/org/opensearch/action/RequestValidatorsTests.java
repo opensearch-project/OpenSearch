@@ -24,6 +24,7 @@ import org.opensearch.common.Randomness;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OptionalMatchers;
 import org.hamcrest.Matchers;
+import org.opensearch.action.RequestValidators;
 
 import java.util.ArrayList;
 import java.util.Arrays;

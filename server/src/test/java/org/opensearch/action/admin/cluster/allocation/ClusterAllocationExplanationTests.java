@@ -39,6 +39,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;

@@ -22,6 +22,7 @@ package org.opensearch.action.admin.indices.refresh;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractBroadcastResponseTestCase;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 
 import java.util.List;
 

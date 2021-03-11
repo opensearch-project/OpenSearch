@@ -27,6 +27,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.RetryableAction;
 
 import java.util.concurrent.atomic.AtomicInteger;
 

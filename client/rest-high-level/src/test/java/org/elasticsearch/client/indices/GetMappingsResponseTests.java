@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -110,8 +110,8 @@ public class GetMappingsResponseTests extends ESTestCase {
             allMappings.put(indexEntry.getKey(), mappings.build());
         }
 
-        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse serverResponse =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse(allMappings.build());
+        org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse serverResponse =
+            new org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse(allMappings.build());
 
         builder.startObject();
         serverResponse.toXContent(builder, params);

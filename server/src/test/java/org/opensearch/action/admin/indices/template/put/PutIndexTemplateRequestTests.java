@@ -27,6 +27,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

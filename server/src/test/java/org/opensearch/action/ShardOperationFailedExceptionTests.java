@@ -24,6 +24,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.ShardOperationFailedException;
 
 import java.io.IOException;
 

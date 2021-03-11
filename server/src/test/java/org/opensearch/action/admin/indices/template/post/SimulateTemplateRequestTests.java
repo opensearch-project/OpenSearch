@@ -20,6 +20,7 @@
 package org.opensearch.action.admin.indices.template.post;
 
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.template.post.SimulateTemplateAction;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.rest-test'
+apply plugin: 'opensearch.rest-resources'
 
 dependencies {
   testImplementation project(':modules:ingest-common')

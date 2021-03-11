@@ -24,6 +24,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.OriginalIndices;
 
 import java.io.IOException;
 

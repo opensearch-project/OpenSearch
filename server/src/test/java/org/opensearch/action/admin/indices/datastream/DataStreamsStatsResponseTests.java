@@ -24,6 +24,7 @@ import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 
 import java.util.ArrayList;
 import java.util.List;

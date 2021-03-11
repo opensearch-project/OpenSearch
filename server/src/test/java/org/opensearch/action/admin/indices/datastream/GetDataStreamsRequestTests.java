@@ -18,6 +18,7 @@
  */
 package org.opensearch.action.admin.indices.datastream;
 
+import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction.Request;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;

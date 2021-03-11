@@ -43,6 +43,9 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.action.admin.indices.shrink.ResizeRequest;
+import org.opensearch.action.admin.indices.shrink.ResizeType;
+import org.opensearch.action.admin.indices.shrink.TransportResizeAction;
 
 import java.util.Arrays;
 import java.util.Collections;

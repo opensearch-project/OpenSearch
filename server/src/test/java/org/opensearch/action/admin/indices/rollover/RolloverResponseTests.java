@@ -26,6 +26,11 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.action.admin.indices.rollover.Condition;
+import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.opensearch.action.admin.indices.rollover.RolloverResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

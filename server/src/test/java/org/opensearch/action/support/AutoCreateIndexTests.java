@@ -33,6 +33,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.support.AutoCreateIndex;
 
 import java.util.HashMap;
 import java.util.List;

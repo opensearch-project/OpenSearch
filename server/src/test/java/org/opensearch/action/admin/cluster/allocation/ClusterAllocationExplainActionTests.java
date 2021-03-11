@@ -37,6 +37,9 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 
 import java.time.Instant;
 import java.util.Collections;

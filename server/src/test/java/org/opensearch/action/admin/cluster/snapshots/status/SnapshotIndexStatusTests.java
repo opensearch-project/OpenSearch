@@ -27,7 +27,8 @@ import java.util.function.Predicate;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.test.AbstractXContentTestCase;
-
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 
 public class SnapshotIndexStatusTests extends AbstractXContentTestCase<SnapshotIndexStatus> {
 

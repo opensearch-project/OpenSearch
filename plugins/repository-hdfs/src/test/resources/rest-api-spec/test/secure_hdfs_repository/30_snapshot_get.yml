@@ -12,9 +12,9 @@
           type: hdfs
           settings:
             uri: "hdfs://localhost:9998"
-            path: "/user/elasticsearch/test/snapshot_get"
+            path: "/user/opensearch/test/snapshot_get"
             security:
-              principal: "elasticsearch@BUILD.ELASTIC.CO"
+              principal: "opensearch@BUILD.OPENSEARCH.CO"
 
   # Create index
   - do:
@@ -61,7 +61,7 @@
   - match: { snapshots.0.snapshot : test_snapshot_get }
 
   # Remove our snapshot
-  - do: 
+  - do:
       snapshot.delete:
         repository: test_snapshot_get_repository
         snapshot: test_snapshot_get

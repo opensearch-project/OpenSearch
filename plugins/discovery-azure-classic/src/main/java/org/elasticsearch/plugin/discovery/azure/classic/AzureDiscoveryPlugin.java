@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.discovery.azure.classic;
+package org.opensearch.plugin.discovery.azure.classic;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
-import org.elasticsearch.cloud.azure.classic.management.AzureComputeServiceImpl;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.SeedHostsProvider;
-import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.cloud.azure.classic.management.AzureComputeService;
+import org.opensearch.cloud.azure.classic.management.AzureComputeServiceImpl;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.SeedHostsProvider;
+import org.opensearch.discovery.azure.classic.AzureSeedHostsProvider;
+import org.opensearch.plugins.DiscoveryPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collections;

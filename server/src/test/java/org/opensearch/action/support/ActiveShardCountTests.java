@@ -33,6 +33,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.support.ActiveShardCount;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

@@ -17,7 +17,6 @@
  * under the License.
  */
 package org.opensearch.action.admin.cluster.node.tasks;
-
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;

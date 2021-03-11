@@ -57,6 +57,10 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.bulk.TransportBulkAction;
 
 import java.util.Arrays;
 import java.util.Collections;

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.opensearch.action.bulk;
 
 import org.opensearch.action.ActionFuture;
@@ -31,6 +32,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.bulk.Retry;
 
 import java.util.HashMap;
 import java.util.Map;

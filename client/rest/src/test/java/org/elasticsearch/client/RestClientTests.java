@@ -26,6 +26,7 @@ import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.elasticsearch.client.RestClient.NodeTuple;
+import org.opensearch.client.RestClientTestCase;
 
 import java.io.IOException;
 import java.net.URI;

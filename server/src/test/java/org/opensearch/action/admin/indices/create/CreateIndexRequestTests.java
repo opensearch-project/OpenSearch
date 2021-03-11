@@ -37,6 +37,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 
 import java.io.IOException;
 import java.util.Map;

@@ -25,6 +25,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 
 public class ClusterSearchShardsRequestTests extends OpenSearchTestCase {
 

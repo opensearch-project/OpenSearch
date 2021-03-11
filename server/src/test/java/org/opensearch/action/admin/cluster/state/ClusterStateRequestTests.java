@@ -26,6 +26,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 

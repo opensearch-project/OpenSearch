@@ -27,6 +27,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -54,7 +54,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.junit.Before;
 
 import java.util.ArrayList;
