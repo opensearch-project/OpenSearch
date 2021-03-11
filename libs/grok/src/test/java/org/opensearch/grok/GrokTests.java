@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.grok;
+package org.opensearch.grok;
 
-import org.elasticsearch.grok.GrokCaptureConfig.NativeExtracterMap;
+import org.opensearch.grok.GrokCaptureConfig.NativeExtracterMap;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -38,12 +38,12 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 
-import static org.elasticsearch.grok.GrokCaptureType.BOOLEAN;
-import static org.elasticsearch.grok.GrokCaptureType.DOUBLE;
-import static org.elasticsearch.grok.GrokCaptureType.FLOAT;
-import static org.elasticsearch.grok.GrokCaptureType.INTEGER;
-import static org.elasticsearch.grok.GrokCaptureType.LONG;
-import static org.elasticsearch.grok.GrokCaptureType.STRING;
+import static org.opensearch.grok.GrokCaptureType.BOOLEAN;
+import static org.opensearch.grok.GrokCaptureType.DOUBLE;
+import static org.opensearch.grok.GrokCaptureType.FLOAT;
+import static org.opensearch.grok.GrokCaptureType.INTEGER;
+import static org.opensearch.grok.GrokCaptureType.LONG;
+import static org.opensearch.grok.GrokCaptureType.STRING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
