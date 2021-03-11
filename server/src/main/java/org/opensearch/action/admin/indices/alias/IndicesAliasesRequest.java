@@ -23,7 +23,7 @@ import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.AliasesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.ParseField;

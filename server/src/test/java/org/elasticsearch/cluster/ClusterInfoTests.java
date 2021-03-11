@@ -25,6 +25,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.ClusterInfo;
+import org.opensearch.cluster.DiskUsage;
 
 public class ClusterInfoTests extends ESTestCase {
 

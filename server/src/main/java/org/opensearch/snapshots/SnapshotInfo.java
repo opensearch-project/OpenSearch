@@ -21,7 +21,7 @@ package org.opensearch.snapshots;
 import org.elasticsearch.Version;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;

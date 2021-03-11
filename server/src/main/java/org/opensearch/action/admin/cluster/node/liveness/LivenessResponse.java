@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.node.liveness;
 
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

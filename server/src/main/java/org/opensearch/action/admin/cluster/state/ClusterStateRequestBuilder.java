@@ -19,10 +19,10 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.action.support.IndicesOptions;
 
 public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest,
         ClusterStateResponse, ClusterStateRequestBuilder> {
@@ -71,7 +71,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.ClusterState.Custom}. Defaults
+     * Should the cluster state result include the {@link org.opensearch.cluster.ClusterState.Custom}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setCustoms(boolean filter) {
