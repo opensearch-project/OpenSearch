@@ -23,7 +23,7 @@ You can import the OpenSearch project into IntelliJ IDEA via:
  - In the subsequent dialog select **Open as Project**
 
 ###Git clone OpenSearch repo:
- git clone https://github.com/opensearch-project
+ git clone https://github.com/opensearch-project.git
 
 
 ## Project layout
@@ -109,9 +109,7 @@ specifically these lines tell you that OpenSearch is ready:
 But to be honest its typically easier to wait until the console stops scrolling
 and then run `curl` in another window like this to check if OpenSearch instance is running:
 
-RENAMEME this needs to be replaced:
-
-    curl -u elastic:password localhost:9200
+    curl -u opensearch:password localhost:9200
 
 
 ## Java Language Formatting Guidelines
@@ -161,11 +159,6 @@ Please follow these formatting guidelines:
 
 ## Editor / IDE Support
 
-**RENAMEME This will need to be replaced**
-
-Eclipse IDEs can import the file [elasticsearch.eclipseformat.xml]
-directly.
-
 IntelliJ IDEs can
 [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
 the same settings file, and / or use the [Eclipse Code
@@ -195,44 +188,12 @@ by running Gradle with `-Dspotless.paddedcell`.
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 
-## Creating A Distribution/Make a OpenSearch build
 
-Run all build commands from within the root directory:
-
-RENAMEME is this right?
-
-```sh
-cd opensearch-project/
-```
-
-To build a darwin-tar distribution, run this command:
-
-```sh
-./gradlew -p distribution/archives/darwin-tar assemble
-```
-
-You will find the distribution under:
-`./distribution/archives/darwin-tar/build/distributions/`
-
-To create all build artifacts (e.g., plugins and Javadocs) as well as
-distributions in all formats, run this command:
-
-```sh
-./gradlew assemble
-```
-
-> **NOTE:** Running the task above will fail if you don't have a available
-> Docker installation.
-
-The package distributions (Debian and RPM) can be found under:
-`./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/`
-
-The archive distributions (tar and zip) can be found under:
-`./distribution/archives/(darwin-tar|linux-tar|windows-zip|oss-darwin-tar|oss-linux-tar|oss-windows-zip)/build/distributions/`
 
 ## Running The Full Test Suite
 
-**Note:  OpenSearch hasn't made any changes to the test suite yet beyond fixing tests that broke after removing non-Apache licensed code and non-Apache licensed code checks**
+**Note:  OpenSearch hasn't made any changes to the test suite yet beyond fixing tests that broke after removing non-Apache licensed code and non-Apache licensed code checks.  Also, while we're in pre-alpha, some tests may be failing until we finish the forking process.  We should have an issue for all failing tests, but if you find one first, feel free to open one (and fix it :) ).**
+
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
@@ -355,7 +316,7 @@ We deeply appreciate everyone who takes the time to make a contribution.  We wil
 First and foremost, opening an issue and discussing your change before you make it is the best way to smooth the PR process.  This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatable with our architectual direction.
 
 Additionally:
-1) Plesae make sure you've run `./gradlew check` before submitting.  The better tested your change is, the higher our confidence will be in it.
+1) Plesae make sure you've run `./gradlew check` before submitting (or './gradlew precommit' while we're still in alpha.  The better tested your change is, the higher our confidence will be in it.
 2) Please Make sure your change includes the tests that correspond with your changes, and is formatted well.
 3) Please make sure local tests pass, add unit tests for all the new code paths introduced by your change.
 4) Please write both unit tests and integration test for your change
