@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
 
 /**
  * Cluster state update request that allows to put a mapping

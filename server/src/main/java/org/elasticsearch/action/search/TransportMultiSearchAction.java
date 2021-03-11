@@ -24,7 +24,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;

@@ -23,7 +23,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.opensearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;

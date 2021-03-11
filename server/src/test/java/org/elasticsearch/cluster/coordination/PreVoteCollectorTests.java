@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
@@ -36,6 +36,16 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
+import org.opensearch.cluster.coordination.CoordinationState;
+import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
+import org.opensearch.cluster.coordination.ElectionStrategy;
+import org.opensearch.cluster.coordination.InMemoryPersistedState;
+import org.opensearch.cluster.coordination.Join;
+import org.opensearch.cluster.coordination.NodeHealthCheckFailureException;
+import org.opensearch.cluster.coordination.PreVoteCollector;
+import org.opensearch.cluster.coordination.PreVoteRequest;
+import org.opensearch.cluster.coordination.PreVoteResponse;
+import org.opensearch.cluster.coordination.StartJoinRequest;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -46,7 +56,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.coordination.PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
+import static org.opensearch.cluster.coordination.PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
