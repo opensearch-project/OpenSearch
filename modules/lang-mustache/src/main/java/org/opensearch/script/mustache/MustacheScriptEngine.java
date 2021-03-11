@@ -26,12 +26,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.GeneralScriptException;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptEngine;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.TemplateScript;
 
 import java.io.Reader;
 import java.io.StringReader;

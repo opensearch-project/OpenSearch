@@ -26,12 +26,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Polygon;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.GeometryCollection;
+import org.opensearch.geometry.Line;
+import org.opensearch.geometry.LinearRing;
+import org.opensearch.geometry.Point;
+import org.opensearch.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

@@ -22,7 +22,7 @@ package org.opensearch.action.support;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 
 /**
  * A filter chain allowing to continue and process the transport action request

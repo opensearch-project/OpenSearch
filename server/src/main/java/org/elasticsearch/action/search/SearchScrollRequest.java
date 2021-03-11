@@ -28,8 +28,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;

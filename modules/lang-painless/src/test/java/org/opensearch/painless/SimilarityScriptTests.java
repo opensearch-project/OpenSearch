@@ -38,9 +38,9 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.opensearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.SimilarityScript;
-import org.elasticsearch.script.SimilarityWeightScript;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.SimilarityScript;
+import org.opensearch.script.SimilarityWeightScript;
 
 import java.io.IOException;
 import java.util.Collections;

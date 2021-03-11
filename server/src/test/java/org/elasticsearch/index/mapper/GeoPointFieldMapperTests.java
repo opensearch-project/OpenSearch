@@ -28,7 +28,7 @@ import org.hamcrest.CoreMatchers;
 import java.io.IOException;
 import java.util.Set;
 
-import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
+import static org.opensearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;

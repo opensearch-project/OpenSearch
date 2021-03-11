@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptFactory;
 
 import java.util.Map;
 

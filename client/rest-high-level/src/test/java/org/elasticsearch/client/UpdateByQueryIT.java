@@ -34,9 +34,9 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.tasks.RawTaskStatus;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.script.Script;
+import org.opensearch.tasks.RawTaskStatus;
+import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Collections;

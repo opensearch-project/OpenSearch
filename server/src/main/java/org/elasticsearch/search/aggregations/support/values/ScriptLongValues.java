@@ -22,8 +22,8 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
-import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.opensearch.script.AggregationScript;
+import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
 

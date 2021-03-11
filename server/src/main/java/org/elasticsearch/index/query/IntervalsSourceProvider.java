@@ -42,7 +42,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -39,8 +39,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.TermsSetQueryScript;
+import org.opensearch.script.Script;
+import org.opensearch.script.TermsSetQueryScript;
 
 import java.io.IOException;
 import java.util.ArrayList;

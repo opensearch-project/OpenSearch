@@ -23,8 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.painless.spi.Whitelist;
-import org.elasticsearch.script.NumberSortScript;
-import org.elasticsearch.script.ScriptContext;
+import org.opensearch.script.NumberSortScript;
+import org.opensearch.script.ScriptContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collections;

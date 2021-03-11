@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -18,17 +18,17 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "elasticsearch.publish"
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: "opensearch.publish"
+apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'The nio transport.'
-  classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
+  classname 'org.opensearch.transport.nio.NioTransportPlugin'
   hasClientJar = true
 }
 
 dependencies {
-  api project(':libs:elasticsearch-nio')
+  api project(':libs:opensearch-nio')
 
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"

@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
+opensearchplugin {
   description 'The Mapper Murmur3 plugin allows to compute hashes of a field\'s values at index-time and to store them in the index.'
-  classname 'org.elasticsearch.plugin.mapper.MapperMurmur3Plugin'
+  classname 'org.opensearch.plugin.mapper.MapperMurmur3Plugin'
 }
 
 restResources {

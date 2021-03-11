@@ -37,9 +37,9 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
-import org.elasticsearch.script.ScoreScript;
-import org.elasticsearch.script.ScoreScript.ExplanationHolder;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.ScoreScript;
+import org.opensearch.script.ScoreScript.ExplanationHolder;
+import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.util.Objects;
