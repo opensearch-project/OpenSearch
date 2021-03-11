@@ -42,7 +42,7 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.discovery.zen.ZenPing.PingResponse;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.opensearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;

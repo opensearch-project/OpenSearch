@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool;
+package org.opensearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -28,8 +28,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
-import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
-import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
+import static org.opensearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
+import static org.opensearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ThreadPoolTests extends ESTestCase {
@@ -95,13 +95,13 @@ public class ThreadPoolTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> factorial(between(2, 10)));
         assertThat(factorial(1), equalTo(1)); // is not called recursively
         assertThat(expectThrows(AssertionError.class, () -> factorial(between(2, 10))).getMessage(),
-            equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorial is called recursively"));
+            equalTo("org.opensearch.threadpool.ThreadPoolTests#factorial is called recursively"));
         TestThreadPool threadPool = new TestThreadPool("test");
         assertThat(factorialForked(1, threadPool.generic()), equalTo(1));
         assertThat(factorialForked(10, threadPool.generic()), equalTo(3628800));
         assertThat(expectThrows(AssertionError.class,
             () -> factorialForked(between(2, 10), EsExecutors.newDirectExecutorService())).getMessage(),
-            equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
+            equalTo("org.opensearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
         terminate(threadPool);
     }
 

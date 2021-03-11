@@ -59,7 +59,7 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.NettyByteBufSizer;
 import org.opensearch.transport.SharedGroupFactory;

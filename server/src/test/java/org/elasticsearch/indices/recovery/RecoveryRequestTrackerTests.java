@@ -24,7 +24,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.TestThreadPool;
 
 import java.util.Collection;
 import java.util.Optional;

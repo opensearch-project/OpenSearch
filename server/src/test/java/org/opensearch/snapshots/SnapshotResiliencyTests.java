@@ -187,7 +187,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;

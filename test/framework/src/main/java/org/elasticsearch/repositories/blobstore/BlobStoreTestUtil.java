@@ -51,7 +51,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
