@@ -20,8 +20,8 @@
 package org.opensearch.transport.netty4;
 
 import org.opensearch.OpenSearchNetty4IntegTestCase;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.action.admin.cluster.node.info.NodeInfo;
+import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;

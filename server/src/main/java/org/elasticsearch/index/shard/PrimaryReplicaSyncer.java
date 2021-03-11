@@ -20,9 +20,9 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
@@ -39,9 +39,9 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;

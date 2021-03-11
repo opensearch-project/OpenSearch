@@ -35,8 +35,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.Geohash;
+import org.opensearch.geometry.Rectangle;
+import org.opensearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 

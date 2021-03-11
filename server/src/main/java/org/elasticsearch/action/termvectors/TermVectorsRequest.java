@@ -21,9 +21,9 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.RealtimeRequest;
-import org.elasticsearch.action.ValidateActions;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.RealtimeRequest;
+import org.opensearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
@@ -40,7 +40,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.action.document.RestTermVectorsAction;
+import org.opensearch.rest.action.document.RestTermVectorsAction;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -25,8 +25,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.rest.action.search.RestSearchAction;
+import org.opensearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -312,8 +312,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * The {@linkplain PipelineAggregator}s sent to older versions of Elasticsearch.
-     * @deprecated only use these for serializing to older Elasticsearch versions
+     * The {@linkplain PipelineAggregator}s sent to older versions of OpenSearch.
+     * @deprecated only use these for serializing to older OpenSearch versions
      */
     @Deprecated
     public List<PipelineAggregator> pipelineAggregatorsForBwcSerialization() {

@@ -21,15 +21,15 @@ package org.elasticsearch.action.main;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {

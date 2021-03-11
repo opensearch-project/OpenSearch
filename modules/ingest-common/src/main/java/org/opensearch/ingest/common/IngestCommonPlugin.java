@@ -19,8 +19,8 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -29,16 +29,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.grok.Grok;
-import org.elasticsearch.grok.MatcherWatchdog;
+import org.opensearch.grok.Grok;
+import org.opensearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 
 import java.util.Arrays;
 import java.util.Collections;

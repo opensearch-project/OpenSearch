@@ -21,16 +21,16 @@ package org.elasticsearch.client.documentation;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.LatchedActionListener;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkProcessor;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -40,10 +40,10 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -81,11 +81,11 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 
 import java.util.Collections;
 import java.util.Date;
@@ -117,7 +117,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> jsonMap = new HashMap<>();
             jsonMap.put("user", "kimchy");
             jsonMap.put("postDate", new Date());
-            jsonMap.put("message", "trying out Elasticsearch");
+            jsonMap.put("message", "trying out OpenSearch");
             IndexRequest indexRequest = new IndexRequest("posts")
                 .id("1").source(jsonMap); // <1>
             //end::index-request-map
@@ -131,7 +131,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             {
                 builder.field("user", "kimchy");
                 builder.timeField("postDate", new Date());
-                builder.field("message", "trying out Elasticsearch");
+                builder.field("message", "trying out OpenSearch");
             }
             builder.endObject();
             IndexRequest indexRequest = new IndexRequest("posts")
@@ -146,7 +146,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 .id("1")
                 .source("user", "kimchy",
                     "postDate", new Date(),
-                    "message", "trying out Elasticsearch"); // <1>
+                    "message", "trying out OpenSearch"); // <1>
             //end::index-request-shortcut
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
@@ -158,7 +158,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             String jsonString = "{" +
                     "\"user\":\"kimchy\"," +
                     "\"postDate\":\"2013-01-30\"," +
-                    "\"message\":\"trying out Elasticsearch\"" +
+                    "\"message\":\"trying out OpenSearch\"" +
                     "}";
             request.source(jsonString, XContentType.JSON); // <3>
             //end::index-request-string
@@ -1248,7 +1248,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             IndexRequest indexRequest = new IndexRequest("posts").id("1")
                     .source("user", "kimchy",
                             "postDate", new Date(),
-                            "message", "trying out Elasticsearch");
+                            "message", "trying out OpenSearch");
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         }
@@ -1297,7 +1297,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
             Map<String, Object> sourceAsMap = getResponse.getSourceAsMap();
             assertEquals(2, sourceAsMap.size());
-            assertEquals("trying out Elasticsearch", sourceAsMap.get("message"));
+            assertEquals("trying out OpenSearch", sourceAsMap.get("message"));
             assertTrue(sourceAsMap.containsKey("postDate"));
         }
         {
@@ -1322,7 +1322,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             GetResponse getResponse = client.get(request, RequestOptions.DEFAULT);
             String message = getResponse.getField("message").getValue(); // <2>
             //end::get-request-stored
-            assertEquals("trying out Elasticsearch", message);
+            assertEquals("trying out OpenSearch", message);
             assertEquals(1, getResponse.getFields().size());
             assertNull(getResponse.getSourceInternal());
         }
@@ -1421,7 +1421,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             IndexRequest indexRequest = new IndexRequest("posts").id("1")
                 .source("user", "kimchy",
                     "postDate", new Date(),
-                    "message", "trying out Elasticsearch");
+                    "message", "trying out OpenSearch");
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         }
@@ -1463,7 +1463,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             Map<String, Object> expectSource = new HashMap<>();
             expectSource.put("user", "kimchy");
-            expectSource.put("message", "trying out Elasticsearch");
+            expectSource.put("message", "trying out OpenSearch");
             assertEquals(expectSource, source);
         }
         {
@@ -1572,13 +1572,13 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::bulk-processor-add
             IndexRequest one = new IndexRequest("posts").id("1")
                     .source(XContentType.JSON, "title",
-                            "In which order are my Elasticsearch queries executed?");
+                            "In which order are my OpenSearch queries executed?");
             IndexRequest two = new IndexRequest("posts").id("2")
                     .source(XContentType.JSON, "title",
-                            "Current status and upcoming changes in Elasticsearch");
+                            "Current status and upcoming changes in OpenSearch");
             IndexRequest three = new IndexRequest("posts").id("3")
                     .source(XContentType.JSON, "title",
-                            "The Future of Federated Search in Elasticsearch");
+                            "The Future of Federated Search in OpenSearch");
 
             bulkProcessor.add(one);
             bulkProcessor.add(two);

@@ -19,24 +19,24 @@
 package org.opensearch.ingest.common;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.grok.Grok;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.tasks.Task;
+import org.opensearch.grok.Grok;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
 

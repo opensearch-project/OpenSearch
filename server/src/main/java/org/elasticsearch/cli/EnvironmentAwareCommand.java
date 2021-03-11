@@ -26,6 +26,10 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.InternalSettingsPreparer;
+import org.opensearch.cli.Command;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.cli.Terminal;
+import org.opensearch.cli.UserException;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;

@@ -55,7 +55,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 
 import java.io.Closeable;
 import java.io.IOException;

@@ -20,7 +20,7 @@
 package org.opensearch.index.rankeval;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.block.ClusterBlockException;

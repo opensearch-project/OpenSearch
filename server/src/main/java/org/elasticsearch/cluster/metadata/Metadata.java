@@ -27,7 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.AliasesRequest;
+import org.opensearch.action.AliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.FeatureAware;
 import org.elasticsearch.cluster.Diff;
@@ -59,7 +59,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;

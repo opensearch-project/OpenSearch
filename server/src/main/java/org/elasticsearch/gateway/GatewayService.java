@@ -42,8 +42,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;

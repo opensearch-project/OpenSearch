@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.Script;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;

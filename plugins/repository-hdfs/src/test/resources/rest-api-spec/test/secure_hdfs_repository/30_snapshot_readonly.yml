@@ -12,9 +12,9 @@
           type: hdfs
           settings:
             uri: "hdfs://localhost:9998"
-            path: "/user/elasticsearch/existing/readonly-repository"
+            path: "/user/opensearch/existing/readonly-repository"
             security:
-              principal: "elasticsearch@BUILD.ELASTIC.CO"
+              principal: "opensearch@BUILD.OPENSEARCH.CO"
             readonly: true
 
   # List snapshot info

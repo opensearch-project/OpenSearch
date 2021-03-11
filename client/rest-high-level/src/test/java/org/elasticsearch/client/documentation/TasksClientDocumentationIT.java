@@ -20,20 +20,20 @@
 package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
+import org.opensearch.action.TaskOperationFailure;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.tasks.CancelTasksRequest;
 import org.elasticsearch.client.tasks.CancelTasksResponse;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.Arrays;

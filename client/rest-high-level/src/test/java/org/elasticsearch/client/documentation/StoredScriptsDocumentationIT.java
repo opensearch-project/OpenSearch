@@ -19,12 +19,12 @@ package org.elasticsearch.client.documentation;
  * under the License.
  */
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.LatchedActionListener;
+import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
@@ -35,8 +35,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.StoredScriptSource;
+import org.opensearch.script.Script;
+import org.opensearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Collections;

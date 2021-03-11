@@ -28,12 +28,12 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.opensearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -44,9 +44,9 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.WriteRequest;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.GetSourceRequest;
@@ -79,7 +79,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -1105,14 +1105,14 @@ final class RequestConverters {
             return this;
         }
 
-        Params withTaskId(org.elasticsearch.tasks.TaskId taskId) {
+        Params withTaskId(org.opensearch.tasks.TaskId taskId) {
             if (taskId != null && taskId.isSet()) {
                 return putParam("task_id", taskId.toString());
             }
             return this;
         }
 
-        Params withParentTaskId(org.elasticsearch.tasks.TaskId parentTaskId) {
+        Params withParentTaskId(org.opensearch.tasks.TaskId parentTaskId) {
             if (parentTaskId != null && parentTaskId.isSet()) {
                 return putParam("parent_task_id", parentTaskId.toString());
             }

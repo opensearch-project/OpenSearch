@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDeci
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Collections;

@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.script.FieldScript;
+import org.opensearch.script.FieldScript;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;

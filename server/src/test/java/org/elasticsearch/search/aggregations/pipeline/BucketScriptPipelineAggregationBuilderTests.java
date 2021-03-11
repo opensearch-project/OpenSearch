@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.script.Script;
+import org.opensearch.script.Script;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 
 import java.util.HashMap;
@@ -42,7 +42,7 @@ public class BucketScriptPipelineAggregationBuilderTests extends BasePipelineAgg
     }
 
     public void testNoParent() {
-        assertThat(validate(emptyList(), new BucketScriptPipelineAggregationBuilder("foo", emptyMap(), new Script("foo"))), 
+        assertThat(validate(emptyList(), new BucketScriptPipelineAggregationBuilder("foo", emptyMap(), new Script("foo"))),
             equalTo("Validation Failed: 1: bucket_script aggregation [foo] must be declared inside of another aggregation;"));
     }
 }

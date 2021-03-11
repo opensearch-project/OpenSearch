@@ -20,7 +20,7 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -34,8 +34,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;

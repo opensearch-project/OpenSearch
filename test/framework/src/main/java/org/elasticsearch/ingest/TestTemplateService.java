@@ -20,16 +20,16 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.TemplateScript;
 
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
+import static org.opensearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
 public class TestTemplateService extends ScriptService {
     private boolean compilationException;

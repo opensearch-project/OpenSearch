@@ -19,21 +19,21 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActions;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
+import static org.opensearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 

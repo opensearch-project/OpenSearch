@@ -37,10 +37,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.RepositoryOperation;
-import org.elasticsearch.snapshots.InFlightShardSnapshotStates;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.opensearch.snapshots.InFlightShardSnapshotStates;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -52,9 +52,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
+import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
 
-import static org.elasticsearch.snapshots.SnapshotInfo.DATA_STREAMS_IN_SNAPSHOT;
+import static org.opensearch.snapshots.SnapshotInfo.DATA_STREAMS_IN_SNAPSHOT;
 
 /**
  * Meta data about snapshots that are currently executing

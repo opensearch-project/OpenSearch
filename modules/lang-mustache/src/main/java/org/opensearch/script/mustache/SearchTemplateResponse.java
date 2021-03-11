@@ -19,7 +19,7 @@
 
 package org.opensearch.script.mustache;
 
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;

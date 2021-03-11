@@ -19,7 +19,7 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,17 +30,17 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.AbstractRestChannel;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.AbstractRestChannel;
+import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.tasks.Task.X_OPAQUE_ID;
+import static org.opensearch.tasks.Task.X_OPAQUE_ID;
 
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest

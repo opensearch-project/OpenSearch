@@ -20,8 +20,8 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
@@ -52,8 +52,8 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;

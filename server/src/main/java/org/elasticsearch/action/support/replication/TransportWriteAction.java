@@ -21,12 +21,12 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.WriteResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -45,7 +45,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicBoolean;

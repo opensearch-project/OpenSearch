@@ -19,9 +19,9 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.FailedNodeException;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -38,7 +38,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;

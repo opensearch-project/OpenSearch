@@ -18,32 +18,32 @@
  */
 package org.elasticsearch.plugin.noop.action.bulk;
 
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.BytesRestResponse;
+import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.OK;
+import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.PUT;
+import static org.opensearch.rest.RestStatus.OK;
 
 public class RestNoopBulkAction extends BaseRestHandler {
 

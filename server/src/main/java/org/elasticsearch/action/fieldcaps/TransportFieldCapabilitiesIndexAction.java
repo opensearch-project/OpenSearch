@@ -22,13 +22,13 @@ package org.elasticsearch.action.fieldcaps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -53,8 +53,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.tasks.Task;
+import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -70,7 +70,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;
 
 public class TransportFieldCapabilitiesIndexAction
         extends HandledTransportAction<FieldCapabilitiesIndexRequest, FieldCapabilitiesIndexResponse> {

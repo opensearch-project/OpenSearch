@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.action.support.RetryableAction;
+import org.opensearch.action.support.RetryableAction;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.dissect.DissectException;
+import org.opensearch.dissect.DissectException;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;

@@ -19,10 +19,11 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.opensearch.action.admin.indices.get.GetIndexResponse;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
@@ -50,7 +51,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptService;
+import org.opensearch.script.MockScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;
@@ -344,7 +345,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      *
-     * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
+     * @param timeout time out value to set on {@link ClusterHealthRequest}
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()

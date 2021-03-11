@@ -19,9 +19,9 @@
 package org.opensearch.transport.netty4;
 
 import org.opensearch.OpenSearchNetty4IntegTestCase;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.info.NodeInfo;
+import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -41,7 +41,7 @@ import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Locale;
 
-import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.TRANSPORT;
+import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.TRANSPORT;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;

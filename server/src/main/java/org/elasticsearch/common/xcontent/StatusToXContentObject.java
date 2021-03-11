@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 /**
  * Objects that can both render themselves in as json/yaml/etc and can provide a {@link RestStatus} for their response. Usually should be

@@ -27,9 +27,9 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.ArrayList;

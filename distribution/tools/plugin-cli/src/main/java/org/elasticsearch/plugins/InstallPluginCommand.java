@@ -39,9 +39,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
+import org.opensearch.cli.ExitCodes;
+import org.opensearch.cli.Terminal;
+import org.opensearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -89,7 +89,7 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to install a plugin into elasticsearch.

@@ -20,12 +20,12 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.RoutingMissingException;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -55,9 +55,9 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.opensearch.tasks.Task;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -65,8 +65,8 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
-import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
-import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.wrapBulkResponse;
+import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.wrapBulkResponse;
 
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 

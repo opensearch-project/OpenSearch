@@ -20,32 +20,32 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
+import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.RestoreInfo;
-import org.elasticsearch.snapshots.SnapshotInfo;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.snapshots.RestoreInfo;
+import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -110,7 +110,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(), equalTo(
-            "Elasticsearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]"));
+            "OpenSearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]"));
     }
 
     public void testSnapshotDeleteRepository() throws IOException {

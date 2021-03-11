@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.Script;
 
 public abstract class AbstractBulkIndexByScrollRequestBuilder<
                 Request extends AbstractBulkIndexByScrollRequest<Request>,

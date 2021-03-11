@@ -26,8 +26,8 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.opensearch.geometry.utils.Geohash;
+import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
 import java.time.Instant;
