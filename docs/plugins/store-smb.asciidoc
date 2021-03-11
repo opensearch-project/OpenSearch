@@ -14,7 +14,7 @@ open index segment files is with a write only flag. This is the _correct_ way to
 used for writes and allows different FS implementations to optimize for it. Sadly, in windows with SMB, this disables
 the cache manager, causing writes to be slow. This has been described in
 https://issues.apache.org/jira/browse/LUCENE-6176[LUCENE-6176], but it affects each and every Java program out there!.
-This need and must be fixed outside of ES and/or Lucene, either in windows or OpenJDK. For now, we are providing an
+This need and must be fixed outside of {opensearch} and/or Lucene, either in windows or OpenJDK. For now, we are providing an
 experimental support to open the files with read flag, but this should be considered experimental and the correct way
 to fix it is in OpenJDK or Windows.
 
