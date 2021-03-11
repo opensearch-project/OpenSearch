@@ -995,8 +995,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UNKNOWN_VERSION_ADDED),
         STATUS_EXCEPTION(org.elasticsearch.OpenSearchStatusException.class, org.elasticsearch.OpenSearchStatusException::new, 145,
             UNKNOWN_VERSION_ADDED),
-        TASK_CANCELLED_EXCEPTION(org.elasticsearch.tasks.TaskCancelledException.class,
-            org.elasticsearch.tasks.TaskCancelledException::new, 146, UNKNOWN_VERSION_ADDED),
+        TASK_CANCELLED_EXCEPTION(org.opensearch.tasks.TaskCancelledException.class,
+            org.opensearch.tasks.TaskCancelledException::new, 146, UNKNOWN_VERSION_ADDED),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(org.elasticsearch.env.ShardLockObtainFailedException.class,
                                            org.elasticsearch.env.ShardLockObtainFailedException::new, 147, UNKNOWN_VERSION_ADDED),
         // 148 was UnknownNamedObjectException

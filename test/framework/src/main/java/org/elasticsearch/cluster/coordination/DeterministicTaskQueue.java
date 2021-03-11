@@ -25,9 +25,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPoolInfo;
+import org.opensearch.threadpool.ThreadPoolStats;
 
 import java.util.ArrayList;
 import java.util.Collection;

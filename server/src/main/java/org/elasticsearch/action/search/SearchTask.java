@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.TaskId;
 
 import java.util.Map;
 import java.util.function.Supplier;
