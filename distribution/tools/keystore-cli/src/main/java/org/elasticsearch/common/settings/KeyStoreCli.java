@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
-import org.elasticsearch.cli.Terminal;
+import org.opensearch.cli.Terminal;
 
 /**
  * A cli tool for managing secrets in the elasticsearch keystore.

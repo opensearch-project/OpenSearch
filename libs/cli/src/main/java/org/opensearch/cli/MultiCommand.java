@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cli;
+package org.opensearch.cli;
 
 import joptsimple.NonOptionArgumentSpec;
 import joptsimple.OptionSet;

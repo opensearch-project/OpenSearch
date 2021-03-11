@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cli;
+package org.opensearch.cli;
 
 import org.elasticsearch.common.Nullable;
 
