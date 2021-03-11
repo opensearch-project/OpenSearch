@@ -1002,8 +1002,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         // 148 was UnknownNamedObjectException
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
             MultiBucketConsumerService.TooManyBucketsException::new, 149, Version.V_6_2_0),
-        COORDINATION_STATE_REJECTED_EXCEPTION(CoordinationStateRejectedException.class,
-            CoordinationStateRejectedException::new, 150, Version.V_7_0_0),
+        COORDINATION_STATE_REJECTED_EXCEPTION(org.opensearch.cluster.coordination.CoordinationStateRejectedException.class,
+            org.opensearch.cluster.coordination.CoordinationStateRejectedException::new, 150, Version.V_7_0_0),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(org.opensearch.snapshots.SnapshotInProgressException.class,
             org.opensearch.snapshots.SnapshotInProgressException::new, 151, Version.V_6_7_0),
         NO_SUCH_REMOTE_CLUSTER_EXCEPTION(org.elasticsearch.transport.NoSuchRemoteClusterException.class,
