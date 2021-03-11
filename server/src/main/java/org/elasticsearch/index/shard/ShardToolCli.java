@@ -19,7 +19,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
-import org.elasticsearch.cli.Terminal;
+import org.opensearch.cli.Terminal;
 
 /**
  * Class encapsulating and dispatching commands from the {@code elasticsearch-shard} command line tool
