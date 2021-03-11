@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.TransportException;
@@ -44,7 +45,7 @@ public abstract class Publication {
 
     private final List<PublicationTarget> publicationTargets;
     private final PublishRequest publishRequest;
-    private final ClusterStatePublisher.AckListener ackListener;
+    private final AckListener ackListener;
     private final LongSupplier currentTimeSupplier;
     private final long startTime;
 
@@ -52,7 +53,7 @@ public abstract class Publication {
     private boolean isCompleted; // set when publication is completed
     private boolean cancelled; // set when publication is cancelled
 
-    public Publication(PublishRequest publishRequest, ClusterStatePublisher.AckListener ackListener, LongSupplier currentTimeSupplier) {
+    public Publication(PublishRequest publishRequest, AckListener ackListener, LongSupplier currentTimeSupplier) {
         this.publishRequest = publishRequest;
         this.ackListener = ackListener;
         this.currentTimeSupplier = currentTimeSupplier;

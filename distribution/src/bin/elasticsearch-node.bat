@@ -3,8 +3,8 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set ES_MAIN_CLASS=NodeToolCli
-call "%~dp0elasticsearch-cli.bat" ^
+set ES_MAIN_CLASS=org.opensearch.cluster.coordination.NodeToolCli
+call "%~dp0opensearch-cli.bat" ^
   %%* ^
   || goto exit
 

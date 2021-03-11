@@ -18,6 +18,8 @@
  */
 package org.opensearch.cluster.coordination;
 
+import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
@@ -29,8 +31,8 @@ public abstract class ElectionStrategy {
     public static final ElectionStrategy DEFAULT_INSTANCE = new ElectionStrategy() {
         @Override
         protected boolean satisfiesAdditionalQuorumConstraints(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm,
-                                                               long localAcceptedVersion, CoordinationMetadata.VotingConfiguration lastCommittedConfiguration,
-                                                               CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration, CoordinationState.VoteCollection joinVotes) {
+                                                               long localAcceptedVersion, VotingConfiguration lastCommittedConfiguration,
+                                                               VotingConfiguration lastAcceptedConfiguration, VoteCollection joinVotes) {
             return true;
         }
     };
@@ -43,8 +45,8 @@ public abstract class ElectionStrategy {
      * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
      */
     public final boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
-                                          CoordinationMetadata.VotingConfiguration lastCommittedConfiguration, CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
-                                          CoordinationState.VoteCollection joinVotes) {
+                                          VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
+                                          VoteCollection joinVotes) {
         return joinVotes.isQuorum(lastCommittedConfiguration) &&
             joinVotes.isQuorum(lastAcceptedConfiguration) &&
             satisfiesAdditionalQuorumConstraints(localNode, localCurrentTerm, localAcceptedTerm, localAcceptedVersion,
@@ -66,7 +68,7 @@ public abstract class ElectionStrategy {
                                                                     long localCurrentTerm,
                                                                     long localAcceptedTerm,
                                                                     long localAcceptedVersion,
-                                                                    CoordinationMetadata.VotingConfiguration lastCommittedConfiguration,
-                                                                    CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
-                                                                    CoordinationState.VoteCollection joinVotes);
+                                                                    VotingConfiguration lastCommittedConfiguration,
+                                                                    VotingConfiguration lastAcceptedConfiguration,
+                                                                    VoteCollection joinVotes);
 }

@@ -21,6 +21,7 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -73,12 +74,12 @@ public class ClusterBootstrapService {
     private final TransportService transportService;
     private final Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier;
     private final BooleanSupplier isBootstrappedSupplier;
-    private final Consumer<CoordinationMetadata.VotingConfiguration> votingConfigurationConsumer;
+    private final Consumer<VotingConfiguration> votingConfigurationConsumer;
     private final AtomicBoolean bootstrappingPermitted = new AtomicBoolean(true);
 
     public ClusterBootstrapService(Settings settings, TransportService transportService,
                                    Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier, BooleanSupplier isBootstrappedSupplier,
-                                   Consumer<CoordinationMetadata.VotingConfiguration> votingConfigurationConsumer) {
+                                   Consumer<VotingConfiguration> votingConfigurationConsumer) {
         if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
             if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
                 throw new IllegalArgumentException("setting [" + INITIAL_MASTER_NODES_SETTING.getKey() +
@@ -187,7 +188,7 @@ public class ClusterBootstrapService {
         assert discoveryNodes.stream().noneMatch(Coordinator::isZen1Node) : discoveryNodes;
         assert unsatisfiedRequirements.size() < discoveryNodes.size() : discoveryNodes + " smaller than " + unsatisfiedRequirements;
         if (bootstrappingPermitted.compareAndSet(true, false)) {
-            doBootstrap(new CoordinationMetadata.VotingConfiguration(Stream.concat(discoveryNodes.stream().map(DiscoveryNode::getId),
+            doBootstrap(new VotingConfiguration(Stream.concat(discoveryNodes.stream().map(DiscoveryNode::getId),
                 unsatisfiedRequirements.stream().map(s -> BOOTSTRAP_PLACEHOLDER_PREFIX + s))
                 .collect(Collectors.toSet())));
         }
@@ -197,7 +198,7 @@ public class ClusterBootstrapService {
         return nodeId.startsWith(BOOTSTRAP_PLACEHOLDER_PREFIX);
     }
 
-    private void doBootstrap(CoordinationMetadata.VotingConfiguration votingConfiguration) {
+    private void doBootstrap(VotingConfiguration votingConfiguration) {
         assert transportService.getLocalNode().isMasterNode();
 
         try {

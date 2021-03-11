@@ -22,6 +22,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
@@ -178,7 +180,7 @@ public class ClusterFormationFailureHelper {
 
             assert clusterState.getLastCommittedConfiguration().isEmpty() == false;
 
-            if (clusterState.getLastCommittedConfiguration().equals(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
+            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(Locale.ROOT,
                         "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
                         foundPeers, discoveryWillContinueDescription);
@@ -193,7 +195,7 @@ public class ClusterFormationFailureHelper {
                     + describeQuorum(clusterState.getLastCommittedConfiguration());
             }
 
-            final CoordinationState.VoteCollection voteCollection = new CoordinationState.VoteCollection();
+            final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
             final String isQuorumOrNot
                 = electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), currentTerm, clusterState.term(),
@@ -206,7 +208,7 @@ public class ClusterFormationFailureHelper {
                 quorumDescription, foundPeers, isQuorumOrNot, discoveryWillContinueDescription);
         }
 
-        private String describeQuorum(CoordinationMetadata.VotingConfiguration votingConfiguration) {
+        private String describeQuorum(VotingConfiguration votingConfiguration) {
             final Set<String> nodeIds = votingConfiguration.getNodeIds();
             assert nodeIds.isEmpty() == false;
             final int requiredNodes = nodeIds.size() / 2 + 1;

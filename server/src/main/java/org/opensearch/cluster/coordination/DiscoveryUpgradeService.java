@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -92,7 +93,7 @@ public class DiscoveryUpgradeService {
     private final BooleanSupplier isBootstrappedSupplier;
     private final JoinHelper joinHelper;
     private final Supplier<Iterable<DiscoveryNode>> peersSupplier;
-    private final Consumer<CoordinationMetadata.VotingConfiguration> initialConfigurationConsumer;
+    private final Consumer<VotingConfiguration> initialConfigurationConsumer;
     private final TimeValue bwcPingTimeout;
     private final boolean enableUnsafeBootstrappingOnUpgrade;
     private final ClusterName clusterName;
@@ -103,7 +104,7 @@ public class DiscoveryUpgradeService {
     public DiscoveryUpgradeService(Settings settings, TransportService transportService,
                                    BooleanSupplier isBootstrappedSupplier, JoinHelper joinHelper,
                                    Supplier<Iterable<DiscoveryNode>> peersSupplier,
-                                   Consumer<CoordinationMetadata.VotingConfiguration> initialConfigurationConsumer) {
+                                   Consumer<VotingConfiguration> initialConfigurationConsumer) {
         assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : "remove this service once unsafe upgrades are no longer needed";
         this.transportService = transportService;
         this.isBootstrappedSupplier = isBootstrappedSupplier;
@@ -225,7 +226,7 @@ public class DiscoveryUpgradeService {
                                     nodeIds.add(knownNodeIdIterator.next());
                                 }
 
-                                final CoordinationMetadata.VotingConfiguration votingConfiguration = new CoordinationMetadata.VotingConfiguration(nodeIds);
+                                final VotingConfiguration votingConfiguration = new VotingConfiguration(nodeIds);
                                 assert votingConfiguration.hasQuorum(
                                     discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList()));
                                 assert 2 * minimumMasterNodes - 2 <= nodeIds.size() : nodeIds + " too small for " + minimumMasterNodes;
