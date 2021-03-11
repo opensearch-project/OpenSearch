@@ -12,7 +12,7 @@
           type: hdfs
           settings:
             uri: "hdfs://localhost:9999"
-            path: "/user/elasticsearch/existing/readonly-repository"
+            path: "/user/opensearch/existing/readonly-repository"
             readonly: true
 
   # List snapshot info

@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.LoggedExec
+import org.opensearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -19,12 +19,12 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
-  classname 'org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
+  classname 'org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
 }
 
 versions << [
