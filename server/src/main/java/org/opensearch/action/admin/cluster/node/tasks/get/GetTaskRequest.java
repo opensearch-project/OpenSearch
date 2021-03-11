@@ -24,7 +24,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 

@@ -26,11 +26,11 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskListener;
-import org.elasticsearch.tasks.TaskManager;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskListener;
+import org.opensearch.tasks.TaskManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
 

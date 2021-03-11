@@ -35,8 +35,8 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.tasks.RawTaskStatus;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.RawTaskStatus;
+import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Collections;

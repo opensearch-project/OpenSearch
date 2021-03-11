@@ -34,8 +34,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.function.Predicate;
 

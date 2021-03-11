@@ -21,7 +21,7 @@ package org.elasticsearch.client.tasks;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskInfo;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
