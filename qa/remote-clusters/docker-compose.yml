@@ -1,25 +1,25 @@
 # Only used for testing the docker images
 version: '3.7'
 services:
-  elasticsearch-default-1:
-    image: elasticsearch:test
+  opensearch-default-1:
+    image: opensearch:test
     environment:
-       - node.name=elasticsearch-default-1
-       - cluster.initial_master_nodes=elasticsearch-default-1
-       - cluster.name=elasticsearch-default-1
+       - node.name=opensearch-default-1
+       - cluster.initial_master_nodes=opensearch-default-1
+       - cluster.name=opensearch-default-1
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-       - path.repo=/tmp/es-repo
+       - path.repo=/tmp/opensearch-repo
        - node.attr.testattr=test
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/repo:/tmp/es-repo
-       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
-       - ./build/logs/default-1:/usr/share/elasticsearch/logs
+       - ./build/repo:/tmp/opensearch-repo
+       - ./build/certs/testnode.jks:/usr/share/opensearch/config/testnode.jks
+       - ./build/logs/default-1:/usr/share/opensearch/logs
        - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:
       - "9200"
@@ -38,25 +38,25 @@ services:
       interval: 10s
       timeout: 2s
       retries: 5
-  elasticsearch-default-2:
-    image: elasticsearch:test
+  opensearch-default-2:
+    image: opensearch:test
     environment:
-       - node.name=elasticsearch-default-2
-       - cluster.initial_master_nodes=elasticsearch-default-2
-       - cluster.name=elasticsearch-default-2
+       - node.name=opensearch-default-2
+       - cluster.initial_master_nodes=opensearch-default-2
+       - cluster.name=opensearch-default-2
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-       - path.repo=/tmp/es-repo
+       - path.repo=/tmp/opensearch-repo
        - node.attr.testattr=test
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
     volumes:
-       - ./build/repo:/tmp/es-repo
-       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
-       - ./build/logs/default-2:/usr/share/elasticsearch/logs
+       - ./build/repo:/tmp/opensearch-repo
+       - ./build/certs/testnode.jks:/usr/share/opensearch/config/testnode.jks
+       - ./build/logs/default-2:/usr/share/opensearch/logs
        - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:
       - "9200"

@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.build'
+apply plugin: 'opensearch.build'
 apply plugin: 'nebula.maven-base-publish'
 
-group = 'org.elasticsearch.client'
+group = 'org.opensearch.client'
 
 dependencies {
   api project(":server")

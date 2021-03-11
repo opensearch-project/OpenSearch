@@ -40,11 +40,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.opensearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * Execution context passed across the REST tests.
- * Holds the REST client used to communicate with elasticsearch.
+ * Holds the REST client used to communicate with opensearch.
  * Caches the last obtained test response and allows to stash part of it within variables
  * that can be used as input values in following requests.
  */
@@ -67,7 +67,7 @@ public class ClientYamlTestExecutionContext {
     }
 
     /**
-     * Calls an elasticsearch api with the parameters and request body provided as arguments.
+     * Calls an opensearch api with the parameters and request body provided as arguments.
      * Saves the obtained response in the execution context.
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
@@ -76,7 +76,7 @@ public class ClientYamlTestExecutionContext {
     }
 
     /**
-     * Calls an elasticsearch api with the parameters and request body provided as arguments.
+     * Calls an opensearch api with the parameters and request body provided as arguments.
      * Saves the obtained response in the execution context.
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,

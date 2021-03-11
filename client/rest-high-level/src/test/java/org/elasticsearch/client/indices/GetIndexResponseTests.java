@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -167,7 +167,7 @@ public class GetIndexResponseTests extends ESTestCase {
     }
 
     private static void toXContent(GetIndexResponse response, XContentBuilder builder) throws IOException {
-        // first we need to repackage from GetIndexResponse to org.elasticsearch.action.admin.indices.get.GetIndexResponse
+        // first we need to repackage from GetIndexResponse to org.opensearch.action.admin.indices.get.GetIndexResponse
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> allMappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
@@ -186,8 +186,8 @@ public class GetIndexResponseTests extends ESTestCase {
             defaultSettings.put(index, response.getDefaultSettings().get(index));
         }
 
-        org.elasticsearch.action.admin.indices.get.GetIndexResponse serverResponse
-            = new org.elasticsearch.action.admin.indices.get.GetIndexResponse(
+        org.opensearch.action.admin.indices.get.GetIndexResponse serverResponse
+            = new org.opensearch.action.admin.indices.get.GetIndexResponse(
                 response.getIndices(),
                 allMappings.build(),
                 aliases.build(),

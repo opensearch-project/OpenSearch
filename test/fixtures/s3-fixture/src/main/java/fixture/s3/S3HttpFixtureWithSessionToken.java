@@ -19,7 +19,7 @@
 package fixture.s3;
 
 import com.sun.net.httpserver.HttpHandler;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.util.Objects;
 

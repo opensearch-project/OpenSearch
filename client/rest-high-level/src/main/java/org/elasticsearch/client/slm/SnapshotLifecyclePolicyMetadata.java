@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Objects;

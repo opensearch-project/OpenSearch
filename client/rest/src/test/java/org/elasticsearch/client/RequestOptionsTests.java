@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.Header;
 import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
+import org.opensearch.client.RestClientTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;

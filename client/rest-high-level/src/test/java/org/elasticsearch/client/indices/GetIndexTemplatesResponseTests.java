@@ -72,8 +72,8 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
 
     public void testParsingFromEsResponse() throws IOException {
         for (int runs = 0; runs < 20; runs++) {
-            org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse esResponse =
-                new org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse(new ArrayList<>());
+            org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse esResponse =
+                new org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse(new ArrayList<>());
 
             XContentType xContentType = randomFrom(XContentType.values());
             int numTemplates = randomIntBetween(0, 32);
@@ -215,8 +215,8 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             serverIndexTemplates.add(serverTemplateBuilder.build());
 
         }
-        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse = new
-                org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
+        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse = new
+                org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
         serverResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
     }
 

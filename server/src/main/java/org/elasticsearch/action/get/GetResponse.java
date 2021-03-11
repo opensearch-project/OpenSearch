@@ -20,7 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;

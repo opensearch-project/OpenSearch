@@ -18,19 +18,19 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.info.BuildParams
 
-apply plugin: 'elasticsearch.test-with-dependencies'
-apply plugin: 'elasticsearch.jdk-download'
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.test-with-dependencies'
+apply plugin: 'opensearch.jdk-download'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.java-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
-  classname 'org.elasticsearch.index.reindex.ReindexPlugin'
+  classname 'org.opensearch.index.reindex.ReindexPlugin'
   hasClientJar = true
 }
 
@@ -53,7 +53,7 @@ test {
 
 dependencies {
   api project(":client:rest")
-  api project(":libs:elasticsearch-ssl-config")
+  api project(":libs:opensearch-ssl-config")
   // for http - testing reindex from remote
   testImplementation project(':modules:transport-netty4')
   // for parent/child testing
@@ -90,7 +90,7 @@ configurations {
 }
 
 dependencies {
-  oldesFixture project(':test:fixtures:old-elasticsearch')
+  oldesFixture project(':test:fixtures:old-opensearch')
   /* Right now we just test against the latest version of each major we expect
    * reindex-from-remote to work against. We could randomize the versions but
    * that doesn't seem worth it at this point. */
@@ -139,7 +139,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       into temporaryDir
     }
 
-    Task fixture = task("oldEs${version}Fixture", type: org.elasticsearch.gradle.test.AntFixture) {
+    Task fixture = task("oldEs${version}Fixture", type: org.opensearch.gradle.test.AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy
       dependsOn unzip
       executable = "${BuildParams.runtimeJavaHome}/bin/java"

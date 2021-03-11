@@ -22,7 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.opensearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;

@@ -18,8 +18,8 @@
  */
 package org.opensearch.script.mustache;
 
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;

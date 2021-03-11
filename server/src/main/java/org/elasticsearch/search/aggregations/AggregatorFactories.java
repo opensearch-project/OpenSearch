@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -208,7 +208,7 @@ public class AggregatorFactories {
         for (int i = 0; i < factories.length; i++) {
             /*
              * Top level aggs only collect from owningBucketOrd 0 which is
-             * *exactly* what CardinalityUpperBound.ONE *means*.  
+             * *exactly* what CardinalityUpperBound.ONE *means*.
              */
             Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
             Profilers profilers = factory.context().getProfilers();

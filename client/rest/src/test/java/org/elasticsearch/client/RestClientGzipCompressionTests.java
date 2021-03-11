@@ -30,6 +30,7 @@ import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.opensearch.client.RestClientTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

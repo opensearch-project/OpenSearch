@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
 
 targetCompatibility = JavaVersion.VERSION_1_8
 sourceCompatibility = JavaVersion.VERSION_1_8
 
-group = 'org.elasticsearch.client'
-archivesBaseName = 'elasticsearch-rest-client-sniffer'
+group = 'org.opensearch.client'
+archivesBaseName = 'opensearch-rest-client-sniffer'
 
 dependencies {
   api project(":client:rest")
@@ -36,8 +36,8 @@ dependencies {
   testImplementation project(":client:test")
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.elasticsearch:securemock:${versions.securemock}"
-  testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testImplementation "org.opensearch:securemock:${versions.securemock}"
+  testImplementation "org.opensearch:mocksocket:${versions.mocksocket}"
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -59,14 +59,14 @@ tasks.named("dependencyLicenses").configure {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:elasticsearch-core
+// TODO: Not anymore. Now in :libs:opensearch-core
 jarHell.enabled = false
 
 testingConventions {
   naming.clear()
   naming {
     Tests {
-      baseClass 'org.elasticsearch.client.RestClientTestCase'
+      baseClass 'org.opensearch.client.RestClientTestCase'
     }
   }
 }
