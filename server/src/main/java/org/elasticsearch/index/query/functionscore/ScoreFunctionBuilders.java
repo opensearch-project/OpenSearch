@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 
 import static java.util.Collections.emptyMap;
 
@@ -78,7 +78,7 @@ public class ScoreFunctionBuilders {
     public static RandomScoreFunctionBuilder randomFunction() {
         return new RandomScoreFunctionBuilder();
     }
-    
+
     public static WeightBuilder weightFactorFunction(float weight) {
         return (WeightBuilder)(new WeightBuilder().setWeight(weight));
     }

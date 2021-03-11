@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.azure.classic;
+package org.opensearch.discovery.azure.classic;
 
 import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
 import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
@@ -25,20 +25,20 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.mocksocket.MockHttpServer;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.bootstrap.JavaVersion;
+import org.opensearch.cloud.azure.classic.management.AzureComputeService;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.env.Environment;
+import org.opensearch.mocksocket.MockHttpServer;
+import org.opensearch.node.Node;
+import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;

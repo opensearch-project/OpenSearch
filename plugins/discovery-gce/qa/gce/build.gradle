@@ -18,13 +18,13 @@
  */
 
 
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.AntFixture
+import org.opensearch.gradle.MavenFilteringHack
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.AntFixture
 
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.yaml-rest-test'
 
 final int gceNumberOfNodes = 3
 
@@ -43,7 +43,7 @@ task gceFixture(type: AntFixture) {
   dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
   env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/yamlRestTest-1/config/unicast_hosts.txt"
+  args 'org.opensearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/yamlRestTest-1/config/unicast_hosts.txt"
 }
 
 Map<String, Object> expansions = [

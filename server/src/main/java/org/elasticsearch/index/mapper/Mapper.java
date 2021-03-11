@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 
 import java.util.Map;
 import java.util.Objects;

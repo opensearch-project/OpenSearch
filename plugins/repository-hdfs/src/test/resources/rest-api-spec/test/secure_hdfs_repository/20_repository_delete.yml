@@ -11,9 +11,9 @@
             type: hdfs
             settings:
               uri: "hdfs://localhost:9998"
-              path: "/user/elasticsearch/foo/bar"
+              path: "/user/opensearch/foo/bar"
               security:
-                principal: "elasticsearch@BUILD.ELASTIC.CO"
+                principal: "opensearch@BUILD.OPENSEARCH.CO"
 
     # Get repository
     - do:
@@ -21,7 +21,7 @@
           repository: test_repo_hdfs_1
 
     - is_true: test_repo_hdfs_1
-    - match: {test_repo_hdfs_1.settings.path : "/user/elasticsearch/foo/bar"}
+    - match: {test_repo_hdfs_1.settings.path : "/user/opensearch/foo/bar"}
 
     # Delete repository
     - do:
@@ -42,9 +42,9 @@
             type: hdfs
             settings:
               uri: "hdfs://localhost:9998"
-              path: "/user/elasticsearch/foo/bar"
+              path: "/user/opensearch/foo/bar"
               security:
-                principal: "elasticsearch@BUILD.ELASTIC.CO"
+                principal: "opensearch@BUILD.OPENSEARCH.CO"
 
     # Get repository again
     - do:

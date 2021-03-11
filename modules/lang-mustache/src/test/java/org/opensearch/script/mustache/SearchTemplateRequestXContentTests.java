@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.ScriptType;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

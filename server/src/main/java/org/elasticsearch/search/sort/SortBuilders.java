@@ -20,7 +20,7 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.script.Script;
+import org.opensearch.script.Script;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 
 /**

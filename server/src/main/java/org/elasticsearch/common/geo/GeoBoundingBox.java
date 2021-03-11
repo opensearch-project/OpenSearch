@@ -26,11 +26,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.geometry.utils.StandardValidator;
-import org.elasticsearch.geometry.utils.WellKnownText;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.Rectangle;
+import org.opensearch.geometry.ShapeType;
+import org.opensearch.geometry.utils.StandardValidator;
+import org.opensearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;

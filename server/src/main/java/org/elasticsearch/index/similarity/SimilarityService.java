@@ -40,7 +40,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ScriptService;
+import org.opensearch.script.ScriptService;
 
 import java.util.Collections;
 import java.util.HashMap;

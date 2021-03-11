@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.Scheduler;
+import org.opensearch.threadpool.Scheduler;
 import org.junit.After;
 import org.mockito.ArgumentCaptor;
 

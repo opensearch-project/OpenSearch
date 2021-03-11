@@ -27,7 +27,7 @@ import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.geometry.LinearRing;
+import org.opensearch.geometry.LinearRing;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.jts.geom.Coordinate;
@@ -55,7 +55,7 @@ public class ShapeBuilderTests extends ESTestCase {
         Point point = pb.buildS4J();
         assertEquals(-100D, point.getX(), 0.0d);
         assertEquals(45D, point.getY(), 0.0d);
-        org.elasticsearch.geometry.Point geoPoint = pb.buildGeometry();
+        org.opensearch.geometry.Point geoPoint = pb.buildGeometry();
         assertEquals(-100D, geoPoint.getX(), 0.0d);
         assertEquals(45D, geoPoint.getY(), 0.0d);
     }
@@ -68,7 +68,7 @@ public class ShapeBuilderTests extends ESTestCase {
         assertEquals(45D, rectangle.getMaxX(), 0.0d);
         assertEquals(30D, rectangle.getMaxY(), 0.0d);
 
-        org.elasticsearch.geometry.Rectangle luceneRectangle = eb.buildGeometry();
+        org.opensearch.geometry.Rectangle luceneRectangle = eb.buildGeometry();
         assertEquals(-45D, luceneRectangle.getMinX(), 0.0d);
         assertEquals(-30D, luceneRectangle.getMinY(), 0.0d);
         assertEquals(45D, luceneRectangle.getMaxX(), 0.0d);

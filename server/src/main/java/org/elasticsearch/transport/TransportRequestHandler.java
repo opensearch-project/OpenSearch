@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.tasks.Task;
+import org.opensearch.tasks.Task;
 
 public interface TransportRequestHandler<T extends TransportRequest> {
 

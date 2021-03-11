@@ -43,8 +43,8 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.tasks.TaskInfo;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 

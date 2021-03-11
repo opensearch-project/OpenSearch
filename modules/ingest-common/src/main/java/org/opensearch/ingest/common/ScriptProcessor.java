@@ -32,12 +32,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.script.DynamicMap;
-import org.elasticsearch.script.IngestScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+import org.opensearch.script.DynamicMap;
+import org.opensearch.script.IngestScript;
+import org.opensearch.script.Script;
+import org.opensearch.script.ScriptException;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 
 import java.io.InputStream;
 import java.util.Arrays;

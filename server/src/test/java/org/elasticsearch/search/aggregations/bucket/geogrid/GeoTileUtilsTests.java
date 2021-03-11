@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.geometry.Rectangle;
+import org.opensearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;

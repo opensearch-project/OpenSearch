@@ -26,8 +26,8 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
-import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.TermsSetQueryScript;
+import org.opensearch.script.GeneralScriptException;
+import org.opensearch.script.TermsSetQueryScript;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context

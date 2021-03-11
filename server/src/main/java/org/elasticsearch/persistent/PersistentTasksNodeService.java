@@ -31,10 +31,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskAwareRequest;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskAwareRequest;
+import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskManager;
 
 import java.io.IOException;
 import java.util.HashMap;

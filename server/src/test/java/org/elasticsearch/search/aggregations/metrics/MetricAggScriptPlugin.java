@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import org.elasticsearch.script.MockScriptPlugin;
+import org.opensearch.script.MockScriptPlugin;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.test.ESTestCase;
 

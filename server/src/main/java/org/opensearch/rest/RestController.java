@@ -38,7 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.usage.UsageService;
+import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

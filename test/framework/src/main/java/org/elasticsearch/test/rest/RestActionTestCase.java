@@ -28,11 +28,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.usage.UsageService;
+import org.opensearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
 
