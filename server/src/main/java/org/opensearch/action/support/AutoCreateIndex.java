@@ -19,7 +19,7 @@
 
 package org.opensearch.action.support;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;

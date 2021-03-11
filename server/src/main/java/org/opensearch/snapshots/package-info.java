@@ -25,7 +25,7 @@
  * <p>There are two communication channels between all nodes and master in the snapshot functionality:</p>
  * <ul>
  * <li>The master updates the cluster state by adding, removing or altering the contents of its custom entry
- * {@link org.elasticsearch.cluster.SnapshotsInProgress}. All nodes consume the state of the {@code SnapshotsInProgress} and will start or
+ * {@link org.opensearch.cluster.SnapshotsInProgress}. All nodes consume the state of the {@code SnapshotsInProgress} and will start or
  * abort relevant shard snapshot tasks accordingly.</li>
  * <li>Nodes that are executing shard snapshot tasks report either success or failure of their snapshot task by submitting a
  * {@link org.opensearch.snapshots.UpdateIndexShardSnapshotStatusRequest} to the master node that will update the
@@ -37,7 +37,7 @@
  * <ol>
  * <li>First the {@link org.opensearch.snapshots.SnapshotsService} determines the primary shards' assignments for all indices that are
  * being snapshotted and creates a {@code SnapshotsInProgress.Entry} with state {@code STARTED} and adds the map of
- * {@link org.elasticsearch.index.shard.ShardId} to {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus} that tracks
+ * {@link org.elasticsearch.index.shard.ShardId} to {@link org.opensearch.cluster.SnapshotsInProgress.ShardSnapshotStatus} that tracks
  * the assignment of which node is to snapshot which shard. All shard snapshots are executed on the shard's primary node. Thus all shards
  * for which the primary node was found to have a healthy copy of the shard are marked as being in state {@code INIT} in this map. If the
  * primary for a shard is unassigned, it is marked as {@code MISSING} in this map. In case the primary is initializing at this point, it is
@@ -89,7 +89,7 @@
  * <ol>
  * <li>Assuming there are no entries in the cluster state's {@code SnapshotsInProgress}, deleting a snapshot starts by the
  * {@code SnapshotsService} creating an entry for deleting the snapshot in the cluster state's
- * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress}.</li>
+ * {@link org.opensearch.cluster.SnapshotDeletionsInProgress}.</li>
  *
  * <li>Once the cluster state contains the deletion entry in {@code SnapshotDeletionsInProgress} the {@code SnapshotsService} will invoke
  * {@link org.elasticsearch.repositories.Repository#deleteSnapshots} for the given snapshot, which will remove files associated with the
@@ -109,9 +109,9 @@
  * <ol>
  *     <li>First, {@link org.opensearch.snapshots.SnapshotsService#cloneSnapshot} is invoked which will place a placeholder entry into
  *     {@code SnapshotsInProgress} that does not yet contain any shard clone assignments. Note that unlike in the case of snapshot
- *     creation, the shard level clone tasks in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#clones} are not created in the
+ *     creation, the shard level clone tasks in {@link org.opensearch.cluster.SnapshotsInProgress.Entry#clones} are not created in the
  *     initial cluster state update as is done for shard snapshot assignments in
- *     {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shards}. This is due to the fact that shard snapshot assignments are
+ *     {@link org.opensearch.cluster.SnapshotsInProgress.Entry#shards}. This is due to the fact that shard snapshot assignments are
  *     computed purely from information in the current cluster state while shard clone assignments require information to be read from the
  *     repository, which is too slow of a process to be done inside a cluster state update. Loading this information ahead of creating a
  *     task in the cluster state, runs the risk of race conditions where the source snapshot is being deleted before the clone task is
@@ -144,7 +144,7 @@
  * If multiple snapshot creation jobs are started at the same time, the data-node operations of multiple snapshots may run in parallel
  * across different shards. If multiple snapshots want to snapshot a certain shard, then the shard snapshots for that shard will be
  * executed one by one. This is enforced by the master node setting the shard's snapshot state to
- * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED} for all but one snapshot. The order of
+ * {@link org.opensearch.cluster.SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED} for all but one snapshot. The order of
  * operations on a single shard is given by the order in which the snapshots were started.
  * As soon as all shards for a given snapshot have finished, it will be finalized as explained above. Finalization will happen one snapshot
  * at a time, working in the order in which snapshots had their shards completed.
@@ -153,8 +153,8 @@
  *
  * A snapshot delete will be executed as soon as there are no more shard snapshots or snapshot finalizations executing running for a given
  * repository. Before a delete is executed on the repository it will be set to state
- * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.State#STARTED}. If it cannot be executed when it is received it will be
- * set to state {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.State#WAITING} initially.
+ * {@link org.opensearch.cluster.SnapshotDeletionsInProgress.State#STARTED}. If it cannot be executed when it is received it will be
+ * set to state {@link org.opensearch.cluster.SnapshotDeletionsInProgress.State#WAITING} initially.
  * If a delete is received for a given repository while there is already an ongoing delete for the same repository, there are two possible
  * scenarios:
  * 1. If the delete is in state {@code META_DATA} (i.e. already running on the repository) then the new delete will be added in state
@@ -162,7 +162,7 @@
  * the exact same snapshots as the already running delete. In this case no new delete operation is added and second delete request will
  * simply wait for the existing delete to return.
  * 2. If the existing delete is in state {@code WAITING} then the existing
- * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.Entry} in the cluster state will be updated to cover both the snapshots
+ * {@link org.opensearch.cluster.SnapshotDeletionsInProgress.Entry} in the cluster state will be updated to cover both the snapshots
  * in the existing delete as well as additional snapshots that may be found in the second delete request.
  *
  * In either of the above scenarios, in-progress snapshots will be aborted in the same cluster state update that adds a delete to the

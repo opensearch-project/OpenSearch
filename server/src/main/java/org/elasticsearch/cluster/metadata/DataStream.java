@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diff;
+import org.opensearch.cluster.AbstractDiffable;
+import org.opensearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

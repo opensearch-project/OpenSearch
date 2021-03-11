@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.index.Index;
 

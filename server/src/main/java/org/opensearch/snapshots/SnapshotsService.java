@@ -35,22 +35,22 @@ import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReques
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.RepositoryCleanupInProgress;
-import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateApplier;
+import org.opensearch.cluster.ClusterStateTaskConfig;
+import org.opensearch.cluster.ClusterStateTaskExecutor;
+import org.opensearch.cluster.ClusterStateTaskListener;
+import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.RepositoryCleanupInProgress;
+import org.opensearch.cluster.RestoreInProgress;
+import org.opensearch.cluster.SnapshotDeletionsInProgress;
+import org.opensearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.repositories.RepositoryShardId;
-import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
-import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
-import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.opensearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
+import org.opensearch.cluster.SnapshotsInProgress.ShardState;
+import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -117,7 +117,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
+import static org.opensearch.cluster.SnapshotsInProgress.completed;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the master node during snapshot creation and
