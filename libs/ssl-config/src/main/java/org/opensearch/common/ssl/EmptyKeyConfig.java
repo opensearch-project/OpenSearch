@@ -16,28 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "opensearch.publish"
 
-dependencies {
-  api project(':libs:opensearch-core')
+package org.opensearch.common.ssl;
 
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
-  }
+import javax.net.ssl.X509ExtendedKeyManager;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Collections;
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-}
+/**
+ * A {@link SslKeyConfig} that does nothing (provides a null key manager)
+ */
+final class EmptyKeyConfig implements SslKeyConfig {
 
+    static final EmptyKeyConfig INSTANCE = new EmptyKeyConfig();
 
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
-}
+    private EmptyKeyConfig() {
+        // Enforce a single instance
+    }
 
-forbiddenPatterns {
-  exclude '**/*.key'
-  exclude '**/*.pem'
-  exclude '**/*.p12'
-  exclude '**/*.jks'
+    @Override
+    public Collection<Path> getDependentFiles() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public X509ExtendedKeyManager createKeyManager() {
+        return null;
+    }
+
+    @Override
+    public String toString() {
+        return "empty-key-config";
+    }
 }
