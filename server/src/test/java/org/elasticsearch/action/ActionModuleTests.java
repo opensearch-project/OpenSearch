@@ -45,7 +45,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.usage.UsageService;
+import org.opensearch.usage.UsageService;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionRequest;
