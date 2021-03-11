@@ -43,7 +43,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;

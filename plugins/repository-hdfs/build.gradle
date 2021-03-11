@@ -18,22 +18,22 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.RestIntegTestTask
 
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.rest-resources'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'opensearch.test.fixtures'
+apply plugin: 'opensearch.rest-resources'
+apply plugin: 'opensearch.rest-test'
 
-esplugin {
+opensearchplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
-  classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
+  classname 'org.opensearch.repositories.hdfs.HdfsPlugin'
 }
 
 versions << [
@@ -108,7 +108,7 @@ String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
-  def tsk = project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+  def tsk = project.tasks.register(fixtureName, org.opensearch.gradle.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
@@ -218,7 +218,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
       systemProperty "java.security.krb5.conf", krb5conf
       extraConfigFile(
         "repository-hdfs/krb5.keytab",
-        file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"), IGNORE_VALUE
+        file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "opensearch.keytab")}"), IGNORE_VALUE
       )
     }
   }

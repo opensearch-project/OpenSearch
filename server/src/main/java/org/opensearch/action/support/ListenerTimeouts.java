@@ -22,8 +22,8 @@ package org.opensearch.action.support;
 import org.elasticsearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.Scheduler;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
