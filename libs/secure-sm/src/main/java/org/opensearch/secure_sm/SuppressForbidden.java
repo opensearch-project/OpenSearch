@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.secure_sm;
+package org.opensearch.secure_sm;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
