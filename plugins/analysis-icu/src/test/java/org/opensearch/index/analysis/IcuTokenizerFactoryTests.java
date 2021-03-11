@@ -92,7 +92,7 @@ public class IcuTokenizerFactoryTests extends OpenSearchTestCase {
         Files.copy(keywords, config.resolve("KeywordTokenizer.rbbi"));
         Files.copy(latin, config.resolve("Latin-dont-break-on-hyphens.rbbi"));
 
-        String json = "/org.opensearch.index/analysis/icu_analysis.json";
+        String json = "/org/opensearch/index/analysis/icu_analysis.json";
 
         Settings settings = Settings.builder()
             .loadFromStream(json, IcuTokenizerFactoryTests.class.getResourceAsStream(json), false)

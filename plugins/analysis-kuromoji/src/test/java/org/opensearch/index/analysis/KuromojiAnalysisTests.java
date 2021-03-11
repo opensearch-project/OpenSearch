@@ -210,7 +210,7 @@ public class KuromojiAnalysisTests extends OpenSearchTestCase {
         Files.createDirectory(config);
         Files.copy(empty_dict, config.resolve("empty_user_dict.txt"));
         Files.copy(dict, config.resolve("user_dict.txt"));
-        String json = "/org.opensearch.index/analysis/kuromoji_analysis.json";
+        String json = "/org/opensearch/index/analysis/kuromoji_analysis.json";
 
         Settings settings = Settings.builder()
             .loadFromStream(json, KuromojiAnalysisTests.class.getResourceAsStream(json), false)

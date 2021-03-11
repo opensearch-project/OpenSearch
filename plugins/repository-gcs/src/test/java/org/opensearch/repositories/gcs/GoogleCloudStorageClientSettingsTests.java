@@ -140,6 +140,7 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), credentials.v2());
 
         String endpoint;
+        // TODO: use openearch.co, will update once finalized
         if (randomBoolean()) {
             endpoint = randomFrom("http://www.opensearch.co", "http://metadata.google.com:88/oauth", "https://www.googleapis.com",
                     "https://www.opensearch.co:443", "http://localhost:8443", "https://www.googleapis.com/oauth/token");

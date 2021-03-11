@@ -81,7 +81,7 @@ public class GceMockUtils {
 
         URL resource = GceMockUtils.class.getResource(mockFileName);
         if (resource == null) {
-            throw new IOException("can't read [" + url + "] in src/test/resources/org.opensearch.discovery/gce");
+            throw new IOException("can't read [" + url + "] in src/test/resources/org/opensearch/discovery/gce");
         }
         try (InputStream is = FileSystemUtils.openFileURLStream(resource)) {
             final StringBuilder sb = new StringBuilder();

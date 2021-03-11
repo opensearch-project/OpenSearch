@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.not;
  * This test class uses a GCE HTTP Mock system which allows to simulate JSON Responses.
  *
  * To implement a new test you'll need to create an `instances.json` file which contains expected response
- * for a given project-id and zone under the src/test/resources/org.opensearch.discovery/gce with dir name:
+ * for a given project-id and zone under the src/test/resources/org/opensearch/discovery/gce with dir name:
  *
  * compute/v1/projects/[project-id]/zones/[zone]
  *
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.not;
  *  .put(GceComputeService.ZONE, "europe-west1-b")
  *  .build();
  *
- *  You need to create a file under `src/test/resources/org.opensearch.discovery/gce/` named:
+ *  You need to create a file under `src/test/resources/org/opensearch/discovery/gce/` named:
  *
  *  compute/v1/projects/mynewawesometest/zones/europe-west1-b/instances.json
  *

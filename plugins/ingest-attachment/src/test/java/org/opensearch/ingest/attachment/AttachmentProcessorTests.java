@@ -223,7 +223,7 @@ public class AttachmentProcessorTests extends OpenSearchTestCase {
     }
 
     public void testParseAsBytesArray() throws Exception {
-        String path = "/org.opensearch.ingest/attachment/test/sample-files/text-in-english.txt";
+        String path = "/org/opensearch/ingest/attachment/test/sample-files/text-in-english.txt";
         byte[] bytes;
         try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
             bytes = IOUtils.toByteArray(is);
@@ -338,7 +338,7 @@ public class AttachmentProcessorTests extends OpenSearchTestCase {
     }
 
     private Object getAsBinaryOrBase64(String filename) throws Exception {
-        String path = "/org.opensearch.ingest/attachment/test/sample-files/" + filename;
+        String path = "/org/opensearch/ingest/attachment/test/sample-files/" + filename;
         try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
             byte bytes[] = IOUtils.toByteArray(is);
             // behave like CBOR from time to time

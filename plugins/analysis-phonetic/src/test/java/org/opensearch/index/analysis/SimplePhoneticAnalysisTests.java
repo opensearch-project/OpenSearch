@@ -43,7 +43,7 @@ public class SimplePhoneticAnalysisTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws IOException {
-        String yaml = "/org.opensearch.index/analysis/phonetic-1.yml";
+        String yaml = "/org/opensearch/index/analysis/phonetic-1.yml";
         Settings settings = Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
