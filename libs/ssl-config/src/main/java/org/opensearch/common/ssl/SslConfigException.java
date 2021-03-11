@@ -16,28 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "opensearch.publish"
 
-dependencies {
-  api project(':libs:opensearch-core')
+package org.opensearch.common.ssl;
 
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
-  }
+/**
+ * A base exception for problems that occur while trying to configure SSL.
+ */
+public class SslConfigException extends RuntimeException {
+    public SslConfigException(String message, Exception cause) {
+        super(message, cause);
+    }
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-}
-
-
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
-}
-
-forbiddenPatterns {
-  exclude '**/*.key'
-  exclude '**/*.pem'
-  exclude '**/*.p12'
-  exclude '**/*.jks'
+    public SslConfigException(String message) {
+        super(message);
+    }
 }
