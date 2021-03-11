@@ -65,7 +65,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
     }
 
     /**
-     * Create a pre-configured token filter that may vary based on the Elasticsearch version.
+     * Create a pre-configured token filter that may vary based on the OpenSearch version.
      */
     public static PreConfiguredTokenFilter openearchVersion(String name, boolean useFilterForMultitermQueries,
             BiFunction<TokenStream, org.opensearch.Version, TokenStream> create) {
@@ -73,7 +73,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
     }
 
     /**
-     * Create a pre-configured token filter that may vary based on the Elasticsearch version.
+     * Create a pre-configured token filter that may vary based on the OpenSearch version.
      */
     public static PreConfiguredTokenFilter openearchVersion(String name, boolean useFilterForMultitermQueries,
                                                                 boolean useFilterForParsingSynonyms,
