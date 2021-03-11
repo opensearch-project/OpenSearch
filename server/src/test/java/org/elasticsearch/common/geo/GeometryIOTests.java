@@ -24,9 +24,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
-import org.elasticsearch.geometry.ShapeType;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.GeometryCollection;
+import org.opensearch.geometry.ShapeType;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.geo.GeometryTestUtils.randomGeometry;

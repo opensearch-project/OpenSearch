@@ -24,7 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.geometry.Geometry;
+import org.opensearch.geometry.Geometry;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -84,7 +84,7 @@ public final class QueryBuilders {
     public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
         return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default
     }
-    
+
     /**
      * Creates a text query with type "BOOL_PREFIX" for the provided field name and text.
      *
@@ -94,7 +94,7 @@ public final class QueryBuilders {
     public static MatchBoolPrefixQueryBuilder matchBoolPrefixQuery(String name, Object text) {
         return new MatchBoolPrefixQueryBuilder(name, text);
     }
-    
+
     /**
      * Creates a text query with type "PHRASE" for the provided field name and text.
      *
