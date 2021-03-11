@@ -19,6 +19,8 @@
 
 package org.elasticsearch.plugins;
 
+import org.opensearch.plugins.ExtendedPluginsClassLoader;
+
 import java.util.List;
 
 /**

@@ -40,11 +40,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.GeometryCollection;
+import org.opensearch.geometry.Line;
+import org.opensearch.geometry.MultiLine;
+import org.opensearch.geometry.MultiPoint;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -110,7 +110,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         Coordinate c = new Coordinate(p.lon(), p.lat());
         Point expected = GEOMETRY_FACTORY.createPoint(c);
         assertExpected(new JtsPoint(expected, SPATIAL_CONTEXT), new PointBuilder().coordinate(c), true);
-        assertExpected(new org.elasticsearch.geometry.Point(p.lon(), p.lat()), new PointBuilder().coordinate(c), false);
+        assertExpected(new org.opensearch.geometry.Point(p.lon(), p.lat()), new PointBuilder().coordinate(c), false);
         assertMalformed(new PointBuilder().coordinate(c));
     }
 
@@ -122,10 +122,10 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             coordinates.add(new Coordinate(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()));
         }
 
-        List<org.elasticsearch.geometry.Point> points = new ArrayList<>(numPoints);
+        List<org.opensearch.geometry.Point> points = new ArrayList<>(numPoints);
         for (int i = 0; i < numPoints; ++i) {
             Coordinate c = coordinates.get(i);
-            points.add(new org.elasticsearch.geometry.Point(c.x, c.y));
+            points.add(new org.opensearch.geometry.Point(c.x, c.y));
         }
 
         Geometry expectedGeom;
@@ -275,11 +275,11 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
         assertExpected(jtsGeom(expected), polygonWithHole, true);
 
-        org.elasticsearch.geometry.LinearRing hole =
-            new org.elasticsearch.geometry.LinearRing(
+        org.opensearch.geometry.LinearRing hole =
+            new org.opensearch.geometry.LinearRing(
                 new double[] {100.2d, 100.8d, 100.8d, 100.2d, 100.2d}, new double[] {0.8d, 0.8d, 0.2d, 0.2d, 0.8d});
-        org.elasticsearch.geometry.Polygon p =
-            new org.elasticsearch.geometry.Polygon(new org.elasticsearch.geometry.LinearRing(
+        org.opensearch.geometry.Polygon p =
+            new org.opensearch.geometry.Polygon(new org.opensearch.geometry.LinearRing(
                 new double[] {101d, 101d, 100d, 100d, 101d}, new double[] {0d, 1d, 1d, 0d, 0d}), Collections.singletonList(hole));
         assertExpected(p, polygonWithHole, false);
         assertMalformed(polygonWithHole);
@@ -448,7 +448,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         Rectangle expected = SPATIAL_CONTEXT.makeRectangle(r.minLon, r.maxLon, r.minLat, r.maxLat);
         assertExpected(expected, builder, true);
-        assertExpected(new org.elasticsearch.geometry.Rectangle(r.minLon, r.maxLon, r.maxLat, r.minLat), builder, false);
+        assertExpected(new org.opensearch.geometry.Rectangle(r.minLon, r.maxLon, r.maxLat, r.minLat), builder, false);
         assertMalformed(builder);
     }
 

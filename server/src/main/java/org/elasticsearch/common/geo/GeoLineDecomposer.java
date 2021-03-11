@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.MultiLine;
+import org.opensearch.geometry.Line;
+import org.opensearch.geometry.MultiLine;
 
 import java.util.Arrays;
 import java.util.List;
