@@ -28,6 +28,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
+import org.opensearch.client.RestClientTestCase;
+import org.opensearch.client.RestClientTestUtil;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -41,9 +43,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
-import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
-import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
+import static org.opensearch.client.RestClientTestUtil.getAllStatusCodes;
+import static org.opensearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
+import static org.opensearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;

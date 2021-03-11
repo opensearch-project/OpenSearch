@@ -23,9 +23,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -56,7 +56,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.index.IndexSettings.same;
 
 /**

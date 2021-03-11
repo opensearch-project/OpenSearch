@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.client.AbstractRequestTestCase;
 
 public abstract class AnalyzeRequestTests extends AbstractRequestTestCase<AnalyzeRequest, AnalyzeAction.Request> {

@@ -20,8 +20,8 @@
 package org.elasticsearch.test.rest;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;

@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.action.RestActions;
+import org.opensearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
@@ -116,11 +116,11 @@ public class CountResponseTests extends ESTestCase {
             assertEquals(originalFailure.shard(), parsedFailure.shard());
             assertEquals(originalFailure.shardId(), parsedFailure.shardId());
             String originalMsg = originalFailure.getCause().getMessage();
-            assertEquals(parsedFailure.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" +
+            assertEquals(parsedFailure.getCause().getMessage(), "OpenSearch exception [type=parsing_exception, reason=" +
                 originalMsg + "]");
             String nestedMsg = originalFailure.getCause().getCause().getMessage();
             assertEquals(parsedFailure.getCause().getCause().getMessage(),
-                "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+                "OpenSearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
         }
     }
 }

@@ -20,14 +20,14 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;

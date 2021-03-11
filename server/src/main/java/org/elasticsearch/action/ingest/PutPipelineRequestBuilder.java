@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.bytes.BytesReference;

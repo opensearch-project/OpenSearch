@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;

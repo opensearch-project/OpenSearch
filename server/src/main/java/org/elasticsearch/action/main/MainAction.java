@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.main;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class MainAction extends ActionType<MainResponse> {
 

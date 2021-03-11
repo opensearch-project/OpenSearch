@@ -21,7 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 

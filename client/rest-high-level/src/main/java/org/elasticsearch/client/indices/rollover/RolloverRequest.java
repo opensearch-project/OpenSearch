@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.client.indices.rollover;
 
-import org.elasticsearch.action.admin.indices.rollover.Condition;
-import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.opensearch.action.admin.indices.rollover.Condition;
+import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;

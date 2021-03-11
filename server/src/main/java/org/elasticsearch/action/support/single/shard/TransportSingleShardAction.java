@@ -20,14 +20,14 @@
 package org.elasticsearch.action.support.single.shard;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.TransportActions;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.NoShardAvailableActionException;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.TransportAction;
+import org.opensearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -52,7 +52,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;
 
 /**
  * A base class for operations that need to perform a read operation on a single shard copy. If the operation fails,

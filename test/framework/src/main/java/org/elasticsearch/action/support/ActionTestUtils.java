@@ -19,13 +19,15 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.TransportAction;
 
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
+import static org.opensearch.action.support.PlainActionFuture.newFuture;
 
 public class ActionTestUtils {
 

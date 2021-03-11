@@ -21,7 +21,7 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;

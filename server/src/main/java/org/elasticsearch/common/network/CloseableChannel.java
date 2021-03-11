@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;

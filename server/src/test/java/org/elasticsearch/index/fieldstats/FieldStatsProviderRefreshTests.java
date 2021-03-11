@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fieldstats;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
-import org.elasticsearch.rest.RestStatus;
+import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;

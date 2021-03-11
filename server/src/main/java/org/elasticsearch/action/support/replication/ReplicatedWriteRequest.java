@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
+import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

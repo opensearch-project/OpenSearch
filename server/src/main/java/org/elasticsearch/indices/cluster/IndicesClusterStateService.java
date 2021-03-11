@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -70,7 +70,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.snapshots.SnapshotShardsService;
+import org.opensearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;

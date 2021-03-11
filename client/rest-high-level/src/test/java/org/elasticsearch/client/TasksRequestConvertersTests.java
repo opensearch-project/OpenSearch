@@ -21,7 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.client.tasks.CancelTasksRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;

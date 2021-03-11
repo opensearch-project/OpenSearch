@@ -19,12 +19,12 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Priority;
 

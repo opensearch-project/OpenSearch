@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.transport;
 
-import org.elasticsearch.action.ActionListener;
+import org.opensearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectTransportException;

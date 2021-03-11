@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionType;
+import org.opensearch.action.ActionType;
 
 public class ReindexAction extends ActionType<BulkByScrollResponse> {
     public static final ReindexAction INSTANCE = new ReindexAction();

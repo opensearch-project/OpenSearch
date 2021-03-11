@@ -20,8 +20,8 @@
 package org.elasticsearch.search.query;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.OriginalIndices;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;

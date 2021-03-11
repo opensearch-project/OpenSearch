@@ -20,8 +20,8 @@
 package org.elasticsearch.index.replication;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;

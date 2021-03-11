@@ -48,10 +48,10 @@
  *   |                      and the indices belonging to each snapshot, N is the generation of the file
  *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
  *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
- *   |- snap-20131010.dat - SMILE serialized {@link org.elasticsearch.snapshots.SnapshotInfo} for snapshot "20131010"
+ *   |- snap-20131010.dat - SMILE serialized {@link org.opensearch.snapshots.SnapshotInfo } for snapshot "20131010"
  *   |- meta-20131010.dat - SMILE serialized {@link org.elasticsearch.cluster.metadata.Metadata} for snapshot "20131010"
  *   |                      (includes only global metadata)
- *   |- snap-20131011.dat - SMILE serialized {@link org.elasticsearch.snapshots.SnapshotInfo} for snapshot "20131011"
+ *   |- snap-20131011.dat - SMILE serialized {@link org.opensearch.snapshots.SnapshotInfo } for snapshot "20131011"
  *   |- meta-20131011.dat - SMILE serialized {@link org.elasticsearch.cluster.metadata.Metadata} for snapshot "20131011"
  *   .....
  *   |- indices/ - data for all indices
@@ -158,7 +158,7 @@
  * <h3>Initializing a Snapshot in the Repository (Mixed Version Clusters only)</h3>
  *
  * <p>In mixed version clusters that contain a node older than
- * {@link org.elasticsearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION}, creating a snapshot in the repository starts with a
+ * {@link org.opensearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION}, creating a snapshot in the repository starts with a
  * call to {@link org.elasticsearch.repositories.Repository#initializeSnapshot} which the blob store repository implements via the
  * following actions:</p>
  * <ol>
@@ -207,7 +207,7 @@
  * <li>Write a blob containing the cluster metadata to the root of the blob store repository at {@code /meta-${snapshot-uuid}.dat}</li>
  * <li>Write the metadata for each index to a blob in that index's directory at
  * {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}.dat}</li>
- * <li>Write the {@link org.elasticsearch.snapshots.SnapshotInfo} blob for the given snapshot to the key {@code /snap-${snapshot-uuid}.dat}
+ * <li>Write the {@link org.opensearch.snapshots.SnapshotInfo} blob for the given snapshot to the key {@code /snap-${snapshot-uuid}.dat}
  * directly under the repository root.</li>
  * <li>Write an updated {@code RepositoryData} blob containing the new snapshot.</li>
  * </ol>
