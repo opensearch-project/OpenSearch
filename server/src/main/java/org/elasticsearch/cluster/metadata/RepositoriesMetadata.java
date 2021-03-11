@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.repositories.RepositoryData;
+import org.opensearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.util.ArrayList;

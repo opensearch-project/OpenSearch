@@ -31,12 +31,12 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.IndexMetaDataGenerations;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.RepositoryShardId;
-import org.elasticsearch.repositories.ShardGenerations;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.IndexMetaDataGenerations;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.RepositoryShardId;
+import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 
@@ -48,7 +48,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.opensearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 
 /** A dummy repository for testing which just needs restore overridden */
 public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {

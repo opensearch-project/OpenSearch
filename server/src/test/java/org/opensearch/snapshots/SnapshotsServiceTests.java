@@ -35,8 +35,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoryShardId;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.RepositoryShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
