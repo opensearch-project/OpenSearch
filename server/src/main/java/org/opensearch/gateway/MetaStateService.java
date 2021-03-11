@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Manifest;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexGraveyard;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Manifest;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,7 +121,7 @@ public class MetaStateService {
         if (globalMetadata != null) {
             metadataBuilder = Metadata.builder(globalMetadata);
             indexGraveyard = globalMetadata.custom(IndexGraveyard.TYPE);
-            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with OpenSearch version 8.0";
         } else {
             metadataBuilder = Metadata.builder();
             indexGraveyard = IndexGraveyard.builder().build();
@@ -131,7 +131,7 @@ public class MetaStateService {
             Tuple<IndexMetadata, Long> indexMetadataAndGeneration =
                     INDEX_METADATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
                             nodeEnv.resolveIndexFolder(indexFolderName));
-            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with OpenSearch version 8.0";
             IndexMetadata indexMetadata = indexMetadataAndGeneration.v1();
             long generation = indexMetadataAndGeneration.v2();
             if (indexMetadata != null) {

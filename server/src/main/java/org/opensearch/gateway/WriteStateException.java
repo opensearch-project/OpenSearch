@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
 import java.io.IOError;
 import java.io.IOException;
