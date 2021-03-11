@@ -32,7 +32,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.usage.UsageService;
+import org.opensearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
 
