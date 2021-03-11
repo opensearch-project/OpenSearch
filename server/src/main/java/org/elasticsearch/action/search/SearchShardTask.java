@@ -21,8 +21,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.TaskId;
 
 import java.util.Map;
 

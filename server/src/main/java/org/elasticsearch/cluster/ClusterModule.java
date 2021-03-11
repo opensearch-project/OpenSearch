@@ -78,8 +78,8 @@ import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.script.ScriptMetadata;
 import org.opensearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskResultsService;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResultsService;
 
 import java.util.ArrayList;
 import java.util.Collection;

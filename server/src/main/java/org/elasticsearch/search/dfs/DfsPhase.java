@@ -29,7 +29,7 @@ import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
-import org.elasticsearch.tasks.TaskCancelledException;
+import org.opensearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.HashMap;

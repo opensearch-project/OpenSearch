@@ -21,7 +21,7 @@ package org.elasticsearch.client.tasks;
 import java.util.Objects;
 
 /**
- * client side version of a {@link org.elasticsearch.tasks.TaskId}
+ * client side version of a {@link org.opensearch.tasks.TaskId}
  */
 public class TaskId {
 

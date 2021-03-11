@@ -29,8 +29,8 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
 
 import java.util.ArrayList;
 import java.util.HashSet;

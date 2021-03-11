@@ -35,7 +35,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestBuilderListener;
 import org.opensearch.rest.action.RestToXContentListener;
-import org.elasticsearch.tasks.TaskId;
+import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;

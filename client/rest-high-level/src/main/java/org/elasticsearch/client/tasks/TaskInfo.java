@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * client side counterpart of server side
  * <p>
- * {@link org.elasticsearch.tasks.TaskInfo}
+ * {@link org.opensearch.tasks.TaskInfo}
  */
 public class TaskInfo {
 
