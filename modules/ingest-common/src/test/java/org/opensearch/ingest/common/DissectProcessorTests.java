@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.dissect.DissectException;
+import org.opensearch.dissect.DissectException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -34,7 +34,7 @@ import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocumen
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Basic tests for the {@link DissectProcessor}. See the {@link org.elasticsearch.dissect.DissectParser} test suite for a comprehensive
+ * Basic tests for the {@link DissectProcessor}. See the {@link org.opensearch.dissect.DissectParser} test suite for a comprehensive
  * set of dissect tests.
  */
 public class DissectProcessorTests extends ESTestCase {

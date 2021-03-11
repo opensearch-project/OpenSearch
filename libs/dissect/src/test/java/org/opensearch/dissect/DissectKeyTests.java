@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.dissect;
+package org.opensearch.dissect;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
