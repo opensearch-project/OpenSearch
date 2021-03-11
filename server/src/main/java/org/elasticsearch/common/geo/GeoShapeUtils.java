@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.geometry.Circle;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.Rectangle;
+import org.opensearch.geometry.Circle;
+import org.opensearch.geometry.Line;
+import org.opensearch.geometry.Point;
+import org.opensearch.geometry.Polygon;
+import org.opensearch.geometry.Rectangle;
 
 
 /**

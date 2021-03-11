@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.geometry.Geometry;
+import org.opensearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardContext;
 
 /**
