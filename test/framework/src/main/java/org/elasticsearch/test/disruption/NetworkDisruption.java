@@ -22,8 +22,7 @@ package org.elasticsearch.test.disruption;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -97,7 +96,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
      * Ensures that all nodes in the cluster are connected to each other.
      *
      * Some network disruptions may leave nodes that are not the master disconnected from each other.
-     * {@link org.elasticsearch.cluster.NodeConnectionsService} will eventually reconnect but it's
+     * {@link org.opensearch.cluster.NodeConnectionsService} will eventually reconnect but it's
      * handy to be able to ensure this happens faster
      */
     public static void ensureFullyConnectedCluster(InternalTestCluster cluster) {

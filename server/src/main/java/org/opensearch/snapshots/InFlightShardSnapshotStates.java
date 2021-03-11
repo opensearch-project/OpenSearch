@@ -20,7 +20,7 @@
 package org.opensearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.opensearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;

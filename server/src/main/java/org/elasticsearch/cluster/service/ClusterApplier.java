@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 
 import java.util.function.Supplier;
 

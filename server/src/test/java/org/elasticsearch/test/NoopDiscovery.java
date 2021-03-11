@@ -19,7 +19,7 @@
 package org.elasticsearch.test;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.discovery.Discovery;

@@ -55,6 +55,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.cluster.ClusterInfoService;
+import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.EmptyClusterInfoService;
+import org.opensearch.cluster.RestoreInProgress;
 
 import java.util.Arrays;
 import java.util.Collection;

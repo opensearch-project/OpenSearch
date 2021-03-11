@@ -25,7 +25,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;

@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;

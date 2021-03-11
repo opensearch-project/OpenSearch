@@ -36,6 +36,9 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
 
 import java.util.ArrayList;
 import java.util.Arrays;
