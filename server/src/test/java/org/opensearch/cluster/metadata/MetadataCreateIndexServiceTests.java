@@ -922,7 +922,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
             Collections.emptySet());
-        assertWarnings("Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
+        assertWarnings("Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. "
             + "Please do not specify value for setting [index.soft_deletes.enabled] of index [test].");
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         if (randomBoolean()) {

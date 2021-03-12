@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-public class ElasticsearchNodeCommandTests extends OpenSearchTestCase {
+public class OpenSearchNodeCommandTests extends OpenSearchTestCase {
 
     public void testLoadStateWithoutMissingCustoms() throws IOException {
         runLoadStateTest(false, false);

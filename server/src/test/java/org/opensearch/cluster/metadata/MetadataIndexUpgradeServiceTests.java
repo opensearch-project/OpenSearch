@@ -119,7 +119,7 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
             Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
         assertEquals(message, "The index [[foo/BOOM]] was created with version [" + indexCreated + "] " +
              "but the minimum compatible version is [" + minCompat + "]." +
-            " It should be re-indexed in Elasticsearch " + minCompat.major + ".x before upgrading to " + Version.CURRENT.toString() + ".");
+            " It should be re-indexed in OpenSearch " + minCompat.major + ".x before upgrading to " + Version.CURRENT.toString() + ".");
 
         indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
         indexUpgraded = VersionUtils.randomVersionBetween(random(), indexCreated, Version.CURRENT);

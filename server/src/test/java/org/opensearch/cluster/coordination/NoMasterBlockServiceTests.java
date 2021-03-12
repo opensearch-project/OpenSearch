@@ -42,7 +42,7 @@ public class NoMasterBlockServiceTests extends OpenSearchTestCase {
     }
 
     private void assertDeprecatedWarningEmitted() {
-        assertWarnings("[discovery.zen.no_master_block] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+        assertWarnings("[discovery.zen.no_master_block] setting was deprecated in OpenSearch and will be removed in a future release! " +
             "See the breaking changes documentation for the next major version.");
     }
 
