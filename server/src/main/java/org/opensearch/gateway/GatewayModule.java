@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.opensearch.common.inject.AbstractModule;
 
 public class GatewayModule extends AbstractModule {
 
