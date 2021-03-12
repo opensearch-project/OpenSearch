@@ -43,7 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 
-public class ElasticsearchAssertionsTests extends ESTestCase {
+public class OpenSearchAssertionsTests extends ESTestCase {
 
     public void testAssertXContentEquivalent() throws IOException {
         try (XContentBuilder original = JsonXContent.contentBuilder()) {

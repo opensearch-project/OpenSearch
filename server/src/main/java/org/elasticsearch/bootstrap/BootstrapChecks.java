@@ -386,7 +386,7 @@ final class BootstrapChecks {
     }
 
     /**
-     * Bootstrap check that the maximum file size is unlimited (otherwise Elasticsearch could run in to an I/O exception writing files).
+     * Bootstrap check that the maximum file size is unlimited (otherwise OpenSearch could run in to an I/O exception writing files).
      */
     static class MaxFileSizeCheck implements BootstrapCheck {
 
@@ -507,7 +507,7 @@ final class BootstrapChecks {
 
     /**
      * Checks if the serial collector is in use. This collector is single-threaded and devastating
-     * for performance and should not be used for a server application like Elasticsearch.
+     * for performance and should not be used for a server application like OpenSearch.
      */
     static class UseSerialGCCheck implements BootstrapCheck {
 
