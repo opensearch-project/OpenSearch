@@ -19,10 +19,10 @@
 
 package org.opensearch.cluster;
 
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.Metadata;
 
 /**
- * Interface to allow merging {@link org.elasticsearch.cluster.metadata.Metadata.Custom}.
+ * Interface to allow merging {@link org.opensearch.cluster.metadata.Metadata.Custom}.
  * When multiple Mergable Custom metadata of the same type are found (from underlying clusters), the
  * Custom metadata can be merged using {@link #merge(Metadata.Custom)}.
  *

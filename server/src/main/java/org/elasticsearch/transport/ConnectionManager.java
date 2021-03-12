@@ -20,7 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.io.Closeable;
 import java.util.Set;

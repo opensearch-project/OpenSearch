@@ -19,7 +19,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;

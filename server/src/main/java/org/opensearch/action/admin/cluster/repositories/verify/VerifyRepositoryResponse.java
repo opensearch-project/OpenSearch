@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.repositories.verify;
 
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

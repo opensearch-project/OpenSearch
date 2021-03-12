@@ -23,7 +23,7 @@ import org.opensearch.action.admin.indices.template.post.SimulateIndexTemplateAc
 import org.opensearch.action.admin.indices.template.post.SimulateIndexTemplateRequest;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;

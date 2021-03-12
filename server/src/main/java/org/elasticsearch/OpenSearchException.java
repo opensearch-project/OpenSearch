@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
@@ -942,8 +942,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.index.shard.IndexShardRecoveringException::new, 114, UNKNOWN_VERSION_ADDED),
         TRANSLOG_EXCEPTION(org.elasticsearch.index.translog.TranslogException.class,
                 org.elasticsearch.index.translog.TranslogException::new, 115, UNKNOWN_VERSION_ADDED),
-        PROCESS_CLUSTER_EVENT_TIMEOUT_EXCEPTION(org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class,
-                org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException::new, 116, UNKNOWN_VERSION_ADDED),
+        PROCESS_CLUSTER_EVENT_TIMEOUT_EXCEPTION(org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException.class,
+                org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException::new, 116, UNKNOWN_VERSION_ADDED),
         RETRY_ON_PRIMARY_EXCEPTION(ReplicationOperation.RetryOnPrimaryException.class,
                 ReplicationOperation.RetryOnPrimaryException::new, 117, UNKNOWN_VERSION_ADDED),
         ELASTICSEARCH_TIMEOUT_EXCEPTION(org.elasticsearch.OpenSearchTimeoutException.class,

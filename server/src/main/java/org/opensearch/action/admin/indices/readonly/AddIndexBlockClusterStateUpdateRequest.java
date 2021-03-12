@@ -19,7 +19,7 @@
 package org.opensearch.action.admin.indices.readonly;
 
 import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**
  * Cluster state update request that allows to add a block to one or more indices
