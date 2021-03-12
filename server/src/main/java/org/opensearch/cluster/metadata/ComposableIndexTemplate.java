@@ -42,6 +42,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonMap;
+import static org.opensearch.cluster.metadata.DataStream.TimestampField.FIXED_TIMESTAMP_FIELD;
+
 
 /**
  * An index template is comprised of a set of index patterns, an optional template, and a list of
@@ -258,7 +260,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         public String getTimestampField() {
-            return DataStream.TimestampField.FIXED_TIMESTAMP_FIELD;
+            return FIXED_TIMESTAMP_FIELD;
         }
 
         DataStreamTemplate(StreamInput in) {

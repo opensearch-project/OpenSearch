@@ -80,6 +80,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -1134,7 +1135,7 @@ public class MetadataIndexTemplateService {
 
                     if (template.getDataStreamTemplate() != null) {
                         String tsFieldName = template.getDataStreamTemplate().getTimestampField();
-                        MetadataCreateDataStreamService.validateTimestampFieldMapping(tsFieldName, mapperService);
+                        validateTimestampFieldMapping(tsFieldName, mapperService);
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

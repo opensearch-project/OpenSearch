@@ -39,7 +39,7 @@ import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockResult;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockShardResult;
 import org.opensearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
-import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.opensearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -49,6 +49,7 @@ import org.opensearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -320,7 +321,7 @@ public class MetadataIndexStateService {
      * @return a tuple of the updated cluster state, as well as the blocks that got added
      */
     static Tuple<ClusterState, Map<Index, ClusterBlock>> addIndexBlock(final Index[] indices, final ClusterState currentState,
-                                                                       final IndexMetadata.APIBlock block) {
+                                                                       final APIBlock block) {
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
 
         final Set<Index> indicesToAddBlock = new HashSet<>();
@@ -382,11 +383,11 @@ public class MetadataIndexStateService {
      * Adds an index block based on the given request, and notifies the listener upon completion.
      * Adding blocks is done in three steps:
      * - First, a temporary UUID-based block is added to the index
-     *   (see {@link #addIndexBlock(Index[], ClusterState, IndexMetadata.APIBlock)}.
+     *   (see {@link #addIndexBlock(Index[], ClusterState, APIBlock)}.
      * - Second, shards are checked to have properly applied the UUID-based block.
      *   (see {@link WaitForBlocksApplied}).
      * - Third, the temporary UUID-based block is turned into a full block
-     *   (see {@link #finalizeBlock(ClusterState, Map, Map, IndexMetadata.APIBlock)}.
+     *   (see {@link #finalizeBlock(ClusterState, Map, Map, APIBlock)}.
      * Using this three-step process ensures non-interference by other operations in case where
      * we notify successful completion here.
      */
@@ -912,7 +913,7 @@ public class MetadataIndexStateService {
     static Tuple<ClusterState, Collection<AddBlockResult>> finalizeBlock(final ClusterState currentState,
                                                                          final Map<Index, ClusterBlock> blockedIndices,
                                                                          final Map<Index, AddBlockResult> verifyResult,
-                                                                         final IndexMetadata.APIBlock block) {
+                                                                         final APIBlock block) {
 
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());

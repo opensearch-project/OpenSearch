@@ -49,6 +49,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
+
 public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexTemplateMetadata.class);
@@ -388,8 +390,8 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
                                             XContentBuilder builder,
                                             ToXContent.Params params,
                                             boolean includeTypeName) throws IOException {
-            Metadata.XContentContext context = params.param(Metadata.CONTEXT_MODE_PARAM) != null ? Metadata.XContentContext.valueOf(
-                params.param(Metadata.CONTEXT_MODE_PARAM)) : null;
+            Metadata.XContentContext context = params.param(CONTEXT_MODE_PARAM) != null ? Metadata.XContentContext.valueOf(
+                params.param(CONTEXT_MODE_PARAM)) : null;
 
             builder.field("order", indexTemplateMetadata.order());
             if (indexTemplateMetadata.version() != null) {

@@ -102,6 +102,15 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
+
 
 /**
  * Service responsible for submitting create index requests
@@ -715,27 +724,27 @@ public class MetadataCreateIndexService {
             final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
             indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
         }
-        if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
+        if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
             final int numberOfShards;
-            if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(settings)) {
-                numberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
+            if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(settings)) {
+                numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
             } else {
                 numberOfShards = getNumberOfShards(indexSettingsBuilder);
             }
-            indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards);
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
         }
-        if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
-            indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+        if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
         }
-        if (settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS) == null) {
-            indexSettingsBuilder.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+        if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
+            indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
         }
 
-        if (indexSettingsBuilder.get(IndexMetadata.SETTING_CREATION_DATE) == null) {
-            indexSettingsBuilder.put(IndexMetadata.SETTING_CREATION_DATE, Instant.now().toEpochMilli());
+        if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
+            indexSettingsBuilder.put(SETTING_CREATION_DATE, Instant.now().toEpochMilli());
         }
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
-        indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+        indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -783,7 +792,7 @@ public class MetadataCreateIndexService {
      * it will return the value configured for that index.
      */
     static int getIndexNumberOfRoutingShards(Settings indexSettings, @Nullable IndexMetadata sourceMetadata) {
-        final int numTargetShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
+        final int numTargetShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
         final Version indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
         final int routingNumShards;
         if (sourceMetadata == null || sourceMetadata.getNumberOfShards() == 1) {
