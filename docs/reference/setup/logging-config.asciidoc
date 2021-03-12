@@ -139,7 +139,7 @@ documentation].
 [[configuring-logging-levels]]
 === Configuring logging levels
 
-Each Java package in the {es-repo}[{es} source code] has a related logger. For
+Each Java package in the {opensearch-repo}[{es} source code] has a related logger. For
 example, the `org.opensearch.discovery` package has
 `logger.org.opensearch.discovery` for logs related to the
 <<modules-discovery-hosts-providers,discovery>> process.
@@ -253,10 +253,10 @@ logs streams when parsing.
 appender.rolling.layout.type = OpenSearchJsonLayoutLayout
 appender.rolling.layout.type_name = server
 --------------------------------------------------
-:es-json-layout-java-doc: {opensearch-javadoc}/org/opensearch/common/logging/OpenSearchJsonLayout.html
+:opensearch-json-layout-java-doc: {opensearch-javadoc}/org/opensearch/common/logging/OpenSearchJsonLayout.html
 
 Each line contains a single JSON document with the properties configured in `OpenSearchJsonLayout`.
-See this class {es-json-layout-java-doc}[javadoc] for more details.
+See this class {opensearch-json-layout-java-doc}[javadoc] for more details.
 However if a JSON document contains an exception, it will be printed over multiple lines.
 The first line will contain regular properties and subsequent lines will contain the
 stacktrace formatted as a JSON array.
