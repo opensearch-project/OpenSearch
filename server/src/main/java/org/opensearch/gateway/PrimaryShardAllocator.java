@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
-import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingNodes;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
+import org.opensearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
+import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
+import org.opensearch.env.ShardLockObtainFailedException;
+import org.opensearch.gateway.AsyncShardFetch.FetchResult;
+import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -58,7 +58,7 @@ import java.util.stream.Stream;
  * executes the allocation deciders to chose a copy to assign the primary shard to.
  *
  * Note that the PrimaryShardAllocator does *not* allocate primaries on index creation
- * (see {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator}),
+ * (see {@link org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator}),
  * nor does it allocate primaries when a primary shard failed and there is a valid replica
  * copy that can immediately be promoted to primary, as this takes place in {@link RoutingNodes#failShard}.
  */

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
@@ -25,15 +25,15 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
+import org.opensearch.cluster.metadata.IndexGraveyard;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +60,7 @@ public class DanglingIndicesState implements ClusterStateListener {
      * state upon discovery. This setting is deprecated - use the <code>_dangling</code> API instead.
      * If disabled, dangling indices will not be automatically detected.
      *
-     * @see org.elasticsearch.action.admin.indices.dangling
+     * @see org.opensearch.action.admin.indices.dangling
      */
     public static final Setting<Boolean> AUTO_IMPORT_DANGLING_INDICES_SETTING = Setting.boolSetting(
         "gateway.auto_import_dangling_indices",
