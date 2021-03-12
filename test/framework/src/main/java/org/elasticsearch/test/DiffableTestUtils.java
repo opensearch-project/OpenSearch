@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.Diffable;
+import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

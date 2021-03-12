@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.ClusterInfo;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;

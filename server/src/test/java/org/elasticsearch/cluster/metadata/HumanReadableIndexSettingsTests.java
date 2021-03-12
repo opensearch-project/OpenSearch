@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

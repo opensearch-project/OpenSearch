@@ -19,7 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;

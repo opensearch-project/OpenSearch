@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.opensearch.action.admin.indices.shrink.ResizeAction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;

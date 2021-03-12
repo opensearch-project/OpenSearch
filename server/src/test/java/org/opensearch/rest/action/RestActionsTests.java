@@ -23,7 +23,7 @@ import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

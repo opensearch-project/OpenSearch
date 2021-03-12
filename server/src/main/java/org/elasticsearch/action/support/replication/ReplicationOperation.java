@@ -29,7 +29,7 @@ import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.action.support.TransportActions;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;

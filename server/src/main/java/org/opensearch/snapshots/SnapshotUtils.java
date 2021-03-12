@@ -18,8 +18,8 @@
  */
 package org.opensearch.snapshots;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
 

@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.ClusterStateTaskExecutor;
 
 import java.util.Arrays;
 import java.util.Collections;

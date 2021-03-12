@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;

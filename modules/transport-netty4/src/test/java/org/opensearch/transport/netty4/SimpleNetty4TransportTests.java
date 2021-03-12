@@ -22,7 +22,7 @@ package org.opensearch.transport.netty4;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;

@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
-import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
+import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.EOFException;

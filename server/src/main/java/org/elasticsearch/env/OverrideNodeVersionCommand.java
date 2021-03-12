@@ -23,7 +23,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.opensearch.cli.Terminal;
-import org.elasticsearch.cluster.coordination.OpenSearchNodeCommand;
+import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;

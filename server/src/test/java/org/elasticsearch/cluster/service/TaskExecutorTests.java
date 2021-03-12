@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.opensearch.cluster.ClusterStateTaskConfig;
+import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lease.Releasable;

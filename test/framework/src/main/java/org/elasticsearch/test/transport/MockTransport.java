@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.transport;
 
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;

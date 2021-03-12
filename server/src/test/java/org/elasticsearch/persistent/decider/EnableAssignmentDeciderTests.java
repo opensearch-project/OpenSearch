@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.persistent.decider;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksDecidersTestCase;
 

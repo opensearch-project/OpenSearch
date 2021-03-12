@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.script.ScriptService;

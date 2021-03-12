@@ -20,15 +20,15 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.RestoreInProgress;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.repositories.IndexId;
+import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 
 import java.io.IOException;

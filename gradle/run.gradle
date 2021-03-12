@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.elasticsearch.gradle.testclusters.RunTask
+import org.opensearch.gradle.testclusters.RunTask
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'opensearch.testclusters'
 
 testClusters {
   runTask {
@@ -28,7 +28,7 @@ testClusters {
 
 tasks.register("run", RunTask) {
   useCluster testClusters.runTask;
-  description = 'Runs elasticsearch in the foreground'
+  description = 'Runs opensearch in the foreground'
   group = 'Verification'
 
   impliesSubProjects = true
