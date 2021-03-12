@@ -430,7 +430,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the primary term the index shard is supposed to be on. In case of primary promotion or when a replica learns about
      * a new term due to a new primary, the term that's exposed here will not be the term that the shard internally uses to assign
      * to operations. The shard will auto-correct its internal operation term, but this might take time.
-     * See {@link IndexMetadata#primaryTerm(int)}
+     * See {@link org.opensearch.cluster.metadata.IndexMetadata#primaryTerm(int)}
      */
     public long getPendingPrimaryTerm() {
         return this.pendingPrimaryTerm;

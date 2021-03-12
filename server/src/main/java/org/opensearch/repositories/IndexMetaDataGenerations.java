@@ -65,7 +65,7 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Gets the blob id by the identifier of {@link IndexMetadata}
+     * Gets the blob id by the identifier of {@link org.opensearch.cluster.metadata.IndexMetadata}
      * (computed via {@link #buildUniqueIdentifier}) or {@code null} if none is tracked for the identifier.
      *
      * @param metaIdentifier identifier for {@link IndexMetadata}
