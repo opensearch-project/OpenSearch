@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;

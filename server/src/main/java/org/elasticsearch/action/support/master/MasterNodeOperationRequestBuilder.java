@@ -22,7 +22,7 @@ package org.elasticsearch.action.support.master;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**

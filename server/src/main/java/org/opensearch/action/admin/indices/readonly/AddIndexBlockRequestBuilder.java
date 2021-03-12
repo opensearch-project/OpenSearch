@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.readonly;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**

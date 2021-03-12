@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class GetMappingsRequestBuilder
         extends ClusterInfoRequestBuilder<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {

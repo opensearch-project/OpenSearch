@@ -21,7 +21,7 @@ package org.elasticsearch.test;
 
 import org.opensearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.opensearch.action.admin.cluster.remote.RemoteInfoRequest;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;

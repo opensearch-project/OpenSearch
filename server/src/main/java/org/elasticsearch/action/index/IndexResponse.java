@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A response of an index operation,
  *
  * @see org.elasticsearch.action.index.IndexRequest
- * @see org.elasticsearch.client.Client#index(IndexRequest)
+ * @see org.opensearch.client.Client#index(IndexRequest)
  */
 public class IndexResponse extends DocWriteResponse {
 

@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.opensearch.rest.RestRequest;

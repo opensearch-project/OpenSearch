@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class GetAliasesRequestBuilder extends BaseAliasesRequestBuilder<GetAliasesResponse, GetAliasesRequestBuilder> {
 

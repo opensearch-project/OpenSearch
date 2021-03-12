@@ -21,7 +21,7 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;

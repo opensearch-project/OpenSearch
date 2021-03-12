@@ -27,7 +27,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.GroupedActionListener;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiskUsage;

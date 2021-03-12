@@ -32,7 +32,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -47,7 +47,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.monitor.fs.FsInfo;
+import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 

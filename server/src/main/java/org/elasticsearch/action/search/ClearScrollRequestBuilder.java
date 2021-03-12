@@ -20,7 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 import java.util.List;
 

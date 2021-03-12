@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
 public class ValidateQueryRequestBuilder

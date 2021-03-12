@@ -21,7 +21,7 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
@@ -34,7 +34,7 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.client.Requests.updateSettingsRequest;
+import static org.opensearch.client.Requests.updateSettingsRequest;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestUpdateSettingsAction extends BaseRestHandler {

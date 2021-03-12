@@ -22,7 +22,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -38,7 +38,7 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static org.opensearch.client.Requests.clusterHealthRequest;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestClusterHealthAction extends BaseRestHandler {

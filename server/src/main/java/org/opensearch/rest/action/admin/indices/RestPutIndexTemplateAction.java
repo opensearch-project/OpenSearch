@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;

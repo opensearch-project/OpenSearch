@@ -19,7 +19,7 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.node.DiscoveryNode;

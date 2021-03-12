@@ -22,7 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.opensearch.action.ActionType;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class UpdateByQueryRequestBuilder extends
         AbstractBulkIndexByScrollRequestBuilder<UpdateByQueryRequest, UpdateByQueryRequestBuilder> {
