@@ -25,7 +25,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;

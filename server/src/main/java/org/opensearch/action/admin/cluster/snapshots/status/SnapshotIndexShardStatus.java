@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

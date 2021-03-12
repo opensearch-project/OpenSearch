@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 

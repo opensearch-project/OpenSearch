@@ -31,7 +31,7 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.opensearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;

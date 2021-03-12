@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.TaskId;

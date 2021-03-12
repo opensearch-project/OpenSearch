@@ -26,7 +26,7 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.tasks.Task;

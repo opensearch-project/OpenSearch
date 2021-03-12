@@ -20,7 +20,7 @@ package org.elasticsearch.indices.flush;
 
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;

@@ -27,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.snapshots.SnapshotsService;
@@ -220,7 +221,7 @@ public final class RepositoryData {
 
     /**
      * Returns a map of {@link IndexId} to a collection of {@link String} containing all the {@link IndexId} and the
-     * {@link org.elasticsearch.cluster.metadata.IndexMetadata} blob name in it that can be removed after removing the given snapshot from
+     * {@link org.opensearch.cluster.metadata.IndexMetadata} blob name in it that can be removed after removing the given snapshot from
      * the repository.
      * NOTE: Does not return a mapping for {@link IndexId} values that will be removed completely from the repository.
      *
@@ -254,7 +255,7 @@ public final class RepositoryData {
      *                         generations indexed by the shard id they correspond to must be supplied.
      * @param indexMetaBlobs   Map of index metadata blob uuids
      * @param newIdentifiers   Map of new index metadata blob uuids keyed by the identifiers of the
-     *                         {@link org.elasticsearch.cluster.metadata.IndexMetadata} in them
+     *                         {@link org.opensearch.cluster.metadata.IndexMetadata} in them
      */
     public RepositoryData addSnapshot(final SnapshotId snapshotId,
                                       final SnapshotState snapshotState,

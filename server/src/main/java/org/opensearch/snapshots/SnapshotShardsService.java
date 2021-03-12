@@ -32,7 +32,7 @@ import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.opensearch.cluster.SnapshotsInProgress.ShardState;
 import org.opensearch.cluster.SnapshotsInProgress.State;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;

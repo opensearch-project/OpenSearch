@@ -26,7 +26,7 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

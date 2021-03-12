@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -78,8 +78,8 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             XContentType xContentType = randomFrom(XContentType.values());
             int numTemplates = randomIntBetween(0, 32);
             for (int i = 0; i < numTemplates; i++) {
-                org.elasticsearch.cluster.metadata.IndexTemplateMetadata.Builder esIMD =
-                    new org.elasticsearch.cluster.metadata.IndexTemplateMetadata.Builder(String.format(Locale.ROOT, "%02d ", i) +
+                org.opensearch.cluster.metadata.IndexTemplateMetadata.Builder esIMD =
+                    new org.opensearch.cluster.metadata.IndexTemplateMetadata.Builder(String.format(Locale.ROOT, "%02d ", i) +
                         randomAlphaOfLength(4));
                 esIMD.patterns(Arrays.asList(generateRandomStringArray(32, 4, false, false)));
                 esIMD.settings(randomIndexSettings());
@@ -103,7 +103,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
 
                 response.getIndexTemplates().sort(Comparator.comparing(IndexTemplateMetadata::name));
                 for (int i = 0; i < numTemplates; i++) {
-                    org.elasticsearch.cluster.metadata.IndexTemplateMetadata esIMD = esResponse.getIndexTemplates().get(i);
+                    org.opensearch.cluster.metadata.IndexTemplateMetadata esIMD = esResponse.getIndexTemplates().get(i);
                     IndexTemplateMetadata result = response.getIndexTemplates().get(i);
 
                     assertThat(result.patterns(), equalTo(esIMD.patterns()));
@@ -195,11 +195,11 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
 
         //Create a server-side counterpart for the client-side class and call toXContent on it
 
-        List<org.elasticsearch.cluster.metadata.IndexTemplateMetadata> serverIndexTemplates = new ArrayList<>();
+        List<org.opensearch.cluster.metadata.IndexTemplateMetadata> serverIndexTemplates = new ArrayList<>();
         List<IndexTemplateMetadata> clientIndexTemplates = response.getIndexTemplates();
         for (IndexTemplateMetadata clientITMD : clientIndexTemplates) {
-            org.elasticsearch.cluster.metadata.IndexTemplateMetadata.Builder serverTemplateBuilder =
-                    org.elasticsearch.cluster.metadata.IndexTemplateMetadata.builder(clientITMD.name());
+            org.opensearch.cluster.metadata.IndexTemplateMetadata.Builder serverTemplateBuilder =
+                    org.opensearch.cluster.metadata.IndexTemplateMetadata.builder(clientITMD.name());
 
             serverTemplateBuilder.patterns(clientITMD.patterns());
 

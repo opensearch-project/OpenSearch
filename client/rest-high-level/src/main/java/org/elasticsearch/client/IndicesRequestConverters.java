@@ -60,7 +60,7 @@ import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;

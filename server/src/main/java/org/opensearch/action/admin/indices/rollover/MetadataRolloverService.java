@@ -23,17 +23,17 @@ import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateR
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.opensearch.cluster.metadata.AliasAction;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.metadata.IndexAbstraction;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
+import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -48,11 +48,11 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
-import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.opensearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
+import static org.opensearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
+import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 
 /**
  * Service responsible for handling rollover requests for write aliases and data streams
