@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.node;
+package org.opensearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.Diff;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.test.AbstractDiffableSerializationTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

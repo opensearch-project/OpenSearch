@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.opensearch.cluster.routing;
 
-import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

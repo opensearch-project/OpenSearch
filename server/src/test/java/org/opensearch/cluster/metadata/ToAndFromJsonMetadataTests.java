@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.opensearch.common.Strings;
+import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.TestCustomMetadata;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,12 +40,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
-import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
+import static org.opensearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
+import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -103,9 +103,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 .put(idx1, false)
                 .put(idx2, false)
                 .put(new DataStream("data-stream1", createTimestampField("@timestamp"),
-                    org.elasticsearch.common.collect.List.of(idx1.getIndex())))
+                    org.opensearch.common.collect.List.of(idx1.getIndex())))
                 .put(new DataStream("data-stream2", createTimestampField("@timestamp"),
-                    org.elasticsearch.common.collect.List.of(idx2.getIndex())))
+                    org.opensearch.common.collect.List.of(idx2.getIndex())))
                 .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();

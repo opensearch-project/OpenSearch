@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.opensearch.cluster;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
@@ -27,23 +27,23 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
+import org.opensearch.cluster.coordination.DeterministicTaskQueue;
+import org.opensearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.opensearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.ClusterApplierService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
-import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterApplier;
+import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.FakeThreadPoolMasterService;
+import org.opensearch.cluster.service.MasterService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.opensearch.node.Node;
-import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
+import org.opensearch.test.ClusterServiceUtils;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.client.NoOpClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.InternalClusterInfoService;
@@ -181,7 +181,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
                 requestCount++;
                 // ClusterInfoService handles ClusterBlockExceptions quietly, so we invent such an exception to avoid excess logging
                 listener.onFailure(new ClusterBlockException(
-                        org.elasticsearch.common.collect.Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL)));
+                        org.opensearch.common.collect.Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL)));
             } else {
                 fail("unexpected action: " + action.name());
             }

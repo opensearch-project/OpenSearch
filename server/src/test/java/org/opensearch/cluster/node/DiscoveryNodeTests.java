@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.node;
+package org.opensearch.cluster.node;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.test.ESTestCase;
 
 import java.net.InetAddress;
 import java.util.Collections;
@@ -35,8 +35,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
-import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;

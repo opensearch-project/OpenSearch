@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.opensearch.cluster.routing;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.Version;
+import org.opensearch.common.UUIDs;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.SnapshotId;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.snapshots.Snapshot;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

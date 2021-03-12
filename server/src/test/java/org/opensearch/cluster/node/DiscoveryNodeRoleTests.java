@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.node;
+package org.opensearch.cluster.node;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Arrays;
 import java.util.HashSet;

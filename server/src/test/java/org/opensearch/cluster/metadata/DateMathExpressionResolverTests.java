@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver.Context;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
+import org.opensearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;

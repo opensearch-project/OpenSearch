@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.shards;
+package org.opensearch.cluster.shards;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Assert;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;

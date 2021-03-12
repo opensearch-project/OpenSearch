@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.opensearch.cluster.routing;
 
 import java.util.Set;
 
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.opensearch.test.ESTestCase.randomAlphaOfLength;
+import static org.opensearch.test.ESTestCase.randomFrom;
+import static org.opensearch.test.ESTestCase.randomInt;
 
 /**
  * Utility class the makes random modifications to ShardRouting

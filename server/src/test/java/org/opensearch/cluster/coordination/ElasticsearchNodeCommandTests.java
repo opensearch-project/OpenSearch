@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.metadata.IndexGraveyard;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.List;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.Index;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 
 import java.io.IOException;
@@ -42,8 +42,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
+import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;

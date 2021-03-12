@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.opensearch.cluster.routing.allocation;
 
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Locale;
 

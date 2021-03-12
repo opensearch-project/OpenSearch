@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.serialization;
+package org.opensearch.cluster.serialization;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.DiffableUtils.MapDiff;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.collect.ImmutableOpenIntMap;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;

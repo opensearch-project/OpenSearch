@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlock;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 
 import java.util.Map;
 

@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster;
+package org.opensearch.cluster;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 
 import java.util.Arrays;

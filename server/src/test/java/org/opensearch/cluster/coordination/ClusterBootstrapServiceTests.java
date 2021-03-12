@@ -16,18 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.transport.MockTransport;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportService;
 import org.junit.Before;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 
@@ -48,11 +48,11 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
-import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
-import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;

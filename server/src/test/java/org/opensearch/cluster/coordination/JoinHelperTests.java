@@ -16,28 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.MembershipAction;
-import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.CapturingTransport;
-import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
-import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.zen.MembershipAction;
+import org.opensearch.monitor.StatusInfo;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.transport.CapturingTransport;
+import org.opensearch.test.transport.CapturingTransport.CapturedRequest;
+import org.opensearch.test.transport.MockTransport;
+import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportService;
 import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.coordination.Join;
@@ -48,9 +48,9 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
-import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;

@@ -17,30 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.action.update.UpdateRequest;
+import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata.State;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.IndexMetadata.State;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.IndexClosedException;
+import org.opensearch.indices.InvalidIndexNameException;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,11 +52,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.cluster.DataStreamTestHelper.createBackingIndex;
+import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
+import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
+import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -1728,7 +1728,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex, false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(backingIndex.getIndex()), 1));
+                org.opensearch.common.collect.List.of(backingIndex.getIndex()), 1));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -1898,7 +1898,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index1, false)
             .put(index2, false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index1.getIndex(), index2.getIndex()), 2));
+                org.opensearch.common.collect.List.of(index1.getIndex(), index2.getIndex()), 2));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -1973,9 +1973,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index3, false)
             .put(index4, false)
             .put(new DataStream(dataStream1, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index1.getIndex(), index2.getIndex())))
+                org.opensearch.common.collect.List.of(index1.getIndex(), index2.getIndex())))
             .put(new DataStream(dataStream2, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index3.getIndex(), index4.getIndex())));
+                org.opensearch.common.collect.List.of(index3.getIndex(), index4.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
@@ -2027,9 +2027,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index3, false)
             .put(index4, false)
             .put(new DataStream(dataStream1, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index1.getIndex(), index2.getIndex())))
+                org.opensearch.common.collect.List.of(index1.getIndex(), index2.getIndex())))
             .put(new DataStream(dataStream2, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index3.getIndex(), index4.getIndex())));
+                org.opensearch.common.collect.List.of(index3.getIndex(), index4.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;

@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings.Builder;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.coordination.ElectionSchedulerFactory;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,7 +33,7 @@ import static org.opensearch.cluster.coordination.ElectionSchedulerFactory.ELECT
 import static org.opensearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.opensearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.opensearch.cluster.coordination.ElectionSchedulerFactory.toPositiveLongAtMost;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

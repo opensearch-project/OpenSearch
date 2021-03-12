@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.opensearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.action.OriginalIndicesTests;
-import org.elasticsearch.action.search.SearchShardIterator;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.action.OriginalIndicesTests;
+import org.opensearch.action.search.SearchShardIterator;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 
 public class GroupShardsIteratorTests extends ESTestCase {
 

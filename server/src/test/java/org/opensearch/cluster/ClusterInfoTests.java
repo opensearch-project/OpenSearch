@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster;
+package org.opensearch.cluster;
 
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.DiskUsage;
 

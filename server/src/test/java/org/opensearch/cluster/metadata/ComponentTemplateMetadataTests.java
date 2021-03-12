@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

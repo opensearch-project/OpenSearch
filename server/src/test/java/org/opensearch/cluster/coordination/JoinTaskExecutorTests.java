@@ -16,33 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RerouteService;
+import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.collect.List;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.cluster.coordination.JoinTaskExecutor;
 
 import java.util.HashSet;
 
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.incompatibleFutureVersion;
-import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
-import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.opensearch.test.VersionUtils.getPreviousVersion;
+import static org.opensearch.test.VersionUtils.incompatibleFutureVersion;
+import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
+import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
+import static org.opensearch.test.VersionUtils.randomVersion;
+import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.indices.InvalidAliasNameException;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.startsWith;
 

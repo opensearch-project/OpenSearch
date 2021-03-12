@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterApplier;
+import org.opensearch.cluster.service.ClusterApplier;
 
 import java.util.function.Supplier;
 

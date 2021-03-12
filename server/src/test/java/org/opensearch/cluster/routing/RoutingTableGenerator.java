@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.routing;
+package org.opensearch.cluster.routing;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.OpenSearchException;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.index.shard.ShardId;
 
-import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
+import static org.opensearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 
 public class RoutingTableGenerator {
     private static int node_id = 1;

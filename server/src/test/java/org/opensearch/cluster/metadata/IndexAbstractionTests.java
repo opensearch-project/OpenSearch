@@ -19,11 +19,11 @@
  *
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.common.Nullable;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Objects;
 

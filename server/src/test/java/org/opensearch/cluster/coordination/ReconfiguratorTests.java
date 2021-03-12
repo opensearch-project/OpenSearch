@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings.Builder;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 import org.opensearch.cluster.coordination.Reconfigurator;
 

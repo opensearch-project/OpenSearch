@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.ApplyCommitRequest;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.discovery.Discovery;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponse;
 import org.opensearch.cluster.coordination.CoordinationState;
 import org.opensearch.cluster.coordination.ElectionStrategy;
 import org.opensearch.cluster.coordination.InMemoryPersistedState;

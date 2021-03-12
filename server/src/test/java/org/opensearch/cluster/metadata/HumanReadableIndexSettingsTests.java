@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.Version;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.opensearch.test.VersionUtils.randomVersion;
 
 public class HumanReadableIndexSettingsTests extends ESTestCase {
     public void testHumanReadableSettings() {

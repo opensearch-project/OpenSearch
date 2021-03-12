@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata.State;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.IndexMetadata.State;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.cluster.DataStreamTestHelper.createBackingIndex;
+import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -226,7 +226,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(firstBackingIndexMetadata, true)
             .put(secondBackingIndexMetadata, true)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
+                org.opensearch.common.collect.List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
