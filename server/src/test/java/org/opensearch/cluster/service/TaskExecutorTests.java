@@ -25,8 +25,8 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -42,14 +42,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
 public class TaskExecutorTests extends OpenSearchTestCase {
 
     protected static ThreadPool threadPool;
-    protected PrioritizedEsThreadPoolExecutor threadExecutor;
+    protected PrioritizedOpenSearchThreadPoolExecutor threadExecutor;
 
     @BeforeClass
     public static void createThreadPool() {
@@ -66,7 +66,7 @@ public class TaskExecutorTests extends OpenSearchTestCase {
 
     @Before
     public void setUpExecutor() {
-        threadExecutor = EsExecutors.newSinglePrioritizing(getClass().getName() + "/" + getTestName(),
+        threadExecutor = OpenSearchExecutors.newSinglePrioritizing(getClass().getName() + "/" + getTestName(),
             daemonThreadFactory(Settings.EMPTY, "test_thread"), threadPool.getThreadContext(), threadPool.scheduler());
     }
 
