@@ -47,7 +47,7 @@ import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;

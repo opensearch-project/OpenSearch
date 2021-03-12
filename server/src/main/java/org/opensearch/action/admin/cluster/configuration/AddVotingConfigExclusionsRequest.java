@@ -22,7 +22,7 @@ import org.elasticsearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
+import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;

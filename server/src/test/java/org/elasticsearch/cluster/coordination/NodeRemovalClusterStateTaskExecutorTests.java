@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -38,6 +38,11 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
+import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.opensearch.cluster.coordination.Join;
+import org.opensearch.cluster.coordination.JoinHelper;
+import org.opensearch.cluster.coordination.ValidateJoinRequest;
 
 import java.util.Collections;
 import java.util.Optional;

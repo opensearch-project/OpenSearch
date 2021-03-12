@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.indices.readonly;
 
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**

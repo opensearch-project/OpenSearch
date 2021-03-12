@@ -40,7 +40,7 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
-import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
