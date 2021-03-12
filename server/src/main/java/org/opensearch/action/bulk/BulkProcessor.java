@@ -216,7 +216,7 @@ public class BulkProcessor implements Closeable {
      * @param listener The BulkProcessor listener that gets called on bulk events
      * @return the builder for BulkProcessor
      * @deprecated Use {@link #builder(java.util.function.BiConsumer, org.opensearch.action.bulk.BulkProcessor.Listener)}
-     * with client::bulk as the first argument, or {@link #builder(Client,
+     * with client::bulk as the first argument, or {@link #builder(org.opensearch.client.Client,
      * org.opensearch.action.bulk.BulkProcessor.Listener, org.opensearch.threadpool.Scheduler,
      * org.opensearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
      */
