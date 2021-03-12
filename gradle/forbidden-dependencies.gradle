@@ -1,6 +1,6 @@
 
 // we do not want any of these dependencies on the compilation classpath
-// because they could then be used within Elasticsearch
+// because they could then be used within OpenSearch
 List<String> FORBIDDEN_DEPENDENCIES = [
   'guava'
 ]
