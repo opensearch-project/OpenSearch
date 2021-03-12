@@ -54,14 +54,14 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);
 
-    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = 
+    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING =
             Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
     // mostly a way to prevent queries from being the main source of memory usage
     // of the cache
-    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = 
+    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING =
             Setting.intSetting("indices.queries.cache.count", 10_000, 1, Property.NodeScope);
     // enables caching on all segments instead of only the larger ones, for testing only
-    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = 
+    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING =
             Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
 
     private final LRUQueryCache cache;
@@ -80,9 +80,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         logger.debug("using [node] query cache with size [{}] max filter count [{}]",
                 size, count);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
-            cache = new OpensearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
+            cache = new OpenSearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
         } else {
-            cache = new OpensearchLRUQueryCache(count, size.getBytes());
+            cache = new OpenSearchLRUQueryCache(count, size.getBytes());
         }
         sharedRamBytesUsed = 0;
     }
@@ -248,13 +248,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         shardStats.remove(shardId);
     }
 
-    private class OpensearchLRUQueryCache extends LRUQueryCache {
+    private class OpenSearchLRUQueryCache extends LRUQueryCache {
 
-        OpensearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
+        OpenSearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
             super(maxSize, maxRamBytesUsed, leavesToCache, skipFactor);
         }
 
-        OpensearchLRUQueryCache(int maxSize, long maxRamBytesUsed) {
+        OpenSearchLRUQueryCache(int maxSize, long maxRamBytesUsed) {
             super(maxSize, maxRamBytesUsed);
         }
 

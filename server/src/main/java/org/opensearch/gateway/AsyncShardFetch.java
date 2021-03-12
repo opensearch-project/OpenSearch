@@ -32,7 +32,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.transport.ReceiveTimeoutTransportException;
 
@@ -215,7 +215,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                         // if the entry is there, for the right fetching round and not marked as failed already, process it
                         Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());
                         // if the request got rejected or timed out, we need to try it again next time...
-                        if (unwrappedCause instanceof EsRejectedExecutionException ||
+                        if (unwrappedCause instanceof OpenSearchRejectedExecutionException ||
                             unwrappedCause instanceof ReceiveTimeoutTransportException ||
                             unwrappedCause instanceof OpenSearchTimeoutException) {
                             nodeEntry.restartFetching();
