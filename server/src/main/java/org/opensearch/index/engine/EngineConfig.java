@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
@@ -26,21 +26,21 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.indices.IndexingMemoryController;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.MemorySizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.indices.IndexingMemoryController;
+import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -128,7 +128,7 @@ public final class EngineConfig {
     private final TranslogConfig translogConfig;
 
     /**
-     * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
+     * Creates a new {@link org.opensearch.index.engine.EngineConfig}
      */
     public EngineConfig(ShardId shardId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store,
@@ -232,14 +232,14 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns an {@link org.elasticsearch.index.engine.Engine.Warmer} used to warm new searchers before they are used for searching.
+     * Returns an {@link org.opensearch.index.engine.Engine.Warmer} used to warm new searchers before they are used for searching.
      */
     public Engine.Warmer getWarmer() {
         return warmer;
     }
 
     /**
-     * Returns the {@link org.elasticsearch.index.store.Store} instance that provides access to the
+     * Returns the {@link org.opensearch.index.store.Store} instance that provides access to the
      * {@link org.apache.lucene.store.Directory} used for the engines {@link org.apache.lucene.index.IndexWriter} to write it's index files
      * to.
      * <p>

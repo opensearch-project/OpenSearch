@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.bitset;
+package org.opensearch.index.cache.bitset;
 
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.AbstractIndexShardComponent;
+import org.opensearch.index.shard.ShardId;
 
 public class ShardBitsetFilterCache extends AbstractIndexShardComponent {
 

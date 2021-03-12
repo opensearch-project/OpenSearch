@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
-import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
 import java.util.List;
 import java.util.function.Function;
