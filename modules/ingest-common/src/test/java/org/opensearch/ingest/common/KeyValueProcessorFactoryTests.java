@@ -19,8 +19,8 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 

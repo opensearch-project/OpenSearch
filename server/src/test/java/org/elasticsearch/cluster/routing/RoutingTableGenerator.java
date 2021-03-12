@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.shard.ShardId;

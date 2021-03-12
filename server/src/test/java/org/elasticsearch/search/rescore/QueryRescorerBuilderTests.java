@@ -20,7 +20,7 @@
 package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;

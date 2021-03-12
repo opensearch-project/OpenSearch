@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,31 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.opensearch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
 /**
- * The same as {@link java.util.concurrent.TimeoutException} simply a runtime one.
+ * A generic exception indicating failure to generate.
  *
  *
  */
-public class OpenSearchTimeoutException extends OpenSearchException {
-    public OpenSearchTimeoutException(StreamInput in) throws IOException {
+public class OpenSearchGenerationException extends OpenSearchException {
+
+    public OpenSearchGenerationException(String msg) {
+        super(msg);
+    }
+
+    public OpenSearchGenerationException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
+
+    public OpenSearchGenerationException(StreamInput in) throws IOException{
         super(in);
-    }
-
-    public OpenSearchTimeoutException(Throwable cause) {
-        super(cause);
-    }
-
-    public OpenSearchTimeoutException(String message, Object... args) {
-        super(message, args);
-    }
-
-    public OpenSearchTimeoutException(String message, Throwable cause, Object... args) {
-        super(message, cause, args);
     }
 }

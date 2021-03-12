@@ -21,8 +21,8 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;

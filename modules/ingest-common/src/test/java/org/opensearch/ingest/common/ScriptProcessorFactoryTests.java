@@ -19,7 +19,7 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.opensearch.script.IngestScript;
