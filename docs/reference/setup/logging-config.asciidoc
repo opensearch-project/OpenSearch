@@ -151,13 +151,12 @@ accepts Log4j 2's built-in log levels, from least to most verbose: `OFF`,
 `INFO`. Messages logged at higher verbosity levels (`DEBUG` and `TRACE`) are
 only intended for expert use.
 
-// TODO: Change the class path after renaming or test will be failed
 [source,console]
 ----
 PUT /_cluster/settings
 {
   "transient": {
-    "logger.org.elasticsearch.discovery": "DEBUG"
+    "logger.org.opensearch.discovery": "DEBUG"
   }
 }
 ----
