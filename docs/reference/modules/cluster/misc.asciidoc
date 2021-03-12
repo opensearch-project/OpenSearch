@@ -131,13 +131,12 @@ The settings which control logging can be updated <<dynamic-cluster-setting,dyna
 `logger.` prefix.  For instance, to increase the logging level of the
 `indices.recovery` module to `DEBUG`, issue this request:
 
-// TODO: Change the class path after renaming or test will be failed
 [source,console]
 -------------------------------
 PUT /_cluster/settings
 {
   "transient": {
-    "logger.org.elasticsearch.indices.recovery": "DEBUG"
+    "logger.org.opensearch.indices.recovery": "DEBUG"
   }
 }
 -------------------------------
