@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.dangling.find;
 
 import java.io.IOException;
 
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
+import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

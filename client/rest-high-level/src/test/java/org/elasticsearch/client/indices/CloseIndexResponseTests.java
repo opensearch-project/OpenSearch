@@ -19,8 +19,8 @@
 package org.elasticsearch.client.indices;
 
 import org.opensearch.OpenSearchStatusException;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -29,8 +29,8 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.transport.ActionNotFoundTransportException;
 

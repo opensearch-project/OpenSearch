@@ -19,14 +19,14 @@
 
 package org.opensearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;

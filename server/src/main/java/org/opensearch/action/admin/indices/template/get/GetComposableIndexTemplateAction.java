@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.template.get;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.master.MasterNodeReadRequest;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;

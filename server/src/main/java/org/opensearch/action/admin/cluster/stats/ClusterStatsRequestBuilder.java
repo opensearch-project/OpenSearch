@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
+import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<ClusterStatsRequest,

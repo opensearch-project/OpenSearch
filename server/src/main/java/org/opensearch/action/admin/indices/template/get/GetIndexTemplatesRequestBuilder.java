@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<

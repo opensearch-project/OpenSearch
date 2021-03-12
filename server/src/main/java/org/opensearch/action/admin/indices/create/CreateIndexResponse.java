@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
+import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

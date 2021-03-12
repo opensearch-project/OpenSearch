@@ -21,7 +21,7 @@ package org.elasticsearch.action.get;
 
 import com.carrotsearch.hppc.IntArrayList;
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

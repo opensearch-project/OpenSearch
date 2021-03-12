@@ -21,14 +21,14 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
 import org.opensearch.Version;
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.http.HttpInfo;
+import org.opensearch.http.HttpInfo;
 import org.opensearch.ingest.IngestInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;

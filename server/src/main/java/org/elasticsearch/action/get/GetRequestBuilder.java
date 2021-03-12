@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
+import org.opensearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.VersionType;
+import org.opensearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 /**

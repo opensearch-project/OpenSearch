@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 
-public class BroadcastResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.support.broadcast.BroadcastResponse,
+public class BroadcastResponseTests extends AbstractResponseTestCase<org.opensearch.action.support.broadcast.BroadcastResponse,
     BroadcastResponse> {
 
     private String index;
@@ -44,7 +44,7 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
     private Set<Integer> shardIds;
 
     @Override
-    protected org.elasticsearch.action.support.broadcast.BroadcastResponse createServerTestInstance(XContentType xContentType) {
+    protected org.opensearch.action.support.broadcast.BroadcastResponse createServerTestInstance(XContentType xContentType) {
         index = randomAlphaOfLength(8);
         id = randomAlphaOfLength(8);
         final int total = randomIntBetween(1, 16);
@@ -61,7 +61,7 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
             shardIds.add(failure.shardId());
         }
 
-        return new org.elasticsearch.action.support.broadcast.BroadcastResponse(total, successful, failed, failures);
+        return new org.opensearch.action.support.broadcast.BroadcastResponse(total, successful, failed, failures);
     }
 
     @Override
@@ -70,7 +70,7 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.support.broadcast.BroadcastResponse serverTestInstance,
+    protected void assertInstances(org.opensearch.action.support.broadcast.BroadcastResponse serverTestInstance,
                                    BroadcastResponse clientInstance) {
         assertThat(clientInstance.shards().total(), equalTo(serverTestInstance.getTotalShards()));
         assertThat(clientInstance.shards().successful(), equalTo(serverTestInstance.getSuccessfulShards()));

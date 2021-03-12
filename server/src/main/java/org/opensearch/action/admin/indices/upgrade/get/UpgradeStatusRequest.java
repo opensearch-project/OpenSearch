@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.upgrade.get;
 
-import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 

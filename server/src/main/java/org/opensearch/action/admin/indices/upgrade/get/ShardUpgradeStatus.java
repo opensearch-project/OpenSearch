@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.upgrade.get;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
+import org.opensearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

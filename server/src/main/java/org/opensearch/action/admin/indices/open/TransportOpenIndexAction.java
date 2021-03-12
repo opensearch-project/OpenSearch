@@ -25,7 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.master.TransportMasterNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;

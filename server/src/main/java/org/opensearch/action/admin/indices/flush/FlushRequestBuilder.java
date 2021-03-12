@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushRequest, FlushResponse, FlushRequestBuilder> {
