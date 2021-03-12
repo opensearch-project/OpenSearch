@@ -181,7 +181,7 @@ import static org.hamcrest.Matchers.hasItem;
         "LuceneVarGapFixedInterval", "LuceneVarGapDocFreqInterval", "Lucene50"
 })
 @LuceneTestCase.SuppressReproduceLine
-public abstract class ESTestCase extends LuceneTestCase {
+public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     protected static final List<String> JODA_TIMEZONE_IDS;
     protected static final List<String> JAVA_TIMEZONE_IDS;
@@ -270,7 +270,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public RuleChain failureAndSuccessEvents = RuleChain.outerRule(new TestRuleAdapter() {
         @Override
         protected void afterIfSuccessful() throws Throwable {
-            ESTestCase.this.afterIfSuccessful();
+            OpenSearchTestCase.this.afterIfSuccessful();
         }
 
         @Override
@@ -284,7 +284,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                     }
                 }
                 if (false == allAssumption) {
-                    ESTestCase.this.afterIfFailed(errors);
+                    OpenSearchTestCase.this.afterIfFailed(errors);
                 }
             }
             super.afterAlways(errors);
@@ -339,7 +339,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @BeforeClass
     public static void ensureSupportedLocale() {
         if (isUnusableLocale()) {
-            Logger logger = LogManager.getLogger(ESTestCase.class);
+            Logger logger = LogManager.getLogger(OpenSearchTestCase.class);
             logger.warn("Attempting to run tests in an unusable locale in a FIPS JVM. Certificate expiration validation will fail, " +
                 "switching to English. See: https://github.com/bcgit/bc-java/issues/405");
             Locale.setDefault(Locale.ENGLISH);
@@ -1015,7 +1015,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Periodically execute the supplied function until it returns true, or a timeout
      * is reached. This version uses a timeout of 10 seconds. If at all possible,
-     * use {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
+     * use {@link OpenSearchTestCase#assertBusy(CheckedRunnable)} instead.
      *
      * @param breakSupplier determines whether to return immediately or continue waiting.
      * @return the last value returned by <code>breakSupplier</code>
@@ -1031,7 +1031,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Periodically execute the supplied function until it returns true, or until the
      * specified maximum wait time has elapsed. If at all possible, use
-     * {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
+     * {@link OpenSearchTestCase#assertBusy(CheckedRunnable)} instead.
      *
      * @param breakSupplier determines whether to return immediately or continue waiting.
      * @param maxWaitTime the maximum amount of time to wait
@@ -1539,7 +1539,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
         // This is safe as long as we have fewer than 224 Gradle workers running in parallel
         // See also: https://github.com/elastic/elasticsearch/issues/44134
-        final String workerIdStr = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
+        final String workerIdStr = System.getProperty(OpenSearchTestCase.TEST_WORKER_SYS_PROPERTY);
         final int startAt;
         if (workerIdStr == null) {
             startAt = 0; // IDE

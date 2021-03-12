@@ -25,14 +25,14 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.opensearch.test.ESTestCase.between;
-import static org.opensearch.test.ESTestCase.randomAlphaOfLength;
-import static org.opensearch.test.ESTestCase.randomAlphaOfLengthBetween;
-import static org.opensearch.test.ESTestCase.randomBoolean;
-import static org.opensearch.test.ESTestCase.randomFrom;
-import static org.opensearch.test.ESTestCase.randomInt;
-import static org.opensearch.test.ESTestCase.randomIntBetween;
-import static org.opensearch.test.ESTestCase.randomLong;
+import static org.opensearch.test.OpenSearchTestCase.between;
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLengthBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
+import static org.opensearch.test.OpenSearchTestCase.randomInt;
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomLong;
 
 public final class RandomAliasActionsGenerator {
 

@@ -53,7 +53,7 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.mocksocket.MockServerSocket;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.junit.annotations.TestLogging;
@@ -105,7 +105,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
+public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase {
 
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions

@@ -79,10 +79,10 @@ import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -109,7 +109,7 @@ import static org.hamcrest.Matchers.hasSize;
  * containing utilities for shard creation and recoveries. See {{@link #newShard(boolean)}} and
  * {@link #newStartedShard()} for a good starting points
  */
-public abstract class IndexShardTestCase extends ESTestCase {
+public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
     public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {};
 
@@ -837,7 +837,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final Index index = shard.shardId().getIndex();
         final IndexId indexId = new IndexId(index.getName(), index.getUUID());
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
-            ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).shardGenerations().getShardGen(
+            OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).shardGenerations().getShardGen(
                 indexId, shard.shardId().getId()));
         final PlainActionFuture<String> future = PlainActionFuture.newFuture();
         final String shardGen;

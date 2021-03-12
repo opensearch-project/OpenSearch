@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class XContentTestUtilsTests extends ESTestCase {
+public class XContentTestUtilsTests extends OpenSearchTestCase {
 
     public void testGetInsertPaths() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();

@@ -31,7 +31,7 @@ import java.util.Collections;
  * Standard test case for testing wire serialization. If the class being tested
  * extends {@link Writeable} then prefer extending {@link AbstractWireSerializingTestCase}.
  */
-public abstract class AbstractWireTestCase<T> extends ESTestCase {
+public abstract class AbstractWireTestCase<T> extends OpenSearchTestCase {
 
     protected static final int NUMBER_OF_TEST_RUNS = 20;
 

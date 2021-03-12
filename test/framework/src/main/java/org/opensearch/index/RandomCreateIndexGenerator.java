@@ -30,10 +30,10 @@ import java.io.IOException;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.test.ESTestCase.randomAlphaOfLength;
-import static org.opensearch.test.ESTestCase.randomBoolean;
-import static org.opensearch.test.ESTestCase.randomFrom;
-import static org.opensearch.test.ESTestCase.randomIntBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
+import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
 
 public final class RandomCreateIndexGenerator {
 

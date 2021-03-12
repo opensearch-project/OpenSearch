@@ -29,7 +29,7 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
@@ -72,7 +72,7 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.opensearch.cluster.coordination.CoordinationState;
@@ -152,7 +152,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class AbstractCoordinatorTestCase extends ESTestCase {
+public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
 
     protected final List<NodeEnvironment> nodeEnvironments = new ArrayList<>();
     protected final Set<Cluster.MockPersistedState> openPersistedStates = new HashSet<>();
@@ -977,7 +977,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService));
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
-                final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
+                final AllocationService allocationService = OpenSearchAllocationTestCase.createAllocationService(Settings.EMPTY);
                 coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
                     allocationService, masterService, this::getPersistedState,
                     Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), (s, p, r) -> {},

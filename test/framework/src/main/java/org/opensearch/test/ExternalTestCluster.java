@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.HTTP;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
-import static org.opensearch.test.ESTestCase.getTestTransportType;
+import static org.opensearch.test.OpenSearchTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -82,7 +82,7 @@ public final class ExternalTestCluster extends TestCluster {
             .put(additionalSettings)
             .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
             .put("client.transport.ignore_cluster_name", true)
-            .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
+            .put(TransportSettings.PORT.getKey(), OpenSearchTestCase.getPortRange())
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
 

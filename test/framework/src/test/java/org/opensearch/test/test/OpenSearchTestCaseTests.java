@@ -26,7 +26,7 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-public class ESTestCaseTests extends ESTestCase {
+public class OpenSearchTestCaseTests extends OpenSearchTestCase {
 
     public void testExpectThrows() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
@@ -174,7 +174,7 @@ public class ESTestCaseTests extends ESTestCase {
     public void testRandomValueOtherThan() {
         // "normal" way of calling where the value is not null
         int bad = randomInt();
-        assertNotEquals(bad, (int) randomValueOtherThan(bad, ESTestCase::randomInt));
+        assertNotEquals(bad, (int) randomValueOtherThan(bad, OpenSearchTestCase::randomInt));
 
         /*
          * "funny" way of calling where the value is null. This once
@@ -188,18 +188,18 @@ public class ESTestCaseTests extends ESTestCase {
     public void testWorkerSystemProperty() {
         assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
 
-        assertThat(ESTestCase.TEST_WORKER_VM_ID, not(equals(ESTestCase.DEFAULT_TEST_WORKER_ID)));
+        assertThat(OpenSearchTestCase.TEST_WORKER_VM_ID, not(equals(OpenSearchTestCase.DEFAULT_TEST_WORKER_ID)));
     }
 
     public void testBasePortGradle() {
         assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
         // Gradle worker IDs are 1 based
-        assertNotEquals(10300, ESTestCase.getBasePort());
+        assertNotEquals(10300, OpenSearchTestCase.getBasePort());
     }
 
     public void testBasePortIDE() {
         assumeTrue("requires running tests without Gradle", System.getProperty("tests.gradle") == null);
-        assertEquals(10300, ESTestCase.getBasePort());
+        assertEquals(10300, OpenSearchTestCase.getBasePort());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61496")

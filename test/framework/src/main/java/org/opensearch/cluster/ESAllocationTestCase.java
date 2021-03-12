@@ -45,7 +45,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.opensearch.snapshots.SnapshotsInfoService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
@@ -60,7 +60,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
-public abstract class ESAllocationTestCase extends ESTestCase {
+public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
     private static final ClusterSettings EMPTY_CLUSTER_SETTINGS =
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 

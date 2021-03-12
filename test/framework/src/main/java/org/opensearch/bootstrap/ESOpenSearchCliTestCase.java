@@ -23,7 +23,7 @@ import org.opensearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -32,7 +32,7 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-abstract class ESElasticsearchCliTestCase extends ESTestCase {
+abstract class BaseOpenSearchCliTestCase extends OpenSearchTestCase {
 
     interface InitConsumer {
         void accept(boolean foreground, Path pidFile, boolean quiet, Environment initialEnv);

@@ -32,7 +32,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class AbstractXContentTestCaseTests extends ESTestCase {
+public class AbstractXContentTestCaseTests extends OpenSearchTestCase {
 
     public void testInsertRandomFieldsAndShuffle() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder();

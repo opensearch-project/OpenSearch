@@ -26,7 +26,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.EsExecutors;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -36,7 +36,7 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Test harness for verifying {@link IndexInput} implementations.
  */
-public class ESIndexInputTestCase extends ESTestCase {
+public class OpenSearchIndexInputTestCase extends OpenSearchTestCase {
 
     private static EsThreadPoolExecutor executor;
 

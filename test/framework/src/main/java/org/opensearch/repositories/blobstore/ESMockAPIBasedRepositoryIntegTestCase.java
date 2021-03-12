@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.hasSize;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
 // The tests in here do a lot of state updates and other writes to disk and are slowed down too much by WindowsFS
 @LuceneTestCase.SuppressFileSystems(value = {"WindowsFS", "ExtrasFS"})
-public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreRepositoryIntegTestCase {
+public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends OpenSearchBlobStoreRepositoryIntegTestCase {
 
     /**
      * A {@link HttpHandler} that allows to list stored blobs

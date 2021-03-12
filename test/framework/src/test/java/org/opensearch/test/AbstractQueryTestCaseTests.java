@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Various test for {@link org.opensearch.test.AbstractQueryTestCase}
  */
-public class AbstractQueryTestCaseTests extends ESTestCase {
+public class AbstractQueryTestCaseTests extends OpenSearchTestCase {
 
     public void testAlterateQueries() throws IOException {
         List<Tuple<String, Boolean>> alterations = alterateQueries(singleton("{\"field\": \"value\"}"), null);

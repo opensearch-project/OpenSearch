@@ -19,10 +19,10 @@
 package org.opensearch.test.rest.yaml;
 
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.BlacklistedPathPatternMatcher;
 
-public class BlacklistedPathPatternMatcherTests extends ESTestCase {
+public class BlacklistedPathPatternMatcherTests extends OpenSearchTestCase {
 
     public void testMatchesExact() {
         // suffix match

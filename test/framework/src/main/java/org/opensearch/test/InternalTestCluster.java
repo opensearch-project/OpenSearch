@@ -162,9 +162,9 @@ import static org.opensearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.opensearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.opensearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 import static org.opensearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
-import static org.opensearch.test.ESTestCase.assertBusy;
-import static org.opensearch.test.ESTestCase.getTestTransportType;
-import static org.opensearch.test.ESTestCase.randomFrom;
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
+import static org.opensearch.test.OpenSearchTestCase.getTestTransportType;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
 import static org.opensearch.test.NodeRoles.masterOnlyNode;
 import static org.opensearch.test.NodeRoles.noRoles;
@@ -190,7 +190,7 @@ import static org.junit.Assert.fail;
  * The Cluster is bound to a test lifecycle where tests must call {@link #beforeTest(java.util.Random, double)} and
  * {@link #afterTest()} to initialize and reset the cluster in order to be more reproducible. The term "more" relates
  * to the async nature of Elasticsearch in combination with randomized testing. Once Threads and asynchronous calls
- * are involved reproducibility is very limited. This class should only be used through {@link ESIntegTestCase}.
+ * are involved reproducibility is very limited. This class should only be used through {@link OpenSearchIntegTestCase}.
  * </p>
  */
 public final class InternalTestCluster extends TestCluster {
@@ -554,7 +554,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public static String clusterName(String prefix, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
-        builder.append("-TEST_WORKER_VM=[").append(ESTestCase.TEST_WORKER_VM_ID).append(']');
+        builder.append("-TEST_WORKER_VM=[").append(OpenSearchTestCase.TEST_WORKER_VM_ID).append(']');
         builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
         // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params
         builder.append("-HASH=[").append(SeedUtils.formatSeed(System.nanoTime())).append(']');
@@ -1720,7 +1720,7 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
         if (nodeAndClient != null) {
-            if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
+            if (nodePrefix.equals(OpenSearchIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
                 && nodeAndClient.isMasterEligible()
                 && autoManageMasterNodes
                 && nodes.values().stream()
@@ -2516,7 +2516,7 @@ public final class InternalTestCluster extends TestCluster {
                 // request breaker (because they use bigarrays), because of
                 // that the breaker can sometimes be incremented from ping
                 // requests from other clusters because Jenkins is running
-                // multiple ES testing jobs in parallel on the same machine.
+                // multiple OpenSearch testing jobs in parallel on the same machine.
                 // To combat this we check whether the breaker has reached 0
                 // in an assertBusy loop, so it will try for 10 seconds and
                 // fail if it never reached 0

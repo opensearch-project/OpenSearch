@@ -22,7 +22,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ObjectPathTests extends ESTestCase {
+public class ObjectPathTests extends OpenSearchTestCase {
 
     private static XContentBuilder randomXContentBuilder() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());

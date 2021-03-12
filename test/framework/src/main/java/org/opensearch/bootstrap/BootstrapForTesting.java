@@ -61,7 +61,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
  * (init'd early by base classes to ensure it happens regardless of which
  * test case happens to be first, test ordering, etc).
  * <p>
- * The idea is to mimic as much as possible what happens with ES in production
+ * The idea is to mimic as much as possible what happens with OpenSearch in production
  * mode (e.g. assign permissions and install security manager the same way)
  */
 public class BootstrapForTesting {
@@ -149,7 +149,7 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "elasticsearch-rest-client", "org.opensearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
+                final Policy esPolicy = new OpenSearchPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
@@ -162,7 +162,7 @@ public class BootstrapForTesting {
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
                 // this just makes unit testing more realistic
-                for (URL url : Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_PROPERTIES))) {
+                for (URL url : Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_PROPERTIES))) {
                     Properties properties = new Properties();
                     try (InputStream stream = FileSystemUtils.openFileURLStream(url)) {
                         properties.load(stream);
@@ -200,7 +200,7 @@ public class BootstrapForTesting {
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static Map<String,Policy> getPluginPermissions() throws Exception {
-        List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_POLICY));
+        List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_POLICY));
         if (pluginPolicies.isEmpty()) {
             return Collections.emptyMap();
         }

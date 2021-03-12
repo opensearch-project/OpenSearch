@@ -58,7 +58,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ESLoggerUsageChecker {
+public class OpenSearchLoggerUsageChecker {
     public static final Type LOGGER_CLASS = Type.getType(Logger.class);
     public static final Type THROWABLE_CLASS = Type.getType(Throwable.class);
     public static final Type STRING_CLASS = Type.getType(String.class);
@@ -81,7 +81,7 @@ public class ESLoggerUsageChecker {
 
     @SuppressForbidden(reason = "command line tool")
     public static void main(String... args) throws Exception {
-        System.out.println("checking for wrong usages of ESLogger...");
+        System.out.println("checking for wrong usages of OpenSearchLogger...");
         boolean[] wrongUsageFound = new boolean[1];
         checkLoggerUsage(wrongLoggerUsage -> {
             System.err.println(wrongLoggerUsage.getErrorLines());
@@ -106,7 +106,7 @@ public class ESLoggerUsageChecker {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
                         try (InputStream in = Files.newInputStream(file)) {
-                            ESLoggerUsageChecker.check(wrongUsageCallback, in);
+                            OpenSearchLoggerUsageChecker.check(wrongUsageCallback, in);
                         }
                     }
                     return super.visitFile(file, attrs);

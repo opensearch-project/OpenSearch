@@ -27,7 +27,7 @@ import org.opensearch.env.Environment;
 
 import java.nio.file.Path;
 
-public abstract class AbstractBootstrapCheckTestCase extends ESTestCase {
+public abstract class AbstractBootstrapCheckTestCase extends OpenSearchTestCase {
     protected final BootstrapContext emptyContext;
 
     public AbstractBootstrapCheckTestCase() {

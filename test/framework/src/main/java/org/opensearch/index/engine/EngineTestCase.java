@@ -101,7 +101,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -140,7 +140,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class EngineTestCase extends ESTestCase {
+public abstract class EngineTestCase extends OpenSearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 0);
     protected final AllocationId allocationId = AllocationId.newInitializing();

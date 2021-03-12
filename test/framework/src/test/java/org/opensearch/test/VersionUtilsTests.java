@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * Tests VersionUtils. Note: this test should remain unchanged across major versions
  * it uses the hardcoded versions on purpose.
  */
-public class VersionUtilsTests extends ESTestCase {
+public class VersionUtilsTests extends OpenSearchTestCase {
 
     public void testAllVersionsSorted() {
         List<Version> allVersions = VersionUtils.allReleasedVersions();

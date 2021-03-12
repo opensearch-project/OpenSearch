@@ -44,7 +44,7 @@ import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
@@ -112,7 +112,7 @@ public final class MockTransportService extends TransportService {
     }
 
     public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
-        settings = Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build();
+        settings = Settings.builder().put(TransportSettings.PORT.getKey(), OpenSearchTestCase.getPortRange()).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService());

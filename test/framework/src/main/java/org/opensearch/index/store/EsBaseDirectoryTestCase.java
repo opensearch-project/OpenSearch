@@ -31,7 +31,7 @@ import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 
 /**
- * Extends Lucene's BaseDirectoryTestCase with ES test behavior.
+ * Extends Lucene's BaseDirectoryTestCase with OpenSearch test behavior.
  */
 @Listeners({
   ReproduceInfoPrinter.class
@@ -42,7 +42,7 @@ import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 public abstract class EsBaseDirectoryTestCase extends BaseDirectoryTestCase {
     static {
         try {
-            Class.forName("org.opensearch.test.ESTestCase");
+            Class.forName("org.opensearch.test.OpenSearchTestCase");
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
         }

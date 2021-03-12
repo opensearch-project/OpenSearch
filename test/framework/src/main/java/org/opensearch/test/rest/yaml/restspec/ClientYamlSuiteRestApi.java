@@ -33,7 +33,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 
 /**
- * Specification of an Elasticsearch endpoint used by the YAML specs to generate REST requests.
+ * Specification of an OpenSearch endpoint used by the YAML specs to generate REST requests.
  */
 public class ClientYamlSuiteRestApi {
 

@@ -119,7 +119,7 @@ import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -155,7 +155,7 @@ import static org.mockito.Mockito.when;
  * Provides helpers for constructing and searching an {@link Aggregator} implementation based on a provided
  * {@link AggregationBuilder} instance.
  */
-public abstract class AggregatorTestCase extends ESTestCase {
+public abstract class AggregatorTestCase extends OpenSearchTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
@@ -553,7 +553,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    protected static DirectoryReader wrapInMockESDirectoryReader(DirectoryReader directoryReader) throws IOException {
+    protected static DirectoryReader wrapInMockOpenSearchDirectoryReader(DirectoryReader directoryReader) throws IOException {
         return OpenSearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("_index", "_na_"), 0));
     }
 

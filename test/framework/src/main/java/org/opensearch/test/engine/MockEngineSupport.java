@@ -33,7 +33,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;

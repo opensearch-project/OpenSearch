@@ -43,7 +43,7 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.snapshots.SnapshotRestoreException;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.CoreMatchers;
 
@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Integration tests for {@link BlobStoreRepository} implementations.
  */
-public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase {
+public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSearchIntegTestCase {
 
     public static RepositoryData getRepositoryData(Repository repository) {
         return PlainActionFuture.get(repository::getRepositoryData);

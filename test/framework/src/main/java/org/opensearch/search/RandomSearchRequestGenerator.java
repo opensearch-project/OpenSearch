@@ -56,21 +56,21 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.test.ESTestCase.between;
-import static org.opensearch.test.ESTestCase.generateRandomStringArray;
-import static org.opensearch.test.ESTestCase.mockScript;
-import static org.opensearch.test.ESTestCase.randomAlphaOfLengthBetween;
-import static org.opensearch.test.ESTestCase.randomBoolean;
-import static org.opensearch.test.ESTestCase.randomByte;
-import static org.opensearch.test.ESTestCase.randomDouble;
-import static org.opensearch.test.ESTestCase.randomFloat;
-import static org.opensearch.test.ESTestCase.randomFrom;
-import static org.opensearch.test.ESTestCase.randomInt;
-import static org.opensearch.test.ESTestCase.randomIntBetween;
-import static org.opensearch.test.ESTestCase.randomLong;
-import static org.opensearch.test.ESTestCase.randomPositiveTimeValue;
-import static org.opensearch.test.ESTestCase.randomShort;
-import static org.opensearch.test.ESTestCase.randomTimeValue;
+import static org.opensearch.test.OpenSearchTestCase.between;
+import static org.opensearch.test.OpenSearchTestCase.generateRandomStringArray;
+import static org.opensearch.test.OpenSearchTestCase.mockScript;
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLengthBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
+import static org.opensearch.test.OpenSearchTestCase.randomByte;
+import static org.opensearch.test.OpenSearchTestCase.randomDouble;
+import static org.opensearch.test.OpenSearchTestCase.randomFloat;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
+import static org.opensearch.test.OpenSearchTestCase.randomInt;
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomLong;
+import static org.opensearch.test.OpenSearchTestCase.randomPositiveTimeValue;
+import static org.opensearch.test.OpenSearchTestCase.randomShort;
+import static org.opensearch.test.OpenSearchTestCase.randomTimeValue;
 
 /**
  * Builds random search requests.

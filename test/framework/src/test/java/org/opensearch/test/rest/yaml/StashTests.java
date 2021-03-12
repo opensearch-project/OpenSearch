@@ -19,7 +19,7 @@
 
 package org.opensearch.test.rest.yaml;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,7 +30,7 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class StashTests extends ESTestCase {
+public class StashTests extends OpenSearchTestCase {
     public void testReplaceStashedValuesStashKeyInMapValue() throws IOException {
         Stash stash = new Stash();
 

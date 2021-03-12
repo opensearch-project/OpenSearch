@@ -40,7 +40,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import static org.apache.lucene.util.LuceneTestCase.expectThrows;
-import static org.opensearch.test.ESTestCase.createTestAnalysis;
+import static org.opensearch.test.OpenSearchTestCase.createTestAnalysis;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 

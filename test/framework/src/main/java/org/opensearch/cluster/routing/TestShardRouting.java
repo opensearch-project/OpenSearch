@@ -26,10 +26,10 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.apache.lucene.util.LuceneTestCase.random;
-import static org.opensearch.test.ESTestCase.randomAlphaOfLength;
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
 
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
@@ -99,7 +99,7 @@ public class TestShardRouting {
             case UNASSIGNED:
             case INITIALIZING:
                 if (primary) {
-                    return ESTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                    return OpenSearchTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                         RecoverySource.ExistingStoreRecoverySource.INSTANCE);
                 } else {
                     return RecoverySource.PeerRecoverySource.INSTANCE;
@@ -131,7 +131,7 @@ public class TestShardRouting {
         switch (state) {
             case UNASSIGNED:
             case INITIALIZING:
-                return new UnassignedInfo(ESTestCase.randomFrom(UnassignedInfo.Reason.values()), "auto generated for test");
+                return new UnassignedInfo(OpenSearchTestCase.randomFrom(UnassignedInfo.Reason.values()), "auto generated for test");
             case STARTED:
             case RELOCATING:
                 return null;
@@ -141,7 +141,7 @@ public class TestShardRouting {
     }
 
     public static RecoverySource randomRecoverySource() {
-        return ESTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+        return OpenSearchTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             RecoverySource.PeerRecoverySource.INSTANCE,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,
