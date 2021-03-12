@@ -20,7 +20,7 @@ package org.elasticsearch.transport;
 
 import org.opensearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

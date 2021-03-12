@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;

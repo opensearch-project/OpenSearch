@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;

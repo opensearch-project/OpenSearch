@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;

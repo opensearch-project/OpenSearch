@@ -21,7 +21,7 @@ package org.opensearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;

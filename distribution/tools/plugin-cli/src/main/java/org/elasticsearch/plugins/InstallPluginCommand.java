@@ -36,7 +36,7 @@ import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.opensearch.cli.EnvironmentAwareCommand;
 import org.opensearch.cli.ExitCodes;

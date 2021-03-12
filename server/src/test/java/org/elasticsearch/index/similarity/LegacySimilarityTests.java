@@ -22,7 +22,7 @@ package org.elasticsearch.index.similarity;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;

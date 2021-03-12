@@ -20,7 +20,7 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.Task;
 

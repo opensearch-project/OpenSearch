@@ -18,7 +18,7 @@
  */
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;

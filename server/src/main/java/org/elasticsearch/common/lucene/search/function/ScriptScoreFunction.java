@@ -25,7 +25,7 @@ import org.apache.lucene.search.Scorable;
 import org.opensearch.script.ExplainableScoreScript;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.Script;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 
 import java.io.IOException;
 import java.util.Objects;

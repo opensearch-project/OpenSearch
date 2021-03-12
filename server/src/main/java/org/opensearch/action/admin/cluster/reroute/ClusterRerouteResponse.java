@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;

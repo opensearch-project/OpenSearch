@@ -25,7 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.OriginalIndices;

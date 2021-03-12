@@ -19,7 +19,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;

@@ -27,7 +27,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.opensearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;

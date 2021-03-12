@@ -26,7 +26,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;

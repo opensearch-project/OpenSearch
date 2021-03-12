@@ -26,7 +26,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;

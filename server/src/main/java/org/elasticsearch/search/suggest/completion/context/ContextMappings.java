@@ -25,7 +25,7 @@ import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;

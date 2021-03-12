@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.script.MockScriptEngine;

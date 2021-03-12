@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;

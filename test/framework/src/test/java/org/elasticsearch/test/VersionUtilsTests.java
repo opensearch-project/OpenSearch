@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.collect.Tuple;
 

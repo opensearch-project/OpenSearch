@@ -70,7 +70,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportActions;

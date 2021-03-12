@@ -21,13 +21,12 @@ package org.opensearch.repositories;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.snapshots.SnapshotsService;

@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
