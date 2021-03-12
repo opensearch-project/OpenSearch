@@ -124,7 +124,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collections;

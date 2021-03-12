@@ -37,7 +37,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.opensearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
