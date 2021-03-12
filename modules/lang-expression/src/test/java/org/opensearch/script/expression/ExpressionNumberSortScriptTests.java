@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.script.NumberSortScript;
 import org.opensearch.script.ScriptException;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Matchers.anyInt;

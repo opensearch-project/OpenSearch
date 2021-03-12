@@ -29,8 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.sort.SortOrder;
 
 import java.util.Collections;
 import java.util.EnumSet;

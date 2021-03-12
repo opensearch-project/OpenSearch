@@ -34,7 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.opensearch.index.rankeval.RankEvalSpec.ScriptWithId;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

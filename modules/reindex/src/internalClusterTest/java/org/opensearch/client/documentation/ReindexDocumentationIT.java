@@ -44,7 +44,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;

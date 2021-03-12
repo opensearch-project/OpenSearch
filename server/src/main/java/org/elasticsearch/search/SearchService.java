@@ -82,10 +82,10 @@ import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.collapse.CollapseContext;
-import org.elasticsearch.search.dfs.DfsPhase;
-import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.collapse.CollapseContext;
+import org.opensearch.search.dfs.DfsPhase;
+import org.opensearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
@@ -102,18 +102,18 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.search.rescore.RescorerBuilder;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.MinAndMax;
-import org.elasticsearch.search.sort.SortAndFormats;
-import org.elasticsearch.search.sort.SortBuilder;
+import org.opensearch.search.rescore.RescorerBuilder;
+import org.opensearch.search.searchafter.SearchAfterBuilder;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.threadpool.Scheduler.Cancellable;
@@ -984,7 +984,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                 + "] but was [" + source.scriptFields().size() + "]. This limit can be set by changing the ["
                                 + IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey() + "] index level setting.");
             }
-            for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
+            for (org.opensearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 FieldScript.Factory factory = scriptService.compile(field.script(), FieldScript.CONTEXT);
                 SearchLookup lookup = context.getQueryShardContext().lookup();
                 FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), lookup);

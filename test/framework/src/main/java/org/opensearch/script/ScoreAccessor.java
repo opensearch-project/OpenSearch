@@ -20,7 +20,7 @@
 package org.opensearch.script;
 
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.search.lookup.DocLookup;
+import org.opensearch.search.lookup.DocLookup;
 
 import java.io.IOException;
 

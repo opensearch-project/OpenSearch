@@ -129,7 +129,7 @@ public class Requests {
 
     /**
      * Creates a search request against one or more indices. Note, the search source must be set either using the
-     * actual JSON search source, or the {@link org.elasticsearch.search.builder.SearchSourceBuilder}.
+     * actual JSON search source, or the {@link org.opensearch.search.builder.SearchSourceBuilder}.
      *
      * @param indices The indices to search against. Use {@code null} or {@code _all} to execute against all indices
      * @return The search request

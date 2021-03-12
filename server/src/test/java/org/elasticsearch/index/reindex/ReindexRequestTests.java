@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.slice.SliceBuilder;
+import org.opensearch.search.slice.SliceBuilder;
 
 import java.io.IOException;
 import java.util.Collections;

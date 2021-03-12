@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.opensearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
 import java.util.List;

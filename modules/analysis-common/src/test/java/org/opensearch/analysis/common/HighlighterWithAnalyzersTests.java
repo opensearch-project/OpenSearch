@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -41,8 +41,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.opensearch.search.builder.SearchSourceBuilder.highlight;
+import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.hamcrest.Matchers.anyOf;

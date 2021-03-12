@@ -57,8 +57,8 @@ import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.UpdateScript;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -84,7 +84,7 @@ import static org.opensearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.opensearch.rest.RestStatus.CONFLICT;
-import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
+import static org.opensearch.search.sort.SortBuilders.fieldSort;
 
 /**
  * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so

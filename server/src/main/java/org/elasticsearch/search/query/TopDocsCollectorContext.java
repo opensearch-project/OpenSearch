@@ -60,11 +60,11 @@ import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.collapse.CollapseContext;
+import org.opensearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescoreContext;
-import org.elasticsearch.search.sort.SortAndFormats;
+import org.opensearch.search.rescore.RescoreContext;
+import org.opensearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.Objects;

@@ -64,9 +64,9 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.NestedSortBuilder;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -23,7 +23,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
