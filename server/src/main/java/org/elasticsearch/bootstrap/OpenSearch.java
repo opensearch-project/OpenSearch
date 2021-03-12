@@ -91,7 +91,7 @@ class OpenSearch extends EnvironmentAwareCommand {
         final OpenSearch opensearch = new OpenSearch();
         int status = main(args, opensearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
-            final String basePath = System.getProperty("es.logs.base_path");
+            final String basePath = System.getProperty("opensearch.logs.base_path");
             // It's possible to fail before logging has been configured, in which case there's no point
             // suggesting that the user look in the log file.
             if (basePath != null) {
