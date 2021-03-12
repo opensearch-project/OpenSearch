@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.util.function.Predicate;
 

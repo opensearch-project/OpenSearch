@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

@@ -90,11 +90,11 @@ import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
 import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Template;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -132,8 +132,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractRawValues;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.CoreMatchers.hasItem;
@@ -1790,7 +1790,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 client.indices()::getTemplate, client.indices()::getTemplateAsync,
                 expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getTemplate1.getIndexTemplates(), hasSize(1));
-        org.elasticsearch.cluster.metadata.IndexTemplateMetadata template1 = getTemplate1.getIndexTemplates().get(0);
+        org.opensearch.cluster.metadata.IndexTemplateMetadata template1 = getTemplate1.getIndexTemplates().get(0);
         assertThat(template1.name(), equalTo("template-1"));
         assertThat(template1.patterns(), contains("pattern-1", "name-1"));
         assertTrue(template1.aliases().containsKey("alias-1"));
@@ -1801,7 +1801,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 client.indices()::getTemplate, client.indices()::getTemplateAsync,
                 expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getTemplate2.getIndexTemplates(), hasSize(1));
-        org.elasticsearch.cluster.metadata.IndexTemplateMetadata template2 = getTemplate2.getIndexTemplates().get(0);
+        org.opensearch.cluster.metadata.IndexTemplateMetadata template2 = getTemplate2.getIndexTemplates().get(0);
         assertThat(template2.name(), equalTo("template-2"));
         assertThat(template2.patterns(), contains("pattern-2", "name-2"));
         assertTrue(template2.aliases().isEmpty());
@@ -1818,7 +1818,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 getBothRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync,
                 expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getBoth.getIndexTemplates(), hasSize(2));
-        assertThat(getBoth.getIndexTemplates().stream().map(org.elasticsearch.cluster.metadata.IndexTemplateMetadata::getName).toArray(),
+        assertThat(getBoth.getIndexTemplates().stream().map(org.opensearch.cluster.metadata.IndexTemplateMetadata::getName).toArray(),
             arrayContainingInAnyOrder("template-1", "template-2"));
 
         GetIndexTemplatesRequest getAllRequest = new GetIndexTemplatesRequest();
@@ -1826,7 +1826,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 getAllRequest, client.indices()::getTemplate, client.indices()::getTemplateAsync,
                 expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(getAll.getIndexTemplates().size(), greaterThanOrEqualTo(2));
-        assertThat(getAll.getIndexTemplates().stream().map(org.elasticsearch.cluster.metadata.IndexTemplateMetadata::getName)
+        assertThat(getAll.getIndexTemplates().stream().map(org.opensearch.cluster.metadata.IndexTemplateMetadata::getName)
                 .collect(Collectors.toList()),
             hasItems("template-1", "template-2"));
 

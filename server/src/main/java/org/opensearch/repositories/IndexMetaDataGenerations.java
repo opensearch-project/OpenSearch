@@ -19,7 +19,7 @@
 
 package org.opensearch.repositories;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.snapshots.SnapshotId;
 
@@ -65,7 +65,7 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Gets the blob id by the identifier of {@link org.elasticsearch.cluster.metadata.IndexMetadata}
+     * Gets the blob id by the identifier of {@link org.opensearch.cluster.metadata.IndexMetadata}
      * (computed via {@link #buildUniqueIdentifier}) or {@code null} if none is tracked for the identifier.
      *
      * @param metaIdentifier identifier for {@link IndexMetadata}

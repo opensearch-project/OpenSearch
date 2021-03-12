@@ -21,11 +21,11 @@ package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.metadata.IndexGraveyard;
+import org.opensearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -203,7 +203,7 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns the {@link org.elasticsearch.cluster.node.DiscoveryNodes.Delta} between
+     * Returns the {@link org.opensearch.cluster.node.DiscoveryNodes.Delta} between
      * the previous cluster state and the new cluster state.
      */
     public DiscoveryNodes.Delta nodesDelta() {

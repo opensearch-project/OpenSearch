@@ -29,7 +29,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.WriteResponse;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
