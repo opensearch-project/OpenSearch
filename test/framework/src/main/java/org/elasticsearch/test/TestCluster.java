@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
-import org.elasticsearch.repositories.RepositoryMissingException;
+import org.opensearch.repositories.RepositoryMissingException;
 
 import java.io.Closeable;
 import java.io.IOException;

@@ -52,7 +52,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.SnapshotId;

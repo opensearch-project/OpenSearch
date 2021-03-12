@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.opensearch.plugin.repository.url.URLRepositoryPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 
