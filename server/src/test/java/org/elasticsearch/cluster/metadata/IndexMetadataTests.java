@@ -44,6 +44,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.opensearch.cluster.metadata.DiffableStringMap;
+import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,7 +54,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
+import static org.opensearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

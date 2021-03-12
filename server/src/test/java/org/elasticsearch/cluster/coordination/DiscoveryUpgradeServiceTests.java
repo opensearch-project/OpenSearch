@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.cluster.coordination.DiscoveryUpgradeService;

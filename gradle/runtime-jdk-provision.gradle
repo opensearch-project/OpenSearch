@@ -1,9 +1,9 @@
-import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.info.BuildParams
 
-apply plugin: 'elasticsearch.jdk-download'
+apply plugin: 'opensearch.jdk-download'
 
 if (BuildParams.getIsRuntimeJavaHomeSet()) {
   configure(allprojects - project(':build-tools')) {

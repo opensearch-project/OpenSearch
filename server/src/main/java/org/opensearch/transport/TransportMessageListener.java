@@ -18,7 +18,7 @@
  */
 package org.opensearch.transport;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 public interface TransportMessageListener {
 

@@ -53,7 +53,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.Metadata}. Defaults
+     * Should the cluster state result include the {@link org.opensearch.cluster.metadata.Metadata}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setMetadata(boolean filter) {
@@ -62,7 +62,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.node.DiscoveryNodes}. Defaults
+     * Should the cluster state result include the {@link org.opensearch.cluster.node.DiscoveryNodes}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setNodes(boolean filter) {
@@ -89,7 +89,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * When {@link #setMetadata(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetadata}
+     * When {@link #setMetadata(boolean)} is set, which indices to return the {@link org.opensearch.cluster.metadata.IndexMetadata}
      * for. Defaults to all indices.
      */
     public ClusterStateRequestBuilder setIndices(String... indices) {

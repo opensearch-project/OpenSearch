@@ -26,15 +26,15 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.AliasValidator;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.Template;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.AliasValidator;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
+import org.opensearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -57,10 +57,10 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
 public class TransportSimulateIndexTemplateAction
     extends TransportMasterNodeReadAction<SimulateIndexTemplateRequest, SimulateIndexTemplateResponse> {

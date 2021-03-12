@@ -20,7 +20,7 @@ package org.opensearch.cluster;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ack.AckedRequest;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;

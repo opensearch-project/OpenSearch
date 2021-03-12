@@ -22,7 +22,7 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Table;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
