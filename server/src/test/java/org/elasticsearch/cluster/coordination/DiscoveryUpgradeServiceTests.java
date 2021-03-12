@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.coordination.DiscoveryUpgradeService;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;

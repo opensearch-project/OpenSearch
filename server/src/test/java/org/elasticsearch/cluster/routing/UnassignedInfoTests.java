@@ -39,7 +39,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.repositories.IndexId;
+import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;

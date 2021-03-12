@@ -24,7 +24,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;

@@ -32,7 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
 

@@ -19,9 +19,9 @@
 
 package org.opensearch.cluster;
 
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.action.index.MappingUpdatedAction;
+import org.opensearch.cluster.action.index.NodeMappingRefreshAction;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
@@ -72,7 +72,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.ingest.IngestMetadata;
+import org.opensearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;

@@ -20,7 +20,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.action.support.replication.ReplicationOperation;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -750,8 +750,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.http.BindHttpException::new, 7, UNKNOWN_VERSION_ADDED),
         REDUCE_SEARCH_PHASE_EXCEPTION(org.elasticsearch.action.search.ReduceSearchPhaseException.class,
                 org.elasticsearch.action.search.ReduceSearchPhaseException::new, 8, UNKNOWN_VERSION_ADDED),
-        NODE_CLOSED_EXCEPTION(org.elasticsearch.node.NodeClosedException.class,
-                org.elasticsearch.node.NodeClosedException::new, 9, UNKNOWN_VERSION_ADDED),
+        NODE_CLOSED_EXCEPTION(org.opensearch.node.NodeClosedException.class,
+                org.opensearch.node.NodeClosedException::new, 9, UNKNOWN_VERSION_ADDED),
         SNAPSHOT_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.SnapshotFailedEngineException.class,
                 org.elasticsearch.index.engine.SnapshotFailedEngineException::new, 10, UNKNOWN_VERSION_ADDED),
         SHARD_NOT_FOUND_EXCEPTION(org.elasticsearch.index.shard.ShardNotFoundException.class,
@@ -826,8 +826,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         // 47 used to be for IndexTemplateAlreadyExistsException which was deprecated in 5.1 removed in 6.0
         TRANSLOG_CORRUPTED_EXCEPTION(org.elasticsearch.index.translog.TranslogCorruptedException.class,
                 org.elasticsearch.index.translog.TranslogCorruptedException::new, 48, UNKNOWN_VERSION_ADDED),
-        CLUSTER_BLOCK_EXCEPTION(org.elasticsearch.cluster.block.ClusterBlockException.class,
-                org.elasticsearch.cluster.block.ClusterBlockException::new, 49, UNKNOWN_VERSION_ADDED),
+        CLUSTER_BLOCK_EXCEPTION(org.opensearch.cluster.block.ClusterBlockException.class,
+                org.opensearch.cluster.block.ClusterBlockException::new, 49, UNKNOWN_VERSION_ADDED),
         FETCH_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.fetch.FetchPhaseExecutionException.class,
                 org.elasticsearch.search.fetch.FetchPhaseExecutionException::new, 50, UNKNOWN_VERSION_ADDED),
         // 51 used to be for IndexShardAlreadyExistsException which was deprecated in 5.1 removed in 6.0
@@ -884,8 +884,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         // 80 was IndexFailedEngineException, deprecated in 6.0, removed in 7.0
         INDEX_SHARD_RESTORE_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardRestoreFailedException::new, 81, UNKNOWN_VERSION_ADDED),
-        REPOSITORY_EXCEPTION(org.elasticsearch.repositories.RepositoryException.class,
-                org.elasticsearch.repositories.RepositoryException::new, 82, UNKNOWN_VERSION_ADDED),
+        REPOSITORY_EXCEPTION(org.opensearch.repositories.RepositoryException.class,
+                org.opensearch.repositories.RepositoryException::new, 82, UNKNOWN_VERSION_ADDED),
         RECEIVE_TIMEOUT_TRANSPORT_EXCEPTION(org.elasticsearch.transport.ReceiveTimeoutTransportException.class,
                 org.elasticsearch.transport.ReceiveTimeoutTransportException::new, 83, UNKNOWN_VERSION_ADDED),
         NODE_DISCONNECTED_EXCEPTION(org.elasticsearch.transport.NodeDisconnectedException.class,
@@ -927,8 +927,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.cluster.routing.RoutingException::new, 105, UNKNOWN_VERSION_ADDED),
         INDEX_SHARD_RECOVERY_EXCEPTION(org.elasticsearch.index.shard.IndexShardRecoveryException.class,
                 org.elasticsearch.index.shard.IndexShardRecoveryException::new, 106, UNKNOWN_VERSION_ADDED),
-        REPOSITORY_MISSING_EXCEPTION(org.elasticsearch.repositories.RepositoryMissingException.class,
-                org.elasticsearch.repositories.RepositoryMissingException::new, 107, UNKNOWN_VERSION_ADDED),
+        REPOSITORY_MISSING_EXCEPTION(org.opensearch.repositories.RepositoryMissingException.class,
+                org.opensearch.repositories.RepositoryMissingException::new, 107, UNKNOWN_VERSION_ADDED),
         DOCUMENT_SOURCE_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentSourceMissingException.class,
                 org.elasticsearch.index.engine.DocumentSourceMissingException::new, 109, UNKNOWN_VERSION_ADDED),
         // 110 used to be FlushNotAllowedEngineException
@@ -950,8 +950,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.OpenSearchTimeoutException::new, 118, UNKNOWN_VERSION_ADDED),
         QUERY_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.query.QueryPhaseExecutionException.class,
                 org.elasticsearch.search.query.QueryPhaseExecutionException::new, 119, UNKNOWN_VERSION_ADDED),
-        REPOSITORY_VERIFICATION_EXCEPTION(org.elasticsearch.repositories.RepositoryVerificationException.class,
-                org.elasticsearch.repositories.RepositoryVerificationException::new, 120, UNKNOWN_VERSION_ADDED),
+        REPOSITORY_VERIFICATION_EXCEPTION(org.opensearch.repositories.RepositoryVerificationException.class,
+                org.opensearch.repositories.RepositoryVerificationException::new, 120, UNKNOWN_VERSION_ADDED),
         INVALID_AGGREGATION_PATH_EXCEPTION(org.elasticsearch.search.aggregations.InvalidAggregationPathException.class,
                 org.elasticsearch.search.aggregations.InvalidAggregationPathException::new, 121, UNKNOWN_VERSION_ADDED),
         // 123 used to be IndexAlreadyExistsException and was renamed
@@ -983,8 +983,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             UNKNOWN_VERSION_ADDED),
         TYPE_MISSING_EXCEPTION(org.elasticsearch.indices.TypeMissingException.class,
                 org.elasticsearch.indices.TypeMissingException::new, 137, UNKNOWN_VERSION_ADDED),
-        FAILED_TO_COMMIT_CLUSTER_STATE_EXCEPTION(org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException.class,
-                org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException::new, 140, UNKNOWN_VERSION_ADDED),
+        FAILED_TO_COMMIT_CLUSTER_STATE_EXCEPTION(org.opensearch.cluster.coordination.FailedToCommitClusterStateException.class,
+                org.opensearch.cluster.coordination.FailedToCommitClusterStateException::new, 140, UNKNOWN_VERSION_ADDED),
         QUERY_SHARD_EXCEPTION(org.elasticsearch.index.query.QueryShardException.class,
                 org.elasticsearch.index.query.QueryShardException::new, 141, UNKNOWN_VERSION_ADDED),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(ShardStateAction.NoLongerPrimaryShardException.class,
@@ -1002,8 +1002,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         // 148 was UnknownNamedObjectException
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
             MultiBucketConsumerService.TooManyBucketsException::new, 149, Version.V_6_2_0),
-        COORDINATION_STATE_REJECTED_EXCEPTION(org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
-            org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new, 150, Version.V_7_0_0),
+        COORDINATION_STATE_REJECTED_EXCEPTION(org.opensearch.cluster.coordination.CoordinationStateRejectedException.class,
+            org.opensearch.cluster.coordination.CoordinationStateRejectedException::new, 150, Version.V_7_0_0),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(org.opensearch.snapshots.SnapshotInProgressException.class,
             org.opensearch.snapshots.SnapshotInProgressException::new, 151, Version.V_6_7_0),
         NO_SUCH_REMOTE_CLUSTER_EXCEPTION(org.elasticsearch.transport.NoSuchRemoteClusterException.class,
@@ -1039,8 +1039,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 158,
                 Version.V_7_9_0),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
-                org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
-                org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
+                org.opensearch.cluster.coordination.NodeHealthCheckFailureException.class,
+                org.opensearch.cluster.coordination.NodeHealthCheckFailureException::new,
                 159,
                 Version.V_7_9_0),
         NO_SEED_NODE_LEFT_EXCEPTION(

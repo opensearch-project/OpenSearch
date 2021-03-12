@@ -70,7 +70,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.coordination.OpenSearchNodeCommand;
+import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

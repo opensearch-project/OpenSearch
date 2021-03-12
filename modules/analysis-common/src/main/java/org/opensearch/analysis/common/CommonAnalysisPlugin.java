@@ -136,7 +136,7 @@ import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;

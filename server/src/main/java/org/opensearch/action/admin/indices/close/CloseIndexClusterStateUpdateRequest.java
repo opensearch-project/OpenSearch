@@ -19,7 +19,7 @@
 package org.opensearch.action.admin.indices.close;
 
 import org.opensearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
 
 /**
  * Cluster state update request that allows to close one or more indices

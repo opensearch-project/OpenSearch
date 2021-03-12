@@ -28,7 +28,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;

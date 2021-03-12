@@ -36,7 +36,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
