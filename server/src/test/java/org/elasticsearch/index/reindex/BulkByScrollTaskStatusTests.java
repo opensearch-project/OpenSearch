@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;

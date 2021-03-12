@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionType;

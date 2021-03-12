@@ -19,7 +19,7 @@
 
 package org.opensearch.client.transport;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.opensearch.rest.RestStatus;
 

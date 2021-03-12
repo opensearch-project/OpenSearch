@@ -19,7 +19,7 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.grok.MatcherWatchdog;
 import org.elasticsearch.test.ESTestCase;
 
