@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin.noop;
+package org.opensearch.plugin.noop;
 
-import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
-import org.elasticsearch.plugin.noop.action.bulk.RestNoopBulkAction;
-import org.elasticsearch.plugin.noop.action.bulk.TransportNoopBulkAction;
+import org.opensearch.plugin.noop.action.bulk.NoopBulkAction;
+import org.opensearch.plugin.noop.action.bulk.RestNoopBulkAction;
+import org.opensearch.plugin.noop.action.bulk.TransportNoopBulkAction;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -29,9 +29,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.plugin.noop.action.search.NoopSearchAction;
-import org.elasticsearch.plugin.noop.action.search.RestNoopSearchAction;
-import org.elasticsearch.plugin.noop.action.search.TransportNoopSearchAction;
+import org.opensearch.plugin.noop.action.search.NoopSearchAction;
+import org.opensearch.plugin.noop.action.search.RestNoopSearchAction;
+import org.opensearch.plugin.noop.action.search.TransportNoopSearchAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.opensearch.rest.RestController;
