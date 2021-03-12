@@ -98,7 +98,7 @@ Copyright 2009-2018 Acme Coorp"""
         result.task(":darwin-tar:checkNotice").outcome == TaskOutcome.FAILED
         normalizedOutput(result.output).contains("> expected line [2] in " +
                 "[./darwin-tar/build/tar-extracted/opensearch-${VersionProperties.getOpenSearch()}/NOTICE.txt] " +
-                "to be [Copyright 2009-2018 Elasticsearch] but was [Copyright 2009-2018 Acme Coorp]")
+                "to be [Copyright 2021 OpenSearch Contributors] but was [Copyright 2009-2018 Acme Coorp]")
     }
 
     void license(File file = file("licenses/APACHE-LICENSE-2.0.txt")) {
