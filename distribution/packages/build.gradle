@@ -485,7 +485,7 @@ subprojects {
         (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
       }
       doLast {
-        final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2018 Elasticsearch")
+        final List<String> noticeLines = Arrays.asList("OpenSearch", "Copyright 2021 OpenSearch Contributors")
         final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/NOTICE.txt")
         assertLinesInFile(noticePath, noticeLines)
       }
