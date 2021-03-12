@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin.noop.action.bulk;
+package org.opensearch.plugin.noop.action.bulk;
 
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;

@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin.noop.action.bulk;
+package org.opensearch.plugin.noop.action.search;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchResponse;
 
-public class NoopBulkAction extends ActionType<BulkResponse> {
-    public static final String NAME = "mock:data/write/bulk";
+public class NoopSearchAction extends ActionType<SearchResponse> {
+    public static final NoopSearchAction INSTANCE = new NoopSearchAction();
+    public static final String NAME = "mock:data/read/search";
 
-    public static final NoopBulkAction INSTANCE = new NoopBulkAction();
-
-    private NoopBulkAction() {
-        super(NAME, BulkResponse::new);
+    private NoopSearchAction() {
+        super(NAME, SearchResponse::new);
     }
 }
