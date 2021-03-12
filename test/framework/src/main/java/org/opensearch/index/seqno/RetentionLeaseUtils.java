@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.seqno;
+package org.opensearch.index.seqno;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

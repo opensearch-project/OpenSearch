@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.inject;
+package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.Elements;
-import org.elasticsearch.common.inject.spi.InstanceBinding;
-import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.Elements;
+import org.opensearch.common.inject.spi.InstanceBinding;
+import org.opensearch.common.inject.spi.ProviderInstanceBinding;
+import org.opensearch.test.ESTestCase;
 
 import java.lang.annotation.Annotation;
 import java.util.List;

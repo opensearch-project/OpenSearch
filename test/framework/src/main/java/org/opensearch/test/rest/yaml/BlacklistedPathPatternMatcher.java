@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml;
+package org.opensearch.test.rest.yaml;
 
 import java.util.regex.Pattern;
 

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.section;
+package org.opensearch.test.rest.yaml.section;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.elasticsearch.client.NodeSelector;
+import org.opensearch.client.NodeSelector;
 
 import static java.util.Collections.unmodifiableMap;
 

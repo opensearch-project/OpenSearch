@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.opensearch.test;
 
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.http.HttpInfo;
+import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.HttpStats;
+import org.opensearch.plugins.Plugin;
 
 /**
  * A dummy http transport used by tests when not wanting to actually bind to a real address.
@@ -33,7 +33,7 @@ import org.elasticsearch.plugins.Plugin;
 public class MockHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
     /**
-     * Marker plugin used by {@link org.elasticsearch.node.MockNode} to enable {@link MockHttpTransport}.
+     * Marker plugin used by {@link org.opensearch.node.MockNode} to enable {@link MockHttpTransport}.
      */
     public static class TestPlugin extends Plugin {}
 

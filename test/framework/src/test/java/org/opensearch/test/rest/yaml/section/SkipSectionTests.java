@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml.section;
+package org.opensearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.test.VersionUtils;
 
 import java.util.Collections;
 

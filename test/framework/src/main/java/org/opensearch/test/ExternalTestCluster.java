@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.opensearch.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,19 +25,19 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.env.Environment;
+import org.opensearch.http.HttpInfo;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.transport.MockTransportClient;
+import org.opensearch.transport.TransportSettings;
+import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.HTTP;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
-import static org.elasticsearch.test.ESTestCase.getTestTransportType;
+import static org.opensearch.test.ESTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 

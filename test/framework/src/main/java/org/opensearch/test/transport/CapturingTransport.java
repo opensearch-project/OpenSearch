@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.test.transport;
+package org.opensearch.test.transport;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequest;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;

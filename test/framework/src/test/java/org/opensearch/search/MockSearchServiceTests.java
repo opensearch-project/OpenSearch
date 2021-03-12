@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
-import org.elasticsearch.search.internal.ReaderContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.search.internal.ReaderContext;
+import org.opensearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;
 

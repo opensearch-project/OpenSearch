@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.section;
+package org.opensearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 
 public class VersionRange {
     private final Version lower;

@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.restspec;
+package org.opensearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 

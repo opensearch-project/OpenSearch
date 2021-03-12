@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.loggerusage;
+package org.opensearch.test.loggerusage;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -25,10 +25,10 @@ import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
+import org.opensearch.common.SuppressLoggerChecks;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
 
 import java.io.IOException;
 import java.io.InputStream;

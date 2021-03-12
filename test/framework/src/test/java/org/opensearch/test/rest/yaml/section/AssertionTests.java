@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.section;
+package org.opensearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
-import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
-import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;
-import org.elasticsearch.test.rest.yaml.section.LengthAssertion;
-import org.elasticsearch.test.rest.yaml.section.LessThanAssertion;
-import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.test.rest.yaml.section.GreaterThanAssertion;
+import org.opensearch.test.rest.yaml.section.IsFalseAssertion;
+import org.opensearch.test.rest.yaml.section.IsTrueAssertion;
+import org.opensearch.test.rest.yaml.section.LengthAssertion;
+import org.opensearch.test.rest.yaml.section.LessThanAssertion;
+import org.opensearch.test.rest.yaml.section.MatchAssertion;
 
 import java.util.List;
 import java.util.Map;

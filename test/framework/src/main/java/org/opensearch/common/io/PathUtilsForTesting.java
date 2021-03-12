@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.io;
+package org.opensearch.common.io;
 
 import org.apache.lucene.util.LuceneTestCase;
 

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.opensearch.test;
 
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.NodeRoleSettings;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.node.NodeRoleSettings;
 
 import java.util.Collections;
 import java.util.Set;

@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.engine;
+package org.opensearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.EngineFactory;
 
 public final class MockEngineFactory implements EngineFactory {
 

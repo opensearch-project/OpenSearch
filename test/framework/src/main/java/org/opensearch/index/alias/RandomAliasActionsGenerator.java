@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.alias;
+package org.opensearch.index.alias;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 
@@ -25,14 +25,14 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.test.ESTestCase.between;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomInt;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.opensearch.test.ESTestCase.between;
+import static org.opensearch.test.ESTestCase.randomAlphaOfLength;
+import static org.opensearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.opensearch.test.ESTestCase.randomBoolean;
+import static org.opensearch.test.ESTestCase.randomFrom;
+import static org.opensearch.test.ESTestCase.randomInt;
+import static org.opensearch.test.ESTestCase.randomIntBetween;
+import static org.opensearch.test.ESTestCase.randomLong;
 
 public final class RandomAliasActionsGenerator {
 

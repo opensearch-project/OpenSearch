@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport;
+package org.opensearch.transport;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.concurrent.CompletableContext;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;

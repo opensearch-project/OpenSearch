@@ -17,40 +17,40 @@
  * under the License.
  */
 
-package org.elasticsearch.node;
+package org.opensearch.node;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterInfoService;
-import org.elasticsearch.cluster.MockInternalClusterInfoService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.cluster.MockInternalClusterInfoService;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.env.Environment;
+import org.opensearch.http.HttpServerTransport;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.search.MockSearchService;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.search.MockSearchService;
+import org.opensearch.search.SearchService;
+import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.test.MockHttpTransport;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportInterceptor;
+import org.opensearch.transport.TransportService;
 
 import java.nio.file.Path;
 import java.util.Collection;

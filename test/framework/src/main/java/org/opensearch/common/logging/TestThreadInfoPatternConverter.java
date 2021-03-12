@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging;
+package org.opensearch.common.logging;
 
 import java.util.Arrays;
 import java.util.regex.Matcher;
@@ -28,7 +28,7 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase;
 
 /**
  * Converts {@code %test_thread_info} in log4j patterns into information

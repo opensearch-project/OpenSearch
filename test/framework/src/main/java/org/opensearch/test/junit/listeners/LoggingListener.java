@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.test.junit.listeners;
+package org.opensearch.test.junit.listeners;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.test.junit.annotations.TestIssueLogging;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 import org.junit.runner.notification.RunListener;

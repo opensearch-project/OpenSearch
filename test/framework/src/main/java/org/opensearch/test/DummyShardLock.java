@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.opensearch.test;
 
-import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.env.ShardLock;
+import org.opensearch.index.shard.ShardId;
 
 /*
  * A ShardLock that does nothing... for tests only

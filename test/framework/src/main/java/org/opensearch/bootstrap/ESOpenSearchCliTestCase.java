@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
-import org.elasticsearch.cli.MockTerminal;
+import org.opensearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.file.Path;
 import java.util.Map;

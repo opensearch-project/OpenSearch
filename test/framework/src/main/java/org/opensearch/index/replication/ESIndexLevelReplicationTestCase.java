@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.replication;
+package org.opensearch.index.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
@@ -31,59 +31,59 @@ import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.action.bulk.BulkShardResponse;
 import org.opensearch.action.bulk.MappingUpdatePerformer;
 import org.opensearch.action.bulk.TransportShardBulkAction;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.resync.ResyncReplicationRequest;
-import org.elasticsearch.action.resync.ResyncReplicationResponse;
-import org.elasticsearch.action.resync.TransportResyncReplicationAction;
-import org.elasticsearch.action.support.ActionTestUtils;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.resync.ResyncReplicationRequest;
+import org.opensearch.action.resync.ResyncReplicationResponse;
+import org.opensearch.action.resync.TransportResyncReplicationAction;
+import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.replication.PendingReplicationActions;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
-import org.elasticsearch.action.support.replication.ReplicationOperation;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
-import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
-import org.elasticsearch.action.support.replication.TransportWriteAction;
-import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingHelper;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
-import org.elasticsearch.index.seqno.RetentionLease;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.opensearch.action.support.replication.PendingReplicationActions;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.action.support.replication.ReplicationOperation;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
+import org.opensearch.action.support.replication.TransportWriteAction;
+import org.opensearch.action.support.replication.TransportWriteActionTestHelper;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.collect.Iterators;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.DocIdSeqNoAndSource;
+import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
+import org.opensearch.index.seqno.RetentionLease;
+import org.opensearch.index.seqno.RetentionLeaseSyncAction;
+import org.opensearch.index.seqno.RetentionLeaseSyncer;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.shard.PrimaryReplicaSyncer;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -680,7 +680,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
-            public org.elasticsearch.index.shard.ReplicationGroup getReplicationGroup() {
+            public org.opensearch.index.shard.ReplicationGroup getReplicationGroup() {
                 return getPrimaryShard().getReplicationGroup();
             }
 

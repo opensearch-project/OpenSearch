@@ -21,14 +21,14 @@ package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.index.query.IntervalFilterScript;
-import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
-import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
-import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
-import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.index.query.IntervalFilterScript;
+import org.opensearch.index.similarity.ScriptedSimilarity.Doc;
+import org.opensearch.index.similarity.ScriptedSimilarity.Field;
+import org.opensearch.index.similarity.ScriptedSimilarity.Query;
+import org.opensearch.index.similarity.ScriptedSimilarity.Term;
+import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
+import org.opensearch.search.lookup.LeafSearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;

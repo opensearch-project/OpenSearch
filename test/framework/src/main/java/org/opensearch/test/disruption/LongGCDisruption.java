@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.test.disruption;
+package org.opensearch.test.disruption;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.test.InternalTestCluster;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;

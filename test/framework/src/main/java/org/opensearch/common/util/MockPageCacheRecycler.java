@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.opensearch.common.util;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.recycler.Recycler.V;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.recycler.Recycler.V;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.set.Sets;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -33,7 +33,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.elasticsearch.test.ESTestCase.waitUntil;
+import static org.opensearch.test.ESTestCase.waitUntil;
 
 public class MockPageCacheRecycler extends PageCacheRecycler {
 

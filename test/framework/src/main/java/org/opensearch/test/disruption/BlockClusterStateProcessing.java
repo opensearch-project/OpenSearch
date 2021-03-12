@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.disruption;
+package org.opensearch.test.disruption;
 
 import org.apache.logging.log4j.core.util.Throwables;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.InternalTestCluster;
 
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;

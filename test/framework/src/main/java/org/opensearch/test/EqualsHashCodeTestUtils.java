@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.opensearch.test;
 
 import java.io.IOException;
 

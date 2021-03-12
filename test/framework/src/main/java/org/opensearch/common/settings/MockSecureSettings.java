@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.common.settings;
+package org.opensearch.common.settings;
 
-import org.elasticsearch.common.hash.MessageDigests;
+import org.opensearch.common.hash.MessageDigests;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

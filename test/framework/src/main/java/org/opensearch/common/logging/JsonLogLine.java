@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging;
+package org.opensearch.common.logging;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.ObjectParser;
 
 import java.util.List;
 

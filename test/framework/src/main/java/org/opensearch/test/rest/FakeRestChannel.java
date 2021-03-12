@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest;
+package org.opensearch.test.rest;
 
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestRequest;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.hamcrest;
+package org.opensearch.test.hamcrest;
 
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;

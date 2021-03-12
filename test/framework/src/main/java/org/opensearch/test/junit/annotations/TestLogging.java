@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.junit.annotations;
+package org.opensearch.test.junit.annotations;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -32,7 +32,7 @@ import static java.lang.annotation.ElementType.TYPE;
  * investigating test failures; instead, use {@link TestIssueLogging}.
  *
  * It supports multiple logger:level comma-separated key-value pairs of logger:level (e.g.,
- * org.elasticsearch.cluster.metadata:TRACE). Use the _root keyword to set the root logger level.
+ * org.opensearch.cluster.metadata:TRACE). Use the _root keyword to set the root logger level.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({PACKAGE, TYPE, METHOD})

@@ -19,9 +19,9 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.ScriptPlugin;
 
 import java.util.Collection;
 import java.util.Collections;

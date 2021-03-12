@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.tasks;
+package org.opensearch.test.tasks;
 
 import org.opensearch.tasks.Task;
 

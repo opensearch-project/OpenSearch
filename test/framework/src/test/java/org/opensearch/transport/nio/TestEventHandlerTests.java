@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.nio.ServerChannelContext;
+import org.opensearch.nio.SocketChannelContext;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;

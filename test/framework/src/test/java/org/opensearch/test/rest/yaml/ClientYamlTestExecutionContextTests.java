@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml;
+package org.opensearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.NodeSelector;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.Version;
+import org.opensearch.client.NodeSelector;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;

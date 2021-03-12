@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.junit.annotations;
+package org.opensearch.test.junit.annotations;
 
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 

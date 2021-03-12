@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.disruption;
+package org.opensearch.test.disruption;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.test.InternalTestCluster;
 
 import java.util.Random;
 

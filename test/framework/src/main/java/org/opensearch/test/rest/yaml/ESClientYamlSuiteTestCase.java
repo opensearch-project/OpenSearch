@@ -17,32 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml;
+package org.opensearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Node;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.WarningsHandler;
+import org.opensearch.Version;
+import org.opensearch.client.Node;
+import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
+import org.opensearch.client.Response;
+import org.opensearch.client.RestClient;
+import org.opensearch.client.RestClientBuilder;
+import org.opensearch.client.WarningsHandler;
 import org.opensearch.client.sniff.OpenSearchNodesSniffer;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
-import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.opensearch.common.Strings;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
+import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.opensearch.test.rest.yaml.section.ClientYamlTestSection;
+import org.opensearch.test.rest.yaml.section.ClientYamlTestSuite;
+import org.opensearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

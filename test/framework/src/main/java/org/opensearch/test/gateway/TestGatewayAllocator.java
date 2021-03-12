@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.test.gateway;
+package org.opensearch.test.gateway;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.FailedShard;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.gateway.AsyncShardFetch;
-import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.gateway.PrimaryShardAllocator;
-import org.elasticsearch.gateway.ReplicaShardAllocator;
-import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.allocation.FailedShard;
+import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.gateway.AsyncShardFetch;
+import org.opensearch.gateway.GatewayAllocator;
+import org.opensearch.gateway.PrimaryShardAllocator;
+import org.opensearch.gateway.ReplicaShardAllocator;
+import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
 import java.util.Collections;
 import java.util.HashMap;

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 

@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.common.bytes;
+package org.opensearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.ByteArray;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.test.ESTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;

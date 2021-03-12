@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test;
+package org.opensearch.test;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
 
 import java.nio.file.Path;
 import java.util.Collection;

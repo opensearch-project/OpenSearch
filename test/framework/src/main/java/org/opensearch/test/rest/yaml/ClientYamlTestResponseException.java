@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml;
+package org.opensearch.test.rest.yaml;
 
-import org.elasticsearch.client.ResponseException;
+import org.opensearch.client.ResponseException;
 
 import java.io.IOException;
 

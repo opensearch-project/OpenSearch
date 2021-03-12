@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.elasticsearch.gradle.info.BuildParams;
+import org.opensearch.gradle.info.BuildParams;
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -34,8 +34,8 @@ dependencies {
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "org.elasticsearch:securemock:${versions.securemock}"
-  api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  api "org.opensearch:securemock:${versions.securemock}"
+  api "org.opensearch:mocksocket:${versions.mocksocket}"
 }
 
 compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-unchecked'

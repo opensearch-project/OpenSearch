@@ -17,38 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchType;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.text.Text;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.DeprecationHandler;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescorerBuilder;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
-import org.elasticsearch.search.slice.SliceBuilder;
-import org.elasticsearch.search.sort.ScriptSortBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.builder.PointInTimeBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.collapse.CollapseBuilder;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.rescore.RescorerBuilder;
+import org.opensearch.search.searchafter.SearchAfterBuilder;
+import org.opensearch.search.slice.SliceBuilder;
+import org.opensearch.search.sort.ScriptSortBuilder;
+import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.suggest.SuggestBuilder;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,21 +56,21 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.test.ESTestCase.between;
-import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
-import static org.elasticsearch.test.ESTestCase.mockScript;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomByte;
-import static org.elasticsearch.test.ESTestCase.randomDouble;
-import static org.elasticsearch.test.ESTestCase.randomFloat;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomInt;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.test.ESTestCase.randomLong;
-import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
-import static org.elasticsearch.test.ESTestCase.randomShort;
-import static org.elasticsearch.test.ESTestCase.randomTimeValue;
+import static org.opensearch.test.ESTestCase.between;
+import static org.opensearch.test.ESTestCase.generateRandomStringArray;
+import static org.opensearch.test.ESTestCase.mockScript;
+import static org.opensearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.opensearch.test.ESTestCase.randomBoolean;
+import static org.opensearch.test.ESTestCase.randomByte;
+import static org.opensearch.test.ESTestCase.randomDouble;
+import static org.opensearch.test.ESTestCase.randomFloat;
+import static org.opensearch.test.ESTestCase.randomFrom;
+import static org.opensearch.test.ESTestCase.randomInt;
+import static org.opensearch.test.ESTestCase.randomIntBetween;
+import static org.opensearch.test.ESTestCase.randomLong;
+import static org.opensearch.test.ESTestCase.randomPositiveTimeValue;
+import static org.opensearch.test.ESTestCase.randomShort;
+import static org.opensearch.test.ESTestCase.randomTimeValue;
 
 /**
  * Builds random search requests.

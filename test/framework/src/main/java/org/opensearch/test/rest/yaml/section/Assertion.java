@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.section;
+package org.opensearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.io.IOException;
 import java.util.Map;

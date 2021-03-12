@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.engine.MockEngineFactory;
-import org.elasticsearch.test.engine.MockEngineSupport;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.plugins.EnginePlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.engine.MockEngineFactory;
+import org.opensearch.test.engine.MockEngineSupport;
 
 import java.util.Arrays;
 import java.util.List;

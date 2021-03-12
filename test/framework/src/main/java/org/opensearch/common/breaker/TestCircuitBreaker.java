@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.breaker;
+package org.opensearch.common.breaker;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 

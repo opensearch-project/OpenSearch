@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.network.IfConfig;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginInfo;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.Strings;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.network.IfConfig;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.secure_sm.SecureSM;
 import org.junit.Assert;
 
@@ -140,13 +140,13 @@ public class BootstrapForTesting {
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
                 // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
-                addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
+                addClassCodebase(codebases,"elasticsearch", "org.opensearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
-                    addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
-                    addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
-                    addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
-                    addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
+                    addClassCodebase(codebases,"plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
+                    addClassCodebase(codebases,"elasticsearch-nio", "org.opensearch.nio.ChannelFactory");
+                    addClassCodebase(codebases, "elasticsearch-secure-sm", "org.opensearch.secure_sm.SecureSM");
+                    addClassCodebase(codebases, "elasticsearch-rest-client", "org.opensearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());

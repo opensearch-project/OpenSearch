@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.disruption;
+package org.opensearch.test.disruption;
 
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.test.InternalTestCluster;
 
 public interface ServiceDisruptionScheme {
 

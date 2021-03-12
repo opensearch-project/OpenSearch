@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml.section;
+package org.opensearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
-import org.elasticsearch.test.rest.yaml.Stash;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.opensearch.test.rest.yaml.Stash;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;

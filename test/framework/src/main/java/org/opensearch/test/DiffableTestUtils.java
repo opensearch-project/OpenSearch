@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.opensearch.test;
 
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.AbstractWireSerializingTestCase.NUMBER_OF_TEST_RUNS;
+import static org.opensearch.test.AbstractWireSerializingTestCase.NUMBER_OF_TEST_RUNS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 

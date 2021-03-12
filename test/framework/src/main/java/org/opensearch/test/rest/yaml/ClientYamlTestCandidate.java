@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml;
+package org.opensearch.test.rest.yaml;
 
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
-import org.elasticsearch.test.rest.yaml.section.SetupSection;
-import org.elasticsearch.test.rest.yaml.section.TeardownSection;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
+import org.opensearch.test.rest.yaml.section.ClientYamlTestSuite;
+import org.opensearch.test.rest.yaml.section.SetupSection;
+import org.opensearch.test.rest.yaml.section.TeardownSection;
+import org.opensearch.test.rest.yaml.section.ClientYamlTestSection;
 
 /**
  * Wraps {@link ClientYamlTestSection}s ready to be run. Each test section is associated to its {@link ClientYamlTestSuite}.

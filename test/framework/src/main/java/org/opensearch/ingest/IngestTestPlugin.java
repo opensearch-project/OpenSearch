@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.opensearch.ingest;
 
 import java.util.Collections;
 import java.util.Map;
 
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.IngestPlugin;
+import org.opensearch.plugins.Plugin;
 
 /**
  * Adds an ingest processor to be used in tests.

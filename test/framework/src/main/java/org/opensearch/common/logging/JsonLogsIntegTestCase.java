@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging;
+package org.opensearch.common.logging;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.test.rest.ESRestTestCase;
 
 import java.io.BufferedReader;
 import java.io.IOException;

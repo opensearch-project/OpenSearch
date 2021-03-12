@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.restspec;
+package org.opensearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

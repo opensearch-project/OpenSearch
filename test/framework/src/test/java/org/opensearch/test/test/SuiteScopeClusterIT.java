@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.test;
+package org.opensearch.test.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestCluster;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.TestCluster;
 import org.junit.Test;
 
 import java.io.IOException;

@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.test.ESTestCase.randomAlphaOfLength;
+import static org.opensearch.test.ESTestCase.randomBoolean;
+import static org.opensearch.test.ESTestCase.randomFrom;
+import static org.opensearch.test.ESTestCase.randomIntBetween;
 
 public final class RandomCreateIndexGenerator {
 
@@ -61,8 +61,8 @@ public final class RandomCreateIndexGenerator {
 
     /**
      * Returns a {@link Settings} instance which include random values for
-     * {@link org.elasticsearch.cluster.metadata.IndexMetadata#SETTING_NUMBER_OF_SHARDS} and
-     * {@link org.elasticsearch.cluster.metadata.IndexMetadata#SETTING_NUMBER_OF_REPLICAS}
+     * {@link org.opensearch.cluster.metadata.IndexMetadata#SETTING_NUMBER_OF_SHARDS} and
+     * {@link org.opensearch.cluster.metadata.IndexMetadata#SETTING_NUMBER_OF_REPLICAS}
      */
     public static Settings randomIndexSettings() {
         Settings.Builder builder = Settings.builder();

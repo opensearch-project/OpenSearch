@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.analysis;
+package org.opensearch.indices.analysis;
 
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.StandardTokenizerFactory;
-import org.elasticsearch.index.analysis.StopTokenFilterFactory;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.index.analysis.HunspellTokenFilterFactory;
+import org.opensearch.index.analysis.ShingleTokenFilterFactory;
+import org.opensearch.index.analysis.StandardTokenizerFactory;
+import org.opensearch.index.analysis.StopTokenFilterFactory;
+import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Locale;

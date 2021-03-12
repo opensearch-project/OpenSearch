@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.opensearch.common.util;
 
 import java.util.Map;
 import java.util.regex.Matcher;

@@ -16,18 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test;
+package org.opensearch.test;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.monitor.fs.FsService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.monitor.fs.FsService;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.transport.RemoteConnectionStrategy;
 
 import java.util.Arrays;
 import java.util.List;

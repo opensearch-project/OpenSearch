@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging;
+package org.opensearch.common.logging;
 
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.common.logging.TestThreadInfoPatternConverter.threadInfo;
+import static org.opensearch.common.logging.TestThreadInfoPatternConverter.threadInfo;
 
 public class TestThreadInfoPatternConverterTests extends ESTestCase {
     private static String suiteInfo;

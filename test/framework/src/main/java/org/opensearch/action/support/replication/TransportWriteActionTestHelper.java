@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.support.replication;
+package org.opensearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.WriteRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.common.Nullable;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.translog.Translog;
 
 import java.util.concurrent.CountDownLatch;
 

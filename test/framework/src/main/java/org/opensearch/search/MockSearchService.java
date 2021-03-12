@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.node.MockNode;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.node.MockNode;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.internal.ReaderContext;
+import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;

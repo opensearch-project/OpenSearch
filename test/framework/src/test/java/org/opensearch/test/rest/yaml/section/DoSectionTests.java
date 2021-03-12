@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml.section;
+package org.opensearch.test.rest.yaml.section;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Node;
-import org.elasticsearch.client.NodeSelector;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
+import org.opensearch.Version;
+import org.opensearch.client.Node;
+import org.opensearch.client.NodeSelector;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.logging.HeaderWarning;
+import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.opensearch.test.rest.yaml.ClientYamlTestResponse;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;

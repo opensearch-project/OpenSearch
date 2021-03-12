@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml.section;
+package org.opensearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -72,5 +72,5 @@ class ParserUtils {
             throw new IllegalArgumentException("malformed test section: field name expected but found " + token + " at "
                     + parser.getTokenLocation());
         }
-    } 
+    }
 }

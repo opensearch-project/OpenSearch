@@ -1,4 +1,4 @@
-package org.elasticsearch.index.store;
+package org.opensearch.index.store;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -27,8 +27,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.BaseDirectoryTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.opensearch.bootstrap.BootstrapForTesting;
+import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 
 /**
  * Extends Lucene's BaseDirectoryTestCase with ES test behavior.
@@ -42,7 +42,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 public abstract class EsBaseDirectoryTestCase extends BaseDirectoryTestCase {
     static {
         try {
-            Class.forName("org.elasticsearch.test.ESTestCase");
+            Class.forName("org.opensearch.test.ESTestCase");
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
         }

@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml;
+package org.opensearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.NodeSelector;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.opensearch.Version;
+import org.opensearch.client.NodeSelector;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
+import org.opensearch.client.RestClient;
+import org.opensearch.client.RestClientBuilder;
+import org.opensearch.common.CheckedSupplier;
+import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
 import java.util.HashMap;

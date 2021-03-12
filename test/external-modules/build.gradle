@@ -1,5 +1,5 @@
 
-import org.elasticsearch.gradle.info.BuildParams;
+import org.opensearch.gradle.info.BuildParams;
 
 subprojects {
   apply plugin: 'elasticsearch.esplugin'

@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.test;
+package org.opensearch.test.test;
 
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestCluster;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.TestCluster;
 
 import java.io.IOException;
 

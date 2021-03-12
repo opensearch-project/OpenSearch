@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.engine;
+package org.opensearch.test.engine;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.Fields;
@@ -44,7 +44,7 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
     private final Thrower thrower;
 
     /**
-     * Flags passed to {@link Thrower#maybeThrow(org.elasticsearch.test.engine.ThrowingLeafReaderWrapper.Flags)}
+     * Flags passed to {@link Thrower#maybeThrow(org.opensearch.test.engine.ThrowingLeafReaderWrapper.Flags)}
      * when the corresponding method is called.
      */
     public enum Flags {

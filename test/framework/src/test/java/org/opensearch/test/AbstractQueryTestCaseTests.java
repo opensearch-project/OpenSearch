@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.opensearch.test;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.set.Sets;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -30,13 +30,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.test.AbstractQueryTestCase.alterateQueries;
+import static org.opensearch.test.AbstractQueryTestCase.alterateQueries;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Various test for {@link org.elasticsearch.test.AbstractQueryTestCase}
+ * Various test for {@link org.opensearch.test.AbstractQueryTestCase}
  */
 public class AbstractQueryTestCaseTests extends ESTestCase {
 

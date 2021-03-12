@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test;
+package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
@@ -25,11 +25,11 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.opensearch.Version;
+import org.opensearch.bootstrap.BootstrapForTesting;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 
 @Listeners({
         ReproduceInfoPrinter.class
@@ -45,7 +45,7 @@ public abstract class ESTokenStreamTestCase extends BaseTokenStreamTestCase {
 
     static {
         try {
-            Class.forName("org.elasticsearch.test.ESTestCase");
+            Class.forName("org.opensearch.test.ESTestCase");
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
         }

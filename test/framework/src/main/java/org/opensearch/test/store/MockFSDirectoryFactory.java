@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.store;
+package org.opensearch.test.store;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
@@ -28,21 +28,21 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.FsDirectoryFactory;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.Store;
+import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.io.Closeable;

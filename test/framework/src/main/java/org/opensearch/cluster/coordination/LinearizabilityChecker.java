@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.coordination;
+package org.opensearch.cluster.coordination;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.Strings;
+import org.opensearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collection;

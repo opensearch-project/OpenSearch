@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.disruption;
+package org.opensearch.test.disruption;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.Nullable;
+import org.opensearch.test.ESTestCase;
 
 import java.lang.management.ThreadInfo;
 import java.util.ArrayList;

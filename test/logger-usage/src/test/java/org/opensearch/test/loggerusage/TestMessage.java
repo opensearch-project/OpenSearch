@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.loggerusage;
+package org.opensearch.test.loggerusage;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 

@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.node;
+package org.opensearch.node;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.MockSearchService;
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockHttpTransport;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.env.Environment;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.MockSearchService;
+import org.opensearch.search.SearchService;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.MockHttpTransport;
 
 import java.io.IOException;
 import java.util.ArrayList;

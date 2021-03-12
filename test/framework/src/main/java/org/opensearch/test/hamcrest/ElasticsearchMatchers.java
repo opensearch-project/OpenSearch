@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.hamcrest;
+package org.opensearch.test.hamcrest;
 
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.hamcrest.Description;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
