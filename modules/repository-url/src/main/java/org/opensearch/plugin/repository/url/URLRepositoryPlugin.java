@@ -26,7 +26,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.Repository;
+import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.url.URLRepository;
 
 import java.util.Arrays;

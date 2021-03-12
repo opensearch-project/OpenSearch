@@ -884,8 +884,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         // 80 was IndexFailedEngineException, deprecated in 6.0, removed in 7.0
         INDEX_SHARD_RESTORE_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardRestoreFailedException::new, 81, UNKNOWN_VERSION_ADDED),
-        REPOSITORY_EXCEPTION(org.elasticsearch.repositories.RepositoryException.class,
-                org.elasticsearch.repositories.RepositoryException::new, 82, UNKNOWN_VERSION_ADDED),
+        REPOSITORY_EXCEPTION(org.opensearch.repositories.RepositoryException.class,
+                org.opensearch.repositories.RepositoryException::new, 82, UNKNOWN_VERSION_ADDED),
         RECEIVE_TIMEOUT_TRANSPORT_EXCEPTION(org.elasticsearch.transport.ReceiveTimeoutTransportException.class,
                 org.elasticsearch.transport.ReceiveTimeoutTransportException::new, 83, UNKNOWN_VERSION_ADDED),
         NODE_DISCONNECTED_EXCEPTION(org.elasticsearch.transport.NodeDisconnectedException.class,
@@ -927,8 +927,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.cluster.routing.RoutingException::new, 105, UNKNOWN_VERSION_ADDED),
         INDEX_SHARD_RECOVERY_EXCEPTION(org.elasticsearch.index.shard.IndexShardRecoveryException.class,
                 org.elasticsearch.index.shard.IndexShardRecoveryException::new, 106, UNKNOWN_VERSION_ADDED),
-        REPOSITORY_MISSING_EXCEPTION(org.elasticsearch.repositories.RepositoryMissingException.class,
-                org.elasticsearch.repositories.RepositoryMissingException::new, 107, UNKNOWN_VERSION_ADDED),
+        REPOSITORY_MISSING_EXCEPTION(org.opensearch.repositories.RepositoryMissingException.class,
+                org.opensearch.repositories.RepositoryMissingException::new, 107, UNKNOWN_VERSION_ADDED),
         DOCUMENT_SOURCE_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentSourceMissingException.class,
                 org.elasticsearch.index.engine.DocumentSourceMissingException::new, 109, UNKNOWN_VERSION_ADDED),
         // 110 used to be FlushNotAllowedEngineException
@@ -950,8 +950,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.OpenSearchTimeoutException::new, 118, UNKNOWN_VERSION_ADDED),
         QUERY_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.query.QueryPhaseExecutionException.class,
                 org.elasticsearch.search.query.QueryPhaseExecutionException::new, 119, UNKNOWN_VERSION_ADDED),
-        REPOSITORY_VERIFICATION_EXCEPTION(org.elasticsearch.repositories.RepositoryVerificationException.class,
-                org.elasticsearch.repositories.RepositoryVerificationException::new, 120, UNKNOWN_VERSION_ADDED),
+        REPOSITORY_VERIFICATION_EXCEPTION(org.opensearch.repositories.RepositoryVerificationException.class,
+                org.opensearch.repositories.RepositoryVerificationException::new, 120, UNKNOWN_VERSION_ADDED),
         INVALID_AGGREGATION_PATH_EXCEPTION(org.elasticsearch.search.aggregations.InvalidAggregationPathException.class,
                 org.elasticsearch.search.aggregations.InvalidAggregationPathException::new, 121, UNKNOWN_VERSION_ADDED),
         // 123 used to be IndexAlreadyExistsException and was renamed

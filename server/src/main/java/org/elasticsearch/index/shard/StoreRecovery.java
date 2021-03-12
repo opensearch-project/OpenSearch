@@ -51,8 +51,8 @@ import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.Repository;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.Repository;
 
 import java.io.IOException;
 import java.util.Arrays;

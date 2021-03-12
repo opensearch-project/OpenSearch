@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.repositories.RepositoryCleanupResult;
+import org.opensearch.repositories.RepositoryCleanupResult;
 
 import java.io.IOException;
 

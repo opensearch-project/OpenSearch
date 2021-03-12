@@ -48,7 +48,7 @@ import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.script.ScriptService;
