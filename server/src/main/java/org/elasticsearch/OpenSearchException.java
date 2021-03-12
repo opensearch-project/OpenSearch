@@ -964,7 +964,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.index.mapper.MapperParsingException::new, 126, UNKNOWN_VERSION_ADDED),
         // 127 used to be org.elasticsearch.search.SearchContextException
         SEARCH_SOURCE_BUILDER_EXCEPTION(org.opensearch.search.builder.SearchSourceBuilderException.class,
-                org.elasticsearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
+                org.opensearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
         // 129 was EngineClosedException
         NO_SHARD_AVAILABLE_ACTION_EXCEPTION(org.opensearch.action.NoShardAvailableActionException.class,
                 org.opensearch.action.NoShardAvailableActionException::new, 130, UNKNOWN_VERSION_ADDED),
