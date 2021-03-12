@@ -99,7 +99,7 @@ class OpenSearch extends EnvironmentAwareCommand {
                     "ERROR: OpenSearch did not exit normally - check the logs at "
                         + basePath
                         + System.getProperty("file.separator")
-                        + System.getProperty("es.logs.cluster_name") + ".log"
+                        + System.getProperty("opensearch.logs.cluster_name") + ".log"
                 );
             }
             exit(status);
@@ -108,7 +108,7 @@ class OpenSearch extends EnvironmentAwareCommand {
 
     private static void overrideDnsCachePolicyProperties() {
         for (final String property : new String[] {"networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
-            final String overrideProperty = "es." + property;
+            final String overrideProperty = "opensearch." + property;
             final String overrideValue = System.getProperty(overrideProperty);
             if (overrideValue != null) {
                 try {
