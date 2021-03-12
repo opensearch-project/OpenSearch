@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.TaskOperationFailure;

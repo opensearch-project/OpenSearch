@@ -19,7 +19,7 @@
 
 package org.opensearch.ingest.useragent;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;

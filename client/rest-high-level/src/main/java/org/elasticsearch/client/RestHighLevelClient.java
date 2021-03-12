@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;

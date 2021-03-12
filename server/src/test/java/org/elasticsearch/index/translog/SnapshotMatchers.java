@@ -21,7 +21,7 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;

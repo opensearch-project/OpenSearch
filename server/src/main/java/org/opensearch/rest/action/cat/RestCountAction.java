@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.cat;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.opensearch.client.node.NodeClient;

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
