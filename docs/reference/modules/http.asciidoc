@@ -192,12 +192,13 @@ Defaults to `network.tcp.receive_buffer_size`.
 The HTTP layer has a dedicated tracer logger which, when activated, logs incoming requests. The log can be dynamically activated
 by setting the level of the `org.opensearch.http.HttpTracer` logger to `TRACE`:
 
+// TODO: Change the class path after renaming or test will be failed
 [source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
    "transient" : {
-      "logger.org.opensearch.http.HttpTracer" : "TRACE"
+      "logger.org.elasticsearch.http.HttpTracer" : "TRACE"
    }
 }
 --------------------------------------------------

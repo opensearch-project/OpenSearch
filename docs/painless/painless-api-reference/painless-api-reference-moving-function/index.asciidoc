@@ -17,7 +17,7 @@ The following classes are available grouped by their respective packages. Click 
 * <<painless-api-reference-moving-function-String, String>>
 
 ==== org.opensearch.search.aggregations.pipeline
-<<painless-api-reference-moving-function-org-opensearch-search-aggregations-pipeline, Expand details for org.elasticsearch.search.aggregations.pipeline>>
+<<painless-api-reference-moving-function-org-opensearch-search-aggregations-pipeline, Expand details for org.opensearch.search.aggregations.pipeline>>
 
 * <<painless-api-reference-moving-function-MovingFunctions, MovingFunctions>>
 
