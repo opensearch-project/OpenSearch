@@ -20,7 +20,7 @@ package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -49,7 +49,7 @@ import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 
-public class FilterAllocationDeciderTests extends ESAllocationTestCase {
+public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
 
     public void testFilterInitialRecovery() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);

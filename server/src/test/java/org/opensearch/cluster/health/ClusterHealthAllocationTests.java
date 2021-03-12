@@ -21,7 +21,7 @@ package org.opensearch.cluster.health;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -31,7 +31,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 
 import java.util.Collections;
 
-public class ClusterHealthAllocationTests extends ESAllocationTestCase {
+public class ClusterHealthAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testClusterHealth() {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();

@@ -21,7 +21,7 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -49,7 +49,7 @@ import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
-public class InSyncAllocationIdTests extends ESAllocationTestCase {
+public class InSyncAllocationIdTests extends OpenSearchAllocationTestCase {
 
     private AllocationService allocation;
     private ShardStateAction.ShardFailedClusterStateTaskExecutor failedClusterStateTaskExecutor;

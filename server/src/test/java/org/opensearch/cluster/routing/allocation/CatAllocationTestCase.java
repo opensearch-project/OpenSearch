@@ -21,7 +21,7 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -57,7 +57,7 @@ import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
  * the test builds up a clusterstate from the cat input and optionally runs a full balance on it.
  * This can be used to debug cluster allocation decisions.
  */
-public abstract class CatAllocationTestCase extends ESAllocationTestCase {
+public abstract class CatAllocationTestCase extends OpenSearchAllocationTestCase {
     protected abstract Path getCatPath() throws IOException;
 
     public void testRun() throws IOException {
@@ -160,7 +160,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
             }
             logger.debug("Initializing shards: {}", initializing);
             numRelocations += initializing.size();
-            clusterState = ESAllocationTestCase.startShardsAndReroute(strategy, clusterState, initializing);
+            clusterState = OpenSearchAllocationTestCase.startShardsAndReroute(strategy, clusterState, initializing);
         }
         logger.debug("--> num relocations to get balance: {}", numRelocations);
         return clusterState;

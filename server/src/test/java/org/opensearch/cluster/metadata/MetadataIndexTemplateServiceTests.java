@@ -56,7 +56,7 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -90,7 +90,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
+public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

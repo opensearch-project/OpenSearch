@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -42,7 +42,7 @@ import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RebalanceAfterActiveTests extends ESAllocationTestCase {
+public class RebalanceAfterActiveTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(RebalanceAfterActiveTests.class);
 
     public void testRebalanceOnlyAfterAllShardsAreActive() {
