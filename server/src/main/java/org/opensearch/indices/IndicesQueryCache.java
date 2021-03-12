@@ -58,10 +58,10 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
     // mostly a way to prevent queries from being the main source of memory usage
     // of the cache
-    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING =
+    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = 
             Setting.intSetting("indices.queries.cache.count", 10_000, 1, Property.NodeScope);
     // enables caching on all segments instead of only the larger ones, for testing only
-    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = 
+    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING =
             Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
 
     private final LRUQueryCache cache;
