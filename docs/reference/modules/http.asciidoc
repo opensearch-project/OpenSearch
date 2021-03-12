@@ -54,7 +54,7 @@ Maximum size of allowed headers. Defaults to `8kb`.
 
 [[http-compression]]
 // tag::http-compression-tag[]
-`http.compression` {ess-icon}::
+`http.compression`::
 (<<static-cluster-setting,Static>>)
 Support for compression when possible (with Accept-Encoding). If HTTPS is enabled, defaults to `false`. Otherwise, defaults to `true`.
 +
@@ -69,7 +69,7 @@ Defines the compression level to use for HTTP responses. Valid values are in the
 
 [[http-cors-enabled]]
 // tag::http-cors-enabled-tag[]
-`http.cors.enabled` {ess-icon}::
+`http.cors.enabled`::
 (<<static-cluster-setting,Static>>)
 Enable or disable cross-origin resource sharing, which determines whether a browser on another origin can execute requests against {es}. Set to `true` to enable {es} to process pre-flight
 {wikipedia}/Cross-origin_resource_sharing[CORS] requests.
@@ -83,7 +83,7 @@ compromised. If CORS is not enabled on {es}, the only way for the client to know
 
 [[http-cors-allow-origin]]
 // tag::http-cors-allow-origin-tag[]
-`http.cors.allow-origin` {ess-icon}::
+`http.cors.allow-origin`::
 (<<static-cluster-setting,Static>>)
 Which origins to allow. If you prepend and append a forward slash (`/`) to the value, this will be treated as a regular expression, allowing you to support HTTP and HTTPs. For example, using `/https?:\/\/localhost(:[0-9]+)?/` would return the request header appropriately in both cases. Defaults to no origins allowed.
 +
@@ -93,28 +93,28 @@ IMPORTANT: A wildcard (`*`) is a valid value but is considered a security risk, 
 
 [[http-cors-max-age]]
 // tag::http-cors-max-age-tag[]
-`http.cors.max-age` {ess-icon}::
+`http.cors.max-age`::
 (<<static-cluster-setting,Static>>)
 Browsers send a "preflight" OPTIONS-request to determine CORS settings. `max-age` defines how long the result should be cached for. Defaults to `1728000` (20 days).
 // end::http-cors-max-age-tag[]
 
 [[http-cors-allow-methods]]
 // tag::http-cors-allow-methods-tag[]
-`http.cors.allow-methods` {ess-icon}::
+`http.cors.allow-methods`::
 (<<static-cluster-setting,Static>>)
 Which methods to allow. Defaults to `OPTIONS, HEAD, GET, POST, PUT, DELETE`.
 // end::http-cors-allow-methods-tag[]
 
 [[http-cors-allow-headers]]
 // tag::http-cors-allow-headers-tag[]
-`http.cors.allow-headers` {ess-icon}::
+`http.cors.allow-headers`::
 (<<static-cluster-setting,Static>>)
 Which headers to allow. Defaults to `X-Requested-With, Content-Type, Content-Length`.
 // end::http-cors-allow-headers-tag[]
 
 [[http-cors-allow-credentials]]
 // tag::http-cors-allow-credentials-tag[]
-`http.cors.allow-credentials` {ess-icon}::
+`http.cors.allow-credentials`::
 (<<static-cluster-setting,Static>>)
 Whether the `Access-Control-Allow-Credentials` header should be returned. Defaults to `false`.
 +
