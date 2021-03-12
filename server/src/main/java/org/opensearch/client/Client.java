@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.opensearch.client;
 
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
@@ -77,11 +77,11 @@ import java.util.Map;
  * simply returns an {@link org.opensearch.action.ActionFuture}, while the second accepts an
  * {@link ActionListener}.
  * <p>
- * A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
- * to one or more nodes using {@link org.elasticsearch.client.transport.TransportClient}.
+ * A client can either be retrieved from a {@link org.opensearch.node.Node} started, or connected remotely
+ * to one or more nodes using {@link org.opensearch.client.transport.TransportClient}.
  *
- * @see org.elasticsearch.node.Node#client()
- * @see org.elasticsearch.client.transport.TransportClient
+ * @see org.opensearch.node.Node#client()
+ * @see org.opensearch.client.transport.TransportClient
  */
 public interface Client extends OpenSearchClient, Releasable {
 
@@ -214,7 +214,7 @@ public interface Client extends OpenSearchClient, Releasable {
      *
      * @param request The bulk request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#bulkRequest()
+     * @see Requests#bulkRequest()
      */
     ActionFuture<BulkResponse> bulk(BulkRequest request);
 
@@ -223,7 +223,7 @@ public interface Client extends OpenSearchClient, Releasable {
      *
      * @param request  The bulk request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#bulkRequest()
+     * @see Requests#bulkRequest()
      */
     void bulk(BulkRequest request, ActionListener<BulkResponse> listener);
 

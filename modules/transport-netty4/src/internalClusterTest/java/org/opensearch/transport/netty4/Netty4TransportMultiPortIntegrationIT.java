@@ -22,7 +22,7 @@ import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.transport.TransportClient;
+import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;

@@ -19,7 +19,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;

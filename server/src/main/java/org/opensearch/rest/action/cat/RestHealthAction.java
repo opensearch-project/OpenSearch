@@ -21,7 +21,7 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;

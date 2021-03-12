@@ -19,7 +19,7 @@
 package org.elasticsearch.action.support.master;
 
 import org.opensearch.action.ActionType;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**

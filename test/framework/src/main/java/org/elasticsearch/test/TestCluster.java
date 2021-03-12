@@ -28,12 +28,12 @@ import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.IndexTemplateMissingException;
+import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.repositories.RepositoryMissingException;
 
 import java.io.Closeable;

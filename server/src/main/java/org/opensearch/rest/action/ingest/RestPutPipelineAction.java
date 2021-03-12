@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentType;

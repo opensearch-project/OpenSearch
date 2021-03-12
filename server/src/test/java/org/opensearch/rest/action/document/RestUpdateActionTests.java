@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.document;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;

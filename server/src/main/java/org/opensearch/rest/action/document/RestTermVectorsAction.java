@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;

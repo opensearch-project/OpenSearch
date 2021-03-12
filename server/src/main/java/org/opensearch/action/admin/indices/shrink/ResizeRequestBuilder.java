@@ -20,9 +20,9 @@ package org.opensearch.action.admin.indices.shrink;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.Settings;
 
 public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse,

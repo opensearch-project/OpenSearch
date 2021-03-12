@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.client.Requests.cleanupRepositoryRequest;
+import static org.opensearch.client.Requests.cleanupRepositoryRequest;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**

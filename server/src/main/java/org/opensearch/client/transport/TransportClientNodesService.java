@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport;
+package org.opensearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
@@ -33,7 +33,7 @@ import org.opensearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Requests;
+import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;

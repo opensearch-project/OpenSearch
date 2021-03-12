@@ -20,7 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 

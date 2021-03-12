@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,16 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.cli;
-
-import org.opensearch.cli.MultiCommand;
+package org.opensearch.cli;
 
 /**
- * A multi-command that is aware of logging. This class should be preferred over the base {@link MultiCommand} class for any CLI tools that
- * depend on core Elasticsearch as they could directly or indirectly touch classes that touch logging and as such logging needs to be
- * configured.
+ * A command that is aware of logging. This class should be preferred over the base {@link Command} class for any CLI tools that depend on
+ * core Elasticsearch as they could directly or indirectly touch classes that touch logging and as such logging needs to be configured.
  */
-public abstract class LoggingAwareMultiCommand extends MultiCommand {
+public abstract class LoggingAwareCommand extends Command {
 
     /**
      * Construct the command with the specified command description. This command will have logging configured without reading Elasticsearch
@@ -34,7 +31,7 @@ public abstract class LoggingAwareMultiCommand extends MultiCommand {
      *
      * @param description the command description
      */
-    public LoggingAwareMultiCommand(final String description) {
+    public LoggingAwareCommand(final String description) {
         super(description, CommandLoggingConfigurator::configureLoggingWithoutConfig);
     }
 

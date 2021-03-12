@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,22 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.cli;
+package org.opensearch.cli;
 
 import joptsimple.OptionSet;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
-import org.opensearch.cli.ExitCodes;
-import org.opensearch.cli.Terminal;
-import org.opensearch.cli.UserException;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 
 /**
- * An {@link org.elasticsearch.cli.EnvironmentAwareCommand} that needs to access the elasticsearch keystore, possibly
+ * An {@link org.opensearch.cli.EnvironmentAwareCommand} that needs to access the elasticsearch keystore, possibly
  * decrypting it if it is password protected.
  */
 public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {

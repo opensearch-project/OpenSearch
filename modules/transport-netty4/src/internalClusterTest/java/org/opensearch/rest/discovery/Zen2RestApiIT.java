@@ -22,7 +22,7 @@ package org.opensearch.rest.discovery;
 import org.apache.http.HttpHost;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;

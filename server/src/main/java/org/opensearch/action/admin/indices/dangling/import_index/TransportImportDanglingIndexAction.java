@@ -35,13 +35,13 @@ import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexAction
 import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
 import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
 import org.opensearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.gateway.LocalAllocateDangledIndices;
+import org.opensearch.gateway.LocalAllocateDangledIndices;
 import org.opensearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 

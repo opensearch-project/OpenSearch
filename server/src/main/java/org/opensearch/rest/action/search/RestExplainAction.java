@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.search;
 
 import org.elasticsearch.action.explain.ExplainRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;

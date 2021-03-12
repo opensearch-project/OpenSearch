@@ -23,6 +23,7 @@ import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.client.Client;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * The response of the delete action.
  *
  * @see org.elasticsearch.action.delete.DeleteRequest
- * @see org.elasticsearch.client.Client#delete(DeleteRequest)
+ * @see Client#delete(DeleteRequest)
  */
 public class DeleteResponse extends DocWriteResponse {
 

@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for the request to cancel tasks running on the specified nodes

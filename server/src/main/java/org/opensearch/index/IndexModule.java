@@ -29,7 +29,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -55,12 +55,12 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
-import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.plugins.IndexStorePlugin;
+import org.opensearch.indices.IndicesQueryCache;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.threadpool.ThreadPool;
@@ -144,7 +144,7 @@ public final class IndexModule {
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
-     * via {@link org.elasticsearch.plugins.PluginsService#onIndexModule(IndexModule)}.
+     * via {@link org.opensearch.plugins.PluginsService#onIndexModule(IndexModule)}.
      *
      * @param indexSettings       the index settings
      * @param analysisRegistry    the analysis registry

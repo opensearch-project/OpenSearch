@@ -23,7 +23,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse,

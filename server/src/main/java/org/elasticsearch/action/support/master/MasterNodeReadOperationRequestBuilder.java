@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.master;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * Base request builder for master node read operations that can be executed on the local node as well

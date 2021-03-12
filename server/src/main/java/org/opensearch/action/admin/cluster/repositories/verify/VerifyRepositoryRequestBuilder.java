@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for verify repository request

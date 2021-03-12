@@ -28,8 +28,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;

@@ -23,8 +23,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
+import org.opensearch.client.Client;
+import org.opensearch.client.FilterClient;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.unit.TimeValue;
 
