@@ -58,7 +58,7 @@ import org.opensearch.search.SearchContextMissingException;
 import org.opensearch.search.SearchParseException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.opensearch.test.OpenSearchTestCaseCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.RemoteTransportException;
 
 import java.io.EOFException;
@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
-public class OpenSearchExceptionTests extends OpenSearchTestCaseCase {
+public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
     public void testStatus() {
         OpenSearchException exception = new OpenSearchException("test");

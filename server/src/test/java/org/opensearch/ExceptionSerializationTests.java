@@ -86,7 +86,7 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInProgressException;
-import org.opensearch.test.OpenSearchTestCaseCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.transport.ActionNotFoundTransportException;
 import org.opensearch.transport.ActionTransportException;
@@ -127,7 +127,7 @@ import static org.opensearch.test.TestSearchContext.SHARD_TARGET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class ExceptionSerializationTests extends OpenSearchTestCaseCase {
+public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testExceptionRegistration()
             throws ClassNotFoundException, IOException, URISyntaxException {
