@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 /** custom policy for union of static and dynamic permissions */
-final class ESPolicy extends Policy {
+final class OpenSearchPolicy extends Policy {
 
     /** template policy file, the one used in tests */
     static final String POLICY_RESOURCE = "security.policy";
@@ -50,8 +50,8 @@ final class ESPolicy extends Policy {
     final PermissionCollection dataPathPermission;
     final Map<String,Policy> plugins;
 
-    ESPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults,
-             PermissionCollection dataPathPermission) {
+    OpenSearchPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults,
+                     PermissionCollection dataPathPermission) {
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
         this.dataPathPermission = dataPathPermission;
         this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
@@ -102,7 +102,7 @@ final class ESPolicy extends Policy {
         }
 
         // The FilePermission to check access to the path.data is the hottest permission check in
-        // Elasticsearch, so we check it first.
+        // OpenSearch, so we check it first.
         if (permission instanceof FilePermission && dataPathPermission.implies(permission)) {
             return true;
         }

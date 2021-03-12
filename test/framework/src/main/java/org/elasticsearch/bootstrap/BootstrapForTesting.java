@@ -139,22 +139,22 @@ public class BootstrapForTesting {
 
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
-                // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
-                addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
+                // when testing server, the main opensearch code is not yet in a jar, so we need to manually add it
+                addClassCodebase(codebases,"opensearch", "org.elasticsearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
                     addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
-                    addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
-                    addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
-                    addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
+                    addClassCodebase(codebases,"opensearch-nio", "org.elasticsearch.nio.ChannelFactory");
+                    addClassCodebase(codebases, "opensearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
+                    addClassCodebase(codebases, "opensearch-rest-client", "org.elasticsearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
+                final Policy opensearchPolicy = new OpenSearchPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
                         // implements union
-                        return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
+                        return opensearchPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
                 });
                 System.setSecurityManager(SecureSM.createTestSecureSM());

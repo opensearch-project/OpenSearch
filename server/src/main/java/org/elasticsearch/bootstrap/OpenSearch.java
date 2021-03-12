@@ -30,8 +30,8 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.NodeValidationException;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.node.NodeValidationException;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -41,9 +41,9 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * This class starts elasticsearch.
+ * This class starts opensearch.
  */
-class Elasticsearch extends EnvironmentAwareCommand {
+class OpenSearch extends EnvironmentAwareCommand {
 
     private final OptionSpecBuilder versionOption;
     private final OptionSpecBuilder daemonizeOption;
@@ -51,12 +51,12 @@ class Elasticsearch extends EnvironmentAwareCommand {
     private final OptionSpecBuilder quietOption;
 
     // visible for testing
-    Elasticsearch() {
-        super("Starts Elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
+    OpenSearch() {
+        super("Starts OpenSearch", () -> {}); // we configure logging later so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"),
-            "Prints Elasticsearch version information and exits");
+            "Prints OpenSearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
-            "Starts Elasticsearch in the background")
+            "Starts OpenSearch in the background")
             .availableUnless(versionOption);
         pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"),
             "Creates a pid file in the specified path on start")
@@ -70,7 +70,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     }
 
     /**
-     * Main entry point for starting elasticsearch
+     * Main entry point for starting opensearch
      */
     public static void main(final String[] args) throws Exception {
         overrideDnsCachePolicyProperties();
@@ -88,18 +88,18 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
         });
         LogConfigurator.registerErrorListener();
-        final Elasticsearch elasticsearch = new Elasticsearch();
-        int status = main(args, elasticsearch, Terminal.DEFAULT);
+        final OpenSearch opensearch = new OpenSearch();
+        int status = main(args, opensearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
-            final String basePath = System.getProperty("es.logs.base_path");
+            final String basePath = System.getProperty("opensearch.logs.base_path");
             // It's possible to fail before logging has been configured, in which case there's no point
             // suggesting that the user look in the log file.
             if (basePath != null) {
                 Terminal.DEFAULT.errorPrintln(
-                    "ERROR: Elasticsearch did not exit normally - check the logs at "
+                    "ERROR: OpenSearch did not exit normally - check the logs at "
                         + basePath
                         + System.getProperty("file.separator")
-                        + System.getProperty("es.logs.cluster_name") + ".log"
+                        + System.getProperty("opensearch.logs.cluster_name") + ".log"
                 );
             }
             exit(status);
@@ -108,7 +108,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
     private static void overrideDnsCachePolicyProperties() {
         for (final String property : new String[] {"networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
-            final String overrideProperty = "es." + property;
+            final String overrideProperty = "opensearch." + property;
             final String overrideValue = System.getProperty(overrideProperty);
             if (overrideValue != null) {
                 try {
@@ -122,8 +122,8 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
     }
 
-    static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
-        return elasticsearch.main(args, terminal);
+    static int main(final String[] args, final OpenSearch opensearch, final Terminal terminal) throws Exception {
+        return opensearch.main(args, terminal);
     }
 
     @Override
@@ -181,7 +181,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
      * http://commons.apache.org/proper/commons-daemon/procrun.html
      *
      * NOTE: If this method is renamed and/or moved, make sure to
-     * update elasticsearch-service.bat!
+     * update opensearch-service.bat!
      */
     static void close(String[] args) throws IOException {
         Bootstrap.stop();
