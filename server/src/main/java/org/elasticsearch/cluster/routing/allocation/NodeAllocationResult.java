@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;

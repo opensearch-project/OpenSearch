@@ -34,7 +34,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;

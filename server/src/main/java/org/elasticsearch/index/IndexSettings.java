@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;

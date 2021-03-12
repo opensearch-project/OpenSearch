@@ -24,7 +24,7 @@ import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
 import org.opensearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 

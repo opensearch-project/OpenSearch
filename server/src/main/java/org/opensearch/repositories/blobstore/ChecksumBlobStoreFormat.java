@@ -27,7 +27,7 @@ import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;

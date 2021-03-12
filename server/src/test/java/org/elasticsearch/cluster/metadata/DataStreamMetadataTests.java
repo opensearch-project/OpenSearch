@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.metadata.DataStreamMetadata;
 
 import java.io.IOException;
 import java.util.Collections;

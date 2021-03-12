@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

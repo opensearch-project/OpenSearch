@@ -25,7 +25,7 @@ import org.elasticsearch.Assertions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.ElectionStrategy;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;

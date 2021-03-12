@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;

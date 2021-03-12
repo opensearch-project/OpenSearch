@@ -20,7 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;

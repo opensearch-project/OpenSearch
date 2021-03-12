@@ -22,8 +22,8 @@ package org.elasticsearch.client.indices;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.opensearch.action.admin.indices.datastream.GetDataStreamAction.Response.DataStreamInfo;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -37,7 +37,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
+import static org.opensearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 
 public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetDataStreamAction.Response, GetDataStreamResponse> {
 

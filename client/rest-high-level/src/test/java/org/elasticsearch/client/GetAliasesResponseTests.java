@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.RestStatus;

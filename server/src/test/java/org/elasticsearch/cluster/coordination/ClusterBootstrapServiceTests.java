@@ -20,8 +20,8 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESTestCase;

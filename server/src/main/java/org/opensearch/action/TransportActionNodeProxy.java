@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;

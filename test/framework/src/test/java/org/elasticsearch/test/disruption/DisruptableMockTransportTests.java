@@ -22,7 +22,7 @@ package org.elasticsearch.test.disruption;
 import org.elasticsearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;

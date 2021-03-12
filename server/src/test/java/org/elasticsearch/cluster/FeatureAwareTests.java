@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.transport.TransportClient;
 import org.opensearch.cluster.ClusterState.FeatureAware;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;

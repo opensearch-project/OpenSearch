@@ -34,7 +34,7 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;

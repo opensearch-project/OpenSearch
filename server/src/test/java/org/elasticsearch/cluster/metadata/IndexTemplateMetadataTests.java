@@ -31,6 +31,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 
 import java.io.IOException;
 import java.util.Arrays;

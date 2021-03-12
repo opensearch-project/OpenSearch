@@ -28,7 +28,7 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;

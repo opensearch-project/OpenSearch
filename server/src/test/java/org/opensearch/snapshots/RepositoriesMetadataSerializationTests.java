@@ -21,9 +21,9 @@ package org.opensearch.snapshots;
 
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.Metadata.Custom;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;

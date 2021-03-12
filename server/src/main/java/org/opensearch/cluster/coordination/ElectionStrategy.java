@@ -20,7 +20,7 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 /**
  * Allows plugging in a custom election strategy, restricting the notion of an election quorum.

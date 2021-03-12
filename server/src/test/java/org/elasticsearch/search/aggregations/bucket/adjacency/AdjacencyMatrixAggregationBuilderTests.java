@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;

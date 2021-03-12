@@ -23,7 +23,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.opensearch.rest.BaseRestHandler;

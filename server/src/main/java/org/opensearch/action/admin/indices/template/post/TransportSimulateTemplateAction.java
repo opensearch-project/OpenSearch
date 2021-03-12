@@ -25,11 +25,11 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasValidator;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.Template;
+import org.opensearch.cluster.metadata.AliasValidator;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
+import org.opensearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
@@ -45,8 +45,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
+import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 
 /**
  * Handles simulating an index template either by name (looking it up in the

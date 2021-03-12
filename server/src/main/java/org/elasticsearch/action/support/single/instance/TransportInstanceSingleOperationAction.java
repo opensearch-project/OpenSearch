@@ -28,8 +28,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -54,7 +54,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
+import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
 public abstract class TransportInstanceSingleOperationAction<
             Request extends InstanceShardOperationRequest<Request>,

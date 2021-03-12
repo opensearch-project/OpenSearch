@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.readonly;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**
  * Builder for add index block request

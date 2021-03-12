@@ -23,7 +23,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;

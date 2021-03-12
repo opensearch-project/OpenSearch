@@ -74,7 +74,7 @@ import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportActions;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;

@@ -22,7 +22,7 @@ package org.elasticsearch.test;
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;

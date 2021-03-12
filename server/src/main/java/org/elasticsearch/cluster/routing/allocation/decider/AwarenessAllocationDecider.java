@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;

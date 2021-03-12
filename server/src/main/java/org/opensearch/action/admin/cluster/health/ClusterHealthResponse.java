@@ -21,9 +21,9 @@ package org.opensearch.action.admin.cluster.health;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.health.ClusterIndexHealth;
+import org.opensearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

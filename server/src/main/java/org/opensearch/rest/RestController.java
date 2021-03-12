@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
+import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.opensearch.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.rest.RestStatus.INTERNAL_SERVER_ERROR;

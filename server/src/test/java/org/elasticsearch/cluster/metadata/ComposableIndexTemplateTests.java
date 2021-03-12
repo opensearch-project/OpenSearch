@@ -26,6 +26,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Template;
 
 import java.io.IOException;
 import java.util.Collections;

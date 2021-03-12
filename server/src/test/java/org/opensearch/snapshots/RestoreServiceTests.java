@@ -20,9 +20,9 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 

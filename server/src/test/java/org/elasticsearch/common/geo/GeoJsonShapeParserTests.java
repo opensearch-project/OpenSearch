@@ -21,7 +21,7 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
