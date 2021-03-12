@@ -33,8 +33,8 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -766,8 +766,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.indices.IndexCreationException::new, 15, UNKNOWN_VERSION_ADDED),
         INDEX_NOT_FOUND_EXCEPTION(org.elasticsearch.index.IndexNotFoundException.class,
                 org.elasticsearch.index.IndexNotFoundException::new, 16, UNKNOWN_VERSION_ADDED),
-        ILLEGAL_SHARD_ROUTING_STATE_EXCEPTION(org.elasticsearch.cluster.routing.IllegalShardRoutingStateException.class,
-                org.elasticsearch.cluster.routing.IllegalShardRoutingStateException::new, 17, UNKNOWN_VERSION_ADDED),
+        ILLEGAL_SHARD_ROUTING_STATE_EXCEPTION(org.opensearch.cluster.routing.IllegalShardRoutingStateException.class,
+                org.opensearch.cluster.routing.IllegalShardRoutingStateException::new, 17, UNKNOWN_VERSION_ADDED),
         BROADCAST_SHARD_OPERATION_FAILED_EXCEPTION(org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException.class,
                 org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException::new, 18, UNKNOWN_VERSION_ADDED),
         RESOURCE_NOT_FOUND_EXCEPTION(org.elasticsearch.ResourceNotFoundException.class,
@@ -923,8 +923,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.transport.RemoteTransportException::new, 103, UNKNOWN_VERSION_ADDED),
         ENGINE_CREATION_FAILURE_EXCEPTION(org.elasticsearch.index.engine.EngineCreationFailureException.class,
                 org.elasticsearch.index.engine.EngineCreationFailureException::new, 104, UNKNOWN_VERSION_ADDED),
-        ROUTING_EXCEPTION(org.elasticsearch.cluster.routing.RoutingException.class,
-                org.elasticsearch.cluster.routing.RoutingException::new, 105, UNKNOWN_VERSION_ADDED),
+        ROUTING_EXCEPTION(org.opensearch.cluster.routing.RoutingException.class,
+                org.opensearch.cluster.routing.RoutingException::new, 105, UNKNOWN_VERSION_ADDED),
         INDEX_SHARD_RECOVERY_EXCEPTION(org.elasticsearch.index.shard.IndexShardRecoveryException.class,
                 org.elasticsearch.index.shard.IndexShardRecoveryException::new, 106, UNKNOWN_VERSION_ADDED),
         REPOSITORY_MISSING_EXCEPTION(org.opensearch.repositories.RepositoryMissingException.class,

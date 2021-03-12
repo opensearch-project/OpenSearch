@@ -29,7 +29,7 @@ import org.opensearch.action.support.PlainListenableActionFuture;
 import org.opensearch.cluster.coordination.FollowersChecker;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterApplier;
+import org.opensearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;

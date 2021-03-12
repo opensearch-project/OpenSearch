@@ -44,7 +44,7 @@ import org.opensearch.cluster.health.ClusterShardHealth;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;

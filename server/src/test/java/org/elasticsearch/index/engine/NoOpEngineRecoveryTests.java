@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;

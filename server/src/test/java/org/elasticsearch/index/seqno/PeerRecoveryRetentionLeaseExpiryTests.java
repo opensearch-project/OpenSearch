@@ -20,15 +20,15 @@ package org.elasticsearch.index.seqno;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.SafeCommitInfo;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
 
@@ -38,8 +38,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
