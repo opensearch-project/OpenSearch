@@ -486,7 +486,7 @@ subprojects {
       }
       doLast {
         final List<String> noticeLines = Arrays.asList("OpenSearch", "Copyright 2021 OpenSearch Contributors")
-        final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/opensearch/NOTICE.txt")
+        final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/NOTICE.txt")
         assertLinesInFile(noticePath, noticeLines)
       }
     }
