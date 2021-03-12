@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * A request to force merge one or more indices. In order to force merge all

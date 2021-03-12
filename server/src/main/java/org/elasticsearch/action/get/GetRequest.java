@@ -39,14 +39,14 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to get a document (its source) from an index based on its id. Best created using
- * {@link org.elasticsearch.client.Requests#getRequest(String)}.
+ * {@link org.opensearch.client.Requests#getRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
  * to be set.
  *
  * @see org.elasticsearch.action.get.GetResponse
- * @see org.elasticsearch.client.Requests#getRequest(String)
- * @see org.elasticsearch.client.Client#get(GetRequest)
+ * @see org.opensearch.client.Requests#getRequest(String)
+ * @see org.opensearch.client.Client#get(GetRequest)
  */
 public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
 

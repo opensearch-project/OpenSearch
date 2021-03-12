@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for requests to explain the allocation of a shard in the cluster

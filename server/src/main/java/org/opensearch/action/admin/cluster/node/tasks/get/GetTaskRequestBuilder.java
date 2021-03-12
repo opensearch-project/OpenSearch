@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.node.tasks.get;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.tasks.TaskId;
 

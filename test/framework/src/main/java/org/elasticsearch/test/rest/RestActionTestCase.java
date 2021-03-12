@@ -26,6 +26,7 @@ import org.opensearch.action.ActionType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.Task;
@@ -80,7 +81,7 @@ public abstract class RestActionTestCase extends ESTestCase {
     }
 
     /**
-     * A mocked {@link org.elasticsearch.client.node.NodeClient} which can be easily reconfigured to verify arbitrary verification
+     * A mocked {@link NodeClient} which can be easily reconfigured to verify arbitrary verification
      * functions, and can be reset to allow reconfiguration partway through a test without having to construct a new object.
      *
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using

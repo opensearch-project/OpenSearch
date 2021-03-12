@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.nodes;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 public abstract class NodesOperationRequestBuilder<Request extends BaseNodesRequest<Request>, Response extends BaseNodesResponse,

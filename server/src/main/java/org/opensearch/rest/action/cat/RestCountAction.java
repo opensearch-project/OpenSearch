@@ -23,7 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.index.query.QueryBuilder;

@@ -27,7 +27,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.opensearch.action.admin.indices.rollover.Condition;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.opensearch.cli.EnvironmentAwareCommand;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.cluster.ClusterModule;

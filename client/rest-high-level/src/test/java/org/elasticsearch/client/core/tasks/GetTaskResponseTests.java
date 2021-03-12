@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.core.tasks;
 
-import org.elasticsearch.client.Requests;
+import org.opensearch.client.Requests;
 import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;

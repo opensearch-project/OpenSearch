@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * A refresh request making all operations performed since the last refresh available for search. The (near) real-time

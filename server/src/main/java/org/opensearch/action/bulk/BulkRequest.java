@@ -27,8 +27,8 @@ import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.WriteRequest;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
@@ -57,7 +57,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * and allows to executes it in a single batch.
  *
  * Note that we only support refresh on the bulk request not per item.
- * @see org.elasticsearch.client.Client#bulk(BulkRequest)
+ * @see org.opensearch.client.Client#bulk(BulkRequest)
  */
 public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
 

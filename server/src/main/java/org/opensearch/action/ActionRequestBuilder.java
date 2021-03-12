@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;

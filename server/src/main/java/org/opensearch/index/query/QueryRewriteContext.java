@@ -19,7 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
