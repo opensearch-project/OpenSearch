@@ -19,15 +19,15 @@
 package org.elasticsearch.cluster;
 
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.monitor.fs.FsInfo;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.threadpool.ThreadPool;

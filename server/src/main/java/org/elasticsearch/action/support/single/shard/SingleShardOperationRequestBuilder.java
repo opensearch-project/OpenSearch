@@ -22,7 +22,7 @@ package org.elasticsearch.action.support.single.shard;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public abstract class SingleShardOperationRequestBuilder<Request extends SingleShardRequest<Request>, Response extends ActionResponse,
         RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder>>

@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.DocWriteRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.rest.RestRequest;

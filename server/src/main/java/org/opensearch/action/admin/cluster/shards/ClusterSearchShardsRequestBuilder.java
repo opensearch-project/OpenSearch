@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterSearchShardsRequest,
         ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {

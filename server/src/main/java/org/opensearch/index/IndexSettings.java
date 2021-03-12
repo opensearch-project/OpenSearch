@@ -32,8 +32,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.node.Node;
+import org.opensearch.ingest.IngestService;
+import org.opensearch.node.Node;
 
 import java.util.Collections;
 import java.util.List;

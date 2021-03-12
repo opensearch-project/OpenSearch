@@ -53,8 +53,8 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.InvalidTypeNameException;
-import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.InvalidTypeNameException;
+import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.script.ScriptService;
 
 import java.io.Closeable;

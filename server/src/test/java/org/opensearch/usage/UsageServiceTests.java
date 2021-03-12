@@ -19,7 +19,7 @@
 
 package org.opensearch.usage;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;

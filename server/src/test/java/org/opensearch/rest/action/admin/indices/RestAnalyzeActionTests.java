@@ -19,7 +19,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;

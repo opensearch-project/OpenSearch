@@ -24,7 +24,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.client.support.AbstractClient;
+import org.opensearch.client.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
  * Client that always responds with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)}
  * for testing.
  *
- * See also {@link NoOpNodeClient} if you need to mock a {@link org.elasticsearch.client.node.NodeClient}.
+ * See also {@link NoOpNodeClient} if you need to mock a {@link org.opensearch.client.node.NodeClient}.
  */
 public class NoOpClient extends AbstractClient {
     /**

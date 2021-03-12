@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /**

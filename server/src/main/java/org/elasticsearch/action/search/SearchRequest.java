@@ -46,14 +46,14 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
- * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
+ * {@link org.opensearch.client.Requests#searchRequest(String...)}.
  * <p>
  * Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
  *
- * @see org.elasticsearch.client.Requests#searchRequest(String...)
- * @see org.elasticsearch.client.Client#search(SearchRequest)
+ * @see org.opensearch.client.Requests#searchRequest(String...)
+ * @see org.opensearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
 public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
