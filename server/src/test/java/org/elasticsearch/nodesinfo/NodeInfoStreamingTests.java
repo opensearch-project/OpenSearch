@@ -45,7 +45,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;

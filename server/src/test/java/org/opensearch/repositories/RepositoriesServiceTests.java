@@ -53,8 +53,8 @@ import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.Collections;

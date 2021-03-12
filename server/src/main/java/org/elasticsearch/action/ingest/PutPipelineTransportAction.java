@@ -37,13 +37,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.IngestService;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
+import static org.opensearch.ingest.IngestService.INGEST_ORIGIN;
 
 public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPipelineRequest, AcknowledgedResponse> {
 

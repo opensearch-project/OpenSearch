@@ -31,7 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestService;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 

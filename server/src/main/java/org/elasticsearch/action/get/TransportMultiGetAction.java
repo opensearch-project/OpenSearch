@@ -31,7 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -45,10 +45,10 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.function.Predicate;

@@ -113,7 +113,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;

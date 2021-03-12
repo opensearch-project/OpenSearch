@@ -34,7 +34,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
+import org.opensearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.ArrayList;
 import java.util.HashMap;

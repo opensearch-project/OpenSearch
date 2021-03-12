@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 

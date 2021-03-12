@@ -53,7 +53,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 

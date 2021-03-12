@@ -43,7 +43,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 /**
  * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexAction},

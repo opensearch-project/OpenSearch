@@ -33,7 +33,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;

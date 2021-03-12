@@ -44,9 +44,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;

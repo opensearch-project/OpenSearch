@@ -40,7 +40,7 @@ import org.opensearch.script.TemplateScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;

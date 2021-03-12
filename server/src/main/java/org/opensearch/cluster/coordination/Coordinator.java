@@ -74,8 +74,8 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportResponse.Empty;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;

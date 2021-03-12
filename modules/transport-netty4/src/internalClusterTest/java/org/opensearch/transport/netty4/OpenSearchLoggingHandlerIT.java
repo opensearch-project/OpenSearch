@@ -28,8 +28,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportLogger;
+import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.TransportLogger;
 
 import java.io.IOException;
 

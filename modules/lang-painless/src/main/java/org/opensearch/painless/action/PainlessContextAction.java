@@ -41,7 +41,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;

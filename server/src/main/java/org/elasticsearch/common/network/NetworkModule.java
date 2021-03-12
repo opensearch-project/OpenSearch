@@ -45,10 +45,10 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportInterceptor;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;

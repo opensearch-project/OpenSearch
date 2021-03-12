@@ -70,8 +70,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.Transports;
+import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;

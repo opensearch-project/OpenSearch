@@ -32,7 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.transport.RemoteClusterAware;
+import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

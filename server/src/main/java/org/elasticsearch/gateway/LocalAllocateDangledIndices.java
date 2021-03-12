@@ -43,11 +43,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;

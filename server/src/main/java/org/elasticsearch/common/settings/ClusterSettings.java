@@ -119,11 +119,11 @@ import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ProxyConnectionStrategy;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
-import org.elasticsearch.transport.SniffConnectionStrategy;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.transport.ProxyConnectionStrategy;
+import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.RemoteConnectionStrategy;
+import org.opensearch.transport.SniffConnectionStrategy;
+import org.opensearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;

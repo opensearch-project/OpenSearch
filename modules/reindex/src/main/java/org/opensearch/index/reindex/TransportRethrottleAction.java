@@ -34,7 +34,7 @@ import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.List;
 

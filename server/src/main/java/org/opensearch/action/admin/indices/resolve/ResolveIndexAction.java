@@ -49,9 +49,9 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.RemoteClusterAware;
+import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 import org.opensearch.cluster.coordination.PublicationTransportHandler;
 
 import java.io.IOException;

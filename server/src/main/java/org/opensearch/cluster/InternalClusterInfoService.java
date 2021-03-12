@@ -49,7 +49,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
+import org.opensearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.HashMap;
 import java.util.List;

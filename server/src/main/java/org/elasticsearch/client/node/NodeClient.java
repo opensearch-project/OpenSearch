@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.opensearch.transport.RemoteClusterService;
 
 import java.util.Map;
 import java.util.function.Supplier;

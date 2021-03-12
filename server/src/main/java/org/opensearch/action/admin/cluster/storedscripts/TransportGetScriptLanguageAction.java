@@ -25,7 +25,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 public class TransportGetScriptLanguageAction extends HandledTransportAction<GetScriptLanguageRequest, GetScriptLanguageResponse> {
     private final ScriptService scriptService;

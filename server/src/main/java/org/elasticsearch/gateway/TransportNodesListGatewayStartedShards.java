@@ -49,7 +49,7 @@ import org.elasticsearch.index.shard.ShardStateMetadata;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;

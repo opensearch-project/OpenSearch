@@ -33,9 +33,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.transport.MockTransportClient;
+import org.opensearch.transport.MockTransportClient;
 import org.opensearch.transport.Netty4Plugin;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.net.InetAddress;
 import java.util.Arrays;

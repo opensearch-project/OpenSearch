@@ -44,7 +44,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;

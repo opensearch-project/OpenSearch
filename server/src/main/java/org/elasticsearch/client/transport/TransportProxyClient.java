@@ -26,7 +26,7 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.TransportActionNodeProxy;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.List;

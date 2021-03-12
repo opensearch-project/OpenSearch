@@ -38,7 +38,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;

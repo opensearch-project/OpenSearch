@@ -115,9 +115,9 @@ import org.elasticsearch.search.SearchService;
 import org.opensearch.tasks.TaskManager;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.transport.MockTransportClient;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.TransportSettings;
 
 import java.io.Closeable;
 import java.io.IOException;

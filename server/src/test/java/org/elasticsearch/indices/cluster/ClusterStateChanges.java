@@ -95,8 +95,8 @@ import org.elasticsearch.indices.SystemIndices;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;

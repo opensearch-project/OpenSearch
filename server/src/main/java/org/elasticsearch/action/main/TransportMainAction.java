@@ -30,7 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
 

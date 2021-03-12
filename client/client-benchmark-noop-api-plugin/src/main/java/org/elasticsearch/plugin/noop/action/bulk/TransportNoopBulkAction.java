@@ -30,7 +30,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocWriteRequest.OpType.UPDATE,

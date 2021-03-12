@@ -32,9 +32,9 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.InboundPipeline;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.Transports;
+import org.opensearch.transport.InboundPipeline;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.Transports;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;

@@ -21,7 +21,7 @@ package org.opensearch.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportRequestOptions;
 
 /**
  * A generic action. Should strive to make it a singleton.

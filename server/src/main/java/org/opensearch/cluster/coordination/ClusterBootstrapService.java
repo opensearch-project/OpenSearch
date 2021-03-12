@@ -32,7 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;

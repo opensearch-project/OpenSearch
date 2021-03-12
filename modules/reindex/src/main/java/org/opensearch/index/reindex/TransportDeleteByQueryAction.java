@@ -34,7 +34,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 
 public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse> {

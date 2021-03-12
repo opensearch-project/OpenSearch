@@ -40,7 +40,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.transport.Transports;
+import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;

@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.transport.Transports;
+import org.opensearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.Arrays;

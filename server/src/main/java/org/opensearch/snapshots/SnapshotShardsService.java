@@ -55,10 +55,10 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestDeduplicator;
-import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequestDeduplicator;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;

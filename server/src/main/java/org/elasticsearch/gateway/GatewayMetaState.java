@@ -53,7 +53,7 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;

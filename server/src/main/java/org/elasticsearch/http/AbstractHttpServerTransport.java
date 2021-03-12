@@ -44,7 +44,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BindTransportException;
+import org.opensearch.transport.BindTransportException;
 
 import java.io.IOException;
 import java.net.InetAddress;

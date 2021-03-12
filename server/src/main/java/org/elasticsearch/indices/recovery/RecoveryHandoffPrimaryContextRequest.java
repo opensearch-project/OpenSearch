@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 

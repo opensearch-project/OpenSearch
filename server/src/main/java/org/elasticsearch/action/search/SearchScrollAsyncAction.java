@@ -32,8 +32,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.ArrayList;
