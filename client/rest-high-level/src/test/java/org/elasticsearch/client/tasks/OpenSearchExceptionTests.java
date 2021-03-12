@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 
-public class ElasticsearchExceptionTests extends AbstractResponseTestCase<OpenSearchException,
+public class OpenSearchExceptionTests extends AbstractResponseTestCase<OpenSearchException,
     org.elasticsearch.client.tasks.ElasticsearchException> {
 
     @Override

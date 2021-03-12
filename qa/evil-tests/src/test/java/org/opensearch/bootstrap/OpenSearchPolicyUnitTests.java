@@ -37,7 +37,7 @@ import java.util.Collections;
  * Unit tests for ESPolicy: these cannot run with security manager,
  * we don't allow messing with the policy
  */
-public class ESPolicyUnitTests extends OpenSearchTestCase {
+public class OpenSearchPolicyUnitTests extends OpenSearchTestCase {
     /**
      * Test policy with null codesource.
      * <p>
@@ -78,7 +78,7 @@ public class ESPolicyUnitTests extends OpenSearchTestCase {
         final ESPolicy policy = new ESPolicy(Collections.emptyMap(), noPermissions, Collections.emptyMap(), true, new Permissions());
         assertFalse(
             policy.implies(
-                new ProtectionDomain(ESPolicyUnitTests.class.getProtectionDomain().getCodeSource(), noPermissions),
+                new ProtectionDomain(OpenSearchPolicyUnitTests.class.getProtectionDomain().getCodeSource(), noPermissions),
                 new SocketPermission("localhost:" + randomFrom(0, randomIntBetween(49152, 65535)), "listen")));
     }
 
