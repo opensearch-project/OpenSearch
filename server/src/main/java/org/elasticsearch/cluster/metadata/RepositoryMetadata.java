@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.RepositoryData;
+import org.opensearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -104,7 +104,7 @@ public class RepositoryMetadata implements Writeable {
     /**
      * Returns the safe repository generation. {@link RepositoryData} for this generation is assumed to exist in the repository.
      * All operations on the repository must be based on the {@link RepositoryData} at this generation.
-     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
+     * See package level documentation for the blob store based repositories {@link org.opensearch.repositories.blobstore} for details
      * on how this value is used during snapshots.
      * @return safe repository generation
      */
@@ -116,7 +116,7 @@ public class RepositoryMetadata implements Writeable {
      * Returns the pending repository generation. {@link RepositoryData} for this generation and all generations down to the safe
      * generation {@link #generation} may exist in the repository and should not be reused for writing new {@link RepositoryData} to the
      * repository.
-     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
+     * See package level documentation for the blob store based repositories {@link org.opensearch.repositories.blobstore} for details
      * on how this value is used during snapshots.
      *
      * @return highest pending repository generation
