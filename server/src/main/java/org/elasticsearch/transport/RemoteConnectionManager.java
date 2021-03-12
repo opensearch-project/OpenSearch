@@ -20,7 +20,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.io.IOException;
 import java.util.ArrayList;

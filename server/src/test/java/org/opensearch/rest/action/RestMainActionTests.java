@@ -22,7 +22,7 @@ package org.opensearch.rest.action;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainResponse;
-import org.elasticsearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

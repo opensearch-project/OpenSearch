@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -33,9 +33,9 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
-import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
-import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
+import static org.opensearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
+import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
+import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 
 /**
  * This {@link AllocationDecider} control shard allocation by include and

@@ -21,7 +21,7 @@ package org.opensearch.repositories.url;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -33,8 +33,8 @@ import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;

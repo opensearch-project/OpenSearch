@@ -20,7 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.OpenSearchWrapperException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;

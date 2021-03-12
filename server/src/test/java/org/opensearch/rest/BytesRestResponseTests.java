@@ -44,7 +44,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
+import static org.opensearch.OpenSearchExceptionTests.assertDeepEquals;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;

@@ -1,4 +1,8 @@
-Elasticsearch
+OpenSearch
+Copyright 2021 OpenSearch Contributors
+
+This product includes software developed by
+Elasticsearch (http://www.elastic.co).
 Copyright 2009-2018 Elasticsearch
 
 This product includes software developed by The Apache Software

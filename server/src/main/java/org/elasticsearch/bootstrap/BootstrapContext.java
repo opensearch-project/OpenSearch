@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 

@@ -24,7 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;

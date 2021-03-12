@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diff;
+import org.opensearch.cluster.AbstractDiffable;
+import org.opensearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;

@@ -17,14 +17,14 @@
  * under the License.
  */
 
-group = 'org.elasticsearch.plugin'
+group = 'org.opensearch.plugin'
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'opensearch.opensearchplugin'
 
-esplugin {
+opensearchplugin {
   name 'client-benchmark-noop-api'
-  description 'Stubbed out Elasticsearch actions that can be used for client-side benchmarking'
-  classname 'org.elasticsearch.plugin.noop.NoopPlugin'
+  description 'Stubbed out OpenSearch actions that can be used for client-side benchmarking'
+  classname 'org.opensearch.plugin.noop.NoopPlugin'
 }
 
 // Not published so no need to assemble

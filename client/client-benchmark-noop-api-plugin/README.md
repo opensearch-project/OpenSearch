@@ -8,7 +8,7 @@ Build the plugin with `gradle :client:client-benchmark-noop-api-plugin:assemble`
 
 ### Installation Instructions
 
-After, the binary has been built, install it with `bin/elasticsearch-plugin install file:///full/path/to/noop-plugin.zip`.
+After, the binary has been built, install it with `bin/opensearch-plugin install file:///full/path/to/noop-plugin.zip`.
 
 ### Usage
 
@@ -19,5 +19,5 @@ The plugin provides two REST endpoints:
 
 The corresponding transport actions are:
 
-* `org.elasticsearch.plugin.noop.action.bulk.TransportNoopBulkAction`
-* `org.elasticsearch.plugin.noop.action.search.TransportNoopSearchAction`
+* `org.opensearch.plugin.noop.action.bulk.TransportNoopBulkAction`
+* `org.opensearch.plugin.noop.action.search.TransportNoopSearchAction`

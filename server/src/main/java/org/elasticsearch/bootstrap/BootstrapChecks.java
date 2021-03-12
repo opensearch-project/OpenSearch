@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -51,7 +51,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
@@ -386,7 +386,7 @@ final class BootstrapChecks {
     }
 
     /**
-     * Bootstrap check that the maximum file size is unlimited (otherwise Elasticsearch could run in to an I/O exception writing files).
+     * Bootstrap check that the maximum file size is unlimited (otherwise OpenSearch could run in to an I/O exception writing files).
      */
     static class MaxFileSizeCheck implements BootstrapCheck {
 
@@ -507,7 +507,7 @@ final class BootstrapChecks {
 
     /**
      * Checks if the serial collector is in use. This collector is single-threaded and devastating
-     * for performance and should not be used for a server application like Elasticsearch.
+     * for performance and should not be used for a server application like OpenSearch.
      */
     static class UseSerialGCCheck implements BootstrapCheck {
 

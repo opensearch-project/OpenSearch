@@ -39,10 +39,10 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResp
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.SnapshotInfo;

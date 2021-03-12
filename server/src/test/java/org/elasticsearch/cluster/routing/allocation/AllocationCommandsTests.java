@@ -22,15 +22,14 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterInfo;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -93,7 +92,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metadata.index("test"))
                 .build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("adding two nodes and performing rerouting");
@@ -153,7 +152,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsRecovery(metadata.index(index))
                 .build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
         final ShardId shardId = new ShardId(metadata.index(index).getIndex(), 0);
 
@@ -286,7 +285,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
             .addAsRecovery(metadata.index(index))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata).routingTable(routingTable).build();
 
         final String node1 = "node1";
@@ -332,7 +331,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metadata.index("test"))
                 .build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding 3 nodes");
@@ -614,7 +613,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
@@ -654,7 +653,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
@@ -708,7 +707,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .addAsRecovery(metadata.index(index2))
             .addAsRecovery(metadata.index(index3))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata).routingTable(routingTable).build();
 
         final String node1 = "node1";

@@ -22,7 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;

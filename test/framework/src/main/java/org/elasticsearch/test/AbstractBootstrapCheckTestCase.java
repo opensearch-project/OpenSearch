@@ -21,7 +21,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 

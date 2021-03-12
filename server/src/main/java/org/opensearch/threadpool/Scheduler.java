@@ -26,7 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
@@ -94,7 +94,7 @@ public interface Scheduler {
      * @return a ScheduledFuture who's get will return when the task has been added to its target thread pool and throws an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture cannot interact with it.
-     * @throws EsRejectedExecutionException if the task cannot be scheduled for execution
+     * @throws OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
      */
     ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor);
 
@@ -231,7 +231,7 @@ public interface Scheduler {
             if (run) {
                 try {
                     scheduler.schedule(this, interval, executor);
-                } catch (final EsRejectedExecutionException e) {
+                } catch (final OpenSearchRejectedExecutionException e) {
                     onRejection(e);
                 }
             }

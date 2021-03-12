@@ -20,13 +20,13 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataIndexStateService;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -82,7 +82,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 .add(new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_2)
                     .getIndex()).initializeAsNew(metadata.index(TEST_INDEX_2)).build())
                 .build();
-        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+        this.clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(testRoutingTable).build();
     }
 

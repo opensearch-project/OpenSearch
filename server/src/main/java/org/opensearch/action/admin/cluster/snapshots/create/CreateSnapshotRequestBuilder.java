@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.create;
 
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.Settings;

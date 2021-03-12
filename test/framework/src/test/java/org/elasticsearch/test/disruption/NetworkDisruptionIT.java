@@ -22,7 +22,7 @@ package org.elasticsearch.test.disruption;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.NodeConnectionsService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;

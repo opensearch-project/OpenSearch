@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.cluster.metadata.AliasValidator;
 
 import static org.hamcrest.Matchers.startsWith;
 

@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
