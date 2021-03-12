@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
@@ -354,7 +354,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
-     * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException if the task cannot be scheduled for execution
+     * @throws org.elasticsearch.common.util.concurrent.OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
@@ -368,7 +368,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
         try {
             schedule(command, delay, executor);
-        } catch (EsRejectedExecutionException e) {
+        } catch (OpenSearchRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.debug(new ParameterizedMessage("could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",
                     command, delay, executor), e);
@@ -510,7 +510,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public void run() {
             try {
                 executor.execute(runnable);
-            } catch (EsRejectedExecutionException e) {
+            } catch (OpenSearchRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug(new ParameterizedMessage("could not schedule execution of [{}] on [{}] as executor is shut down",
                         runnable, executor), e);

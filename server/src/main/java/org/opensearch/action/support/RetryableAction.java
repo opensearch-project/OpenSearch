@@ -25,7 +25,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -157,7 +157,7 @@ public abstract class RetryableAction<Response> {
                         logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);
                         try {
                             retryTask = threadPool.schedule(runnable, delay, executor);
-                        } catch (EsRejectedExecutionException ree) {
+                        } catch (OpenSearchRejectedExecutionException ree) {
                             onFinalFailure(ree);
                         }
                     }
