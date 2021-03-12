@@ -20,14 +20,14 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class RecoverySourceTests extends ESTestCase {
+public class RecoverySourceTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         RecoverySource recoverySource = TestShardRouting.randomRecoverySource();

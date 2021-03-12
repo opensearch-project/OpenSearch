@@ -24,7 +24,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoveryModule;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ClusterBootstrapServiceTests extends ESTestCase {
+public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
 
     private DiscoveryNode localNode, otherNode1, otherNode2;
     private DeterministicTaskQueue deterministicTaskQueue;

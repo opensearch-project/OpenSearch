@@ -22,7 +22,7 @@ package org.opensearch.cluster.routing.allocation;
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,7 +30,7 @@ import java.util.Arrays;
 /**
  * Tests for the {@link AllocationDecision} enum.
  */
-public class AllocationDecisionTests extends ESTestCase {
+public class AllocationDecisionTests extends OpenSearchTestCase {
 
     /**
      * Tests serialization and deserialization.

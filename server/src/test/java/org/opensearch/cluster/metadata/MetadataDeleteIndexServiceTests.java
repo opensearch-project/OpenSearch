@@ -36,7 +36,7 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInProgressException;
 import org.opensearch.snapshots.SnapshotInfoTests;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
@@ -59,7 +59,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
-public class MetadataDeleteIndexServiceTests extends ESTestCase {
+public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
     private AllocationService allocationService;
     private MetadataDeleteIndexService service;
 

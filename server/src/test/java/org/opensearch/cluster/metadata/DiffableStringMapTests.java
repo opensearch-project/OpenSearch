@@ -21,7 +21,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class DiffableStringMapTests extends ESTestCase {
+public class DiffableStringMapTests extends OpenSearchTestCase {
 
     public void testDiffableStringMapDiff() {
         Map<String, String> m = new HashMap<>();

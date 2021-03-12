@@ -25,14 +25,14 @@ import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MetadataIndexUpgradeServiceTests extends ESTestCase {
+public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
 
     public void testArchiveBrokenIndexSettings() {
         MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();

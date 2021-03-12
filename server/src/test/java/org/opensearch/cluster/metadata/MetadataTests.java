@@ -41,7 +41,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.plugins.MapperPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class MetadataTests extends ESTestCase {
+public class MetadataTests extends OpenSearchTestCase {
 
     public void testFindAliases() {
         Metadata metadata = Metadata.builder().put(IndexMetadata.builder("index")
@@ -1214,7 +1214,7 @@ public class MetadataTests extends ESTestCase {
             IndexMetadata idx;
             if (i % 2 == 0 && i < generations) {
                 idx = IndexMetadata.builder("shrink-" + DataStream.getDefaultBackingIndexName(dataStreamName, i))
-                    .settings(ESTestCase.settings(Version.CURRENT).put("index.hidden", true))
+                    .settings(OpenSearchTestCase.settings(Version.CURRENT).put("index.hidden", true))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .build();

@@ -40,7 +40,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.InvalidIndexNameException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class IndexNameExpressionResolverTests extends ESTestCase {
+public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private ThreadContext threadContext;
 
@@ -2054,7 +2054,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(OpenSearchTestCase.settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putAlias(new AliasMetadata.Builder("logs-foobarbaz"))
@@ -2083,7 +2083,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(OpenSearchTestCase.settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putAlias(new AliasMetadata.Builder("logs-foobarbaz"))

@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests for the {@link IndexGraveyard} class
  */
-public class IndexGraveyardTests extends ESTestCase {
+public class IndexGraveyardTests extends OpenSearchTestCase {
 
     public void testEquals() {
         final IndexGraveyard graveyard = createRandom();

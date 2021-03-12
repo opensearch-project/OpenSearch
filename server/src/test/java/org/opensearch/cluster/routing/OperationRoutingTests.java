@@ -32,7 +32,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.test.ClusterServiceUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class OperationRoutingTests extends ESTestCase {
+public class OperationRoutingTests extends OpenSearchTestCase {
     public void testGenerateShardId() {
         int[][] possibleValues = new int[][] {
             {8,4,2}, {20, 10, 2}, {36, 12, 3}, {15,5,1}

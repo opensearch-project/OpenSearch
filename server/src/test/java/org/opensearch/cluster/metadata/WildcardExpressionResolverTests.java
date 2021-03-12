@@ -25,7 +25,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata.State;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -38,7 +38,7 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class WildcardExpressionResolverTests extends ESTestCase {
+public class WildcardExpressionResolverTests extends OpenSearchTestCase {
     public void testConvertWildcardsJustIndicesTests() {
         Metadata.Builder mdBuilder = Metadata.builder()
                 .put(indexBuilder("testXXX"))

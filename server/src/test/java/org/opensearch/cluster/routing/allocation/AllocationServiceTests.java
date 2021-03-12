@@ -43,7 +43,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class AllocationServiceTests extends ESTestCase {
+public class AllocationServiceTests extends OpenSearchTestCase {
 
     public void testFirstListElementsToCommaDelimitedStringReportsAllElementsIfShort() {
         List<String> strings = IntStream.range(0, between(0, 10)).mapToObj(i -> randomAlphaOfLength(10)).collect(Collectors.toList());

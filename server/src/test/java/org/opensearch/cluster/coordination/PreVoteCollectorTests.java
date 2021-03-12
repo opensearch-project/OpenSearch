@@ -27,7 +27,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.monitor.StatusInfo;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.RemoteTransportException;
@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PreVoteCollectorTests extends ESTestCase {
+public class PreVoteCollectorTests extends OpenSearchTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
     private PreVoteCollector preVoteCollector;

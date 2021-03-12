@@ -20,7 +20,7 @@
 package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.NO;
 import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.THROTTLE;
@@ -29,7 +29,7 @@ import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.YE
 /**
  * A class for unit testing the {@link Decision} class.
  */
-public class DecisionTests extends ESTestCase {
+public class DecisionTests extends OpenSearchTestCase {
 
     /**
      * Tests {@link Type#higherThan(Type)}

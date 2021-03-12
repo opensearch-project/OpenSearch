@@ -19,14 +19,14 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class ClusterNameExpressionResolverTests extends ESTestCase {
+public class ClusterNameExpressionResolverTests extends OpenSearchTestCase {
 
     private ClusterNameExpressionResolver clusterNameResolver = new ClusterNameExpressionResolver();
     private static final Set<String> remoteClusters = new HashSet<>();

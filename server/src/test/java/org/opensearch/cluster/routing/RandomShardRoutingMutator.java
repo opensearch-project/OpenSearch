@@ -21,9 +21,9 @@ package org.opensearch.cluster.routing;
 
 import java.util.Set;
 
-import static org.opensearch.test.ESTestCase.randomAlphaOfLength;
-import static org.opensearch.test.ESTestCase.randomFrom;
-import static org.opensearch.test.ESTestCase.randomInt;
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
+import static org.opensearch.test.OpenSearchTestCase.randomInt;
 
 /**
  * Utility class the makes random modifications to ShardRouting

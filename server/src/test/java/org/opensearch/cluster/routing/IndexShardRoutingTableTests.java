@@ -21,13 +21,13 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class IndexShardRoutingTableTests extends ESTestCase {
+public class IndexShardRoutingTableTests extends OpenSearchTestCase {
     public void testEqualsAttributesKey() {
         List<String> attr1 = Arrays.asList("a");
         List<String> attr2 = Arrays.asList("b");

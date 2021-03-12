@@ -25,7 +25,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class AllocationIdTests extends ESTestCase {
+public class AllocationIdTests extends OpenSearchTestCase {
     public void testShardToStarted() {
         logger.info("-- create unassigned shard");
         ShardRouting shard = ShardRouting.newUnassigned(new ShardId("test","_na_", 0), true,

@@ -20,11 +20,11 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.indices.InvalidAliasNameException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.startsWith;
 
-public class AliasValidatorTests extends ESTestCase {
+public class AliasValidatorTests extends OpenSearchTestCase {
     public void testValidatesAliasNames() {
         AliasValidator validator = new AliasValidator();
         Exception e = expectThrows(InvalidAliasNameException.class, () -> validator.validateAliasStandalone(".", null));

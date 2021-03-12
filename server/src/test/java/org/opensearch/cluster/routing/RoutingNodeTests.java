@@ -25,7 +25,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
 
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RoutingNodeTests extends ESTestCase {
+public class RoutingNodeTests extends OpenSearchTestCase {
     private ShardRouting unassignedShard0 =
         TestShardRouting.newShardRouting("test", 0, "node-1", false, ShardRoutingState.STARTED);
     private ShardRouting initializingShard0 =

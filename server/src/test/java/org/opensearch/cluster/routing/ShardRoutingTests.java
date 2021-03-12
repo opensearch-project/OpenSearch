@@ -27,11 +27,11 @@ import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.snapshots.Snapshot;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class ShardRoutingTests extends ESTestCase {
+public class ShardRoutingTests extends OpenSearchTestCase {
 
     public void testIsSameAllocation() {
         ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, null, false, ShardRoutingState.UNASSIGNED);

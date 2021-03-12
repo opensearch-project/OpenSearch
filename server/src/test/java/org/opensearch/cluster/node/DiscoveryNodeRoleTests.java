@@ -20,7 +20,7 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.common.settings.Setting;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Arrays;
@@ -29,7 +29,7 @@ import java.util.HashSet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
-public class DiscoveryNodeRoleTests extends ESTestCase {
+public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
 
     public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNames() {
         final IllegalStateException e = expectThrows(

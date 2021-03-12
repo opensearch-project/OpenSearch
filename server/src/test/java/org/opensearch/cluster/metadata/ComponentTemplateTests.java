@@ -25,7 +25,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractDiffableSerializationTestCase;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -156,7 +156,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                         throw new IllegalStateException("illegal randomization branch");
                 }
             case 1:
-                return new ComponentTemplate(orig.template(), randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
+                return new ComponentTemplate(orig.template(), randomValueOtherThan(orig.version(), OpenSearchTestCase::randomNonNegativeLong),
                     orig.metadata());
             case 2:
                 return new ComponentTemplate(orig.template(), orig.version(),

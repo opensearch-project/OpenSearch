@@ -30,14 +30,14 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public class AllocationDecidersTests extends ESTestCase {
+public class AllocationDecidersTests extends OpenSearchTestCase {
 
     public void testDebugMode() {
         verifyDebugMode(RoutingAllocation.DebugMode.ON, Matchers.hasSize(1));

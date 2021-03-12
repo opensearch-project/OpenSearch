@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
 
-public class IndexTemplateMetadataTests extends ESTestCase {
+public class IndexTemplateMetadataTests extends OpenSearchTestCase {
 
     public void testIndexTemplateMetadataXContentRoundTrip() throws Exception {
         ToXContent.Params params = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));

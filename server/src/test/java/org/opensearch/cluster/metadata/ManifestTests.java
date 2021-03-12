@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -35,7 +35,7 @@ import java.util.Map;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ManifestTests extends ESTestCase {
+public class ManifestTests extends OpenSearchTestCase {
 
     private Manifest copyState(Manifest state, boolean introduceErrors) {
         long currentTerm = state.getCurrentTerm();

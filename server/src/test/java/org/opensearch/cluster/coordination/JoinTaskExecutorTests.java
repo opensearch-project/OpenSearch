@@ -31,7 +31,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.List;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.cluster.coordination.JoinTaskExecutor;
 
@@ -49,7 +49,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class JoinTaskExecutorTests extends ESTestCase {
+public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();

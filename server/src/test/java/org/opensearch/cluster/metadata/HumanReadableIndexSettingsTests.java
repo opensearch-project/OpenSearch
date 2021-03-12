@@ -21,7 +21,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -29,7 +29,7 @@ import java.time.ZonedDateTime;
 
 import static org.opensearch.test.VersionUtils.randomVersion;
 
-public class HumanReadableIndexSettingsTests extends ESTestCase {
+public class HumanReadableIndexSettingsTests extends OpenSearchTestCase {
     public void testHumanReadableSettings() {
         Version versionCreated = randomVersion(random());
         Version versionUpgraded = randomVersion(random());
