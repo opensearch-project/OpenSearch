@@ -40,7 +40,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -172,7 +172,7 @@ public class TaskResultsService {
 
             @Override
             public void onFailure(Exception e) {
-                if (false == (e instanceof EsRejectedExecutionException)
+                if (false == (e instanceof OpenSearchRejectedExecutionException)
                         || false == backoff.hasNext()) {
                     listener.onFailure(e);
                 } else {
