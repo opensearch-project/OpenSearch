@@ -19,8 +19,8 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoTestUtil;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;

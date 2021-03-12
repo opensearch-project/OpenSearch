@@ -19,8 +19,8 @@
 
 package org.opensearch.snapshots;
 
-import org.elasticsearch.OpenSearchCorruptionException;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;

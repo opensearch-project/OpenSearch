@@ -20,7 +20,7 @@
 package org.elasticsearch.client.documentation;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;

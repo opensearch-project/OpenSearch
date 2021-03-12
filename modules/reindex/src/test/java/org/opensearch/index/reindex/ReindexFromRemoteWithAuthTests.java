@@ -20,8 +20,8 @@
 package org.opensearch.index.reindex;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.OpenSearchSecurityException;
-import org.elasticsearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchSecurityException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
