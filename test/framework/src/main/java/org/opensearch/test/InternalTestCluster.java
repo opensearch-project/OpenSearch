@@ -74,7 +74,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
@@ -412,8 +412,8 @@ public final class InternalTestCluster extends TestCluster {
         // and fails shards when a master abdicates, which breaks many tests.
         builder.put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), randomFrom(random,"write", "metadata_write"));
         defaultSettings = builder.build();
-        executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
-                EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
+        executor = OpenSearchExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
+                OpenSearchExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
     }
 
     private static boolean usingZen1(Settings settings) {
@@ -487,7 +487,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         builder.put(
-            EsExecutors.NODE_PROCESSORS_SETTING.getKey(),
+            OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(),
             1 + random.nextInt(Math.min(4, Runtime.getRuntime().availableProcessors())));
         if (random.nextBoolean()) {
             if (random.nextBoolean()) {

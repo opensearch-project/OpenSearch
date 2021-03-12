@@ -99,7 +99,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.ToXContent;
@@ -1564,7 +1564,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         final List<Exception> actualErrors = new ArrayList<>();
         for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
             Throwable t = ExceptionsHelper.unwrapCause(tuple.v2());
-            if (t instanceof EsRejectedExecutionException) {
+            if (t instanceof OpenSearchRejectedExecutionException) {
                 logger.debug("Error indexing doc: " + t.getMessage() + ", reindexing.");
                 tuple.v1().execute().actionGet(); // re-index if rejected
             } else {
@@ -1856,7 +1856,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         if (rarely()) {
             // Sometimes adjust the minimum search thread pool size, causing
-            // QueueResizingEsThreadPoolExecutor to be used instead of a regular
+            // QueueResizingOpenSearchThreadPoolExecutor to be used instead of a regular
             // fixed thread pool
             builder.put("thread_pool.search.min_queue_size", 100);
         }

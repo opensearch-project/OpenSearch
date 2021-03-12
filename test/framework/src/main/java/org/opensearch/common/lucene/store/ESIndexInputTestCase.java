@@ -23,8 +23,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
@@ -38,12 +38,12 @@ import java.util.concurrent.CountDownLatch;
  */
 public class OpenSearchIndexInputTestCase extends OpenSearchTestCase {
 
-    private static EsThreadPoolExecutor executor;
+    private static OpenSearchThreadPoolExecutor executor;
 
     @BeforeClass
     public static void createExecutor() {
         final String name = "TEST-" + getTestClass().getSimpleName() + "#randomReadAndSlice";
-        executor = EsExecutors.newFixed(name, 10, 0, EsExecutors.daemonThreadFactory(name), new ThreadContext(Settings.EMPTY));
+        executor = OpenSearchExecutors.newFixed(name, 10, 0, OpenSearchExecutors.daemonThreadFactory(name), new ThreadContext(Settings.EMPTY));
     }
 
     @AfterClass

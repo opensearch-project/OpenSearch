@@ -576,7 +576,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * like {@link org.apache.lucene.util.LuceneTestCase#wrapReader(IndexReader)}, which can't be used because it also
      * wraps in the IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
      */
-    protected static IndexReader maybeWrapReaderEs(DirectoryReader reader) throws IOException {
+    protected static IndexReader maybeWrapReaderOpenSearch(DirectoryReader reader) throws IOException {
         if (randomBoolean()) {
             return new AssertingDirectoryReader(reader);
         } else {

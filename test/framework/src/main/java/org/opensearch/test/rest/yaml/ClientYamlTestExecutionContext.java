@@ -257,7 +257,7 @@ public class ClientYamlTestExecutionContext {
      * Returns the current es version as a string
      */
     public Version esVersion() {
-        return clientYamlTestClient.getEsVersion();
+        return clientYamlTestClient.getOpenSearchVersion();
     }
 
     public Version masterVersion() {

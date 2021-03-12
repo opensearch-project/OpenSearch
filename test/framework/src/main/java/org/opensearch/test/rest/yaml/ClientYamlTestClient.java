@@ -83,7 +83,7 @@ public class ClientYamlTestClient implements Closeable {
         this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
     }
 
-    public Version getEsVersion() {
+    public Version getOpenSearchVersion() {
         return esVersion;
     }
 

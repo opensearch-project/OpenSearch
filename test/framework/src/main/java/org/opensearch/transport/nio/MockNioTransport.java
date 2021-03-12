@@ -80,7 +80,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
-import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 
 public class MockNioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(MockNioTransport.class);

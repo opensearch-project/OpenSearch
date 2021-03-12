@@ -62,7 +62,7 @@ public class VersionSensitiveWarningsHandlerTests extends OpenSearchTestCase {
 
     private static WarningsHandler expectVersionSpecificWarnings(Set<Version> nodeVersions,
             Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
-        //Based on EsRestTestCase.expectVersionSpecificWarnings helper method but without OpenSearchRestTestCase dependency
+        //Based on OpenSearchRestTestCase.expectVersionSpecificWarnings helper method but without OpenSearchRestTestCase dependency
         VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
         expectationsSetter.accept(warningsHandler);
         return warningsHandler;

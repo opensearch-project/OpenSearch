@@ -39,7 +39,7 @@ import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-public abstract class EsBaseDirectoryTestCase extends BaseDirectoryTestCase {
+public abstract class OpenSearchBaseDirectoryTestCase extends BaseDirectoryTestCase {
     static {
         try {
             Class.forName("org.opensearch.test.OpenSearchTestCase");
