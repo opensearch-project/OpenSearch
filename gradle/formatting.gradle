@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.BuildPlugin
+import org.opensearch.gradle.BuildPlugin
 
 /*
  * This script plugin configures formatting for Java source using Spotless
@@ -60,16 +60,16 @@ def projectPathsToExclude = [
   ':example-plugins:rescore',
   ':example-plugins:rest-handler',
   ':example-plugins:script-expert-scoring',
-  ':libs:elasticsearch-cli',
-  ':libs:elasticsearch-core',
-  ':libs:elasticsearch-dissect',
-  ':libs:elasticsearch-geo',
-  ':libs:elasticsearch-grok',
-  ':libs:elasticsearch-nio',
-  ':libs:elasticsearch-plugin-classloader',
-  ':libs:elasticsearch-secure-sm',
-  ':libs:elasticsearch-ssl-config',
-  ':libs:elasticsearch-x-content',
+  ':libs:opensearch-cli',
+  ':libs:opensearch-core',
+  ':libs:opensearch-dissect',
+  ':libs:opensearch-geo',
+  ':libs:opensearch-grok',
+  ':libs:opensearch-nio',
+  ':libs:opensearch-plugin-classloader',
+  ':libs:opensearch-secure-sm',
+  ':libs:opensearch-ssl-config',
+  ':libs:opensearch-x-content',
   ':modules:aggs-matrix-stats',
   ':modules:analysis-common',
   ':modules:ingest-common',

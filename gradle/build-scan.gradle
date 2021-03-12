@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
 
 import java.util.concurrent.TimeUnit
