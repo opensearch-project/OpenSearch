@@ -130,7 +130,7 @@ import static org.mockito.Mockito.when;
 
 public class RecoverySourceHandlerTests extends ESTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
-        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build());
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
