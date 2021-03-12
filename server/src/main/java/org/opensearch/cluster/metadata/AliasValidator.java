@@ -54,7 +54,7 @@ public class AliasValidator {
     }
 
     /**
-     * Allows to validate an {@link AliasMetadata} and make sure
+     * Allows to validate an {@link org.opensearch.cluster.metadata.AliasMetadata} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */

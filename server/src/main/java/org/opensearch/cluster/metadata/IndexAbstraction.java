@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.collect.List.copyOf;
 
 /**
@@ -163,7 +165,7 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isHidden() {
-            return IndexMetadata.INDEX_HIDDEN_SETTING.get(concreteIndex.getSettings());
+            return INDEX_HIDDEN_SETTING.get(concreteIndex.getSettings());
         }
 
         @Override
@@ -307,7 +309,7 @@ public interface IndexAbstraction {
             this.dataStream = dataStream;
             this.dataStreamIndices = copyOf(dataStreamIndices);
             this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
-            assert writeIndex.getIndex().getName().equals(org.opensearch.cluster.metadata.DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
+            assert writeIndex.getIndex().getName().equals(getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
         }
 
         @Override
