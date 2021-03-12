@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.Index;
 
 import java.util.Comparator;
 

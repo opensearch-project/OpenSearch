@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchException;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -34,26 +34,26 @@ import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationState.PersistedState;
 import org.opensearch.cluster.coordination.InMemoryPersistedState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Manifest;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.env.NodeMetadata;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.MetadataUpgrader;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.Manifest;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.env.NodeMetadata;
+import org.opensearch.node.Node;
+import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -69,7 +69,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
@@ -486,7 +486,7 @@ public class GatewayMetaState implements Closeable {
 
             // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance,
             // this is true if there's only one data path on this master node, and the commit we just loaded was already written out
-            // by this version of Elasticsearch. TODO TBD should we avoid indexing when possible?
+            // by this version of OpenSearch. TODO TBD should we avoid indexing when possible?
             final PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter();
             try {
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);

@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
-import org.elasticsearch.OpenSearchCorruptionException;
+import org.opensearch.OpenSearchCorruptionException;
 
 /**
- * This exception is thrown when Elasticsearch detects
+ * This exception is thrown when OpenSearch detects
  * an inconsistency in one of it's persistent states.
  */
 public class CorruptStateException extends OpenSearchCorruptionException {
