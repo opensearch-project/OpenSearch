@@ -16,18 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParameters;
+import org.opensearch.Version;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParameters;
 
 import java.io.IOException;
 import java.util.Iterator;

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.collect.Iterators;
+import org.opensearch.common.regex.Regex;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -141,7 +141,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         return fieldToCopiedFields.containsKey(resolvedField)
             ? fieldToCopiedFields.get(resolvedField)
-            : org.elasticsearch.common.collect.Set.of(resolvedField);
+            : org.opensearch.common.collect.Set.of(resolvedField);
     }
 
     @Override

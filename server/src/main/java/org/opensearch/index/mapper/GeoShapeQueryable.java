@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.SpatialStrategy;
 import org.opensearch.geometry.Geometry;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 
 /**
- * Implemented by {@link org.elasticsearch.index.mapper.MappedFieldType} that support
+ * Implemented by {@link org.opensearch.index.mapper.MappedFieldType} that support
  * GeoShape queries.
  */
 public interface GeoShapeQueryable {

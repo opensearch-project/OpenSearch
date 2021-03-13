@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.index.AbstractIndexComponent;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.search.lookup.SearchLookup;
@@ -139,7 +139,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     }
 
     /**
-     * Sets a {@link org.elasticsearch.index.fielddata.IndexFieldDataCache.Listener} passed to each {@link IndexFieldData}
+     * Sets a {@link org.opensearch.index.fielddata.IndexFieldDataCache.Listener} passed to each {@link IndexFieldData}
      * creation to capture onCache and onRemoval events. Setting a listener on this method will override any previously
      * set listeners.
      * @throws IllegalStateException if the listener is set more than once

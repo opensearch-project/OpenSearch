@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.common.Strings;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;

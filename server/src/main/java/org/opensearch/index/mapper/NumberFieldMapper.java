@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
@@ -36,20 +36,20 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.Numbers;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -27,15 +27,15 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

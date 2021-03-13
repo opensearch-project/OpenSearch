@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
@@ -38,19 +38,19 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.query.DistanceFeatureQueryBuilder;
+import org.opensearch.index.query.QueryRewriteContext;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardException;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.fetch.subphase.FetchFieldsPhase;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -94,7 +94,7 @@ public abstract class MappedFieldType {
      * @param searchLookup a {@link SearchLookup} supplier to allow for accessing other fields values in the context of runtime fields
      * @throws IllegalArgumentException if the fielddata is not supported on this type.
      * An IllegalArgumentException is needed in order to return an http error 400
-     * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     * when this error occurs in a request. see: {@link org.opensearch.ExceptionsHelper#status}
      */
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
@@ -334,7 +334,7 @@ public abstract class MappedFieldType {
 
     /** @throws IllegalArgumentException if the fielddata is not supported on this type.
      *  An IllegalArgumentException is needed in order to return an http error 400
-     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     *  when this error occurs in a request. see: {@link org.opensearch.ExceptionsHelper#status}
      **/
     protected final void failIfNoDocValues() {
         if (hasDocValues() == false) {

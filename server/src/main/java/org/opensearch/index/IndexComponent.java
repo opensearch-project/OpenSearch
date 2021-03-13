@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 public interface IndexComponent {
 

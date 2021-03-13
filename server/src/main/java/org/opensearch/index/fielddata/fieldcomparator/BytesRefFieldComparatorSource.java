@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata.fieldcomparator;
+package org.opensearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -29,13 +29,13 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.index.fielddata.AbstractSortedDocValues;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
 

@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata.plain;
+package org.opensearch.index.fielddata.plain;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.DocValueFetcher;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.LeafNumericFieldData;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.mapper.DocValueFetcher;
+import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.Collection;

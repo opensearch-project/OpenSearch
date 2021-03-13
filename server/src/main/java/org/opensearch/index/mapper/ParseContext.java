@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.Version;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Collection;

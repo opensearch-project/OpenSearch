@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 
 /**
  * A shard in elasticsearch is a Lucene index, and a Lucene index is broken

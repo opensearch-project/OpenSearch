@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata.plain;
+package org.opensearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.ScriptDocValues;
 
 
 final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {

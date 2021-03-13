@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 
 import java.util.ArrayList;
 import java.util.Collection;

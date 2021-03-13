@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.Version;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
+import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,8 +41,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
