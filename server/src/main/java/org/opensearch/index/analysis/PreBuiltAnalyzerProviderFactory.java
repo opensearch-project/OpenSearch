@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
+import org.opensearch.Version;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.env.Environment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.analysis.PreBuiltAnalyzers;
+import org.opensearch.indices.analysis.PreBuiltCacheFactory;
 
 import java.io.Closeable;
 import java.io.IOException;

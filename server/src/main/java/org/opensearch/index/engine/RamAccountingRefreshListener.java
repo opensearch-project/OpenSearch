@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Collections;
 import java.util.HashSet;
