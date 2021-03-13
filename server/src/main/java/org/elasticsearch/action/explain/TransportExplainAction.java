@@ -46,11 +46,11 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rescore.RescoreContext;
-import org.elasticsearch.search.rescore.Rescorer;
+import org.opensearch.search.rescore.RescoreContext;
+import org.opensearch.search.rescore.Rescorer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Set;

@@ -20,7 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;

@@ -22,7 +22,7 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.ClusterName;

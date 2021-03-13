@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
@@ -45,7 +45,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.function.BiFunction;

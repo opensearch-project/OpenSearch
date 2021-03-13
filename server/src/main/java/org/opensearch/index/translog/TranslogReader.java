@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.common.io.Channels;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -33,7 +33,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.translog.Translog.getCommitCheckpointFileName;
+import static org.opensearch.index.translog.Translog.getCommitCheckpointFileName;
 
 /**
  * an immutable translog filereader

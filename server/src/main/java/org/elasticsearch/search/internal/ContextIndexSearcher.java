@@ -52,7 +52,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;

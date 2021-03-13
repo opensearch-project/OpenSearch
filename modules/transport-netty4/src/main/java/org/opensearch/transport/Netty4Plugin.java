@@ -20,7 +20,7 @@
 package org.opensearch.transport;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -33,10 +33,10 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.transport.Transport;
 import org.opensearch.transport.netty4.Netty4Transport;
 
 import java.util.Arrays;

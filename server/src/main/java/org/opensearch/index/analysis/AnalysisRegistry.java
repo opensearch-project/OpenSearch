@@ -16,23 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.env.Environment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.indices.analysis.AnalysisModule;
+import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.opensearch.indices.analysis.PreBuiltAnalyzers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -639,7 +639,7 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     // Some analysis components emit deprecation warnings or throw exceptions when used
-    // with the wrong version of elasticsearch.  These exceptions and warnings are
+    // with the wrong version of opensearch.  These exceptions and warnings are
     // normally thrown when tokenstreams are constructed, which unless we build a
     // tokenstream up-front does not happen until a document is indexed.  In order to
     // surface these warnings or exceptions as early as possible, we build an empty

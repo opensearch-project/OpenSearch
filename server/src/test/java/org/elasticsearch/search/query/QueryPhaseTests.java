@@ -92,7 +92,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortAndFormats;
+import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.TestSearchContext;
 

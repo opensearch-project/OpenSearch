@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.query;
+package org.opensearch.index.cache.query;
 
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.IndicesQueryCache;
+import org.opensearch.OpenSearchException;
+import org.opensearch.index.AbstractIndexComponent;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.IndicesQueryCache;
 
 /**
  * The index-level query cache. This class mostly delegates to the node-level

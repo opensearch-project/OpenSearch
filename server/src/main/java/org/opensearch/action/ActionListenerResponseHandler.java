@@ -22,9 +22,9 @@ package org.opensearch.action;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Objects;

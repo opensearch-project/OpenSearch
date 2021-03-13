@@ -20,7 +20,7 @@
 package org.opensearch.rest.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;

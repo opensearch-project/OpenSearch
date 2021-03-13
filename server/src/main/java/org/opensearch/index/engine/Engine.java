@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -41,41 +41,41 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
+import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.Mapping;
+import org.opensearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.seqno.SeqNoStats;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -103,8 +103,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class Engine implements Closeable {
 
@@ -1076,7 +1076,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * checks and removes translog files that no longer need to be retained. See
-     * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
+     * {@link org.opensearch.index.translog.TranslogDeletionPolicy} for details
      */
     public abstract void trimUnreferencedTranslogFiles() throws EngineException;
 
@@ -1448,7 +1448,7 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * Returns a positive timestamp if the ID of this document is auto-generated by elasticsearch.
+         * Returns a positive timestamp if the ID of this document is auto-generated by opensearch.
          * if this property is non-negative indexing code might optimize the addition of this document
          * due to it's append only nature.
          */

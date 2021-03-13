@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch;
 
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;
@@ -29,7 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.RescoreDocIds;
-import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;

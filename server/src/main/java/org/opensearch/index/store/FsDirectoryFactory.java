@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -31,13 +31,13 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.plugins.IndexStorePlugin;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
 import java.nio.file.Files;

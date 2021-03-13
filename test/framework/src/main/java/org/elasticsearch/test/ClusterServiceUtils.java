@@ -20,7 +20,7 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.core.util.Throwables;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;

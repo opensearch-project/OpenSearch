@@ -23,7 +23,7 @@ import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 /**
  * Performs the delete operation.

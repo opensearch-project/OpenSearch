@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.rest;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase.VersionSensitiveWarningsHandler;
@@ -42,7 +42,7 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
         assertFalse(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1")));
         assertTrue(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "unexpected")));
         assertTrue(handler.warningsShouldFailRequest(Collections.emptyList()));
-        
+
     }
     public void testMixedVersionCluster() throws IOException {
         Set<Version> nodeVersions= new HashSet<>();
@@ -56,15 +56,15 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
         assertFalse(handler.warningsShouldFailRequest(Arrays.asList("Expected legacy warning")));
         assertFalse(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "Expected legacy warning")));
         assertTrue(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "Unexpected legacy warning")));
-        assertTrue(handler.warningsShouldFailRequest(Arrays.asList("Unexpected legacy warning")));        
+        assertTrue(handler.warningsShouldFailRequest(Arrays.asList("Unexpected legacy warning")));
         assertFalse(handler.warningsShouldFailRequest(Collections.emptyList()));
-    }    
-    
-    private static WarningsHandler expectVersionSpecificWarnings(Set<Version> nodeVersions, 
+    }
+
+    private static WarningsHandler expectVersionSpecificWarnings(Set<Version> nodeVersions,
             Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         //Based on EsRestTestCase.expectVersionSpecificWarnings helper method but without ESRestTestCase dependency
         VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
         expectationsSetter.accept(warningsHandler);
         return warningsHandler;
-    }     
+    }
 }

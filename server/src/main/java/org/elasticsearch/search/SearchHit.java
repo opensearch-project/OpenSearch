@@ -21,7 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -49,8 +49,8 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.transport.RemoteClusterAware;
+import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.ArrayList;

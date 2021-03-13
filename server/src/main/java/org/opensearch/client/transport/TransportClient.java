@@ -59,9 +59,9 @@ import org.opensearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.TransportSettings;
 
 import java.io.Closeable;
 import java.util.ArrayList;

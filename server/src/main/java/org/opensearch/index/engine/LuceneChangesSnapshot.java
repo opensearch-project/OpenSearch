@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
@@ -34,16 +34,16 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.fieldvisitor.FieldsVisitor;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.SourceFieldMapper;
+import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;

@@ -21,7 +21,7 @@ package org.opensearch.script;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 
 public abstract class StringSortScript extends AbstractSortScript {
 

@@ -19,15 +19,15 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportService;
 import org.junit.Before;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 

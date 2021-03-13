@@ -58,8 +58,8 @@ import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
-import org.elasticsearch.search.sort.SortAndFormats;
+import org.opensearch.search.searchafter.SearchAfterBuilder;
+import org.opensearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.ArrayList;

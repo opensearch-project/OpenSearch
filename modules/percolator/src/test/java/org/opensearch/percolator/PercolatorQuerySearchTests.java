@@ -39,8 +39,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.lookup.LeafDocLookup;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.lookup.LeafDocLookup;
+import org.opensearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;

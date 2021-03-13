@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.OneMergeHelper;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MergeSchedulerConfig;
-import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.MergeSchedulerConfig;
+import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.OnGoingMerge;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Collections;

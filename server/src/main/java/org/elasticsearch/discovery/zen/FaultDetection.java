@@ -31,9 +31,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportConnectionListener;
+import org.opensearch.transport.TransportService;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
@@ -92,7 +92,7 @@ public abstract class FaultDetection implements Closeable {
     }
 
     /**
-     * This method will be called when the {@link org.elasticsearch.transport.TransportService} raised a node disconnected event
+     * This method will be called when the {@link org.opensearch.transport.TransportService} raised a node disconnected event
      */
     abstract void handleTransportDisconnect(DiscoveryNode node);
 

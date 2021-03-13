@@ -23,9 +23,9 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.transport.ProxyConnectionStrategy;
-import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.opensearch.transport.ProxyConnectionStrategy;
+import org.opensearch.transport.RemoteConnectionInfo;
+import org.opensearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
 import java.util.ArrayList;

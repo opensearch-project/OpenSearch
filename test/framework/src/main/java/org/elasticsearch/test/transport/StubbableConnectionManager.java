@@ -21,11 +21,11 @@ package org.elasticsearch.test.transport;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.ConnectionManager;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.ConnectionProfile;
+import org.opensearch.transport.ConnectionManager;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportConnectionListener;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;

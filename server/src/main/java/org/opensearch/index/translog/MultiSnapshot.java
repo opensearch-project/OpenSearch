@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import org.elasticsearch.index.seqno.CountedBitSet;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.seqno.CountedBitSet;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.IOException;

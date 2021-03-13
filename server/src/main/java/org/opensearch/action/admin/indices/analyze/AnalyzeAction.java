@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.analyze;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;

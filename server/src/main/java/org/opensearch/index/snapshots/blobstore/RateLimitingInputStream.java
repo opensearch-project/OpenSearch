@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.snapshots.blobstore;
+package org.opensearch.index.snapshots.blobstore;
 
 import org.apache.lucene.store.RateLimiter;
 

@@ -21,14 +21,14 @@ package org.opensearch.index.reindex.remote;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

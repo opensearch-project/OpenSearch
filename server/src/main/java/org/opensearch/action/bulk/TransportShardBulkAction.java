@@ -71,8 +71,8 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.node.NodeClosedException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;

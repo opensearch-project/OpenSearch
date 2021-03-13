@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 

@@ -35,7 +35,7 @@ import org.opensearch.index.rankeval.RankEvalSpec;
 import org.opensearch.index.rankeval.RatedDocument;
 import org.opensearch.index.rankeval.RatedRequest;
 import org.opensearch.index.rankeval.RatedSearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
 import java.io.IOException;

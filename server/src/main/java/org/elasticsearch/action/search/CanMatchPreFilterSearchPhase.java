@@ -26,12 +26,12 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.MinAndMax;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.transport.Transport;
 
 import java.util.Comparator;
 import java.util.List;
