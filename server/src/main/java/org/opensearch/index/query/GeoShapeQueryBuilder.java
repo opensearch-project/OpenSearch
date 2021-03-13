@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.SpatialStrategy;
+import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.geo.parsers.ShapeParser;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.GeoShapeQueryable;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.GeoShapeQueryable;
+import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;

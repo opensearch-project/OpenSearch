@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.Queries;
 
 import java.util.Map;
 

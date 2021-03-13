@@ -17,30 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.index.search.MatchQuery;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.query.support.QueryParsers;
+import org.opensearch.index.search.MatchQuery;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.MAX_EXPANSIONS_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
+import static org.opensearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
+import static org.opensearch.index.query.MatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
+import static org.opensearch.index.query.MatchQueryBuilder.MAX_EXPANSIONS_FIELD;
+import static org.opensearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
+import static org.opensearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
 
 /**
  * The boolean prefix query analyzes the input text and creates a boolean query containing a Term query for each term, except

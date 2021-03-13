@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.support;
+package org.opensearch.index.query.support;
 
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.opensearch.index.mapper.ObjectMapper;
 
 import java.util.Deque;
 import java.util.LinkedList;

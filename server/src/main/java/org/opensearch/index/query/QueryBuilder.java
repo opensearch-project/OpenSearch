@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
