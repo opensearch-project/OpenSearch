@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;

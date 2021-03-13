@@ -16,29 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.resync.ResyncReplicationRequest;
-import org.elasticsearch.action.resync.ResyncReplicationResponse;
-import org.elasticsearch.action.resync.TransportResyncReplicationAction;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.action.resync.ResyncReplicationRequest;
+import org.opensearch.action.resync.ResyncReplicationResponse;
+import org.opensearch.action.resync.TransportResyncReplicationAction;
+import org.opensearch.common.Strings;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;

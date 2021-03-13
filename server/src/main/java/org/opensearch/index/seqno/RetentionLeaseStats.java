@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.seqno;
+package org.opensearch.index.seqno;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -77,11 +77,11 @@ public final class RetentionLeaseStats implements ToXContentFragment, Writeable 
     }
 
     /**
-     * Converts the retention lease stats to {@link org.elasticsearch.common.xcontent.XContent} using the specified builder and pararms.
+     * Converts the retention lease stats to {@link org.opensearch.common.xcontent.XContent} using the specified builder and pararms.
      *
      * @param builder the builder
      * @param params  the params
-     * @return the builder that this retention lease collection was converted to {@link org.elasticsearch.common.xcontent.XContent} into
+     * @return the builder that this retention lease collection was converted to {@link org.opensearch.common.xcontent.XContent} into
      * @throws IOException if an I/O exception occurs writing to the builder
      */
     @Override

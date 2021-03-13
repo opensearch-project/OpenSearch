@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.index.IndexSettings;
 
 public abstract class AbstractIndexShardComponent implements IndexShardComponent {
 

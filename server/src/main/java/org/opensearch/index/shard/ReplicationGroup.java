@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.util.set.Sets;
 
 import java.util.ArrayList;
 import java.util.List;

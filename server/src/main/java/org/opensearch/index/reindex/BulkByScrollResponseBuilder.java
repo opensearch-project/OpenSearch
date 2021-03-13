@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.index.reindex.BulkByScrollTask.StatusBuilder;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.opensearch.index.reindex.BulkByScrollTask.StatusBuilder;
 
 import java.util.ArrayList;
 import java.util.List;

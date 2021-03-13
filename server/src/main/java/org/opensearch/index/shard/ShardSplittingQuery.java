@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReaderContext;
@@ -41,13 +41,13 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
+import org.opensearch.cluster.routing.OperationRouting;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.RoutingFieldMapper;
+import org.opensearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.util.function.Function;

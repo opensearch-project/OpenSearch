@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
 /**
  * Implemented by {@link WorkerBulkByScrollTaskState} and {@link BulkByScrollTask.Status} to consistently implement
