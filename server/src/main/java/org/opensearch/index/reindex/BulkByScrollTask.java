@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.Strings;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParseException;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
@@ -53,9 +53,9 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.unit.TimeValue.timeValueNanos;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Task storing information about a currently running BulkByScroll request.

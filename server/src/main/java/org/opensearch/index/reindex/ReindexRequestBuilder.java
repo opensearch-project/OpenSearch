@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.index.IndexAction;
+import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 public class ReindexRequestBuilder extends

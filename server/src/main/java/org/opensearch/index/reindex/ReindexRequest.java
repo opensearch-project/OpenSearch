@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.tasks.TaskId;
@@ -53,8 +53,8 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
-import static org.elasticsearch.index.VersionType.INTERNAL;
+import static org.opensearch.common.unit.TimeValue.parseTimeValue;
+import static org.opensearch.index.VersionType.INTERNAL;
 
 /**
  * Request to reindex some documents from one index to another. This implements CompositeIndicesRequest but in a misleading way. Rather than

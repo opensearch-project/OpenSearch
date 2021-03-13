@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.elasticsearch.common.lucene.index.OpenSearchLeafReader;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchLeafReader;
 
 public final class ShardUtils {
 

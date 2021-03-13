@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.Scroll;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
@@ -38,8 +38,8 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends ActionRequest {
 

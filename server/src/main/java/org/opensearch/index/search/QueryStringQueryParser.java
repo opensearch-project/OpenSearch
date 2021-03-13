@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.search;
+package org.opensearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -44,20 +44,20 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.ExistsQueryBuilder;
-import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.support.QueryParsers;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.opensearch.index.mapper.FieldNamesFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.query.ExistsQueryBuilder;
+import org.opensearch.index.query.MultiMatchQueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -66,12 +66,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
-import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
-import static org.elasticsearch.index.search.QueryParserHelper.checkForTooManyFields;
-import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingField;
-import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFields;
+import static org.opensearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
+import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+import static org.opensearch.index.search.QueryParserHelper.checkForTooManyFields;
+import static org.opensearch.index.search.QueryParserHelper.resolveMappingField;
+import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields;
 
 /**
  * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter

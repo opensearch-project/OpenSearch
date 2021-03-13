@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 
 public enum IndexShardState {

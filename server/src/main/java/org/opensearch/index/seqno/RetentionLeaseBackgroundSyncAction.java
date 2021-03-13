@@ -17,33 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.index.seqno;
+package org.opensearch.index.seqno;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.ReplicationTask;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.replication.ReplicationTask;
+import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.NodeClosedException;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;

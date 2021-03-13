@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.search;
+package org.opensearch.index.search;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
@@ -33,17 +33,17 @@ import java.io.IOException;
 import java.util.Objects;
 
 /** A {@link ToParentBlockJoinQuery} that allows to retrieve its nested path. */
-public final class ESToParentBlockJoinQuery extends Query {
+public final class OpenSearchToParentBlockJoinQuery extends Query {
 
     private final ToParentBlockJoinQuery query;
     private final String path;
     private final ScoreMode scoreMode;
 
-    public ESToParentBlockJoinQuery(Query childQuery, BitSetProducer parentsFilter, ScoreMode scoreMode, String path) {
+    public OpenSearchToParentBlockJoinQuery(Query childQuery, BitSetProducer parentsFilter, ScoreMode scoreMode, String path) {
         this(new ToParentBlockJoinQuery(childQuery, parentsFilter, scoreMode), path, scoreMode);
     }
 
-    private ESToParentBlockJoinQuery(ToParentBlockJoinQuery query, String path, ScoreMode scoreMode) {
+    private OpenSearchToParentBlockJoinQuery(ToParentBlockJoinQuery query, String path, ScoreMode scoreMode) {
         this.query = query;
         this.path = path;
         this.scoreMode = scoreMode;
@@ -75,7 +75,7 @@ public final class ESToParentBlockJoinQuery extends Query {
             // to a MatchNoDocsQuery. In that case it would be fine to lose information
             // about the nested path.
             if (innerRewrite instanceof ToParentBlockJoinQuery) {
-                return new ESToParentBlockJoinQuery((ToParentBlockJoinQuery) innerRewrite, path, scoreMode);
+                return new OpenSearchToParentBlockJoinQuery((ToParentBlockJoinQuery) innerRewrite, path, scoreMode);
             } else {
                 return innerRewrite;
             }
@@ -99,7 +99,7 @@ public final class ESToParentBlockJoinQuery extends Query {
         if (sameClassAs(obj) == false) {
             return false;
         }
-        ESToParentBlockJoinQuery that = (ESToParentBlockJoinQuery) obj;
+        OpenSearchToParentBlockJoinQuery that = (OpenSearchToParentBlockJoinQuery) obj;
         return query.equals(that.query) && Objects.equals(path, that.path);
     }
 

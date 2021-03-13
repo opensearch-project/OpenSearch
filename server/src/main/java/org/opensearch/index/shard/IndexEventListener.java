@@ -16,20 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 
 /**
  * An index event listener is the primary extension point for plugins and build-in services
  * to react / listen to per-index and per-shard events. These listeners are registered per-index
- * via {@link org.elasticsearch.index.IndexModule#addIndexEventListener(IndexEventListener)}. All listeners have the same
+ * via {@link org.opensearch.index.IndexModule#addIndexEventListener(IndexEventListener)}. All listeners have the same
  * lifecycle as the {@link IndexService} they are created for.
  * <p>
  * An IndexEventListener can be used across multiple indices and shards since all callback methods receive sufficient
@@ -73,7 +73,7 @@ public interface IndexEventListener {
     default void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
 
     /**
-     * Called after a shard's {@link org.elasticsearch.index.shard.IndexShardState} changes.
+     * Called after a shard's {@link org.opensearch.index.shard.IndexShardState} changes.
      * The order of concurrent events is preserved. The execution must be lightweight.
      *
      * @param indexShard the shard the new state was applied to

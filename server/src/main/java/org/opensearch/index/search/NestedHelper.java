@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.search;
+package org.opensearch.index.search;
 
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.search.BooleanClause;
@@ -32,8 +32,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.ObjectMapper;
 
 /** Utility class to filter parent and children clauses when building nested
  * queries. */

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.seqno;
+package org.opensearch.index.seqno;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -175,8 +175,8 @@ public final class RetentionLease implements ToXContentObject, Writeable {
     }
 
     /**
-     * Parses a retention lease from {@link org.elasticsearch.common.xcontent.XContent}. This method assumes that the retention lease was
-     * converted to {@link org.elasticsearch.common.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
+     * Parses a retention lease from {@link org.opensearch.common.xcontent.XContent}. This method assumes that the retention lease was
+     * converted to {@link org.opensearch.common.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
      *
      * @param parser the parser
      * @return a retention lease

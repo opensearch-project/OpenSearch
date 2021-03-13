@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.seqno;
+package org.opensearch.index.seqno;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.index.shard.ShardId;
 
 import java.util.Objects;
 
