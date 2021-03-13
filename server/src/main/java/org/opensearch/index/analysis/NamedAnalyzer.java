@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.elasticsearch.index.mapper.MapperException;
+import org.opensearch.index.mapper.MapperException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,8 +53,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this.scope = scope;
         this.analyzer = analyzer;
         this.positionIncrementGap = positionIncrementGap;
-        if (analyzer instanceof org.elasticsearch.index.analysis.AnalyzerComponentsProvider) {
-            this.analysisMode = ((org.elasticsearch.index.analysis.AnalyzerComponentsProvider) analyzer).getComponents().analysisMode();
+        if (analyzer instanceof org.opensearch.index.analysis.AnalyzerComponentsProvider) {
+            this.analysisMode = ((org.opensearch.index.analysis.AnalyzerComponentsProvider) analyzer).getComponents().analysisMode();
         } else {
             this.analysisMode = AnalysisMode.ALL;
         }

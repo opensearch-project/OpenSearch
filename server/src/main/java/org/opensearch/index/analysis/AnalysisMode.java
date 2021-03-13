@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 /**
  * Enum representing the mode in which token filters and analyzers are allowed to operate.

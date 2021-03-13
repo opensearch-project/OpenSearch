@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.analysis.HunspellService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.analysis.HunspellService;
 
 import java.util.Locale;
 

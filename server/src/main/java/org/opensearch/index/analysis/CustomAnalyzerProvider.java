@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.TextFieldMapper;
 
 import java.util.Map;
 
-import static org.elasticsearch.index.analysis.AnalyzerComponents.createComponents;
+import static org.opensearch.index.analysis.AnalyzerComponents.createComponents;
 
 /**
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list

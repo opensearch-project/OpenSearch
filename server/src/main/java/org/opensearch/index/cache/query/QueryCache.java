@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.query;
+package org.opensearch.index.cache.query;
 
-import org.elasticsearch.index.IndexComponent;
+import org.opensearch.index.IndexComponent;
 
 import java.io.Closeable;
 
