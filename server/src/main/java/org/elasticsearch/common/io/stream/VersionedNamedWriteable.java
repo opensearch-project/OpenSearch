@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 
 /**
  * A {@link NamedWriteable} that has a minimum version associated with it.

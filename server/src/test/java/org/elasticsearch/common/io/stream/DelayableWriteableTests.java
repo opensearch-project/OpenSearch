@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 import java.io.IOException;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 

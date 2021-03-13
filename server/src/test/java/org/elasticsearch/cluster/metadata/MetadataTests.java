@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.DataStreamTestHelper;

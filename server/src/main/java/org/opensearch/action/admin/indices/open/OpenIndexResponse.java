@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.open;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
