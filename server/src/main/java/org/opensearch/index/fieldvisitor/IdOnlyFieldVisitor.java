@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fieldvisitor;
+package org.opensearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.Uid;
 
 public final class IdOnlyFieldVisitor extends StoredFieldVisitor {
     private String id = null;

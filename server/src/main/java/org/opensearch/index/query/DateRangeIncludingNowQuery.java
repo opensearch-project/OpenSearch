@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;

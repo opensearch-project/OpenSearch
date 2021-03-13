@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.util.ArrayDeque;
@@ -59,7 +59,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);
             if (sourceValue == null) {
-                return org.elasticsearch.common.collect.List.of();
+                return org.opensearch.common.collect.List.of();
             }
 
             // We allow source values to contain multiple levels of arrays, such as `"field": [[1, 2]]`.

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata.plain;
+package org.opensearch.index.fielddata.plain;
 
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
@@ -24,7 +24,7 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.opensearch.index.fielddata.ordinals.Ordinals;
 
 import java.util.ArrayList;
 import java.util.Collection;

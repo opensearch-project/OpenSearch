@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata.fieldcomparator;
+package org.opensearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -27,15 +27,15 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.index.fielddata.LeafNumericFieldData;
+import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
 

@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

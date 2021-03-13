@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;

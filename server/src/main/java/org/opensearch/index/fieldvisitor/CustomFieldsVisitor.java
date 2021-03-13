@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fieldvisitor;
+package org.opensearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 

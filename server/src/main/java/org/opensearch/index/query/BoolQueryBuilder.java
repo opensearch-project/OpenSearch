@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.Version;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.opensearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
 /**
  * A Query that matches documents matching boolean combinations of other queries.

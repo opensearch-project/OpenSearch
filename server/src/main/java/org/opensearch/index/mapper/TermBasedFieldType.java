@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
@@ -25,9 +25,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.util.List;
 import java.util.Map;

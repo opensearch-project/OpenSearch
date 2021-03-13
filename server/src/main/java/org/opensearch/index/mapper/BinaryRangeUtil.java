@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.TriFunction;
+import org.opensearch.common.TriFunction;
 
 import java.io.IOException;
 import java.net.InetAddress;

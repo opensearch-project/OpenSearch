@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore;
+package org.opensearch.index.query.functionscore;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 

@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.time.DateUtils;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 

@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index;
+package org.opensearch.index;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.uid.Versions;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
 import java.util.Locale;

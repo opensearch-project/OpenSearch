@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.script.FieldScript;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
-import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.fetch.subphase.FetchDocValuesContext;
+import org.opensearch.search.fetch.subphase.FetchFieldsContext;
+import org.opensearch.search.fetch.subphase.InnerHitsContext;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
 
@@ -103,7 +103,7 @@ public abstract class InnerHitContextBuilder {
                 QueryShardContext innerContext = innerHitsContext.getQueryShardContext();
                 FieldScript.Factory factory = innerContext.compile(field.script(), FieldScript.CONTEXT);
                 FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerContext.lookup());
-                innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
+                innerHitsContext.scriptFields().add(new org.opensearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), fieldScript, field.ignoreFailure()));
             }
         }

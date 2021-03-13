@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -28,26 +28,26 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.LocaleUtils;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.joda.Joda;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateFormatters;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.common.time.DateUtils;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.opensearch.index.query.DateRangeIncludingNowQuery;
+import org.opensearch.index.query.QueryRewriteContext;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -66,7 +66,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.time.DateUtils.toLong;
+import static org.opensearch.common.time.DateUtils.toLong;
 
 /** A {@link FieldMapper} for dates. */
 public final class DateFieldMapper extends ParametrizedFieldMapper {

@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.geometry.Geometry;
-import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
-import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
-import org.elasticsearch.indices.TermsLookup;
+import org.opensearch.index.query.DistanceFeatureQueryBuilder.Origin;
+import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.opensearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.opensearch.index.query.functionscore.ScriptScoreQueryBuilder;
+import org.opensearch.indices.TermsLookup;
 import org.opensearch.script.Script;
 
 import java.io.IOException;

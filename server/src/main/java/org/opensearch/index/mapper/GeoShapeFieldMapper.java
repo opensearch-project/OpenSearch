@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.geo.GeometryParser;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.geometry.Geometry;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.VectorGeoShapeQueryProcessor;
 
 import java.util.List;
 import java.util.Map;
@@ -37,7 +37,7 @@ import java.util.Map;
  * FieldMapper for indexing {@link LatLonShape}s.
  * <p>
  * Currently Shapes can only be indexed and can only be queried using
- * {@link org.elasticsearch.index.query.GeoShapeQueryBuilder}, consequently
+ * {@link org.opensearch.index.query.GeoShapeQueryBuilder}, consequently
  * a lot of behavior in this Mapper is disabled.
  * <p>
  * Format supported:

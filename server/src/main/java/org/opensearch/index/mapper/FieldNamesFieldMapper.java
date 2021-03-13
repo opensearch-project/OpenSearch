@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.Version;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

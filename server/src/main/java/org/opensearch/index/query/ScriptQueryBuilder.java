@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -29,19 +29,19 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.script.FilterScript;
 import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";

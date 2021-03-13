@@ -17,45 +17,45 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.RoutingMissingException;
-import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
-import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.opensearch.action.termvectors.MultiTermVectorsItemResponse;
+import org.opensearch.action.termvectors.MultiTermVectorsRequest;
+import org.opensearch.action.termvectors.MultiTermVectorsResponse;
+import org.opensearch.action.termvectors.TermVectorsRequest;
+import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.opensearch.client.Client;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.common.lucene.search.XMoreLikeThis;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.lucene.search.MoreLikeThisQuery;
+import org.opensearch.common.lucene.search.XMoreLikeThis;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,7 +70,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * A more like this query that finds documents that are "like" the provided set of document(s).
@@ -755,7 +755,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * Number of terms that must match the generated query expressed in the
      * common syntax for minimum should match. Defaults to {@code 30%}.
      *
-     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     * @see    org.opensearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
     public MoreLikeThisQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
         if (minimumShouldMatch == null) {

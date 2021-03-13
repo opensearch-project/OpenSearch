@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeometryFormat;
-import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.CheckedBiFunction;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeometryFormat;
+import org.opensearch.common.geo.GeometryParser;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Point;
 
@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
+import static org.opensearch.index.mapper.TypeParsers.parseField;
 
 /** Base class for for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata.plain;
+package org.opensearch.index.fielddata.plain;
 
 import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.index.DocValues;
@@ -28,21 +28,21 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.DocValueFetcher;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.common.time.DateUtils;
+import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.opensearch.index.fielddata.IndexFieldDataCache;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.LeafNumericFieldData;
+import org.opensearch.index.fielddata.NumericDoubleValues;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.opensearch.index.mapper.DocValueFetcher;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;

@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.similarity.SimilarityProvider;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,9 +34,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
+import static org.opensearch.common.xcontent.support.XContentMapValues.isArray;
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeParsers.class);

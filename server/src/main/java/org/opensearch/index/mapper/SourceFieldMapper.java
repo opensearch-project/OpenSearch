@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -25,19 +25,19 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

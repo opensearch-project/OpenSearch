@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.index.search.QueryParserHelper;
-import org.elasticsearch.index.search.QueryStringQueryParser;
+import org.opensearch.Version;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.query.support.QueryParsers;
+import org.opensearch.index.search.QueryParserHelper;
+import org.opensearch.index.search.QueryStringQueryParser;
 
 import java.io.IOException;
 import java.time.ZoneId;

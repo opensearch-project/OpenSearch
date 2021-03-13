@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -26,16 +26,16 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Objects;

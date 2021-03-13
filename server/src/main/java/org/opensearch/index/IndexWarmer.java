@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldDataService;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;

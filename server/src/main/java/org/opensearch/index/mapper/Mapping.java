@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.Version;
+import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

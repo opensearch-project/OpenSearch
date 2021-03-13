@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 
 /**
  * A simple field data cache abstraction on the *index* level.

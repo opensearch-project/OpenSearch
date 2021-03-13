@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.stats.IndexingPressureStats;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.index.stats.IndexingPressureStats;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
