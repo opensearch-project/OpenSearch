@@ -17,33 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.Version;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.AbstractIndexShardComponent;
+import org.opensearch.index.shard.IndexShardComponent;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -71,11 +71,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
+import static org.opensearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
 
 /**
  * A Translog is a per index shard component that records all non-committed index operations in a durable manner.
- * In Elasticsearch there is one Translog instance per {@link org.elasticsearch.index.engine.InternalEngine}.
+ * In OpenSearch there is one Translog instance per {@link org.opensearch.index.engine.InternalEngine}.
  * Additionally, since Elasticsearch 2.0 the engine also records a {@link #TRANSLOG_UUID_KEY} with each commit to ensure a strong
  * association between the lucene index an the transaction log file. This UUID is used to prevent accidental recovery from a transaction
  * log that belongs to a

@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.snapshots.blobstore;
+package org.opensearch.index.snapshots.blobstore;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.opensearch.common.Nullable;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.util.HashMap;
 import java.util.List;

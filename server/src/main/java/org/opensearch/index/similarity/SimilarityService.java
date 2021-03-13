@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.similarity;
+package org.opensearch.index.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.IndexOptions;
@@ -31,15 +31,15 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.Version;
+import org.opensearch.common.TriFunction;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.AbstractIndexComponent;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.script.ScriptService;
 
 import java.util.Collections;
