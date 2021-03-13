@@ -56,7 +56,7 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;

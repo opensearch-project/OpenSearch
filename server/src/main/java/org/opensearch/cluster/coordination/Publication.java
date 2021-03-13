@@ -29,8 +29,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.List;

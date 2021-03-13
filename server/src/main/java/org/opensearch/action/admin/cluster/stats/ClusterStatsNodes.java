@@ -40,7 +40,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;

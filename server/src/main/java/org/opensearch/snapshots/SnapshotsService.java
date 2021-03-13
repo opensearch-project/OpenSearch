@@ -88,7 +88,7 @@ import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;

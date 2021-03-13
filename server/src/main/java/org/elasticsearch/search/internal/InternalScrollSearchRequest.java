@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.Scroll;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;

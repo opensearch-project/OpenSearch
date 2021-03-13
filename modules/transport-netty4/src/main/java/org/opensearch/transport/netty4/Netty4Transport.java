@@ -56,8 +56,8 @@ import org.opensearch.transport.Netty4NioSocketChannel;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.NettyByteBufSizer;
 import org.opensearch.transport.SharedGroupFactory;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.RemoteClusterAware;
+import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Objects;

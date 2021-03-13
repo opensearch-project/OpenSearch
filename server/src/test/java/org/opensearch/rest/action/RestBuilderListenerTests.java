@@ -27,8 +27,8 @@ import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponse.Empty;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponse.Empty;
 
 import java.util.concurrent.atomic.AtomicReference;
 

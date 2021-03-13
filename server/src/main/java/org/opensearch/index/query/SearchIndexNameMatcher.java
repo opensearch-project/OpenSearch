@@ -23,7 +23,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.transport.RemoteClusterAware;
+import org.opensearch.transport.RemoteClusterAware;
 
 import java.util.function.Predicate;
 

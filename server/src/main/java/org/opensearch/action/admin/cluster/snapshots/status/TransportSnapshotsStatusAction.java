@@ -55,7 +55,7 @@ import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;

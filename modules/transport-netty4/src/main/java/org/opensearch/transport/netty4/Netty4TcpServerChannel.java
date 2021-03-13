@@ -22,7 +22,7 @@ package org.opensearch.transport.netty4;
 import io.netty.channel.Channel;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.concurrent.CompletableContext;
-import org.elasticsearch.transport.TcpServerChannel;
+import org.opensearch.transport.TcpServerChannel;
 
 import java.net.InetSocketAddress;
 

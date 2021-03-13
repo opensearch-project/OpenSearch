@@ -27,8 +27,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportResponse;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.Collection;

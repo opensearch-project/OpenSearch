@@ -44,7 +44,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.nio.file.Path;
 import java.util.Arrays;

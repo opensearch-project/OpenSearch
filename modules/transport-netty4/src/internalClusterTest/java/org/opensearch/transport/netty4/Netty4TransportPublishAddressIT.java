@@ -29,7 +29,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.opensearch.transport.Netty4Plugin;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.net.Inet4Address;
 

@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.remote;
 
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.opensearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;

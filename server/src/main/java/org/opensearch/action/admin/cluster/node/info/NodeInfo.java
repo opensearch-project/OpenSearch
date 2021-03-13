@@ -36,7 +36,7 @@ import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.node.ReportingService;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.opensearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.HashMap;

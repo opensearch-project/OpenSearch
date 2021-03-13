@@ -27,7 +27,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicInteger;
 

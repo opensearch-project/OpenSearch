@@ -22,8 +22,8 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequest.Empty;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequest.Empty;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;

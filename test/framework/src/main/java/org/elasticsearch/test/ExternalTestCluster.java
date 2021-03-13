@@ -35,9 +35,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.opensearch.transport.MockTransportClient;
+import org.opensearch.transport.TransportSettings;
+import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

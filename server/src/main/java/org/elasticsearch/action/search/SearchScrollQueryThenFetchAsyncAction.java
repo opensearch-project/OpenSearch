@@ -33,7 +33,7 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.transport.Transport;
 
 import java.util.function.BiFunction;
 

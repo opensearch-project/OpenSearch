@@ -31,7 +31,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.transport.Transport;
 
 import java.util.Comparator;
 import java.util.List;
