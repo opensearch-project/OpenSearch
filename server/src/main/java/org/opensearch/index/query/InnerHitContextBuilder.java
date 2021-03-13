@@ -21,13 +21,13 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.index.IndexSettings;
 import org.opensearch.script.FieldScript;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortAndFormats;
-import org.elasticsearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;

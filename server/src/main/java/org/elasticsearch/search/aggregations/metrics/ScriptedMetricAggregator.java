@@ -35,7 +35,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.HashMap;

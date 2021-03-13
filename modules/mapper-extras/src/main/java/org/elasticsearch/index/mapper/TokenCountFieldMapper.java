@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;

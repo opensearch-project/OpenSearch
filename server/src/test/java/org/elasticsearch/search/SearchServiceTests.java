@@ -76,7 +76,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;

@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.List;

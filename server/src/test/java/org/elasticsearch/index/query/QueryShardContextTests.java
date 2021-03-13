@@ -54,9 +54,9 @@ import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.search.lookup.LeafDocLookup;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.LeafDocLookup;
+import org.opensearch.search.lookup.LeafSearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

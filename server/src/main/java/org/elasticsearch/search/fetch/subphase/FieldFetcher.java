@@ -24,8 +24,8 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;

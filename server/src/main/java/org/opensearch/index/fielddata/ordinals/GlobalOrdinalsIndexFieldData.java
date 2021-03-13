@@ -35,8 +35,8 @@ import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.sort.BucketedSort;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.BucketedSort;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

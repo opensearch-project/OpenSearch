@@ -23,7 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -36,8 +36,8 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.sort.BucketedSort;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.BucketedSort;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.function.Function;

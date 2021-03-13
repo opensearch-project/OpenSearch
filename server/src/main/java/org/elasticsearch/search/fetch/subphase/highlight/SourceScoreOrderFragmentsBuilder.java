@@ -26,7 +26,7 @@ import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;

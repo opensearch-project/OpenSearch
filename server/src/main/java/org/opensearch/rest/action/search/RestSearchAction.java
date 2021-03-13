@@ -38,11 +38,11 @@ import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 

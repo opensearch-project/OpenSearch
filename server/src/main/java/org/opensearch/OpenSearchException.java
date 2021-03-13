@@ -734,8 +734,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     private enum OpenSearchExceptionHandle {
         INDEX_SHARD_SNAPSHOT_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException::new, 0, UNKNOWN_VERSION_ADDED),
-        DFS_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.dfs.DfsPhaseExecutionException.class,
-                org.elasticsearch.search.dfs.DfsPhaseExecutionException::new, 1, UNKNOWN_VERSION_ADDED),
+        DFS_PHASE_EXECUTION_EXCEPTION(org.opensearch.search.dfs.DfsPhaseExecutionException.class,
+                org.opensearch.search.dfs.DfsPhaseExecutionException::new, 1, UNKNOWN_VERSION_ADDED),
         EXECUTION_CANCELLED_EXCEPTION(org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException.class,
                 org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException::new, 2, UNKNOWN_VERSION_ADDED),
         MASTER_NOT_DISCOVERED_EXCEPTION(org.elasticsearch.discovery.MasterNotDiscoveredException.class,
@@ -963,8 +963,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         MAPPER_PARSING_EXCEPTION(org.elasticsearch.index.mapper.MapperParsingException.class,
                 org.elasticsearch.index.mapper.MapperParsingException::new, 126, UNKNOWN_VERSION_ADDED),
         // 127 used to be org.elasticsearch.search.SearchContextException
-        SEARCH_SOURCE_BUILDER_EXCEPTION(org.elasticsearch.search.builder.SearchSourceBuilderException.class,
-                org.elasticsearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
+        SEARCH_SOURCE_BUILDER_EXCEPTION(org.opensearch.search.builder.SearchSourceBuilderException.class,
+                org.opensearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
         // 129 was EngineClosedException
         NO_SHARD_AVAILABLE_ACTION_EXCEPTION(org.opensearch.action.NoShardAvailableActionException.class,
                 org.opensearch.action.NoShardAvailableActionException::new, 130, UNKNOWN_VERSION_ADDED),

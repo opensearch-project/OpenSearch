@@ -59,7 +59,7 @@ import org.opensearch.script.ScriptFactory;
 import org.opensearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;

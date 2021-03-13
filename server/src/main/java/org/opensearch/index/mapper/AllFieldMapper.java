@@ -25,7 +25,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.List;

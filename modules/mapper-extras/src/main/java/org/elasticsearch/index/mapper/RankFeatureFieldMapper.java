@@ -29,7 +29,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;

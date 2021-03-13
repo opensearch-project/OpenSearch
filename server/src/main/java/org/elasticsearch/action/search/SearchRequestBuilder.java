@@ -29,14 +29,14 @@ import org.opensearch.script.Script;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.opensearch.search.builder.PointInTimeBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.rescore.RescorerBuilder;
-import org.elasticsearch.search.slice.SliceBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.rescore.RescorerBuilder;
+import org.opensearch.search.slice.SliceBuilder;
+import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.util.Arrays;
@@ -370,7 +370,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Adds a generic sort builder.
      *
-     * @see org.elasticsearch.search.sort.SortBuilders
+     * @see org.opensearch.search.sort.SortBuilders
      */
     public SearchRequestBuilder addSort(SortBuilder<?> sort) {
         sourceBuilder().sort(sort);
@@ -457,7 +457,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
+     * {@link #addRescorer(org.opensearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @return this for chaining
@@ -469,7 +469,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
+     * {@link #addRescorer(org.opensearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @param window   rescore window

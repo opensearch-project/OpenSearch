@@ -25,9 +25,9 @@ import org.apache.lucene.search.Scorable;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptedMetricAggContexts;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.opensearch.search.lookup.LeafSearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
