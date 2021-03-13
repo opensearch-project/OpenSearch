@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.opensearch.transport.RemoteClusterService;
 
 import java.util.Arrays;
 import java.util.Collections;

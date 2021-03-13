@@ -28,8 +28,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.Collections;

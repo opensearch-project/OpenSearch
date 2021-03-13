@@ -35,11 +35,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.Transport.Connection;
-import org.elasticsearch.transport.TransportRequestOptions.Type;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.ConnectionProfile;
+import org.opensearch.transport.Transport.Connection;
+import org.opensearch.transport.TransportRequestOptions.Type;
+import org.opensearch.transport.TransportService;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;

@@ -21,7 +21,7 @@ package org.opensearch.action.bulk;
 
 import org.opensearch.action.ActionType;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportRequestOptions;
 
 public class BulkAction extends ActionType<BulkResponse> {
 

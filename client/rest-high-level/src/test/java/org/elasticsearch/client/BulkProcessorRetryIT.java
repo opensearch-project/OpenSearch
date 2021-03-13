@@ -29,7 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.transport.RemoteTransportException;
 
 import java.util.Collections;
 import java.util.Iterator;

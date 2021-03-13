@@ -45,8 +45,8 @@ import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskResult;
 import org.opensearch.tasks.TaskResultsService;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
