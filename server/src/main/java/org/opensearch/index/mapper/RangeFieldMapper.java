@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.util.LocaleUtils;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.joda.Joda;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -58,10 +58,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
+import static org.opensearch.index.query.RangeQueryBuilder.GTE_FIELD;
+import static org.opensearch.index.query.RangeQueryBuilder.GT_FIELD;
+import static org.opensearch.index.query.RangeQueryBuilder.LTE_FIELD;
+import static org.opensearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends ParametrizedFieldMapper {

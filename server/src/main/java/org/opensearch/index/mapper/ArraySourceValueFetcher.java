@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
@@ -58,7 +58,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);
             if (sourceValue == null) {
-                return org.elasticsearch.common.collect.List.of();
+                return org.opensearch.common.collect.List.of();
             }
             values.addAll((List<?>) parseSourceValue(sourceValue));
         }

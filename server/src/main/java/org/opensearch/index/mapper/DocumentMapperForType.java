@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 public class DocumentMapperForType {
     private final DocumentMapper documentMapper;

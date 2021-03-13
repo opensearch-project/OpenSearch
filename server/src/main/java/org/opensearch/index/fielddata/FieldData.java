@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -25,7 +25,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityService;
+import org.opensearch.Version;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.script.ScriptService;
 

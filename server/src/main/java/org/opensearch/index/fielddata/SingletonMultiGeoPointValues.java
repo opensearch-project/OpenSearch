@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 
 import java.io.IOException;
 

@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;

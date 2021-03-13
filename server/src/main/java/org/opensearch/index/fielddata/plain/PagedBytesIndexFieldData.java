@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata.plain;
+package org.opensearch.index.fielddata.plain;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,22 +34,22 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.opensearch.index.fielddata.IndexFieldDataCache;
+import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
+import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
+import org.opensearch.index.fielddata.RamAccountingTermsEnum;
+import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.opensearch.index.fielddata.ordinals.Ordinals;
+import org.opensearch.index.fielddata.ordinals.OrdinalsBuilder;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
 

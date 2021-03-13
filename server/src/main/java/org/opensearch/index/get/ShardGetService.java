@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.get;
+package org.opensearch.index.get;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -26,38 +26,38 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.TranslogLeafReader;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.TranslogLeafReader;
+import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.opensearch.index.fieldvisitor.FieldsVisitor;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.RoutingFieldMapper;
+import org.opensearch.index.mapper.SourceFieldMapper;
+import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.shard.AbstractIndexShardComponent;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -67,8 +67,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public final class ShardGetService extends AbstractIndexShardComponent {
     private final MapperService mapperService;
@@ -120,7 +120,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Returns {@link GetResult} based on the specified {@link org.elasticsearch.index.engine.Engine.GetResult} argument.
+     * Returns {@link GetResult} based on the specified {@link org.opensearch.index.engine.Engine.GetResult} argument.
      * This method basically loads specified fields for the associated document in the engineGetResult.
      * This method load the fields from the Lucene index and not from transaction log and therefore isn't realtime.
      * <p>

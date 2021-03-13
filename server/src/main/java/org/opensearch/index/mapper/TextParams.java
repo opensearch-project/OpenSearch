@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.index.analysis.AnalysisMode;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
-import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.opensearch.index.analysis.AnalysisMode;
+import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.mapper.ParametrizedFieldMapper.Parameter;
+import org.opensearch.index.similarity.SimilarityProvider;
 
 import java.util.Objects;
 import java.util.function.Function;

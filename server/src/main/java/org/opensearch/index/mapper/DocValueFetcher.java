@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;

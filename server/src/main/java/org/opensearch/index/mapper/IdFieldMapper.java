@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -28,24 +28,24 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.opensearch.index.fielddata.IndexFieldDataCache;
+import org.opensearch.index.fielddata.LeafFieldData;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.opensearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;

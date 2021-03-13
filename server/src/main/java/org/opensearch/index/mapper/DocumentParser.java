@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
+import org.opensearch.common.Strings;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -42,7 +42,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
+import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {

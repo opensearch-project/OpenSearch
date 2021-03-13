@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -27,17 +27,17 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.Version;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

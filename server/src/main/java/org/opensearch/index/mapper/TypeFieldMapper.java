@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -27,14 +27,14 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.time.ZoneId;

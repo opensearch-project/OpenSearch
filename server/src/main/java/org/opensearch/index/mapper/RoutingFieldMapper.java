@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;

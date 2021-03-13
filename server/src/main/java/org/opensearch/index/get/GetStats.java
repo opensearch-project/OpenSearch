@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.get;
+package org.opensearch.index.get;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 

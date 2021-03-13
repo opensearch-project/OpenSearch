@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.time.DateUtils;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
+import org.opensearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
 

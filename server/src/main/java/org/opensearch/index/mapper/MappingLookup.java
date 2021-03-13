@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.ArrayList;
 import java.util.Collection;

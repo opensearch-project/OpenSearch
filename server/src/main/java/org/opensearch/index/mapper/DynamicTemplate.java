@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.Version;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;

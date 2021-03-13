@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata.plain;
+package org.opensearch.index.fielddata.plain;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.DocValuesType;
@@ -24,17 +24,17 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.opensearch.index.fielddata.IndexFieldDataCache;
+import org.opensearch.index.fielddata.IndexGeoPointFieldData;
+import org.opensearch.index.fielddata.LeafGeoPointFieldData;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
 

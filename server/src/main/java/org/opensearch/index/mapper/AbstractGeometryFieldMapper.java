@@ -16,24 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.geo.GeoJsonGeometryFormat;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.support.MapXContentParser;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -92,7 +92,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
          * Given a parsed value and a format string, formats the value into a plain Java object.
          *
          * Supported formats include 'geojson' and 'wkt'. The different formats are defined
-         * as subclasses of {@link org.elasticsearch.common.geo.GeometryFormat}.
+         * as subclasses of {@link org.opensearch.common.geo.GeometryFormat}.
          */
         public abstract Object format(Parsed value, String format);
 

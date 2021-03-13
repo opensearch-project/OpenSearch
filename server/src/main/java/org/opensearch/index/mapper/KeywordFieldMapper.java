@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -26,14 +26,14 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.opensearch.index.similarity.SimilarityProvider;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
