@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.common.io.stream.ByteBufferStreamInput;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

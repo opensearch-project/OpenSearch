@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.snapshots;
+package org.opensearch.index.snapshots;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
