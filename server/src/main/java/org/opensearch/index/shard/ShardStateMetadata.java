@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.gateway.CorruptStateException;
-import org.elasticsearch.gateway.MetadataStateFormat;
+import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.gateway.CorruptStateException;
+import org.opensearch.gateway.MetadataStateFormat;
 
 import java.io.IOException;
 import java.io.OutputStream;

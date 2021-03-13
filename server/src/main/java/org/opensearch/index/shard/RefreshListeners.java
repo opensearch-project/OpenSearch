@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.common.util.concurrent.RunOnce;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;

@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.search;
+package org.opensearch.index.search;
 
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardException;
+import org.opensearch.search.SearchModule;
 
 import java.util.Collection;
 import java.util.HashMap;

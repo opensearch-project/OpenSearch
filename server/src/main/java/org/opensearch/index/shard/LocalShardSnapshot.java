@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -26,9 +26,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.store.Store;
+import org.opensearch.index.Index;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.store.Store;
 
 import java.io.Closeable;
 import java.io.IOException;
