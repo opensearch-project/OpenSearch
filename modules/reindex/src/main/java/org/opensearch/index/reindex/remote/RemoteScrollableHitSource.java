@@ -28,7 +28,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.opensearch.OpenSearchException;;
 import org.opensearch.OpenSearchStatusException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;

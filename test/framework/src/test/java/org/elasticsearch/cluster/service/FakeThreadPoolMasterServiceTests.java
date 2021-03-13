@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;

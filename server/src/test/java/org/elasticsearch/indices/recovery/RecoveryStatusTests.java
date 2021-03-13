@@ -25,13 +25,14 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.Version;
 
 import java.io.IOException;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
-    private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
+    private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.opensearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");

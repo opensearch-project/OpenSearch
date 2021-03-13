@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 
 public class VersionRange {
     private final Version lower;

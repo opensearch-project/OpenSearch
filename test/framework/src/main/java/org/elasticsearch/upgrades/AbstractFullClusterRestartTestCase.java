@@ -19,7 +19,7 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;

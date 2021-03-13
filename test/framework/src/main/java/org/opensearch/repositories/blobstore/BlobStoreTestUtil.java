@@ -19,7 +19,7 @@
 package org.opensearch.repositories.blobstore;
 
 import org.apache.lucene.util.SameThreadExecutorService;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterChangedEvent;

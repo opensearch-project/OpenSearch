@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex.remote;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;

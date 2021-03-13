@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;

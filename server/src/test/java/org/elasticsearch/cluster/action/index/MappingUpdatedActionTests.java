@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.support.PlainActionFuture;
