@@ -24,9 +24,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.opensearch.transport.Transport;
 

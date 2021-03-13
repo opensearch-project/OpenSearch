@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Map;
