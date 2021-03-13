@@ -39,7 +39,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.List;
 import java.util.function.Function;

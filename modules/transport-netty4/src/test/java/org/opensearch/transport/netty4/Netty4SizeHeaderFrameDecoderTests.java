@@ -31,7 +31,7 @@ import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.transport.TransportSettings;
 import org.junit.After;
 import org.junit.Before;
 

@@ -23,9 +23,9 @@ import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.TransportService;
 
 /**
  * A TransportAction that self registers a handler into the transport service

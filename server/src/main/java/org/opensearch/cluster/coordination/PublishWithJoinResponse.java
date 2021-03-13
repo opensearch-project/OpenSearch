@@ -20,7 +20,7 @@ package org.opensearch.cluster.coordination;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Optional;

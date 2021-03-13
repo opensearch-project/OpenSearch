@@ -45,7 +45,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpChannel;
+import org.opensearch.transport.TcpChannel;
 
 import java.io.IOException;
 import java.util.ArrayList;

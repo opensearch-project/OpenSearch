@@ -22,7 +22,7 @@ package org.elasticsearch.action.support.nodes;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 

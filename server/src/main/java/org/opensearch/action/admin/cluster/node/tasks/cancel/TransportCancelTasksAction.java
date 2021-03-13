@@ -30,8 +30,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportService;
 
 import java.util.List;
 import java.util.function.Consumer;

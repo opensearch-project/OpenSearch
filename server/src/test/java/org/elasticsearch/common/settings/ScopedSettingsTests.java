@@ -29,7 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
