@@ -19,8 +19,8 @@
 
 package org.opensearch.repositories;
 
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContent;

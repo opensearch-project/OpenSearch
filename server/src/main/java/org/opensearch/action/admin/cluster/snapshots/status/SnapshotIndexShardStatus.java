@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;

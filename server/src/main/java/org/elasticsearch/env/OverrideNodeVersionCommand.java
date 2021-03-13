@@ -21,7 +21,7 @@ package org.elasticsearch.env;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.elasticsearch.gateway.PersistedClusterStateService;

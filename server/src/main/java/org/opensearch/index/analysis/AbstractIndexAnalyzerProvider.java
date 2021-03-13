@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.AbstractIndexComponent;
+import org.opensearch.index.IndexSettings;
 
 public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends AbstractIndexComponent implements AnalyzerProvider<T> {
 

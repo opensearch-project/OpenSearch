@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.metadata.Metadata;

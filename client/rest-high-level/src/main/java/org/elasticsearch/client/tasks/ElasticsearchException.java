@@ -17,7 +17,7 @@
  * under the License.
  */
 package org.elasticsearch.client.tasks;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;

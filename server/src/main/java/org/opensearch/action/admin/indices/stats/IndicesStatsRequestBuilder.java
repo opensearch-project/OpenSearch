@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.

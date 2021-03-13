@@ -19,7 +19,7 @@
 
 package org.opensearch.rest;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.util.ArrayList;

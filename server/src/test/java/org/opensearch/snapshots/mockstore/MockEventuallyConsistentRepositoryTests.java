@@ -18,7 +18,7 @@
  */
 package org.opensearch.snapshots.mockstore;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;

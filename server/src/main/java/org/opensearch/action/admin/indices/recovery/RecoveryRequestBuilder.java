@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.recovery;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * Recovery information request builder.

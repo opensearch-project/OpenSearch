@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.open;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;

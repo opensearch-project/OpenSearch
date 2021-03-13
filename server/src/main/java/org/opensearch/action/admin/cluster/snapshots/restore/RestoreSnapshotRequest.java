@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;

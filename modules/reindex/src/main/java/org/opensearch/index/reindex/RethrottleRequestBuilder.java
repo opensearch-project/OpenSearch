@@ -22,7 +22,7 @@ package org.opensearch.index.reindex;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 /**
  * Java API support for changing the throttle on reindex tasks while they are running.

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.IndexScopedSettings;

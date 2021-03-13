@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;

@@ -19,7 +19,7 @@
 
 package org.opensearch.transport;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;

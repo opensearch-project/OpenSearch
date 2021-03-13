@@ -28,7 +28,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;

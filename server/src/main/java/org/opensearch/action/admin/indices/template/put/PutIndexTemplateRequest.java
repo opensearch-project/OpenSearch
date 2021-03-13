@@ -20,7 +20,7 @@ package org.opensearch.action.admin.indices.template.put;
 
 import org.elasticsearch.OpenSearchGenerationException;
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;

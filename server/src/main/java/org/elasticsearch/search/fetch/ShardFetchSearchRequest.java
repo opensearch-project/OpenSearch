@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch;
 
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;

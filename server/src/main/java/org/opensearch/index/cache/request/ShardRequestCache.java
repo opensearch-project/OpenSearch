@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.request;
+package org.opensearch.index.cache.request;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.metrics.CounterMetric;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.metrics.CounterMetric;
 
 /**
  * Tracks the portion of the request cache in use for a particular shard.

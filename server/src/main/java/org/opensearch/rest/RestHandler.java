@@ -19,7 +19,7 @@
 
 package org.opensearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContent;
 import org.opensearch.rest.RestRequest.Method;
 

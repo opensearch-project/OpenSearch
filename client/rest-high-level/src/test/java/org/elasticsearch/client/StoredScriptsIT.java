@@ -18,7 +18,7 @@ package org.elasticsearch.client;
  * under the License.
  */
 
-import org.elasticsearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;

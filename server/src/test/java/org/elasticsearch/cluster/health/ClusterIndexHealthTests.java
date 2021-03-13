@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;

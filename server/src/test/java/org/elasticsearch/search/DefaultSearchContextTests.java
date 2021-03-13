@@ -27,7 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;

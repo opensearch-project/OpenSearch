@@ -20,7 +20,7 @@
 package org.opensearch.rest;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;

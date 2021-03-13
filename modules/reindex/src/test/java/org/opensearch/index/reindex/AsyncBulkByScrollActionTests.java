@@ -20,9 +20,9 @@
 package org.opensearch.index.reindex;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
@@ -53,9 +53,9 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.opensearch.client.Client;
+import org.opensearch.client.FilterClient;
+import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesArray;

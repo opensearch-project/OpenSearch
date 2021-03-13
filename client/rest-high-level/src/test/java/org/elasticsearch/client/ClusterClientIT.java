@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;

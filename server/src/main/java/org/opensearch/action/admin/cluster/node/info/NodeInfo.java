@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;

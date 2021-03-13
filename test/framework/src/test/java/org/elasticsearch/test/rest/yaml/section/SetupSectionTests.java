@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;

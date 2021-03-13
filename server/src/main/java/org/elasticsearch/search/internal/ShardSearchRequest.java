@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;

@@ -20,7 +20,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.metadata.Metadata.Custom;

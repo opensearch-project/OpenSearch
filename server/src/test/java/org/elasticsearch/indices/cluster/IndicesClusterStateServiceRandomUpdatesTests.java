@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;

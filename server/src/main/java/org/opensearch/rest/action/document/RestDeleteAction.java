@@ -21,7 +21,7 @@ package org.opensearch.rest.action.document;
 
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;

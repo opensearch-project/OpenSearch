@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;

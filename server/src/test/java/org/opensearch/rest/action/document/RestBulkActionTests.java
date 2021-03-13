@@ -20,12 +20,12 @@
 package org.opensearch.rest.action.document;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestChannel;

@@ -18,7 +18,7 @@
  */
 package org.opensearch.client.benchmark.transport;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.opensearch.client.benchmark.AbstractBenchmark;
 import org.opensearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.opensearch.client.benchmark.ops.search.SearchRequestExecutor;
-import org.elasticsearch.client.transport.TransportClient;
+import org.opensearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;

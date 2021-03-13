@@ -20,7 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;

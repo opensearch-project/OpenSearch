@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;

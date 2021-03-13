@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.node.DiscoveryNode;

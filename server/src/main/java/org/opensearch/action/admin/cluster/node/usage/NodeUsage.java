@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.node.usage;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;

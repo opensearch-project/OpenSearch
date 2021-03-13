@@ -21,8 +21,8 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.OpenSearchTimeoutException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchTimeoutException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;

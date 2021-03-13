@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;

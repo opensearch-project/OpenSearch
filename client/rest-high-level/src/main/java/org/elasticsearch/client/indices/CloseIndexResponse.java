@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.Nullable;

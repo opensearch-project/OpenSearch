@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.opensearch.cluster.health.ClusterStateHealth;

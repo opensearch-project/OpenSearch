@@ -42,14 +42,14 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * A request to delete a document from an index based on its type and id. Best created using
- * {@link org.elasticsearch.client.Requests#deleteRequest(String)}.
+ * {@link org.opensearch.client.Requests#deleteRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)} to
  * be set.
  *
  * @see DeleteResponse
- * @see org.elasticsearch.client.Client#delete(DeleteRequest)
- * @see org.elasticsearch.client.Requests#deleteRequest(String)
+ * @see org.opensearch.client.Client#delete(DeleteRequest)
+ * @see org.opensearch.client.Requests#deleteRequest(String)
  */
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {

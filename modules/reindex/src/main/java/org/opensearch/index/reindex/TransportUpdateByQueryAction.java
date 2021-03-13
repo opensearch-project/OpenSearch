@@ -20,13 +20,13 @@
 package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.opensearch.client.Client;
+import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.logging.log4j.Logger;
@@ -25,9 +25,9 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;

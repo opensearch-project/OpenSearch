@@ -19,7 +19,7 @@
 
 package org.opensearch.transport;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;

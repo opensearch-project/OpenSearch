@@ -19,7 +19,7 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.opensearch.painless.lookup.PainlessLookup;

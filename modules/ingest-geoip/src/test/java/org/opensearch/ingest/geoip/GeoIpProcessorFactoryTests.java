@@ -20,7 +20,7 @@
 package org.opensearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;

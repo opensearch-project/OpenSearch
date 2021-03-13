@@ -19,7 +19,7 @@
 
 package org.opensearch.transport.netty4;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.opensearch.cluster.node.DiscoveryNode;

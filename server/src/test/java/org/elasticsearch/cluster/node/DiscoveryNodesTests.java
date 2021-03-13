@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;

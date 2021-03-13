@@ -19,10 +19,10 @@
 
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;

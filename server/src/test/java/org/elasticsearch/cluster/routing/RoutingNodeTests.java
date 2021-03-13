@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;

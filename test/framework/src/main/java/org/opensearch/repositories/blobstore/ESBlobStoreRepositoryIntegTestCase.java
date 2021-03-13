@@ -28,7 +28,7 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequ
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;

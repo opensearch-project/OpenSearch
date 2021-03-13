@@ -19,7 +19,7 @@
 package org.opensearch.tasks;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.client.Requests;
+import org.opensearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;

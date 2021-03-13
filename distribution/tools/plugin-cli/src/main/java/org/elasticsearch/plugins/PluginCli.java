@@ -21,7 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.opensearch.cli.Command;
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
+import org.opensearch.cli.LoggingAwareMultiCommand;
 import org.opensearch.cli.Terminal;
 
 import java.io.IOException;

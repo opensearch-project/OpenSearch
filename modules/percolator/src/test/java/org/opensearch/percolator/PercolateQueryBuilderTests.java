@@ -20,7 +20,7 @@
 package org.opensearch.percolator;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;

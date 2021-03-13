@@ -19,8 +19,8 @@
 
 package org.opensearch.transport;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;

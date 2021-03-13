@@ -27,7 +27,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;

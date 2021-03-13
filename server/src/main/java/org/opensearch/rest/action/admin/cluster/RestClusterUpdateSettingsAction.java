@@ -20,8 +20,8 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.node.NodeClient;
+import org.opensearch.client.Requests;
+import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;

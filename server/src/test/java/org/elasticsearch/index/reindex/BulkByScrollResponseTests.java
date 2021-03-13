@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
+import org.opensearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;

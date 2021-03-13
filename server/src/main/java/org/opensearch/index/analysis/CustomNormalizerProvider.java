@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.List;

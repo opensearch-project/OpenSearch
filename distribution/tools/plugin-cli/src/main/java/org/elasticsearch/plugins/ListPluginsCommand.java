@@ -20,8 +20,8 @@
 package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.Version;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.opensearch.Version;
+import org.opensearch.cli.EnvironmentAwareCommand;
 import org.opensearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 

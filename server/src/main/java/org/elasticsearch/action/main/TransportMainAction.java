@@ -20,7 +20,7 @@
 package org.elasticsearch.action.main;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;

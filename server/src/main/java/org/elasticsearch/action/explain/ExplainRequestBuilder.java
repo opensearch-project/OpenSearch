@@ -20,7 +20,7 @@
 package org.elasticsearch.action.explain;
 
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
