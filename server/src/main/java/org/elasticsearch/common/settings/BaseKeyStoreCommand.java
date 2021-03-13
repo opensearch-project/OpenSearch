@@ -22,7 +22,7 @@ package org.elasticsearch.common.settings;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
-import org.elasticsearch.cli.KeyStoreAwareCommand;
+import org.opensearch.cli.KeyStoreAwareCommand;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.elasticsearch.env.Environment;

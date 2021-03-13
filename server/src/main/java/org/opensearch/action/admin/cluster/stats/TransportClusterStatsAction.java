@@ -44,8 +44,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeService;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.Transports;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;

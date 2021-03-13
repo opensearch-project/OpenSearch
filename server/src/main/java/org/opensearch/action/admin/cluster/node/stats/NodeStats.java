@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -42,7 +42,7 @@ import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
 import org.opensearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.transport.TransportStats;
+import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.util.Map;

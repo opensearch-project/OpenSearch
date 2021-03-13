@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.serialization;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;

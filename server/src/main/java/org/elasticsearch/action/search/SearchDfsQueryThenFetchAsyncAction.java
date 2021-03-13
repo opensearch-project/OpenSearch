@@ -28,7 +28,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.transport.Transport;
 
 import java.util.List;
 import java.util.Map;

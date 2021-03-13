@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 
 import java.io.IOException;
 import java.io.StringReader;

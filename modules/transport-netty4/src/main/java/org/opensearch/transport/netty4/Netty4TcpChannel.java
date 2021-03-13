@@ -27,8 +27,8 @@ import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.concurrent.CompletableContext;
-import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TransportException;
+import org.opensearch.transport.TcpChannel;
+import org.opensearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -54,7 +54,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;

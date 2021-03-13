@@ -20,8 +20,8 @@
 package org.opensearch.search.rescore;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

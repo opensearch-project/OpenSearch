@@ -18,7 +18,7 @@
  */
 package org.opensearch.snapshots;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.cluster.SnapshotsInProgress;

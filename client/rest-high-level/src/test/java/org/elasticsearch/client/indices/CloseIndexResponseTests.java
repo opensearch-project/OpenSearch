@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.AbstractResponseTestCase;
@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.opensearch.transport.ActionNotFoundTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -36,7 +36,7 @@ import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.node.ReportingService;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.opensearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.transport.TransportInfo;
+import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.HashMap;

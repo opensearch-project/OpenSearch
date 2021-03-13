@@ -28,7 +28,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.opensearch.client.Client;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -60,7 +60,7 @@ import org.opensearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.transport.RemoteClusterAware;
+import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Arrays;

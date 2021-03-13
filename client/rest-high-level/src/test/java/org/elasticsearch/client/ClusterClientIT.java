@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
@@ -53,8 +53,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.SniffConnectionStrategy;
+import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
 import java.util.Collections;

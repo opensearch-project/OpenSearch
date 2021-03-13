@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.alias.exists;
 
 import org.opensearch.action.admin.indices.alias.get.BaseAliasesRequestBuilder;
-import org.elasticsearch.client.OpenSearchClient;
+import org.opensearch.client.OpenSearchClient;
 
 public class AliasesExistRequestBuilder extends BaseAliasesRequestBuilder<AliasesExistResponse, AliasesExistRequestBuilder> {
 

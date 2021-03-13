@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.cluster.configuration;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.opensearch.cluster.ClusterState;

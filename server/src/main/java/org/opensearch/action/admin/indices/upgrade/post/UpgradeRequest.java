@@ -28,8 +28,8 @@ import java.io.IOException;
 /**
  * A request to upgrade one or more indices. In order to update all indices, pass an empty array or
  * {@code null} for the indices.
- * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#upgrade(UpgradeRequest)
+ * @see org.opensearch.client.Requests#upgradeRequest(String...)
+ * @see org.opensearch.client.IndicesAdminClient#upgrade(UpgradeRequest)
  * @see UpgradeResponse
  */
 public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {

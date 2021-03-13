@@ -19,7 +19,7 @@
 
 package org.opensearch.transport.netty4;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -34,15 +34,15 @@ import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
-import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionProfile;
+import org.opensearch.transport.AbstractSimpleTransportTestCase;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.Netty4NioSocketChannel;
 import org.opensearch.transport.SharedGroupFactory;
-import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TestProfiles;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.transport.TcpChannel;
+import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.TestProfiles;
+import org.opensearch.transport.Transport;
 
 import java.io.IOException;
 import java.net.InetAddress;

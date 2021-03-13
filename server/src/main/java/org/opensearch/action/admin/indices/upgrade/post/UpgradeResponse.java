@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.collect.Tuple;

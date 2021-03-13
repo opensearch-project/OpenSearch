@@ -28,7 +28,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.transport.Transport;
+import org.opensearch.transport.Transport;
 
 import java.util.concurrent.Executor;
 
@@ -89,7 +89,7 @@ interface SearchPhaseContext extends Executor {
     void onShardFailure(int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e);
 
     /**
-     * Returns a connection to the node if connected otherwise and {@link org.elasticsearch.transport.ConnectTransportException} will be
+     * Returns a connection to the node if connected otherwise and {@link org.opensearch.transport.ConnectTransportException} will be
      * thrown.
      */
     Transport.Connection getConnection(String clusterAlias, String nodeId);

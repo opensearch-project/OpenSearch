@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionType;
 
 public class ResizeAction extends ActionType<ResizeResponse> {

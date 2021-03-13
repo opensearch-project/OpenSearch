@@ -42,7 +42,7 @@ import java.util.Objects;
  * The response of a get action.
  *
  * @see GetRequest
- * @see org.elasticsearch.client.Client#get(GetRequest)
+ * @see org.opensearch.client.Client#get(GetRequest)
  */
 public class GetResponse extends ActionResponse implements Iterable<DocumentField>, ToXContentObject {
 

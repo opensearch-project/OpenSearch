@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.codec;
+package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat.Mode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.index.mapper.MapperService;
 
 import java.util.Map;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
  * codec layer that allows to use use-case specific file formats &amp;
- * data-structures per field. Elasticsearch exposes the full
+ * data-structures per field. OpenSearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
  */
 public class CodecService {

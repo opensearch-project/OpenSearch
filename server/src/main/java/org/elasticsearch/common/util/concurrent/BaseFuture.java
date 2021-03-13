@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transports;
+import org.opensearch.transport.Transports;
 
 import java.util.Objects;
 import java.util.concurrent.CancellationException;

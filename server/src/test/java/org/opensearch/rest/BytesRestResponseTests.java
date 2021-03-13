@@ -20,8 +20,8 @@
 package org.opensearch.rest;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.OpenSearchStatusException;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.opensearch.action.OriginalIndices;
@@ -37,7 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.opensearch.transport.RemoteTransportException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

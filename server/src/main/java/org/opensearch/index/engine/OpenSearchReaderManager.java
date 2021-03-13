@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -26,8 +26,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
 
 import org.apache.lucene.search.SearcherManager;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 
 /**
  * Utility class to safely share {@link OpenSearchDirectoryReader} instances across

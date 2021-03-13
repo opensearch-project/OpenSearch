@@ -22,7 +22,7 @@ package org.opensearch.index.reindex;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.opensearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.elasticsearch.Version;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
-import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
+import org.opensearch.Version;
+import org.opensearch.indices.analysis.PreBuiltCacheFactory;
+import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent<TokenizerFactory> {
     /**
      * Create a pre-configured tokenizer that may not vary at all.
-     * 
+     *
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
      */
@@ -52,17 +52,17 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
     }
 
     /**
-     * Create a pre-configured tokenizer that may vary based on the Elasticsearch version.
+     * Create a pre-configured tokenizer that may vary based on the OpenSearch version.
      *
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
      */
-    public static PreConfiguredTokenizer elasticsearchVersion(String name, Function<org.elasticsearch.Version, Tokenizer> create) {
-        return new PreConfiguredTokenizer(name, CachingStrategy.ELASTICSEARCH, create);
+    public static PreConfiguredTokenizer openSearchVersion(String name, Function<org.opensearch.Version, Tokenizer> create) {
+        return new PreConfiguredTokenizer(name, CachingStrategy.OPENSEARCH, create);
     }
 
     private final Function<Version, Tokenizer> create;
-    
+
     private PreConfiguredTokenizer(String name, PreBuiltCacheFactory.CachingStrategy cache, Function<Version, Tokenizer> create) {
         super(name, cache);
         this.create = create;

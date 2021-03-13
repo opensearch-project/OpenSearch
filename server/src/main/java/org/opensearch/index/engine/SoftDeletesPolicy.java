@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.seqno.RetentionLease;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.seqno.RetentionLease;
+import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.translog.Translog;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -63,7 +63,7 @@ final class SoftDeletesPolicy {
 
     /**
      * Updates the number of soft-deleted documents prior to the global checkpoint to be retained
-     * See {@link org.elasticsearch.index.IndexSettings#INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING}
+     * See {@link org.opensearch.index.IndexSettings#INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING}
      */
     synchronized void setRetentionOperations(long retentionOperations) {
         this.retentionOperations = retentionOperations;

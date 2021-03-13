@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.query;
+package org.opensearch.index.cache.query;
 
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.AbstractIndexComponent;
+import org.opensearch.index.IndexSettings;
 
 public class DisabledQueryCache extends AbstractIndexComponent implements QueryCache {
 

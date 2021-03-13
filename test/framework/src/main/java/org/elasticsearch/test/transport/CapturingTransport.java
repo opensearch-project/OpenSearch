@@ -21,8 +21,8 @@ package org.elasticsearch.test.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequest;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;

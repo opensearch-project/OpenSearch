@@ -19,8 +19,8 @@
 
 package org.opensearch.geometry;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.opensearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.AbstractWireTestCase;

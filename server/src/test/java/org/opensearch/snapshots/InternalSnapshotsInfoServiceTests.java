@@ -20,7 +20,7 @@
 package org.opensearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;

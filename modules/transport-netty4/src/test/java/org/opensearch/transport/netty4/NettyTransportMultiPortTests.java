@@ -18,7 +18,7 @@
  */
 package org.opensearch.transport.netty4;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -31,8 +31,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportSettings;
+import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.TransportSettings;
 import org.junit.Before;
 
 import java.util.Collections;
