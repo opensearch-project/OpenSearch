@@ -27,7 +27,7 @@ import java.io.IOException;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

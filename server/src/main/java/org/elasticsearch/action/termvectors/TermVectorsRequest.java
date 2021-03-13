@@ -20,7 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;

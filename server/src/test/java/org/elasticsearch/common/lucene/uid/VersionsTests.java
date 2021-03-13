@@ -26,7 +26,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;

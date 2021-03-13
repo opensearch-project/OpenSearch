@@ -21,7 +21,7 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.FingerprintFilter;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;

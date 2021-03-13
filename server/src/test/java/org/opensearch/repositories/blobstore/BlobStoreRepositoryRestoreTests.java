@@ -21,7 +21,7 @@ package org.opensearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;

@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

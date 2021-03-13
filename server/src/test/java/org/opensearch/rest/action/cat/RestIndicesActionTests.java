@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.cluster.health.ClusterHealthStatus;

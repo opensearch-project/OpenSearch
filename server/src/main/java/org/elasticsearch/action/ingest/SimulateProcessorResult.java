@@ -19,7 +19,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;

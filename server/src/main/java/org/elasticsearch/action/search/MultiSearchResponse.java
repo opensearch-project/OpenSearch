@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;

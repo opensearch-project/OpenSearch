@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.ClusterState.FeatureAware;
 import org.opensearch.cluster.metadata.Metadata;

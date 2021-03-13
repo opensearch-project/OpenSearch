@@ -22,7 +22,7 @@ package org.elasticsearch.plugins;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;

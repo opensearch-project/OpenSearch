@@ -34,7 +34,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;

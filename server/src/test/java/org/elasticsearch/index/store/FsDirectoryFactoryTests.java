@@ -27,7 +27,7 @@ import org.apache.lucene.store.NoLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;

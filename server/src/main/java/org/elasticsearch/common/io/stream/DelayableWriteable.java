@@ -21,7 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;

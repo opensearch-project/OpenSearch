@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 
 import java.io.EOFException;
 import java.io.IOException;

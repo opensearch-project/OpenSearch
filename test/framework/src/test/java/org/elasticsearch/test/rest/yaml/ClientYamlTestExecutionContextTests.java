@@ -20,7 +20,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;

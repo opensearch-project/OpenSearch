@@ -20,7 +20,7 @@
 package org.opensearch.transport;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;

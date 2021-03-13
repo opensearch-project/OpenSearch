@@ -21,7 +21,7 @@ package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
