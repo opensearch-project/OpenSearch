@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.seqno;
+package org.opensearch.index.seqno;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 
 import java.util.concurrent.atomic.AtomicLong;
 

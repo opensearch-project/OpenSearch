@@ -17,31 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.seqno;
+package org.opensearch.index.seqno;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.gateway.WriteStateException;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.SafeCommitInfo;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ReplicationGroup;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.gateway.WriteStateException;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.shard.AbstractIndexShardComponent;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ReplicationGroup;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.nio.file.Path;

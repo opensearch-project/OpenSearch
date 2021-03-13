@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.opensearch.index.reindex;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.script.Script;
 import org.opensearch.tasks.TaskId;
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,7 +26,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 
 import java.io.IOException;
 import java.util.Collections;

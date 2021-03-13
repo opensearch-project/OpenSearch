@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
@@ -30,27 +30,27 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.Index;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 
@@ -63,7 +63,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on

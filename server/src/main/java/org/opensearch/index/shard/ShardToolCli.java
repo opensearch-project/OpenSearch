@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.opensearch.cli.LoggingAwareMultiCommand;
 import org.opensearch.cli.Terminal;
 
 /**
- * Class encapsulating and dispatching commands from the {@code elasticsearch-shard} command line tool
+ * Class encapsulating and dispatching commands from the {@code opensearch-shard} command line tool
  */
 public class ShardToolCli extends LoggingAwareMultiCommand {
 

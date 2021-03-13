@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.search;
+package org.opensearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -34,13 +34,13 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.query.AbstractQueryBuilder;
+import org.opensearch.index.query.MultiMatchQueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.SimpleQueryStringBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 /**
  * Wrapper class for Lucene's SimpleQueryStringQueryParser that allows us to redefine

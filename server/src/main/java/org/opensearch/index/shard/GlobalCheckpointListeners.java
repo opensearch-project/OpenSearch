@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.opensearch.Assertions;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.FutureUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Represents a collection of global checkpoint listeners. This collection can be added to, and all listeners present at the time of an
@@ -62,7 +62,7 @@ public class GlobalCheckpointListeners implements Closeable {
 
         /**
          * Callback when the global checkpoint is updated or the shard is closed. If the shard is closed, the value of the global checkpoint
-         * will be set to {@link org.elasticsearch.index.seqno.SequenceNumbers#UNASSIGNED_SEQ_NO} and the exception will be non-null and an
+         * will be set to {@link org.opensearch.index.seqno.SequenceNumbers#UNASSIGNED_SEQ_NO} and the exception will be non-null and an
          * instance of {@link IndexShardClosedException }. If the listener timed out waiting for notification then the exception will be
          * non-null and an instance of {@link TimeoutException}. If the global checkpoint is updated, the exception will be null.
          *

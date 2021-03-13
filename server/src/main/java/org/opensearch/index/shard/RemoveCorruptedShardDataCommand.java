@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -31,33 +31,33 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetadata;
-import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.TruncateTranslogAction;
+import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.Strings;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.env.NodeMetadata;
+import org.opensearch.gateway.PersistedClusterStateService;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.TruncateTranslogAction;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -362,7 +362,7 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
                         truncateTranslogAction.execute(terminal, shardPath, indexDir);
                     }
                 } catch (LockObtainFailedException lofe) {
-                    final String msg = "Failed to lock shard's directory at [" + indexPath + "], is Elasticsearch still running?";
+                    final String msg = "Failed to lock shard's directory at [" + indexPath + "], is OpenSearch still running?";
                     terminal.println(msg);
                     throw new OpenSearchException(msg);
                 }

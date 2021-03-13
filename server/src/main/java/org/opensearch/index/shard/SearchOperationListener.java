@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.search.internal.ReaderContext;
-import org.elasticsearch.search.internal.SearchContext;
+
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.search.internal.ReaderContext;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.transport.TransportRequest;
 
 import java.util.List;

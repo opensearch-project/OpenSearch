@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.IndexSettings;
 
 public interface IndexShardComponent {
 

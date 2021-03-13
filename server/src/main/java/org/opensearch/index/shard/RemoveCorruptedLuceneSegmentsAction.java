@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.shard;
+package org.opensearch.index.shard;
 
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cli.Terminal;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 
 import java.io.IOException;
 import java.io.PrintStream;
