@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore;
+package org.opensearch.index.query.functionscore;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.opensearch.common.lucene.search.function.ScoreFunction;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Locale;

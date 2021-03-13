@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -34,23 +34,23 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.search.MaxScoreCollector;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
-import org.elasticsearch.index.search.NestedHelper;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.search.MaxScoreCollector;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.mapper.ObjectMapper;
+import org.opensearch.index.search.ESToParentBlockJoinQuery;
+import org.opensearch.index.search.NestedHelper;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.fetch.subphase.InnerHitsContext;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -58,8 +58,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
-import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
+import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.opensearch.search.fetch.subphase.InnerHitsContext.intersect;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
     public static final String NAME = "nested";

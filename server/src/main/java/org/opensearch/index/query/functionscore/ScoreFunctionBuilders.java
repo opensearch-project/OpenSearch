@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore;
+package org.opensearch.index.query.functionscore;
 
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;

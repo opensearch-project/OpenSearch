@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.geo.GeoLineDecomposer;
-import org.elasticsearch.common.geo.GeoPolygonDecomposer;
-import org.elasticsearch.common.geo.GeoShapeUtils;
-import org.elasticsearch.common.geo.ShapeRelation;
+import org.opensearch.Version;
+import org.opensearch.common.geo.GeoLineDecomposer;
+import org.opensearch.common.geo.GeoPolygonDecomposer;
+import org.opensearch.common.geo.GeoShapeUtils;
+import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.geometry.Circle;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;

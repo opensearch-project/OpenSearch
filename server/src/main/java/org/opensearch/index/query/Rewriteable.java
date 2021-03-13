@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 
 import java.io.IOException;
 import java.util.ArrayList;

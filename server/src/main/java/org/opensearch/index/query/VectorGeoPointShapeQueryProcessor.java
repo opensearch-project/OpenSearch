@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
@@ -25,10 +25,10 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.GeoPolygonDecomposer;
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.GeoShapeUtils;
-import org.elasticsearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.GeoPolygonDecomposer;
+import org.opensearch.common.geo.GeoShapeType;
+import org.opensearch.common.geo.GeoShapeUtils;
+import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.geometry.Circle;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
@@ -41,8 +41,8 @@ import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.GeoPointFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 

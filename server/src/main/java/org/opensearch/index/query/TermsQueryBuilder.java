@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -26,21 +26,21 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.get.GetRequest;
+import org.opensearch.action.get.GetRequest;
 import org.opensearch.client.Client;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.ConstantFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.indices.TermsLookup;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.ConstantFieldType;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.indices.TermsLookup;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -240,7 +240,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * Convert the list in a way that optimizes storage in the case that all
      * elements are either integers or {@link String}s/{@link BytesRef}/
      * {@link CharBuffer}s. This is useful to help garbage collections for
-     * use-cases that involve sending very large terms queries to Elasticsearch.
+     * use-cases that involve sending very large terms queries to OpenSearch.
      * If the list does not only contain integers or {@link String}s, then a
      * list is returned where all {@link String}/{@link CharBuffer}s have been
      * replaced with {@link BytesRef}s.
