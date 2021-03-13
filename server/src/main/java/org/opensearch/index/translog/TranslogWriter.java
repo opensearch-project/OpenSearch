@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.procedures.LongProcedure;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.io.DiskIoBufferPool;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.Assertions;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.Channels;
+import org.opensearch.common.io.DiskIoBufferPool;
+import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.IOException;

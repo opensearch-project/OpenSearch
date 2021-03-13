@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.opensearch.index.store;
 
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.common.lucene.store.FilterIndexOutput;
+import org.opensearch.common.lucene.store.FilterIndexOutput;
 
 import java.io.IOException;
 

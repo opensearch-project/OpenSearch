@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.snapshots.blobstore;
+package org.opensearch.index.snapshots.blobstore;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.store.StoreFileMetadata;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.Strings;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -179,7 +179,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
 
         /**
-         * Returns file md5 checksum provided by {@link org.elasticsearch.index.store.Store}
+         * Returns file md5 checksum provided by {@link org.opensearch.index.store.Store}
          *
          * @return file checksum
          */

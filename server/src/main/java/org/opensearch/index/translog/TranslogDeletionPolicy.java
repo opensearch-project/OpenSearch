@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.Assertions;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.util.HashMap;

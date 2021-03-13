@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.termvectors;
+package org.opensearch.index.termvectors;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
@@ -28,32 +28,32 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.action.termvectors.TermVectorsFilter;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.DocumentMapperForType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.StringFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.shard.IndexShard;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.termvectors.TermVectorsFilter;
+import org.opensearch.action.termvectors.TermVectorsRequest;
+import org.opensearch.action.termvectors.TermVectorsResponse;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.get.GetResult;
+import org.opensearch.index.mapper.DocumentMapperForType;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.ParseContext;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SourceFieldMapper;
+import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.index.mapper.StringFieldType;
+import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.shard.IndexShard;
 
 import java.io.IOException;
 import java.util.ArrayList;

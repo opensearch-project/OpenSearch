@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
-import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.common.io.Channels;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.EOFException;
 import java.io.IOException;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.opensearch.index.store;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -50,36 +50,36 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.RefCounted;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.Streams;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.lucene.store.InputStreamIndexInput;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.common.util.concurrent.RefCounted;
+import org.opensearch.common.util.iterable.Iterables;
+import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.env.ShardLock;
+import org.opensearch.env.ShardLockObtainFailedException;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.CombinedDeletionPolicy;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.AbstractIndexShardComponent;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -109,7 +109,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * A Store provides plain access to files written by an elasticsearch index shard. Each shard
+ * A Store provides plain access to files written by an opensearch index shard. Each shard
  * has a dedicated store that is uses to access Lucene's Directory which represents the lowest level
  * of file abstraction in Lucene used to read and write Lucene indices.
  * This class also provides access to metadata information like checksums for committed files. A committed
@@ -864,7 +864,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     }
                 }
                 if (maxVersion == null) {
-                    maxVersion = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+                    maxVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
                 checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
@@ -1097,7 +1097,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * A class representing the diff between a recovery source and recovery target
      *
-     * @see MetadataSnapshot#recoveryDiff(org.elasticsearch.index.store.Store.MetadataSnapshot)
+     * @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot)
      */
     public static final class RecoveryDiff {
         /**
@@ -1400,7 +1400,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public interface OnClose extends Consumer<ShardLock> {
         OnClose EMPTY = new OnClose() {
             /**
-             * This method is called while the provided {@link org.elasticsearch.env.ShardLock} is held.
+             * This method is called while the provided {@link org.opensearch.env.ShardLock} is held.
              * This method is only called once after all resources for a store are released.
              */
             @Override
@@ -1519,7 +1519,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * the policy can consider the snapshotted commit as a safe commit for recovery even the commit does not have translog.
      */
     public void trimUnsafeCommits(final long lastSyncedGlobalCheckpoint, final long minRetainedTranslogGen,
-                                  final org.elasticsearch.Version indexVersionCreated) throws IOException {
+                                  final org.opensearch.Version indexVersionCreated) throws IOException {
         metadataLock.writeLock().lock();
         try {
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
@@ -1532,7 +1532,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
             // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
             // To avoid this issue, we only select index commits whose translog are fully retained.
-            if (indexVersionCreated.before(org.elasticsearch.Version.V_6_2_0)) {
+            if (indexVersionCreated.before(org.opensearch.Version.V_6_2_0)) {
                 final List<IndexCommit> recoverableCommits = new ArrayList<>();
                 for (IndexCommit commit : existingCommits) {
                     final String translogGeneration = commit.getUserData().get("translog_generation");
@@ -1578,7 +1578,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Returns a {@link org.elasticsearch.index.seqno.SequenceNumbers.CommitInfo} of the safe commit if exists.
+     * Returns a {@link org.opensearch.index.seqno.SequenceNumbers.CommitInfo} of the safe commit if exists.
      */
     public Optional<SequenceNumbers.CommitInfo> findSafeIndexCommit(long globalCheckpoint) throws IOException {
         final List<IndexCommit> commits = DirectoryReader.listCommits(directory);

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.opensearch.index.translog;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
