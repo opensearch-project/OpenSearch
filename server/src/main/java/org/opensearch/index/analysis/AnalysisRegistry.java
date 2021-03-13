@@ -578,7 +578,7 @@ public final class AnalysisRegistry implements Closeable {
                                         Map<String, TokenizerFactory> tokenizers) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
-         * OpenSearch defaults them to 0 only before version 2.0
+         * Elasticsearch defaults them to 0 only before version 2.0
          * and 100 afterwards so we override the positionIncrementGap if it
          * doesn't match here.
          */
