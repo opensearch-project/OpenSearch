@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
 import org.apache.lucene.util.RamUsageEstimator;
 

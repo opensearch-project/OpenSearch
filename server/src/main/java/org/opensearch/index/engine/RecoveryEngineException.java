@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 

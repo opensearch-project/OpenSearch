@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.bitset;
+package org.opensearch.index.cache.bitset;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexReader;
@@ -33,26 +33,26 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.cache.RemovalListener;
-import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexWarmer;
-import org.elasticsearch.index.IndexWarmer.TerminationHandle;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardUtils;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.cache.Cache;
+import org.opensearch.common.cache.CacheBuilder;
+import org.opensearch.common.cache.RemovalListener;
+import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.AbstractIndexComponent;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexWarmer;
+import org.opensearch.index.IndexWarmer.TerminationHandle;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.ObjectMapper;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -69,7 +69,7 @@ import java.util.concurrent.Executor;
  * <p>
  * Use this cache with care, only components that require that a filter is to be materialized as a {@link BitDocIdSet}
  * and require that it should always be around should use this cache, otherwise the
- * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
+ * {@link org.opensearch.index.cache.query.QueryCache} should be used instead.
  */
 public final class BitsetFilterCache extends AbstractIndexComponent
         implements IndexReader.ClosedListener, RemovalListener<IndexReader.CacheKey, Cache<Query, BitsetFilterCache.Value>>, Closeable {
@@ -188,7 +188,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         QueryWrapperBitSetProducer(Query query) {
             this.query = Objects.requireNonNull(query);
         }
-
+        // TODO: convertToElastic might need to be renamed
         @Override
         public BitSet getBitSet(LeafReaderContext context) throws IOException {
             try {

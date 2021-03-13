@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.engine;
+package org.opensearch.index.engine;
 
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 /**
  * Information about the safe commit, for making decisions about recoveries.
