@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.ESLogMessage;
+import org.opensearch.common.logging.OpenSearchLogMessage;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -164,7 +164,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         }
     }
 
-    static final class IndexingSlowLogMessage extends ESLogMessage {
+    static final class IndexingSlowLogMessage extends OpenSearchLogMessage {
 
         IndexingSlowLogMessage(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
             super(prepareMap(index,doc,tookInNanos,reformat,maxSourceCharsToLog),

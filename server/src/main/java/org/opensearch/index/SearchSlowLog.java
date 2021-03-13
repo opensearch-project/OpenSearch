@@ -23,7 +23,7 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.ESLogMessage;
+import org.opensearch.common.logging.OpenSearchLogMessage;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -155,7 +155,7 @@ public final class SearchSlowLog implements SearchOperationListener {
         }
     }
 
-    static final class SearchSlowLogMessage extends ESLogMessage {
+    static final class SearchSlowLogMessage extends OpenSearchLogMessage {
 
         SearchSlowLogMessage(SearchContext context, long tookInNanos) {
             super(prepareMap(context, tookInNanos), message(context, tookInNanos));
