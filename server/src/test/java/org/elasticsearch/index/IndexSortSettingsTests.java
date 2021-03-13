@@ -21,7 +21,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;

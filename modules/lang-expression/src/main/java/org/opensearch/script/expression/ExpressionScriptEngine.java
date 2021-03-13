@@ -44,7 +44,7 @@ import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.TermsSetQueryScript;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.security.AccessControlContext;
 import java.security.AccessController;

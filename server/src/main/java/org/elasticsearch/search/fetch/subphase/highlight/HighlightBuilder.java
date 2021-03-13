@@ -53,7 +53,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  * A builder for search highlighting. Settings can control how large fields
  * are summarized to show only selected snippets ("fragments") containing search terms.
  *
- * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
+ * @see org.opensearch.search.builder.SearchSourceBuilder#highlight()
  */
 public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder>  {
     /** default for whether to highlight fields based on the source even if stored separately */

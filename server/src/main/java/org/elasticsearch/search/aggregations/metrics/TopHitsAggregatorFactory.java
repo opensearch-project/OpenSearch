@@ -33,7 +33,7 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
-import org.elasticsearch.search.sort.SortAndFormats;
+import org.opensearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.List;

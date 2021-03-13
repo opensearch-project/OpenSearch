@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.opensearch.script.MockScriptPlugin;
-import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.opensearch.search.lookup.LeafDocLookup;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 

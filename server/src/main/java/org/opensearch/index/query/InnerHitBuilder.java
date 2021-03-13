@@ -31,14 +31,14 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.script.Script;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder.ScriptField;
+import org.opensearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;

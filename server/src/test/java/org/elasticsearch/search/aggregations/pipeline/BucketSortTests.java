@@ -19,8 +19,8 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -88,7 +88,7 @@ public class BucketSortTests extends BasePipelineAggregationTestCase<BucketSortP
 
     public void testNoParent() {
         List<FieldSortBuilder> sorts = singletonList(new FieldSortBuilder("bar"));
-        assertThat(validate(emptyList(), new BucketSortPipelineAggregationBuilder("foo", sorts)), 
+        assertThat(validate(emptyList(), new BucketSortPipelineAggregationBuilder("foo", sorts)),
             equalTo("Validation Failed: 1: bucket_sort aggregation [foo] must be declared inside of another aggregation;"));
     }
 }

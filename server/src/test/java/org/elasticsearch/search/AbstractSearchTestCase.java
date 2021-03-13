@@ -32,10 +32,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilderTests;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.rescore.QueryRescorerBuilderTests;
+import org.opensearch.search.rescore.QueryRescorerBuilderTests;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
 import org.elasticsearch.test.ESTestCase;
 
