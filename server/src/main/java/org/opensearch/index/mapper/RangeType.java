@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.Field;
@@ -34,13 +34,13 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FutureArrays;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.net.InetAddress;

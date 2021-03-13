@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.util.List;
 import java.util.Map;

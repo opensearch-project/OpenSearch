@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.similarity.SimilarityProvider;
 
 /**
  * Encapsulates information about how to perform text searches over a field

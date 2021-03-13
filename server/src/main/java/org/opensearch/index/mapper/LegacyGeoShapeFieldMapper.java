@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
@@ -28,28 +28,28 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.ShapesAvailability;
-import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.common.geo.GeometryParser;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.ShapesAvailability;
+import org.opensearch.common.geo.SpatialStrategy;
+import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.opensearch.common.geo.parsers.ShapeParser;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.geometry.Geometry;
-import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.LegacyGeoShapeQueryProcessor;
+import org.opensearch.index.query.QueryShardContext;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
@@ -62,7 +62,7 @@ import java.util.Map;
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
  * <p>
  * Currently Shapes can only be indexed and can only be queried using
- * {@link org.elasticsearch.index.query.GeoShapeQueryBuilder}, consequently
+ * {@link org.opensearch.index.query.GeoShapeQueryBuilder}, consequently
  * a lot of behavior in this Mapper is disabled.
  * <p>
  * Format supported:

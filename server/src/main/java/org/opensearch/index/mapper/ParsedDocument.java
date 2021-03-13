@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.util.List;
 

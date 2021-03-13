@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
@@ -25,20 +25,20 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Point;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.ParsedGeoPoint;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
+import org.opensearch.index.mapper.GeoPointFieldMapper.ParsedGeoPoint;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.VectorGeoPointShapeQueryProcessor;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

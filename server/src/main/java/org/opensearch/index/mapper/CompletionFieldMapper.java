@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
@@ -29,22 +29,22 @@ import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.NumberType;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser.NumberType;
+import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.suggest.completion.CompletionSuggester;
-import org.elasticsearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.search.suggest.completion.context.ContextMappings;
+import org.opensearch.search.suggest.completion.CompletionSuggester;
+import org.opensearch.search.suggest.completion.context.ContextMapping;
+import org.opensearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
 import java.util.Arrays;

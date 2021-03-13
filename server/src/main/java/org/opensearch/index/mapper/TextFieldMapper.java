@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
@@ -56,24 +56,24 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
-import org.elasticsearch.index.query.IntervalBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.Version;
+import org.opensearch.common.collect.Iterators;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.opensearch.index.mapper.Mapper.TypeParser.ParserContext;
+import org.opensearch.index.query.IntervalBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.similarity.SimilarityProvider;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

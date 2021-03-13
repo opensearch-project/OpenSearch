@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.opensearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.shard.IndexingOperationListener;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.Strings;
+import org.opensearch.common.logging.OpenSearchLogMessage;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.shard.IndexingOperationListener;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -164,7 +164,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         }
     }
 
-    static final class IndexingSlowLogMessage extends ESLogMessage {
+    static final class IndexingSlowLogMessage extends OpenSearchLogMessage {
 
         IndexingSlowLogMessage(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
             super(prepareMap(index,doc,tookInNanos,reformat,maxSourceCharsToLog),

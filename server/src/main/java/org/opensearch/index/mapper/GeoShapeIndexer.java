@@ -18,15 +18,15 @@
  */
 
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.geo.GeoLineDecomposer;
-import org.elasticsearch.common.geo.GeoPolygonDecomposer;
-import org.elasticsearch.common.geo.GeoShapeUtils;
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.GeoUtils;
+import org.opensearch.common.geo.GeoLineDecomposer;
+import org.opensearch.common.geo.GeoPolygonDecomposer;
+import org.opensearch.common.geo.GeoShapeUtils;
+import org.opensearch.common.geo.GeoShapeType;
+import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.geometry.Circle;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
@@ -44,7 +44,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
+import static org.opensearch.common.geo.GeoUtils.normalizePoint;
 
 /**
  * Utility class that converts geometries into Lucene-compatible form for indexing in a geo_shape field.

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata.ordinals;
+package org.opensearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -26,7 +26,7 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+import org.opensearch.index.fielddata.AbstractSortedDocValues;
 
 import java.io.IOException;
 import java.util.Collection;

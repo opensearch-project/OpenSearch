@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Collections;

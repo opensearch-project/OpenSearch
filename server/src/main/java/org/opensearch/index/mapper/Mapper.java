@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.opensearch.Version;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.script.ScriptService;
 
 import java.util.Map;

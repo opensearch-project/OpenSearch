@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.time.ZoneId;
 import java.util.Map;

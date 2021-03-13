@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -26,21 +26,21 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.text.Text;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.mapper.MetadataFieldMapper.TypeParser;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;

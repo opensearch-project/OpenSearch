@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.geo.XShapeCollection;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.geo.XShapeCollection;
+import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
