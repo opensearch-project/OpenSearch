@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 import java.util.Locale;
 

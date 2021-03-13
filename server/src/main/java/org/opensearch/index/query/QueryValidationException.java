@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
-import org.elasticsearch.common.ValidationException;
+import org.opensearch.common.ValidationException;
 
 import java.util.List;
 

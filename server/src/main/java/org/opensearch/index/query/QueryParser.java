@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- * Defines a query parser that is able to parse {@link QueryBuilder}s from {@link org.elasticsearch.common.xcontent.XContent}.
+ * Defines a query parser that is able to parse {@link QueryBuilder}s from {@link org.opensearch.common.xcontent.XContent}.
  */
 @FunctionalInterface
 public interface QueryParser<QB extends QueryBuilder> {

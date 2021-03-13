@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.util.function.Predicate;

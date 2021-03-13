@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -26,20 +26,20 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.CircleBuilder;
-import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
-import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiPointBuilder;
-import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.PolygonBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.SpatialStrategy;
+import org.opensearch.common.geo.builders.CircleBuilder;
+import org.opensearch.common.geo.builders.EnvelopeBuilder;
+import org.opensearch.common.geo.builders.GeometryCollectionBuilder;
+import org.opensearch.common.geo.builders.LineStringBuilder;
+import org.opensearch.common.geo.builders.MultiLineStringBuilder;
+import org.opensearch.common.geo.builders.MultiPointBuilder;
+import org.opensearch.common.geo.builders.MultiPolygonBuilder;
+import org.opensearch.common.geo.builders.PointBuilder;
+import org.opensearch.common.geo.builders.PolygonBuilder;
+import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.geometry.Circle;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
@@ -52,15 +52,15 @@ import org.opensearch.geometry.MultiPolygon;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
-import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.opensearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class LegacyGeoShapeQueryProcessor  {
 

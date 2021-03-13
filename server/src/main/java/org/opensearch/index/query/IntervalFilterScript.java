@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.opensearch.script.ScriptContext;
