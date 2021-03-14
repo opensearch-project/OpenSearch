@@ -75,7 +75,7 @@ include-tagged::{doc-tests-file}[{api}-response-error]
 indices or aliases is not found. Otherwise it is `OK`.
 
 <2> If at least one item of specified indices isn't exist client sets
-`ElasticsearchException` and returns empty result.
+`OpenSearchException` and returns empty result.
 
 <3> If at least one item of specified aliases ins't exist client puts
 error description in `error` field and returns partial result if any

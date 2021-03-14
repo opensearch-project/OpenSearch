@@ -113,7 +113,7 @@ already existing
 total shards
 <4> Handle the potential failures
 
-If there is a version conflict, an `ElasticsearchException` will
+If there is a version conflict, an `OpenSearchException` will
 be thrown:
 
 ["source","java",subs="attributes,callouts,macros"]

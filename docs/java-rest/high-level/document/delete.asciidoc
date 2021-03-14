@@ -79,7 +79,7 @@ include-tagged::{doc-tests-file}[{api}-notfound]
 --------------------------------------------------
 <1> Do something if the document to be deleted was not found
 
-If there is a version conflict, an `ElasticsearchException` will
+If there is a version conflict, an `OpenSearchException` will
 be thrown:
 
 ["source","java",subs="attributes,callouts,macros"]

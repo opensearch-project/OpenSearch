@@ -107,7 +107,7 @@ returned rather than an exception thrown. Such response does not hold any
 source document and its `isExists` method returns `false`.
 
 When a get request is performed against an index that does not exist, the
-response has `404` status code, an `ElasticsearchException` gets thrown
+response has `404` status code, an `OpenSearchException` gets thrown
 which needs to be handled as follows:
 
 ["source","java",subs="attributes,callouts,macros"]

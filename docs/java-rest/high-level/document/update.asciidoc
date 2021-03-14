@@ -218,7 +218,7 @@ total shards
 <2> Handle the potential failures
 
 When a `UpdateRequest` is performed against a document that does not exist,
-the response has `404` status code, an `ElasticsearchException` gets thrown
+the response has `404` status code, an `OpenSearchException` gets thrown
 which needs to be handled as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -227,7 +227,7 @@ include-tagged::{doc-tests-file}[{api}-docnotfound]
 --------------------------------------------------
 <1> Handle the exception thrown because the document not exist
 
-If there is a version conflict, an `ElasticsearchException` will
+If there is a version conflict, an `OpenSearchException` will
 be thrown:
 
 ["source","java",subs="attributes,callouts,macros"]
