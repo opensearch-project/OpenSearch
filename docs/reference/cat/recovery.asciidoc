@@ -8,9 +8,6 @@
 Returns information about ongoing and completed shard recoveries,
 similar to the <<indices-recovery, index recovery>> API.
 
-For data streams, the API returns information about the stream's backing
-indices.
-
 [[cat-recovery-api-request]]
 ==== {api-request-title}
 
@@ -33,10 +30,10 @@ include::{es-repo-dir}/indices/recovery.asciidoc[tag=shard-recovery-desc]
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 

@@ -54,7 +54,7 @@ GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
 
 This request retrieves basic information about the snapshot, including start and end time, version of
-{es} that created the snapshot, the list of included data streams and indices, the current state of the
+{es} that created the snapshot, the list of included indices, the current state of the
 snapshot and the list of failures that occurred during the snapshot.
 
 Similar to repositories, you can retrieve information about multiple snapshots in a single request, and wildcards are supported:
@@ -85,7 +85,7 @@ return all snapshots that are currently available.
 
 Getting all snapshots in the repository can be costly on cloud-based repositories,
 both from a cost and performance perspective.  If the only information required is
-the snapshot names or UUIDs in the repository and the data streams and indices in each snapshot, then
+the snapshot names or UUIDs in the repository and the indices in each snapshot, then
 the optional boolean parameter `verbose` can be set to `false` to execute a more
 performant and cost-effective retrieval of the snapshots in the repository.
 
@@ -162,7 +162,7 @@ DELETE /_snapshot/my_backup/snapshot_1
 -----------------------------------
 
 The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
-be canceled by deleting data streams and indices that are being restored. Data for all deleted data streams and indices will be removed
+be canceled by deleting indices that are being restored. Data for all deleted indices will be removed
 from the cluster as a result of this operation.
 
 [discrete]

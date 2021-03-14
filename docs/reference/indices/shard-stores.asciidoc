@@ -6,8 +6,6 @@
 
 Retrieves store information
 about replica shards in one or more indices.
-For data streams, the API retrieves store
-information for the stream's backing indices.
 
 [source,console]
 ----
@@ -46,10 +44,10 @@ or have one or more unassigned replica shards.
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 
@@ -96,7 +94,7 @@ Defaults to `yellow,red`.
 
 
 [[index-shard-stores-api-single-ex]]
-===== Get shard store information for a specific data stream or index
+===== Get shard store information for a specific index
 
 [source,console]
 ----
@@ -106,7 +104,7 @@ GET /test/_shard_stores
 
 
 [[index-shard-stores-api-multi-ex]]
-===== Get shard store information for several data streams and indices
+===== Get shard store information for several indices
 
 [source,console]
 ----
@@ -116,7 +114,7 @@ GET /test1,test2/_shard_stores
 
 
 [[index-shard-stores-api-all-ex]]
-===== Get shard store information for all data streams and indices
+===== Get shard store information for all indices
 
 [source,console]
 ----

@@ -7,8 +7,7 @@ see the <<indices-templates-v1,legacy template documentation>>.
 
 [[getting]]
 An index template is a way to tell {es} how to configure an index when it is created.
-For data streams, the index template configures the stream's backing indices as they
-are created. Templates are configured prior to index creation and then when an
+Templates are configured prior to index creation and then when an
 index is created either manually or through indexing a document, the template
 settings are used as a basis for creating the index.
 
@@ -18,7 +17,7 @@ aliases. You use component templates to construct index templates, they aren't d
 set of indices. Index templates can contain a collection of component templates, as well as directly
 specify settings, mappings, and aliases.
 
-If a new data stream or index matches more than one index template, the index template with the highest priority is used.
+If a new index matches more than one index template, the index template with the highest priority is used.
 
 When a composable template matches a given index
 it always takes precedence over a legacy template. If no composable template matches, a legacy

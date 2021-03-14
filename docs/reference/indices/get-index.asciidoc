@@ -4,8 +4,7 @@
 <titleabbrev>Get index</titleabbrev>
 ++++
 
-Returns information about one or more indices. For data streams, the API
-returns information about the stream's backing indices.
+Returns information about one or more indices.
 
 [source,console]
 --------------------------------------------------
@@ -29,10 +28,10 @@ through the parameter include_type_name. For more details, please see <<removal-
 
 `<target>`::
 (Required, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 

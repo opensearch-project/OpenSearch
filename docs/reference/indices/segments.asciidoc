@@ -5,8 +5,7 @@
 ++++
 
 Returns low-level information about the https://lucene.apache.org/core/[Lucene]
-segments in index shards. For data streams, the API returns information about
-the stream's backing indices.
+segments in index shards.
 
 [source,console]
 ----
@@ -28,10 +27,10 @@ GET /my-index-000001/_segments
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 
@@ -109,7 +108,7 @@ Contains information about whether high compression was enabled.
 ==== {api-examples-title}
 
 
-===== Get segment information for a specific data stream or index
+===== Get segment information for a specific index
 
 [source,console]
 --------------------------------------------------
@@ -118,7 +117,7 @@ GET /test/_segments
 // TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/test\?refresh\n{"test": "test"}\n/]
 
 
-===== Get segment information for several data streams and indices
+===== Get segment information for several indices
 
 [source,console]
 --------------------------------------------------
@@ -127,7 +126,7 @@ GET /test1,test2/_segments
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
 
-===== Get segment information for all data streams and indices in a cluster
+===== Get segment information for all indices in a cluster
 
 [source,console]
 --------------------------------------------------

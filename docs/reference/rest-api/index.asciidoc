@@ -15,7 +15,6 @@ ifdef::permanently-unreleased-branch[]
 endif::[]
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
-* <<data-stream-apis,Data stream APIs>>
 * <<docs, Document APIs>>
 * <<indices, Index APIs>>
 * <<ingest-apis,Ingest APIs>>
@@ -28,7 +27,6 @@ ifdef::permanently-unreleased-branch[]
 endif::[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
-include::{es-repo-dir}/data-streams/data-stream-apis.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ingest/apis/index.asciidoc[]

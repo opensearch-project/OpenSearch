@@ -45,7 +45,7 @@ In order to get started with search quality evaluation, you need three basic
 things:
 
 . A collection of documents you want to evaluate your query performance against,
-  usually one or more data streams or indices.
+  usually one or more  indices.
 . A collection of typical search requests that users enter into your system.
 . A set of document ratings that represent the documents' relevance with respect
   to a search request.
@@ -66,10 +66,10 @@ generation in your application.
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard (`*`) expressions are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 [[search-rank-eval-api-query-params]]
@@ -145,8 +145,7 @@ GET /my-index-000001/_rank_eval
 <1> The search request's ID, used to group result details later.
 <2> The query being evaluated.
 <3> A list of document ratings. Each entry contains the following arguments:
-- `_index`: The document's index. For data streams, this should be the
-   document's backing index.
+- `_index`: The document's index.
 - `_id`: The document ID.
 - `rating`: The document's relevance with regard to this search request.
 

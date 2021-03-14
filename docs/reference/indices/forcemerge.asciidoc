@@ -5,8 +5,6 @@
 ++++
 
 Forces a <<index-modules-merge,merge>> on the shards of one or more indices.
-For data streams, the API forces a merge on the shards of the stream's backing
-indices.
 
 [source,console]
 ----
@@ -55,10 +53,8 @@ until the ongoing force merge is complete.
 
 You can force merge multiple indices with a single request by targeting:
 
-* One or more data streams that contain multiple backing indices
 * Multiple indices
 * One or more index aliases that point to multiple indices
-* All data streams and indices in a cluster
 
 Multi-index operations are executed one shard at a
 time per node. Force merge makes the storage for the shard being merged
@@ -71,10 +67,10 @@ is set to `1`, as all segments need to be rewritten into a new one.
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 
@@ -135,7 +131,7 @@ NOTE: This parameter does *not* override the
 
 
 [[forcemerge-api-specific-ex]]
-===== Force merge a specific data stream or index
+===== Force merge a specific index
 
 [source,console]
 ----
@@ -145,7 +141,7 @@ POST /my-index-000001/_forcemerge
 
 
 [[forcemerge-api-multiple-ex]]
-===== Force merge several data streams or indices
+===== Force merge several indices
 
 [source,console]
 ----
@@ -164,10 +160,10 @@ POST /_forcemerge
 
 
 [[forcemerge-api-time-based-index-ex]]
-===== Data streams and time-based indices
+===== Time-based indices
 
-Force-merging is useful for managing a data stream's older backing indices and
-other time-based indices, particularly after a
+Force-merging is useful for managing 
+time-based indices, particularly after a
 <<indices-rollover-index,rollover>>.
 In these cases,
 each index only receives indexing traffic for a certain period of time.

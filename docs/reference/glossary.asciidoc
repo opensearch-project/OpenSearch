@@ -44,19 +44,6 @@ A building block for constructing <<index-templates,index templates>> that speci
 <<mapping,mappings>>, <<index-modules-settings,settings>>, and <<indices-aliases,aliases>>.
 // end::component-template-def[]
 
-[[glossary-data-stream]] data stream ::
-+
---
-// tag::data-stream-def[]
-A named resource used to ingest, search, and manage time series data in {es}. A
-data stream's data is stored across multiple hidden, auto-generated
-<<glossary-index,indices>>. You can automate management of these indices to more
-efficiently store large data volumes.
-
-See {ref}/data-streams.html[Data streams].
-// end::data-stream-def[]
---
-
 [[glossary-document]] document ::
 
 A document is a JSON document which is stored in Elasticsearch. It is
@@ -260,8 +247,7 @@ during the following processes:
 --
 // tag::reindex-def[]
 Copies documents from a _source_ to a _destination_. The source and
-destination can be any pre-existing index, index alias, or
-{ref}/data-streams.html[data stream].
+destination can be any pre-existing index or index alias.
 
 You can reindex all documents from a source or select a subset of documents to
 copy. You can also reindex to a destination in a remote cluster.
@@ -300,7 +286,7 @@ shard will never be started on the same node as its primary shard.
 // tag::rollover-def[]
 // tag::rollover-def-short[]
 Creates a new index for a rollover target when the existing index reaches a certain size, number of docs, or age.
-A rollover target can be either an <<indices-aliases, index alias>> or a <<data-streams, data stream>>.
+A rollover target can be an <<indices-aliases, index alias>>.
 // end::rollover-def-short[]
 
 For example, if you're indexing log data, you might use rollover to create daily or weekly indices.
@@ -372,7 +358,7 @@ See the {ref}/indices-shrink-index.html[shrink index API].
 Captures the state of the whole cluster or of particular indices or data
 streams at a particular point in time. Snapshots provide a back up of a running
 cluster, ensuring you can restore your data in the event of a failure. You can
-also mount indices or datastreams from snapshots as read-only
+also mount indices from snapshots as read-only
 {ref}/glossary.html#glossary-searchable-snapshot-index[searchable snapshots].
 // end::snapshot-def[]
 

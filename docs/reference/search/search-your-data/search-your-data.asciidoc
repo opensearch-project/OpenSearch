@@ -3,7 +3,7 @@
 
 [[search-query]]
 A _search query_, or _query_, is a request for information about data in
-{es} data streams or indices.
+{es} indices.
 
 You can think of a query as a question, written in a way {es} understands.
 Depending on your data, you can use a query to get answers to questions like:
@@ -25,7 +25,7 @@ a specific number of results.
 == Run a search
 
 You can use the <<search-search,search API>> to search and
-<<search-aggregations,aggregate>> data stored in {es} data streams or indices.
+<<search-aggregations,aggregate>> data stored in {es} indices.
 The API's `query` request body parameter accepts queries written in
 <<query-dsl,Query DSL>>.
 
@@ -127,9 +127,9 @@ like:
 * What are the top IP addresses hit by users on my network?
 * What is the total transaction revenue by customer?
 
-*Search multiple data streams and indices* +
+*Search multiple indices* +
 You can use comma-separated values and grep-like index patterns to search
-several data streams and indices in the same request. You can even boost search
+several indices in the same request. You can even boost search
 results from specific indices. See <<search-multiple-indices>>.
 
 *Paginate search results* +

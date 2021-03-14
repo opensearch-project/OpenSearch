@@ -6,7 +6,6 @@
 
 
 Returns information about ongoing and completed shard recoveries for one or more
-indices. For data streams, the API returns information for the stream's backing
 indices.
 
 [source,console]
@@ -45,10 +44,10 @@ include::{es-repo-dir}/glossary.asciidoc[tag=recovery-triggers]
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 
@@ -171,7 +170,7 @@ Statistics about time to open and start the index.
 
 
 [[index-recovery-api-multi-ex]]
-===== Get recovery information for several data streams and indices
+===== Get recovery information for several indices
 
 [source,console]
 --------------------------------------------------
@@ -181,7 +180,7 @@ GET index1,index2/_recovery?human
 
 
 [[index-recovery-api-all-ex]]
-===== Get segment information for all data streams and indices in a cluster
+===== Get segment information for all indices in a cluster
 
 //////////////////////////
 Here we create a repository and snapshot index1 in

@@ -6,8 +6,6 @@
 
 
 Allows you to retrieve the capabilities of fields among multiple indices.
-For data streams, the API returns field capabilities among the stream's backing
-indices.
 
 [source,console]
 --------------------------------------------------
@@ -40,10 +38,10 @@ fields among multiple indices.
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
+Comma-separated list of indices and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
-To target all data streams and indices in a cluster, omit this parameter or use
+To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 
@@ -119,7 +117,7 @@ field types are all described as the `keyword` type family.
 ==== {api-examples-title}
 
 
-The request can be restricted to specific data streams and indices:
+The request can be restricted to specific indices:
 
 [source,console]
 --------------------------------------------------
