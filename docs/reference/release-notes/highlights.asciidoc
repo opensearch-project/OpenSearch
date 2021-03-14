@@ -10,16 +10,6 @@ endif::[]
 
 // Add previous release to the list
 Other versions:
-{ref-bare}/7.9/release-highlights.html[7.9]
-| {ref-bare}/7.8/release-highlights.html[7.8]
-| {ref-bare}/7.7/release-highlights.html[7.7]
-| {ref-bare}/7.6/release-highlights-7.6.0.html[7.6]
-| {ref-bare}/7.5/release-highlights-7.5.0.html[7.5]
-| {ref-bare}/7.4/release-highlights-7.4.0.html[7.4]
-| {ref-bare}/7.3/release-highlights-7.3.0.html[7.3]
-| {ref-bare}/7.2/release-highlights-7.2.0.html[7.2]
-| {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
-| {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
 // tag::notable-highlights[]
 [discrete]
@@ -51,18 +41,6 @@ Elasticsearch offers the ability to configure the
 {ref}/index-modules.html#index-codec[`index.codec`] setting to tell
 {es} how aggressively to compress stored fields. Both supported values
 `default` and `best_compression` will get better compression with this change.
-
-[discrete]
-[[auc-roc-eval-class]]
-=== AUC ROC evaluation metrics for classification analysis
-
-{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[Area under the curve of receiver operating characteristic (AUC ROC)] 
-is an evaluation metric that has been available for {oldetection} since 7.3 and 
-now is available for {classification} analysis. AUC ROC represents the 
-performance of the {classification} process at different predicted probability 
-thresholds. The true positive rate for a specific class is compared against the 
-rate of all the other classes combined at the different threshold levels to 
-create the curve.
 
 [discrete]
 [[support-for-request-level-circuit-breakers]]

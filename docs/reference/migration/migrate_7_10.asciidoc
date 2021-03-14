@@ -37,32 +37,6 @@ enable <<deprecation-logging, deprecation logging>>.
 //tag::notable-breaking-changes[]
 
 [discrete]
-[[breaking_710_security_changes]]
-==== Authentication changes
-
-[[api-keys-require-name-property]]
-.API keys now require a `name` property.
-[%collapsible]
-====
-*Details* +
-The `name` property is now required to create or grant an API key.
-
-[source,js]
-----
-{
-    "...": "...",
-    "api_key": {
-      "name": "key-1"
-    }
-}
-----
-// NOTCONSOLE
-
-*Impact* +
-To avoid errors, specify the `name` property when creating or granting API keys.
-====
-
-[discrete]
 [[breaking_710_java_changes]]
 ==== Java changes
 
@@ -173,25 +147,6 @@ implementation and will not return the deprecation warning:
 *Impact* +
 To avoid deprecation warnings, do not use unsupported REST APIs to access system
 indices.
-====
-
-[discrete]
-[[breaking_710_ml_changes]]
-==== Machine learning deprecations
-
-[[ml-allow-no-deprecations]]
-.The `allow_no_jobs` and `allow_no_datafeeds` API parameters are deprecated.
-[%collapsible]
-====
-*Details* +
-The `allow_no_jobs` and `allow_no_datafeeds` parameters in {ml} APIs are
-deprecated in favor of `allow_no_match`. The old parameters are still accepted
-by the APIs but a deprecation warning is emitted when the old parameter name is
-used in the request body or as a request parameter. High-level REST client
-classes now send the new `allow_no_match` parameter.
-
-*Impact* +
-To avoid deprecation warnings, use the `allow_no_match` parameter.
 ====
 
 [discrete]

@@ -27,27 +27,7 @@ see the <<release-highlights>> and <<es-release-notes>>.
 For information about how to upgrade your cluster, see <<setup-upgrade>>.
 
 * <<breaking-changes-7.10,Migrating to 7.10>>
-* <<breaking-changes-7.9,Migrating to 7.9>>
-* <<breaking-changes-7.8,Migrating to 7.8>>
-* <<breaking-changes-7.7,Migrating to 7.7>>
-* <<breaking-changes-7.6,Migrating to 7.6>>
-* <<breaking-changes-7.5,Migrating to 7.5>>
-* <<breaking-changes-7.4,Migrating to 7.4>>
-* <<breaking-changes-7.3,Migrating to 7.3>>
-* <<breaking-changes-7.2,Migrating to 7.2>>
-* <<breaking-changes-7.1,Migrating to 7.1>>
-* <<breaking-changes-7.0,Migrating to 7.0>>
 
 --
 
 include::migrate_7_10.asciidoc[]
-include::migrate_7_9.asciidoc[]
-include::migrate_7_8.asciidoc[]
-include::migrate_7_7.asciidoc[]
-include::migrate_7_6.asciidoc[]
-include::migrate_7_5.asciidoc[]
-include::migrate_7_4.asciidoc[]
-include::migrate_7_3.asciidoc[]
-include::migrate_7_2.asciidoc[]
-include::migrate_7_1.asciidoc[]
-include::migrate_7_0.asciidoc[]
