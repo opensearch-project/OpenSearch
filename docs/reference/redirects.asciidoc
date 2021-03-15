@@ -287,11 +287,6 @@ See:
 * <<search-settings>>
 * <<shard-request-cache>>
 
-[role="exclude",id="cat-transform"]
-=== cat transform API
-
-See <<cat-transforms>>.
-
 [role="exclude",id="testing"]
 === Testing
 
