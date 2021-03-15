@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,9 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.common.cache;
+package org.opensearch.common.cache;
 
-@FunctionalInterface
-public interface CacheLoader<K, V> {
-    V load(K key) throws Exception;
+public class RemovalNotification<K, V> {
+    public enum RemovalReason {REPLACED, INVALIDATED, EVICTED}
+
+    private final K key;
+    private final V value;
+    private final RemovalReason removalReason;
+
+    public RemovalNotification(K key, V value, RemovalReason removalReason) {
+        this.key = key;
+        this.value = value;
+        this.removalReason = removalReason;
+    }
+
+    public K getKey() {
+        return key;
+    }
+
+    public V getValue() {
+        return value;
+    }
+
+    public RemovalReason getRemovalReason() {
+        return removalReason;
+    }
 }

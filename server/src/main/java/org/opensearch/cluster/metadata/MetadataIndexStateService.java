@@ -58,7 +58,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+import org.opensearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;

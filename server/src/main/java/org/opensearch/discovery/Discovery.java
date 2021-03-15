@@ -20,7 +20,7 @@
 package org.opensearch.discovery;
 
 import org.opensearch.cluster.coordination.ClusterStatePublisher;
-import org.elasticsearch.common.component.LifecycleComponent;
+import org.opensearch.common.component.LifecycleComponent;
 
 /**
  * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster

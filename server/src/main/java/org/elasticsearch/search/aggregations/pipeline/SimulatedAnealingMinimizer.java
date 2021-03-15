@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.collect.EvictingQueue;
+import org.opensearch.common.collect.EvictingQueue;
 
 /**
  * A cost minimizer which will fit a MovAvgModel to the data.

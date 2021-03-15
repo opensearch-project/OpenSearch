@@ -31,7 +31,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedFunction;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
+import org.opensearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;

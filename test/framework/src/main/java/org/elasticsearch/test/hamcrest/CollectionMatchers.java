@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.hamcrest;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 

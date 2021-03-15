@@ -20,6 +20,7 @@
 package org.elasticsearch.common.collect;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.collect.Iterators;
 
 import java.util.ArrayList;
 import java.util.Arrays;

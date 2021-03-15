@@ -34,7 +34,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.IdFieldMapper;

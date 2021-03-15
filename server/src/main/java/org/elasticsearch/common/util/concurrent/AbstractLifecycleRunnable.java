@@ -19,7 +19,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.component.Lifecycle;
+import org.opensearch.common.component.Lifecycle;
 
 import java.util.Objects;
 

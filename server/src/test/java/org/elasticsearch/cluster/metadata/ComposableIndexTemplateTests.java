@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.opensearch.cluster.Diff;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
