@@ -40,9 +40,9 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.node.Node;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -84,7 +84,7 @@ import java.util.function.Supplier;
  * Matching requests to rules is based on the delegate address associated with the
  * discovery node of the request, namely by DiscoveryNode.getAddress().
  * This address is usually the publish address of the node but can also be a different one
- * (for example, @see org.elasticsearch.discovery.HandshakingTransportAddressConnector, which constructs
+ * (for example, @see org.opensearch.discovery.HandshakingTransportAddressConnector, which constructs
  * fake DiscoveryNode instances where the publish address is one of the bound addresses).
  */
 public final class MockTransportService extends TransportService {
