@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.env;
+package org.opensearch.env;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
@@ -31,22 +31,22 @@ import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.util.List;
 
-/** 
+/**
  * Implementation of FileStore that supports
  * additional features, such as SSD detection and better
  * filesystem information for the root filesystem.
  * @see Environment#getFileStore(Path)
  */
-class ESFileStore extends FileStore {
+class OpenSearchFileStore extends FileStore {
     /** Underlying filestore */
     final FileStore in;
     private int majorDeviceNumber;
     private int minorDeviceNumber;
-    
+
     @SuppressForbidden(reason = "tries to determine if disk is spinning")
-    // TODO: move PathUtils to be package-private here instead of 
+    // TODO: move PathUtils to be package-private here instead of
     // public+forbidden api!
-    ESFileStore(final FileStore in) {
+    OpenSearchFileStore(final FileStore in) {
         this.in = in;
         if (Constants.LINUX) {
             try {
