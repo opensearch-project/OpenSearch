@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,16 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
+import org.elasticsearch.bootstrap.JarHell;
 import org.opensearch.cli.Command;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginsService;
+import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.plugins.PluginInfo;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.secure_sm.SecureSM;
 import org.opensearch.transport.TcpTransport;
 
@@ -54,8 +55,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
-import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
+import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
+import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 
 /**
  * Initializes SecurityManager with necessary permissions.

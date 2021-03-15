@@ -19,7 +19,7 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.opensearch.bootstrap.BootstrapInfo;
 import org.opensearch.painless.antlr.Walker;
 import org.opensearch.painless.ir.ClassNode;
 import org.opensearch.painless.lookup.PainlessLookup;
