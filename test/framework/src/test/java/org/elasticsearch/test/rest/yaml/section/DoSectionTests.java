@@ -21,8 +21,8 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.http.HttpHost;
 import org.opensearch.Version;
-import org.elasticsearch.client.Node;
-import org.elasticsearch.client.NodeSelector;
+import org.opensearch.client.Node;
+import org.opensearch.client.NodeSelector;
 import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentLocation;

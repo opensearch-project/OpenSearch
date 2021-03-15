@@ -21,9 +21,9 @@ package org.opensearch.client.sniff;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.elasticsearch.client.Node;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
+import org.opensearch.client.Node;
+import org.opensearch.client.RestClient;
+import org.opensearch.client.RestClientBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;

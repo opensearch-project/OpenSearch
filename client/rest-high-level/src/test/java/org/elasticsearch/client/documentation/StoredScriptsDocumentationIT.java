@@ -27,7 +27,7 @@ import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.RequestOptions;
+import org.opensearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;

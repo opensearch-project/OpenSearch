@@ -19,8 +19,8 @@
 
 package org.opensearch.client.sniff;
 
-import org.elasticsearch.client.Node;
-import org.elasticsearch.client.RestClient;
+import org.opensearch.client.Node;
+import org.opensearch.client.RestClient;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;

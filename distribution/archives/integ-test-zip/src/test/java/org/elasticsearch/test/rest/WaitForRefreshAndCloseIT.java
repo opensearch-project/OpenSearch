@@ -22,10 +22,10 @@ package org.elasticsearch.test.rest;
 import org.apache.http.util.EntityUtils;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.ResponseListener;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
+import org.opensearch.client.ResponseListener;
 import org.junit.After;
 import org.junit.Before;
 

@@ -20,8 +20,8 @@
 package org.opensearch.client.sniff.documentation;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.Node;
-import org.elasticsearch.client.RestClient;
+import org.opensearch.client.Node;
+import org.opensearch.client.RestClient;
 import org.opensearch.client.sniff.OpenSearchNodesSniffer;
 import org.opensearch.client.sniff.NodesSniffer;
 import org.opensearch.client.sniff.SniffOnFailureListener;
