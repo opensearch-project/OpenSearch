@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.CheckedBiConsumer;
+import org.opensearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;

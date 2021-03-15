@@ -29,7 +29,7 @@ import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

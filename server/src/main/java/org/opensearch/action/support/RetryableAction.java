@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.elasticsearch.common.Randomness;
+import org.opensearch.common.Randomness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.Scheduler;

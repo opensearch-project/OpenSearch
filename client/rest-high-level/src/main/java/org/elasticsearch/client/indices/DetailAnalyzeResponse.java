@@ -20,7 +20,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 

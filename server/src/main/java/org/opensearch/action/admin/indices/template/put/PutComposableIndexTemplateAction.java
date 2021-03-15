@@ -28,7 +28,7 @@ import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;

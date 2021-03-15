@@ -20,6 +20,7 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.ExponentiallyWeightedMovingAverage;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;

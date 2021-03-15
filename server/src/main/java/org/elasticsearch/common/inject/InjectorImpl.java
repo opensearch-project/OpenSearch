@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.Classes;
+import org.opensearch.common.Classes;
 import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;

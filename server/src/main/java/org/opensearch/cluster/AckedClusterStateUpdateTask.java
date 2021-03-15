@@ -22,7 +22,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ack.AckedRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**

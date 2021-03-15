@@ -20,7 +20,7 @@
 package org.elasticsearch.action.index;
 
 import org.opensearch.action.DocWriteResponse;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;

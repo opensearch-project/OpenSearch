@@ -19,7 +19,7 @@
 package org.opensearch.rest;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;

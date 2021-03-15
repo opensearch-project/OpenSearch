@@ -36,6 +36,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.opensearch.common.RandomBasedUUIDGenerator;
+import org.opensearch.common.TimeBasedUUIDGenerator;
+import org.opensearch.common.UUIDGenerator;
 
 import java.util.HashSet;
 import java.util.Random;

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,19 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.opensearch.common;
 
-package org.elasticsearch.common;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import org.opensearch.action.ActionListener;
 
 /**
- * Annotation to suppress logging usage checks errors inside a whole class or a method.
+ * A {@link java.util.function.BiFunction}-like interface designed to be used with asynchronous executions.
  */
-@Retention(RetentionPolicy.CLASS)
-@Target({ ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.TYPE })
-public @interface SuppressLoggerChecks {
-    String reason();
+public interface AsyncBiFunction<T,U,C> {
+
+    void apply(T t, U u, ActionListener<C> listener);
 }

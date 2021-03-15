@@ -26,7 +26,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;

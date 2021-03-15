@@ -35,7 +35,7 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;

@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 

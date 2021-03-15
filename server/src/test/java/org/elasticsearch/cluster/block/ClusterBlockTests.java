@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.block;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;

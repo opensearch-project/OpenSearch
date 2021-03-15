@@ -20,7 +20,7 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 
 /**
  * Asynchronously performs a cluster reroute, updating any shard states and rebalancing the cluster if appropriate.

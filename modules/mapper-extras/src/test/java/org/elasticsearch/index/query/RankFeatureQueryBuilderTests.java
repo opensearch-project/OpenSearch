@@ -23,7 +23,7 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.MapperService;

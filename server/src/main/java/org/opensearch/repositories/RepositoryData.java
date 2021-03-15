@@ -23,7 +23,7 @@ import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;

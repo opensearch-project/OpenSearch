@@ -23,7 +23,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.TriFunction;
+import org.opensearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;

@@ -19,7 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.Explicit;
+import org.opensearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.suggest.stats;
 
-import org.elasticsearch.common.FieldMemoryStats;
+import org.opensearch.common.FieldMemoryStats;
 import org.elasticsearch.common.FieldMemoryStatsTests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;

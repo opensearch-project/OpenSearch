@@ -21,7 +21,7 @@ package org.opensearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;

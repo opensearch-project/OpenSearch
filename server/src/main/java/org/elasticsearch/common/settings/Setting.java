@@ -25,7 +25,7 @@ import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;

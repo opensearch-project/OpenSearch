@@ -23,7 +23,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;

@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.service;
 
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

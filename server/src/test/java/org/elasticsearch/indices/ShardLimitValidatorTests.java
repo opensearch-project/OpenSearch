@@ -28,7 +28,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.shards.ShardCounts;
-import org.elasticsearch.common.ValidationException;
+import org.opensearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;

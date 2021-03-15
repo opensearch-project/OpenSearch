@@ -37,7 +37,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;

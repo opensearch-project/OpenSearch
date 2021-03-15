@@ -21,7 +21,7 @@ package org.opensearch.action;
 
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.CheckedSupplier;
+import org.opensearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
 /**

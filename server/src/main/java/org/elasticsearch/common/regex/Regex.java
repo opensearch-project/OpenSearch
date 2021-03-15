@@ -22,7 +22,7 @@ package org.elasticsearch.common.regex;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,8 +88,8 @@ public class Regex {
     public static boolean simpleMatch(String pattern, String str) {
         return simpleMatch(pattern, str, false);
     }
-    
-    
+
+
     /**
      * Match a String against the given pattern, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
@@ -110,7 +110,7 @@ public class Regex {
         }
         return simpleMatchWithNormalizedStrings(pattern, str);
     }
-    
+
     private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
         final int firstIndex = pattern.indexOf('*');
         if (firstIndex == -1) {
@@ -141,8 +141,8 @@ public class Regex {
         return str.regionMatches(0, pattern, 0, firstIndex)
             && (firstIndex == pattern.length() - 1 // only wildcard in pattern is at the end, so no need to look at the rest of the string
                 || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex)));
-    }    
-    
+    }
+
     /**
      * Match a String against the given patterns, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an

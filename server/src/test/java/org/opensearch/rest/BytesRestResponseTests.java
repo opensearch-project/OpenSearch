@@ -27,7 +27,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;

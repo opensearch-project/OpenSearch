@@ -43,7 +43,7 @@ import org.opensearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;

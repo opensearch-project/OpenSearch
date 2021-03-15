@@ -21,7 +21,7 @@ package org.elasticsearch.common.unit;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

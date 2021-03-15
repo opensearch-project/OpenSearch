@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

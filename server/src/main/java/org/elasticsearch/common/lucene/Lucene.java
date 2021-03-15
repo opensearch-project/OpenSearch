@@ -84,7 +84,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

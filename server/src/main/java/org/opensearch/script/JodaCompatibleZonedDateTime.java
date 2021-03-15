@@ -20,7 +20,7 @@
 package org.opensearch.script;
 
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.SuppressLoggerChecks;
+import org.opensearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;

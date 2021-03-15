@@ -30,7 +30,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Table;
+import org.opensearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
 import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.rest.RestRequest;

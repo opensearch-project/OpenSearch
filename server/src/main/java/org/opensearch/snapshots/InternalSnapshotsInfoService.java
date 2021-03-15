@@ -33,7 +33,7 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;

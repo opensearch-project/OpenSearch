@@ -26,7 +26,7 @@ import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;

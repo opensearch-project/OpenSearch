@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;

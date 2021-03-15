@@ -24,7 +24,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
 public class ClusterHealthRequestBuilder

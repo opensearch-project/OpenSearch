@@ -24,7 +24,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CloneSnapshotRequest, AcknowledgedResponse,
                                                                                    CloneSnapshotRequestBuilder> {

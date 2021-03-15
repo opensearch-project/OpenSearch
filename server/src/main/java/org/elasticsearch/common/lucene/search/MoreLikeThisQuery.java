@@ -34,7 +34,7 @@ import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 import java.io.IOException;
 import java.io.Reader;

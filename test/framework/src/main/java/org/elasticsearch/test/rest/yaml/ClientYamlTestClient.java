@@ -35,7 +35,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.common.CheckedSupplier;
+import org.opensearch.common.CheckedSupplier;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 

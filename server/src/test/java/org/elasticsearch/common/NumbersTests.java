@@ -21,6 +21,7 @@ package org.elasticsearch.common;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.Numbers;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;

@@ -22,7 +22,7 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;

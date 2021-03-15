@@ -20,8 +20,8 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;

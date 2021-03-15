@@ -24,7 +24,7 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

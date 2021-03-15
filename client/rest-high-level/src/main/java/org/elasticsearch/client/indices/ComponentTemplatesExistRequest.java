@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 /**
  * A request to check for the existence of component templates

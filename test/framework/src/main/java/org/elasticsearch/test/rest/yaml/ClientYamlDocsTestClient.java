@@ -28,7 +28,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.CheckedSupplier;
+import org.opensearch.common.CheckedSupplier;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;

@@ -19,7 +19,7 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;

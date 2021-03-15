@@ -21,8 +21,8 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
+import org.opensearch.common.Strings;
+import org.opensearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

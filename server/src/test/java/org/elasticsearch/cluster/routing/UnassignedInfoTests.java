@@ -38,7 +38,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.FailedShard;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;

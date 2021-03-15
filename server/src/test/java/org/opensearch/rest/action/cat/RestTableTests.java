@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.elasticsearch.common.Table;
+import org.opensearch.common.Table;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestResponse;

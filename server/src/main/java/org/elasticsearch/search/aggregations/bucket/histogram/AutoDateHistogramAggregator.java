@@ -22,8 +22,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.Rounding.Prepared;
+import org.opensearch.common.Rounding;
+import org.opensearch.common.Rounding.Prepared;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
@@ -419,7 +419,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
          * up in {@link InternalAutoDateHistogram#reduceBucket}. In particular,
          * on final reduce we bump the rounding until it we appropriately
          * cover the date range across all of the results returned by all of
-         * the {@link AutoDateHistogramAggregator}s. 
+         * the {@link AutoDateHistogramAggregator}s.
          */
         private ByteArray roundingIndices;
         /**
@@ -433,7 +433,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         /**
          * An underestimate of the number of buckets that are "live" in the
-         * current rounding for each {@code owningBucketOrdinal}. 
+         * current rounding for each {@code owningBucketOrdinal}.
          */
         private IntArray liveBucketCountUnderestimate;
         /**

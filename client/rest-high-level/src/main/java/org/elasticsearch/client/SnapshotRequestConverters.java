@@ -34,7 +34,7 @@ import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReques
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 import java.io.IOException;
 

@@ -32,7 +32,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.MasterService;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 

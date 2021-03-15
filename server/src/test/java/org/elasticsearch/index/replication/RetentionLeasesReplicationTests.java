@@ -24,7 +24,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Randomness;
+import org.opensearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.opensearch.index.seqno.RetentionLease;

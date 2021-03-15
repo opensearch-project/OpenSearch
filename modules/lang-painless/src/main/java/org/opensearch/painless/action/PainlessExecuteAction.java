@@ -45,7 +45,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiFunction;
+import org.opensearch.common.CheckedBiFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;

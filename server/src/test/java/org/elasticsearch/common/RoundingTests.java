@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
+import org.opensearch.common.Rounding;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -768,7 +769,7 @@ public class RoundingTests extends ESTestCase {
 
     /**
      * Tests for DST transitions that cause the rounding to jump "backwards" because they round
-     * from one back to the previous day. Usually these rounding start before 
+     * from one back to the previous day. Usually these rounding start before
      */
     public void testForwardsBackwardsTimeZones() {
         for (String zoneId : JAVA_ZONE_IDS) {
@@ -1025,7 +1026,7 @@ public class RoundingTests extends ESTestCase {
     }
 
     /**
-     * perform a number on assertions and checks on {@link org.elasticsearch.common.Rounding.TimeUnitRounding} intervals
+     * perform a number on assertions and checks on {@link Rounding.TimeUnitRounding} intervals
      * @param rounded the expected low end of the rounding interval
      * @param unrounded a date in the interval to be checked for rounding
      * @param nextRoundingValue the expected upper end of the rounding interval
@@ -1075,7 +1076,7 @@ public class RoundingTests extends ESTestCase {
         if (tz.getId().equals("Pacific/Guam") || tz.getId().equals("Pacific/Saipan")) {
             // Clocks went back at 00:01 in 1969, causing overlapping days.
             return t <= time("1969-01-25T00:00:00Z")
-                || t >= time("1969-01-26T00:00:00Z");  
+                || t >= time("1969-01-26T00:00:00Z");
         }
 
         return true;

@@ -23,7 +23,7 @@ import org.opensearch.action.admin.indices.close.CloseIndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;

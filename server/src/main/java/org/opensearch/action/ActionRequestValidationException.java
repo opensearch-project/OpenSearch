@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.common.ValidationException;
+import org.opensearch.common.ValidationException;
 
 public class ActionRequestValidationException extends ValidationException {
 }

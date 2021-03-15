@@ -23,7 +23,7 @@ import org.apache.http.HttpHost;
 import org.opensearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;

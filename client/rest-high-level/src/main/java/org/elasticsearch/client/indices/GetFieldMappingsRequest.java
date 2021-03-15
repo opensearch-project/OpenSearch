@@ -21,7 +21,7 @@ package org.elasticsearch.client.indices;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 /** Request the mappings of specific fields */
 public class GetFieldMappingsRequest implements Validatable {

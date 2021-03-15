@@ -25,7 +25,7 @@ import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.opensearch.search.dfs.AggregatedDfs;

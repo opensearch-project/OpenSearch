@@ -32,7 +32,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;

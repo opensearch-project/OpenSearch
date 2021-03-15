@@ -33,7 +33,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.junit.Before;
