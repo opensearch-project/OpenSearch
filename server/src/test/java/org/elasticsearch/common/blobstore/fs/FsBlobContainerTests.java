@@ -21,7 +21,7 @@ package org.elasticsearch.common.blobstore.fs;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.Streams;
@@ -29,6 +29,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.common.blobstore.fs.FsBlobContainer;
+import org.opensearch.common.blobstore.fs.FsBlobStore;
 
 import java.io.FilterInputStream;
 import java.io.IOException;

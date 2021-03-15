@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,34 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.opensearch.common.blobstore;
 
-package org.elasticsearch.common.blobstore.support;
+import java.io.Closeable;
+import java.util.Collections;
+import java.util.Map;
 
-import org.elasticsearch.common.blobstore.BlobMetadata;
+/**
+ * An interface for storing blobs.
+ */
+public interface BlobStore extends Closeable {
 
-public class PlainBlobMetadata implements BlobMetadata {
+    /**
+     * Get a blob container instance for storing blobs at the given {@link BlobPath}.
+     */
+    BlobContainer blobContainer(BlobPath path);
 
-    private final String name;
-
-    private final long length;
-
-    public PlainBlobMetadata(String name, long length) {
-        this.name = name;
-        this.length = length;
-    }
-
-    @Override
-    public String name() {
-        return this.name;
-    }
-
-    @Override
-    public long length() {
-        return this.length;
-    }
-
-    @Override
-    public String toString() {
-        return "name [" + name + "], length [" + length + "]";
+    /**
+     * Returns statistics on the count of operations that have been performed on this blob store
+     */
+    default Map<String, Long> stats() {
+        return Collections.emptyMap();
     }
 }

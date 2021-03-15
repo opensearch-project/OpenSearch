@@ -21,8 +21,8 @@ package org.opensearch.script;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;

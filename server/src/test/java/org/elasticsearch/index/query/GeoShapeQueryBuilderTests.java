@@ -28,7 +28,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

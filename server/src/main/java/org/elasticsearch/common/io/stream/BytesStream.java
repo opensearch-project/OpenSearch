@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 
 public abstract class BytesStream extends StreamOutput {
 

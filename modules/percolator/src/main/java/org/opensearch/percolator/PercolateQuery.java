@@ -37,7 +37,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;

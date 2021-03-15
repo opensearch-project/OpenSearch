@@ -22,7 +22,7 @@ import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

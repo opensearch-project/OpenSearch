@@ -25,7 +25,7 @@ import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;

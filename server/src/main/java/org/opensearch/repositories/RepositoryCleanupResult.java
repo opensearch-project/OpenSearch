@@ -20,7 +20,7 @@ package org.opensearch.repositories;
 
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

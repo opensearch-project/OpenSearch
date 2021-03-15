@@ -21,8 +21,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.store.Store;

@@ -35,7 +35,7 @@ import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;

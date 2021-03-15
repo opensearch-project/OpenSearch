@@ -20,9 +20,9 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.bytes.CompositeBytesReference;
+import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;

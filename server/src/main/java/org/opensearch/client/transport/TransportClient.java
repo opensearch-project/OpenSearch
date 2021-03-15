@@ -28,7 +28,7 @@ import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;

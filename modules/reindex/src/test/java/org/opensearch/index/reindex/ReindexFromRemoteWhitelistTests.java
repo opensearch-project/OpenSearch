@@ -19,8 +19,8 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.test.ESTestCase;
 

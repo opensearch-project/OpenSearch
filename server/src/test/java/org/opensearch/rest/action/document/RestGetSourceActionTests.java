@@ -21,8 +21,8 @@ package org.opensearch.rest.action.document;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
 import org.opensearch.rest.RestRequest;

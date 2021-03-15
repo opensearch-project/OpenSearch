@@ -23,7 +23,7 @@ import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

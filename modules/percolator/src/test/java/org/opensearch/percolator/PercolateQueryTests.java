@@ -43,7 +43,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;

@@ -20,9 +20,9 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
