@@ -19,12 +19,12 @@
 
 package org.opensearch.cluster.action.index;
 
-import org.elasticsearch.OpenSearchException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.client.Client;
 import org.opensearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,9 +37,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
+import org.opensearch.index.Index;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.Mapping;
 
 import java.util.concurrent.Semaphore;
 

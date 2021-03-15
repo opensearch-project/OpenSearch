@@ -21,9 +21,9 @@ package org.opensearch.action.admin.indices.refresh;
 
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.BasicReplicationRequest;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.action.support.replication.BasicReplicationRequest;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;

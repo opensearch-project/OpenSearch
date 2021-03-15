@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.opensearch.action.support.master.MasterNodeReadRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 
 /**

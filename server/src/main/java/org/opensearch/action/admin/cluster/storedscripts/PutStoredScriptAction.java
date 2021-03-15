@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 
 public class PutStoredScriptAction extends ActionType<AcknowledgedResponse> {

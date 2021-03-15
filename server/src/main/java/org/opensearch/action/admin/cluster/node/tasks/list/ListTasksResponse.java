@@ -19,9 +19,9 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.TaskOperationFailure;
-import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.opensearch.action.support.tasks.BaseTasksResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;

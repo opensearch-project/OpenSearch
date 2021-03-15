@@ -19,7 +19,7 @@
 package org.elasticsearch.action.resync;
 
 import org.opensearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;

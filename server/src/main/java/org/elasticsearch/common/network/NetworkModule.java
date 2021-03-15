@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.action.support.replication.ReplicationTask;
+import org.opensearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;

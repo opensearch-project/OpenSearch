@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
+import org.opensearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 import java.util.Map;

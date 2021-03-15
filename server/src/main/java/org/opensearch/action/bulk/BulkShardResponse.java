@@ -22,7 +22,7 @@ package org.opensearch.action.bulk;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;

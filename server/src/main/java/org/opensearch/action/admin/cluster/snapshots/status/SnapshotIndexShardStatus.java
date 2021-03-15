@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.snapshots.status;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
+import org.opensearch.action.support.broadcast.BroadcastShardResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,9 +31,9 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
 

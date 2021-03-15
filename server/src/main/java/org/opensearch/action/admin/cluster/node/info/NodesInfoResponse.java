@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;

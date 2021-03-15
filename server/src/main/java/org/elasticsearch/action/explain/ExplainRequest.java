@@ -21,7 +21,7 @@ package org.elasticsearch.action.explain;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ValidateActions;
-import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
+import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;

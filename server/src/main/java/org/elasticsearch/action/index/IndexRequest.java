@@ -20,14 +20,14 @@
 package org.elasticsearch.action.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -45,9 +45,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -56,8 +56,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best

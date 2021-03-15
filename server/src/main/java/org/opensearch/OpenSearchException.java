@@ -19,7 +19,7 @@
 
 package org.opensearch;
 
-import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
@@ -768,8 +768,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.index.IndexNotFoundException::new, 16, UNKNOWN_VERSION_ADDED),
         ILLEGAL_SHARD_ROUTING_STATE_EXCEPTION(org.elasticsearch.cluster.routing.IllegalShardRoutingStateException.class,
                 org.elasticsearch.cluster.routing.IllegalShardRoutingStateException::new, 17, UNKNOWN_VERSION_ADDED),
-        BROADCAST_SHARD_OPERATION_FAILED_EXCEPTION(org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException.class,
-                org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException::new, 18, UNKNOWN_VERSION_ADDED),
+        BROADCAST_SHARD_OPERATION_FAILED_EXCEPTION(org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException.class,
+                org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException::new, 18, UNKNOWN_VERSION_ADDED),
         RESOURCE_NOT_FOUND_EXCEPTION(org.elasticsearch.ResourceNotFoundException.class,
                 org.elasticsearch.ResourceNotFoundException::new, 19, UNKNOWN_VERSION_ADDED),
         ACTION_TRANSPORT_EXCEPTION(org.opensearch.transport.ActionTransportException.class,
@@ -978,8 +978,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.transport.NodeNotConnectedException::new, 134, UNKNOWN_VERSION_ADDED),
         STRICT_DYNAMIC_MAPPING_EXCEPTION(org.elasticsearch.index.mapper.StrictDynamicMappingException.class,
                 org.elasticsearch.index.mapper.StrictDynamicMappingException::new, 135, UNKNOWN_VERSION_ADDED),
-        RETRY_ON_REPLICA_EXCEPTION(org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException.class,
-                org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException::new, 136,
+        RETRY_ON_REPLICA_EXCEPTION(org.opensearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException.class,
+                org.opensearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException::new, 136,
             UNKNOWN_VERSION_ADDED),
         TYPE_MISSING_EXCEPTION(org.opensearch.indices.TypeMissingException.class,
                 org.opensearch.indices.TypeMissingException::new, 137, UNKNOWN_VERSION_ADDED),

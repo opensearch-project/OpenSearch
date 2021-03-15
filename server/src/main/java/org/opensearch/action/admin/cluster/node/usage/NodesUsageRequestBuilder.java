@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.node.usage;
 
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
+import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 public class NodesUsageRequestBuilder

@@ -24,14 +24,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.opensearch.action.FailedNodeException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.gateway.DanglingIndicesState;
+import org.opensearch.gateway.DanglingIndicesState;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 

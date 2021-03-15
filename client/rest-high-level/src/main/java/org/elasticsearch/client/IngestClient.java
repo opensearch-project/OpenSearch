@@ -26,7 +26,7 @@ import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 import java.io.IOException;
 import java.util.Collections;

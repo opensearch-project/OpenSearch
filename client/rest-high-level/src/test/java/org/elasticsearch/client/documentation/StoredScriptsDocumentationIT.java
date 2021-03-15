@@ -25,7 +25,7 @@ import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptReque
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;

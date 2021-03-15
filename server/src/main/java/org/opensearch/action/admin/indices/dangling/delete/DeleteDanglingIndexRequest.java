@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.dangling.delete;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

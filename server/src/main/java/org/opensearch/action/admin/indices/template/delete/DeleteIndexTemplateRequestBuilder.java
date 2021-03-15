@@ -18,8 +18,8 @@
  */
 package org.opensearch.action.admin.indices.template.delete;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 public class DeleteIndexTemplateRequestBuilder

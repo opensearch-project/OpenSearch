@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.dangling.list;
 
 import org.opensearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

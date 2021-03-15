@@ -20,7 +20,7 @@ package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;

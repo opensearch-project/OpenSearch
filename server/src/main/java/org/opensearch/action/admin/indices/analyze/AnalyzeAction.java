@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

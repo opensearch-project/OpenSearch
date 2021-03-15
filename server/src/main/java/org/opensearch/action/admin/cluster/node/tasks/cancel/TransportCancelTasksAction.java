@@ -24,7 +24,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.opensearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.opensearch.tasks.CancellableTask;

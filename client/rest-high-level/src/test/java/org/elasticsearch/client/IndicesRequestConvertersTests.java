@@ -41,7 +41,7 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateDataStreamRequest;

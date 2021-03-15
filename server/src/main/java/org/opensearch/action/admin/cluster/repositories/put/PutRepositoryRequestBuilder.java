@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;

@@ -20,12 +20,12 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.opensearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.reindex.DeleteByQueryAction;
-import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.opensearch.index.reindex.DeleteByQueryAction;
+import org.opensearch.index.reindex.ReindexAction;
+import org.opensearch.index.reindex.UpdateByQueryAction;
 
 import java.io.IOException;
 
