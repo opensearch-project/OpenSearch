@@ -43,7 +43,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 import java.util.Collections;

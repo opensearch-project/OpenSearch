@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,7 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Since {@link org.elasticsearch.search.internal.SearchContext} no longer hold the states of search, the top K results
+ * Since {@link org.opensearch.search.internal.SearchContext} no longer hold the states of search, the top K results
  * (i.e., documents that will be rescored by query rescorers) need to be serialized/ deserialized between search phases.
  * A {@link RescoreDocIds} encapsulates the top K results for each rescorer by its ordinal index.
  */

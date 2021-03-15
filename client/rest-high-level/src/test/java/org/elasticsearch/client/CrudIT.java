@@ -64,7 +64,7 @@ import org.opensearch.rest.action.document.RestMultiGetAction;
 import org.opensearch.rest.action.document.RestUpdateAction;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;

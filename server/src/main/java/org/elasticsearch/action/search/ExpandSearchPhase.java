@@ -30,7 +30,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.internal.InternalSearchResponse;
 
 import java.util.HashMap;
 import java.util.Iterator;

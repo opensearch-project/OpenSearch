@@ -31,7 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.AliasFilter;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;

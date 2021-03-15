@@ -23,10 +23,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.query.CollectorResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.query.CollectorResult;
+import org.opensearch.search.profile.query.InternalProfileCollector;
+import org.opensearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;

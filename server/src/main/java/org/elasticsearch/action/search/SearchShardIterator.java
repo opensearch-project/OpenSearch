@@ -28,7 +28,7 @@ import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.PlainIterator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchContextId;
 
 import java.util.Comparator;
 import java.util.List;

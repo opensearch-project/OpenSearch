@@ -46,14 +46,14 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.join.mapper.ParentIdFieldMapper;
 import org.opensearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.fetch.subphase.InnerHitsContext;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
+import static org.opensearch.search.fetch.subphase.InnerHitsContext.intersect;
 
 class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     private final String typeName;

@@ -27,7 +27,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.SearchShardTarget;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.AliasFilter;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortOrder;
