@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.opensearch.discovery.PeerFinder.ConfiguredHostsResolver;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -51,7 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class SeedHostsResolver extends AbstractLifecycleComponent implements PeerFinder.ConfiguredHostsResolver {
+public class SeedHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
     public static final Setting<Integer> LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
         Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, Setting.Property.NodeScope,
             Setting.Property.Deprecated);

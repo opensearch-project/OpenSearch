@@ -34,6 +34,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.discovery.PeerFinder.TransportAddressConnector;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.Transport.Connection;
@@ -43,7 +44,7 @@ import org.opensearch.transport.TransportService;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-public class HandshakingTransportAddressConnector implements PeerFinder.TransportAddressConnector {
+public class HandshakingTransportAddressConnector implements TransportAddressConnector {
 
     private static final Logger logger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
 

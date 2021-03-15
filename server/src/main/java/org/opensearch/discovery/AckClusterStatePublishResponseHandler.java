@@ -27,7 +27,7 @@ import java.util.Set;
 
 /**
  * Allows to wait for all nodes to reply to the publish of a new cluster state
- * and notifies the {@link Discovery.AckListener}
+ * and notifies the {@link org.opensearch.discovery.Discovery.AckListener}
  * so that the cluster state update can be acknowledged
  */
 public class AckClusterStatePublishResponseHandler extends BlockingClusterStatePublishResponseHandler {
@@ -39,7 +39,7 @@ public class AckClusterStatePublishResponseHandler extends BlockingClusterStateP
     /**
      * Creates a new AckClusterStatePublishResponseHandler
      * @param publishingToNodes the set of nodes to which the cluster state will be published and should respond
-     * @param ackListener the {@link Discovery.AckListener} to notify for each response
+     * @param ackListener the {@link org.opensearch.discovery.Discovery.AckListener} to notify for each response
      *                    gotten from non master nodes
      */
     public AckClusterStatePublishResponseHandler(Set<DiscoveryNode> publishingToNodes, Discovery.AckListener ackListener) {
