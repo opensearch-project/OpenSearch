@@ -34,9 +34,9 @@ import org.apache.lucene.util.BitSetIterator;
 import org.opensearch.Version;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.search.fetch.FetchContext;
-import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.opensearch.search.fetch.FetchContext;
+import org.opensearch.search.fetch.FetchSubPhase;
+import org.opensearch.search.fetch.FetchSubPhaseProcessor;
 
 import java.io.IOException;
 import java.util.ArrayList;

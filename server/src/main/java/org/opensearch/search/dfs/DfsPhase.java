@@ -27,7 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.tasks.TaskCancelledException;
 

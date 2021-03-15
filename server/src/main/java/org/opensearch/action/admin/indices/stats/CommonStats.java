@@ -45,7 +45,7 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -24,7 +24,7 @@ import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.index.query.QueryBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A builder for {@link ExplainRequest}.

@@ -183,7 +183,7 @@ import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.FetchPhase;
+import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;

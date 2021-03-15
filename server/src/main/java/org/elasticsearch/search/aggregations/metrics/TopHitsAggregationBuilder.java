@@ -38,11 +38,11 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.fetch.StoredFieldsContext;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FieldAndFormat;
+import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
+import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
@@ -633,7 +633,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             for (ScriptField field : this.scriptFields) {
                 FieldScript.Factory factory = queryShardContext.compile(field.script(), FieldScript.CONTEXT);
                 FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), queryShardContext.lookup());
-                scriptFields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
+                scriptFields.add(new org.opensearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

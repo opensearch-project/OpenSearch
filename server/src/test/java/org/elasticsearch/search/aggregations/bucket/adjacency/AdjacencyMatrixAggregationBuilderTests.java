@@ -28,7 +28,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 
@@ -80,7 +80,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         AggregatorFactory factory = aggregationBuilder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder());
         assertThat(factory instanceof AdjacencyMatrixAggregatorFactory, is(true));
         assertThat(factory.name(), equalTo("dummy"));
-        assertWarnings("[index.max_adjacency_matrix_filters] setting was deprecated in Elasticsearch and will be "
+        assertWarnings("[index.max_adjacency_matrix_filters] setting was deprecated in OpenSearch and will be "
                 + "removed in a future release! See the breaking changes documentation for the next major version.");
     }
 }

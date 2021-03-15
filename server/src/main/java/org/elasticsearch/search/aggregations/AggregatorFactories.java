@@ -39,9 +39,9 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.Profilers;
-import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.Profilers;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
