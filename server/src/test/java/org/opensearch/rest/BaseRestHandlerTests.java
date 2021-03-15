@@ -20,7 +20,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.Table;
+import org.opensearch.common.Table;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;

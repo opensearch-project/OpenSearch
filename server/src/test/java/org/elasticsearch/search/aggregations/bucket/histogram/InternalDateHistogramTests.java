@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.Rounding;
+import org.opensearch.common.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;

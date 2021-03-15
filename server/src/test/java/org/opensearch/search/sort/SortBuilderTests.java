@@ -19,7 +19,7 @@ x * Licensed to Elasticsearch under one or more contributor
 
 package org.opensearch.search.sort;
 
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

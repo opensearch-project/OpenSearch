@@ -20,7 +20,7 @@
 package org.opensearch.percolator;
 
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentType;

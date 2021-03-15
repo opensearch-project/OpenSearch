@@ -25,7 +25,7 @@ import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;

@@ -56,7 +56,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;

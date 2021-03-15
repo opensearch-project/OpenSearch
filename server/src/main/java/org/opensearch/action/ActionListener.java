@@ -23,7 +23,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.CheckedSupplier;
+import org.opensearch.common.CheckedSupplier;
 
 import java.util.ArrayList;
 import java.util.List;

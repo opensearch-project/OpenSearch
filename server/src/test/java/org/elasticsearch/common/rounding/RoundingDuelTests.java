@@ -36,15 +36,15 @@ public class RoundingDuelTests extends ESTestCase  {
     private static final String[] ALLOWED_TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
 
     public void testSerialization() throws Exception {
-        org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
-            randomFrom(org.elasticsearch.common.Rounding.DateTimeUnit.values());
-        org.elasticsearch.common.Rounding rounding;
+        org.opensearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
+            randomFrom(org.opensearch.common.Rounding.DateTimeUnit.values());
+        org.opensearch.common.Rounding rounding;
         boolean oldNextRoundingValueWorks;
         if (randomBoolean()) {
-            rounding = org.elasticsearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build();
+            rounding = org.opensearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build();
             oldNextRoundingValueWorks = true;
         } else {
-            rounding = org.elasticsearch.common.Rounding.builder(timeValue()).timeZone(ZoneOffset.UTC).build();
+            rounding = org.opensearch.common.Rounding.builder(timeValue()).timeZone(ZoneOffset.UTC).build();
             oldNextRoundingValueWorks = false;
         }
         BytesStreamOutput output = new BytesStreamOutput();
@@ -52,8 +52,8 @@ public class RoundingDuelTests extends ESTestCase  {
         rounding.writeTo(output);
 
         Rounding roundingJoda = Rounding.Streams.read(output.bytes().streamInput());
-        org.elasticsearch.common.Rounding roundingJavaTime =
-            org.elasticsearch.common.Rounding.read(output.bytes().streamInput());
+        org.opensearch.common.Rounding roundingJavaTime =
+            org.opensearch.common.Rounding.read(output.bytes().streamInput());
 
         int randomInt = randomIntBetween(1, 1_000_000_000);
         assertThat(roundingJoda.round(randomInt), is(roundingJavaTime.round(randomInt)));
@@ -63,18 +63,18 @@ public class RoundingDuelTests extends ESTestCase  {
     }
 
     public void testDuellingImplementations() {
-        org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
-            randomFrom(org.elasticsearch.common.Rounding.DateTimeUnit.values());
-        org.elasticsearch.common.Rounding.Prepared rounding;
+        org.opensearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
+            randomFrom(org.opensearch.common.Rounding.DateTimeUnit.values());
+        org.opensearch.common.Rounding.Prepared rounding;
         Rounding roundingJoda;
 
         if (randomBoolean()) {
-            rounding = org.elasticsearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
+            rounding = org.opensearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
             DateTimeUnit dateTimeUnit = DateTimeUnit.resolve(randomDateTimeUnit.getId());
             roundingJoda = Rounding.builder(dateTimeUnit).timeZone(DateTimeZone.UTC).build();
         } else {
             TimeValue interval = timeValue();
-            rounding = org.elasticsearch.common.Rounding.builder(interval).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
+            rounding = org.opensearch.common.Rounding.builder(interval).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
             roundingJoda = Rounding.builder(interval).timeZone(DateTimeZone.UTC).build();
         }
 

@@ -21,7 +21,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.

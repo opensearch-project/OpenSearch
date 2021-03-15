@@ -20,7 +20,7 @@
 package org.opensearch.script;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.Settings;

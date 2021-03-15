@@ -31,7 +31,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;

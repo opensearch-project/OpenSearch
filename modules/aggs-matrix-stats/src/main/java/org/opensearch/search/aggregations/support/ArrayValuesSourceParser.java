@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.support;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder.CommonFields;

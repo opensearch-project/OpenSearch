@@ -18,7 +18,7 @@
  */
 package org.opensearch.transport;
 
-import org.elasticsearch.common.AsyncBiFunction;
+import org.opensearch.common.AsyncBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

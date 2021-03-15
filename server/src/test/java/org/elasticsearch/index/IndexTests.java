@@ -20,7 +20,7 @@
 package org.elasticsearch.index;
 
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

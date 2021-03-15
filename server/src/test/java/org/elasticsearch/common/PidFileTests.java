@@ -20,6 +20,7 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.PidFile;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -31,7 +32,7 @@ import java.nio.file.StandardOpenOption;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * UnitTest for {@link org.elasticsearch.common.PidFile}
+ * UnitTest for {@link org.opensearch.common.PidFile}
  */
 public class PidFileTests extends ESTestCase {
     public void testParentIsFile() throws IOException {

@@ -20,8 +20,8 @@
 package org.opensearch.rest.action.cat;
 
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.Table;
+import org.opensearch.common.Strings;
+import org.opensearch.common.Table;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStream;

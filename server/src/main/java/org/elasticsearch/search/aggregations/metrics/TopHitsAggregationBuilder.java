@@ -21,8 +21,8 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.opensearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;

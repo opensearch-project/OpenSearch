@@ -49,7 +49,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.TriFunction;
+import org.opensearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;

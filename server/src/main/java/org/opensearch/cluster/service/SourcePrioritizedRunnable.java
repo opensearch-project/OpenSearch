@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.service;
 
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 
 /**

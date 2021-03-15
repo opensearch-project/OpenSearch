@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common;
 
-import org.opensearch.action.ActionListener;
+package org.opensearch.common;
+
+import java.util.function.BiConsumer;
 
 /**
- * A {@link java.util.function.BiFunction}-like interface designed to be used with asynchronous executions.
+ * A {@link BiConsumer}-like interface which allows throwing checked exceptions.
  */
-public interface AsyncBiFunction<T,U,C> {
-
-    void apply(T t, U u, ActionListener<C> listener);
+@FunctionalInterface
+public interface CheckedBiConsumer<T, U, E extends Exception> {
+    void accept(T t, U u) throws E;
 }

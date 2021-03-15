@@ -61,7 +61,7 @@ import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Locale;

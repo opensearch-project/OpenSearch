@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,14 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.common;
+package org.opensearch.common;
 
-import java.util.function.Supplier;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * A {@link Supplier}-like interface which allows throwing checked exceptions.
+ * Annotation to suppress logging usage checks errors inside a whole class or a method.
  */
-@FunctionalInterface
-public interface CheckedSupplier<R, E extends Exception> {
-    R get() throws E;
+@Retention(RetentionPolicy.CLASS)
+@Target({ ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.TYPE })
+public @interface SuppressLoggerChecks {
+    String reason();
 }

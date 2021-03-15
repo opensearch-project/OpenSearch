@@ -28,7 +28,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;

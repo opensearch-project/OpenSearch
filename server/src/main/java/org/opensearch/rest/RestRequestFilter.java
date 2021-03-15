@@ -20,7 +20,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;

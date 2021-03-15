@@ -20,7 +20,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

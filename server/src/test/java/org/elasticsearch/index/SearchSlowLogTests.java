@@ -25,7 +25,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.opensearch.Version;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;

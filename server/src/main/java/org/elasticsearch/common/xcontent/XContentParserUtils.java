@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 

@@ -34,7 +34,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.opensearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
-import org.elasticsearch.common.Randomness;
+import org.opensearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;

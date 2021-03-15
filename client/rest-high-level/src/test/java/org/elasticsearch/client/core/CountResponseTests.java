@@ -21,7 +21,7 @@ package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
