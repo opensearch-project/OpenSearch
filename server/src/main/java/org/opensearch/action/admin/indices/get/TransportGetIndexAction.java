@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
+import org.opensearch.action.support.master.info.TransportClusterInfoAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;

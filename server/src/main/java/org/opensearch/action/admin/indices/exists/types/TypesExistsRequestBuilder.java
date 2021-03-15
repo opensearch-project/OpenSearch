@@ -19,7 +19,7 @@
 package org.opensearch.action.admin.indices.exists.types;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.Strings;
 

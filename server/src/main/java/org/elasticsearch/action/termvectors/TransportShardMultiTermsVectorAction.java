@@ -22,7 +22,7 @@ package org.elasticsearch.action.termvectors;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportActions;
-import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
+import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;

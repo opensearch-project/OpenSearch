@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.segments;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 public class IndicesSegmentsRequestBuilder

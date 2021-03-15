@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
+import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.settings.SecureString;
 

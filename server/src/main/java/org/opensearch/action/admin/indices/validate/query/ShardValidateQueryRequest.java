@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
+import org.opensearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

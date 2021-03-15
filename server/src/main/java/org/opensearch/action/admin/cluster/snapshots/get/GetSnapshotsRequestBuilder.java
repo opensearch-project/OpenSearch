@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 

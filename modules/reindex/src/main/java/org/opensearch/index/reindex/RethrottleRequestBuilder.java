@@ -21,7 +21,7 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
+import org.opensearch.action.support.tasks.TasksRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**

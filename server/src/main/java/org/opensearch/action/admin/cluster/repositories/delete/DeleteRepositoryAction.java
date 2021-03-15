@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.repositories.delete;
 
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Unregister repository action

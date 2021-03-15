@@ -29,7 +29,7 @@ import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.OpenSearchException;
 import org.opensearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
+import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;

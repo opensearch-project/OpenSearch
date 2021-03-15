@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

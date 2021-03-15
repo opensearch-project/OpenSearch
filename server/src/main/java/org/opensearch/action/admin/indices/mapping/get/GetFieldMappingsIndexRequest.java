@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.mapping.get;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

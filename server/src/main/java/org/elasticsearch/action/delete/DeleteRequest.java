@@ -24,7 +24,7 @@ import org.elasticsearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.DocWriteRequest;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

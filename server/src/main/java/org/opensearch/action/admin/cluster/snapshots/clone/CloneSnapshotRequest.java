@@ -22,7 +22,7 @@ package org.opensearch.action.admin.cluster.snapshots.clone;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

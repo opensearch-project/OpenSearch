@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
@@ -37,7 +37,7 @@ import org.opensearch.action.admin.indices.dangling.find.FindDanglingIndexRespon
 import org.opensearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;

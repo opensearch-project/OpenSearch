@@ -21,8 +21,8 @@ package org.opensearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.OpenSearchException;
 import org.opensearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;

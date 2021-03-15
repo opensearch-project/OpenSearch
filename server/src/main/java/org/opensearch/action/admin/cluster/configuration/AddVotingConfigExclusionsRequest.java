@@ -20,7 +20,7 @@ package org.opensearch.action.admin.cluster.configuration;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.node.DiscoveryNode;

@@ -24,7 +24,7 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
