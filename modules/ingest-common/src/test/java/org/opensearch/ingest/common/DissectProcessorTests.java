@@ -19,7 +19,7 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.common.collect.MapBuilder;
+import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.dissect.DissectException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;

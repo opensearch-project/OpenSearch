@@ -21,7 +21,7 @@ package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.opensearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;

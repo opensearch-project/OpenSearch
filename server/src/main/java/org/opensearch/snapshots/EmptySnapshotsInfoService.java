@@ -19,7 +19,7 @@
 
 package org.opensearch.snapshots;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.collect.ImmutableOpenMap;
 
 public class EmptySnapshotsInfoService implements SnapshotsInfoService {
     public static final EmptySnapshotsInfoService INSTANCE = new EmptySnapshotsInfoService();

@@ -20,7 +20,7 @@
 package org.opensearch.search.fetch.subphase;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.document.DocumentField;
+import org.opensearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

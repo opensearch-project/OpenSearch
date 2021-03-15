@@ -26,7 +26,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.RestoreService;

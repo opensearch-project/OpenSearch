@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,9 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.common.cache;
+package org.opensearch.common.component;
 
-@FunctionalInterface
-public interface RemovalListener<K, V> {
-    void onRemoval(RemovalNotification<K, V> notification);
+public abstract class LifecycleListener {
+
+    public void beforeStart() {
+
+    }
+
+    public void afterStart() {
+
+    }
+
+    public void beforeStop() {
+
+    }
+
+    public void afterStop() {
+
+    }
+
+    public void beforeClose() {
+
+    }
+
+    public void afterClose() {
+
+    }
 }

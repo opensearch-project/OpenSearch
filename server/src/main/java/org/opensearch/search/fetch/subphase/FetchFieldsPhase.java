@@ -20,7 +20,7 @@
 package org.opensearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.document.DocumentField;
+import org.opensearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;

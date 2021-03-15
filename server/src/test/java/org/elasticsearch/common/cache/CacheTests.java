@@ -22,6 +22,9 @@ package org.elasticsearch.common.cache;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.opensearch.common.cache.Cache;
+import org.opensearch.common.cache.CacheBuilder;
+import org.opensearch.common.cache.RemovalNotification;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
