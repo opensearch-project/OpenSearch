@@ -411,7 +411,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(indicesToRelease.get());
     }
 
-    @TestLogging(value="DiskThresholdMonitor:INFO", reason="testing INFO/WARN logging")
+    @TestLogging(value="org.opensearch.cluster.routing.allocation.DiskThresholdMonitor:INFO", reason="testing INFO/WARN logging")
     public void testDiskMonitorLogging() throws IllegalAccessException {
         final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
