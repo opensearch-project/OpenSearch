@@ -32,7 +32,7 @@ import java.nio.file.StandardOpenOption;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * UnitTest for {@link PidFile}
+ * UnitTest for {@link org.opensearch.common.PidFile}
  */
 public class PidFileTests extends ESTestCase {
     public void testParentIsFile() throws IOException {

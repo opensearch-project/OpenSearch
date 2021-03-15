@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
-import org.opensearch.common.Rounding;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -1026,7 +1025,7 @@ public class RoundingTests extends ESTestCase {
     }
 
     /**
-     * perform a number on assertions and checks on {@link Rounding.TimeUnitRounding} intervals
+     * perform a number on assertions and checks on {@link org.opensearch.common.Rounding.TimeUnitRounding} intervals
      * @param rounded the expected low end of the rounding interval
      * @param unrounded a date in the interval to be checked for rounding
      * @param nextRoundingValue the expected upper end of the rounding interval
