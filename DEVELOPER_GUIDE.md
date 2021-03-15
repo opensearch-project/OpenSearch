@@ -129,8 +129,6 @@ These tasks can also be run for specific subprojects, e.g.
 
 Please follow these formatting guidelines:
 
-**RENAMEME do we want to keep all of these?**
-
 * Java indent is 4 spaces
 * Line width is 140 characters
 * Lines of code surrounded by `// tag::NAME` and `// end::NAME` comments are included
