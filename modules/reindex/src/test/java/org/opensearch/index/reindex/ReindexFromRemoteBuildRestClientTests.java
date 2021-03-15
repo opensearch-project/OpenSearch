@@ -19,7 +19,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.client.RestClient;
+import org.opensearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilderTestCase;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;

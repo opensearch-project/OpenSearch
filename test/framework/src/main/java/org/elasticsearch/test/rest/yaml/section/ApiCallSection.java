@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.elasticsearch.client.NodeSelector;
+import org.opensearch.client.NodeSelector;
 
 import static java.util.Collections.unmodifiableMap;
 

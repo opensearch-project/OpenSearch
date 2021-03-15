@@ -20,7 +20,7 @@
 package org.elasticsearch.test.rest;
 
 import org.opensearch.Version;
-import org.elasticsearch.client.WarningsHandler;
+import org.opensearch.client.WarningsHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase.VersionSensitiveWarningsHandler;
 

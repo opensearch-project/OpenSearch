@@ -21,8 +21,8 @@ package org.elasticsearch.client.documentation;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestClient;
+import org.opensearch.client.RequestOptions;
+import org.opensearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.MainResponse;
 

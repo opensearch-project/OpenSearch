@@ -33,7 +33,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.RequestOptions;
+import org.opensearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
