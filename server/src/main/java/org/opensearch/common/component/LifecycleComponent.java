@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,31 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.common.component;
+package org.opensearch.common.component;
 
-public abstract class LifecycleListener {
+import org.elasticsearch.common.lease.Releasable;
 
-    public void beforeStart() {
+public interface LifecycleComponent extends Releasable {
 
-    }
+    Lifecycle.State lifecycleState();
 
-    public void afterStart() {
+    void addLifecycleListener(LifecycleListener listener);
 
-    }
+    void removeLifecycleListener(LifecycleListener listener);
 
-    public void beforeStop() {
+    void start();
 
-    }
-
-    public void afterStop() {
-
-    }
-
-    public void beforeClose() {
-
-    }
-
-    public void afterClose() {
-
-    }
+    void stop();
 }

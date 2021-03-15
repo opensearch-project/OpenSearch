@@ -20,7 +20,7 @@ package org.elasticsearch.common.hppc;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.common.collect.HppcMaps;
+import org.opensearch.common.collect.HppcMaps;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

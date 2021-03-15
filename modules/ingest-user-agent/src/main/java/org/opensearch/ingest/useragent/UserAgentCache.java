@@ -19,8 +19,8 @@
 
 package org.opensearch.ingest.useragent;
 
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
+import org.opensearch.common.cache.Cache;
+import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.ingest.useragent.UserAgentParser.Details;
 
 import java.util.Objects;

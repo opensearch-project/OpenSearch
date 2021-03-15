@@ -22,7 +22,7 @@ package org.elasticsearch.common.logging;
 import java.util.Map;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.opensearch.common.collect.MapBuilder;
 
 /**
  * A logger message used by {@link DeprecationLogger}.

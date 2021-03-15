@@ -19,7 +19,7 @@
 package org.opensearch.transport.netty4;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.component.Lifecycle;
+import org.opensearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;

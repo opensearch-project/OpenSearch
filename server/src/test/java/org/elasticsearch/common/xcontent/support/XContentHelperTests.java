@@ -20,7 +20,7 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;

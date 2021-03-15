@@ -20,8 +20,8 @@ package org.elasticsearch.test;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.component.LifecycleListener;
+import org.opensearch.common.component.Lifecycle;
+import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryStats;
 

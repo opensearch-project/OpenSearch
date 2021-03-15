@@ -23,7 +23,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Randomness;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.opensearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;

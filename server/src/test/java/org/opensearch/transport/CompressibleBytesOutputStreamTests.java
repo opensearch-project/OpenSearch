@@ -20,7 +20,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
+import org.opensearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;

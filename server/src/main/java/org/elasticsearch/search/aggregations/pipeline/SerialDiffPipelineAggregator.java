@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.EvictingQueue;
+import org.opensearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,16 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress;
+package org.opensearch.common.cache;
 
-import org.elasticsearch.common.xcontent.XContent;
-
-/** Exception indicating that we were expecting some {@link XContent} but could
- *  not detect its type. */
-public class NotXContentException extends RuntimeException {
-
-    public NotXContentException(String message) {
-        super(message);
-    }
-
+@FunctionalInterface
+public interface RemovalListener<K, V> {
+    void onRemoval(RemovalNotification<K, V> notification);
 }

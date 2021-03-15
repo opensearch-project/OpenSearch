@@ -19,13 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.collect.EvictingQueue;
-import org.elasticsearch.search.aggregations.pipeline.EwmaModel;
-import org.elasticsearch.search.aggregations.pipeline.HoltLinearModel;
-import org.elasticsearch.search.aggregations.pipeline.HoltWintersModel;
-import org.elasticsearch.search.aggregations.pipeline.LinearModel;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.SimpleModel;
+import org.opensearch.common.collect.EvictingQueue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;

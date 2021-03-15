@@ -50,7 +50,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
