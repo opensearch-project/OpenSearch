@@ -20,12 +20,12 @@
 package org.opensearch.action.admin.cluster.snapshots.create;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.OpenSearchGenerationException;
+import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
+import static org.opensearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -60,7 +60,7 @@ import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
  * <li>must not contain hash sign ('#')</li>
  * <li>must not start with underscore ('-')</li>
  * <li>must be lowercase</li>
- * <li>must not contain invalid file name characters {@link org.elasticsearch.common.Strings#INVALID_FILENAME_CHARS} </li>
+ * <li>must not contain invalid file name characters {@link org.opensearch.common.Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  */
 public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest>

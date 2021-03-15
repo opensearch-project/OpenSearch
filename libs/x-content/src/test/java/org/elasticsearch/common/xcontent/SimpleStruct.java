@@ -20,7 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Objects;

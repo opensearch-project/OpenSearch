@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

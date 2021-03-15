@@ -25,8 +25,8 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Numbers;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 

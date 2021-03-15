@@ -20,8 +20,8 @@
 package org.opensearch.script;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;

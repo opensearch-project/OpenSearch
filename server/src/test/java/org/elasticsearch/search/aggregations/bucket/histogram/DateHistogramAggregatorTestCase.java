@@ -24,7 +24,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedBiConsumer;
+import org.opensearch.common.CheckedBiConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;

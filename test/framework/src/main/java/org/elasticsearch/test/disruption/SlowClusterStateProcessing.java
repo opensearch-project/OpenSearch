@@ -20,7 +20,7 @@ package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 

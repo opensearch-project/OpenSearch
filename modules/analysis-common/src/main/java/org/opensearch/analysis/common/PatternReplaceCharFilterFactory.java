@@ -19,7 +19,7 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;

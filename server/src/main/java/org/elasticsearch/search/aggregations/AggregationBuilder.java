@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -147,7 +147,7 @@ public abstract class AggregationBuilder
      * and pipeline aggregations. Just "zero", "one", and "many".
      * <p>
      * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
-     * instead of <strong>per parent bucket</strong>. 
+     * instead of <strong>per parent bucket</strong>.
      */
     public enum BucketCardinality {
         NONE, ONE, MANY;

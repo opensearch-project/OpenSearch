@@ -20,7 +20,7 @@ package org.elasticsearch.test.disruption;
 
 import org.apache.logging.log4j.core.util.Throwables;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 

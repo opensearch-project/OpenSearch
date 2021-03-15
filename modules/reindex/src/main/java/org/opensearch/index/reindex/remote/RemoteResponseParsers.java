@@ -22,7 +22,7 @@ package org.opensearch.index.reindex.remote;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;

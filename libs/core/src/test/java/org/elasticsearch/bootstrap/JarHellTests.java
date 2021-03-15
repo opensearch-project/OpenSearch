@@ -19,7 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 

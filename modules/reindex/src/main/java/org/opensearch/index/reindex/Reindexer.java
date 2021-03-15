@@ -39,7 +39,7 @@ import org.opensearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.DeprecationHandler;

@@ -23,7 +23,7 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesReque
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.Table;
+import org.opensearch.common.Table;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;

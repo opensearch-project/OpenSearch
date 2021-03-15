@@ -26,7 +26,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Table;
+import org.opensearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;

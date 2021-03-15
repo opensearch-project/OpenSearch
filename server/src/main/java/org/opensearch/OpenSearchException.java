@@ -809,7 +809,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.indices.InvalidTypeNameException::new, 38, UNKNOWN_VERSION_ADDED),
         SNAPSHOT_RESTORE_EXCEPTION(org.opensearch.snapshots.SnapshotRestoreException.class,
                 org.opensearch.snapshots.SnapshotRestoreException::new, 39, UNKNOWN_VERSION_ADDED),
-        PARSING_EXCEPTION(org.elasticsearch.common.ParsingException.class, org.elasticsearch.common.ParsingException::new, 40,
+        PARSING_EXCEPTION(org.opensearch.common.ParsingException.class, org.opensearch.common.ParsingException::new, 40,
             UNKNOWN_VERSION_ADDED),
         INDEX_SHARD_CLOSED_EXCEPTION(org.elasticsearch.index.shard.IndexShardClosedException.class,
                 org.elasticsearch.index.shard.IndexShardClosedException::new, 41, UNKNOWN_VERSION_ADDED),

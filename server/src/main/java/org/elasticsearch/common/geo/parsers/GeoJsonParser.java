@@ -19,7 +19,7 @@
 package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.Explicit;
+import org.opensearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.builders.CircleBuilder;

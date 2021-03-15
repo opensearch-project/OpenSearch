@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 import java.util.HashSet;
 import java.util.Objects;

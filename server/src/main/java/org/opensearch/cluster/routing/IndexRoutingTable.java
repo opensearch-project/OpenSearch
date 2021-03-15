@@ -32,7 +32,7 @@ import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource
 import org.opensearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.common.Randomness;
+import org.opensearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

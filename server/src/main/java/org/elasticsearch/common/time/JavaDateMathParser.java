@@ -20,7 +20,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 import java.time.DayOfWeek;
 import java.time.Instant;

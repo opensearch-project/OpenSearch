@@ -34,7 +34,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.opensearch.cli.KeyStoreAwareCommand;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
-import org.elasticsearch.common.PidFile;
+import org.opensearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.DeprecationLogger;

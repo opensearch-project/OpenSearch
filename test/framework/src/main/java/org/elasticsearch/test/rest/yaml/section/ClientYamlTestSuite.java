@@ -19,7 +19,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.client.NodeSelector;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;

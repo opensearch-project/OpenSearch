@@ -21,7 +21,7 @@ package org.elasticsearch.common.logging;
 
 import java.util.Map;
 
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 
 /**

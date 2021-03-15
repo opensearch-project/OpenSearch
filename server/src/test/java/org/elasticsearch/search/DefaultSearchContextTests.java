@@ -31,7 +31,7 @@ import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;

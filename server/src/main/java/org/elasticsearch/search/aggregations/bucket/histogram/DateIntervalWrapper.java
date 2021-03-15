@@ -21,9 +21,9 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.Rounding.DateTimeUnit;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Rounding;
+import org.opensearch.common.Rounding.DateTimeUnit;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

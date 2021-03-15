@@ -22,7 +22,7 @@ package org.opensearch;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;

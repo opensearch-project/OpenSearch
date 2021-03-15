@@ -22,7 +22,7 @@ package org.elasticsearch.upgrades;
 import org.opensearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;

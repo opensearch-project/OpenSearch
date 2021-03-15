@@ -21,7 +21,7 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-import org.elasticsearch.common.Randomness;
+import org.opensearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

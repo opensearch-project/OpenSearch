@@ -31,7 +31,7 @@ import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
-import org.elasticsearch.common.Randomness;
+import org.opensearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
 
 import javax.crypto.AEADBadTagException;

@@ -26,7 +26,7 @@ import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.logging.log4j.util.StringBuilders;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 /**
  * Pattern converter to populate ESMessageField in a pattern.

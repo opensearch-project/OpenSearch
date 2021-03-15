@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.settings.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

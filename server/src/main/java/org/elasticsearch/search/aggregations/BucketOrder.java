@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -128,7 +128,7 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
      * before you use this method think super duper hard if you want to have
      * these kinds of issues. The terms agg does an folks get into trouble
      * with it all the time.
-     * </p> 
+     * </p>
      */
     public abstract <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator);
 

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.service;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

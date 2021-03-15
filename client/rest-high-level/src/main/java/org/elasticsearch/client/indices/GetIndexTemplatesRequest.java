@@ -22,7 +22,7 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Arrays;

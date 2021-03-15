@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Rounding;
+import org.opensearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;

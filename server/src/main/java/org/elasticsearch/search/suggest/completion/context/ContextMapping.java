@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;

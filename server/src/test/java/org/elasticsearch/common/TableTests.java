@@ -20,6 +20,7 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.Table;
 
 import java.util.List;
 import java.util.Map;

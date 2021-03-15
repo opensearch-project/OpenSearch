@@ -22,7 +22,7 @@ package org.opensearch.action.admin.cluster.repositories.verify;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
