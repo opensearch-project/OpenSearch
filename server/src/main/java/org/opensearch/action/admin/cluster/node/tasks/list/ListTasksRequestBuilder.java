@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
+import org.opensearch.action.support.tasks.TasksRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**

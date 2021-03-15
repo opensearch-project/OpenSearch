@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.dangling.list;
 
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

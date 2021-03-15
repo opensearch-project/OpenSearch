@@ -37,7 +37,7 @@ import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclus
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.client.Client;
 import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.ClusterName;

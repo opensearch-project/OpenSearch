@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;

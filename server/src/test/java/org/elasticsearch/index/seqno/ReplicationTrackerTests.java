@@ -20,7 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;

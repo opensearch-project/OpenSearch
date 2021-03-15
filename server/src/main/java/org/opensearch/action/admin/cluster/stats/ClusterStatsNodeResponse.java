@@ -22,7 +22,7 @@ package org.opensearch.action.admin.cluster.stats;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;

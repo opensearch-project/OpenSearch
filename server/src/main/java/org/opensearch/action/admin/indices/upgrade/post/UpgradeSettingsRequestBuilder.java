@@ -19,9 +19,9 @@
 
 package org.opensearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.Version;
+import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.collect.Tuple;
 

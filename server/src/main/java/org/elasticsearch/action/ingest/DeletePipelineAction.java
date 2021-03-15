@@ -20,7 +20,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 
 public class DeletePipelineAction extends ActionType<AcknowledgedResponse> {
 

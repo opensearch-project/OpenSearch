@@ -21,8 +21,8 @@ package org.opensearch.action.admin.indices.template.put;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
