@@ -18,7 +18,7 @@
  */
 package org.opensearch.cluster;
 
-import org.elasticsearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.MasterService;
 
 import java.util.List;
 

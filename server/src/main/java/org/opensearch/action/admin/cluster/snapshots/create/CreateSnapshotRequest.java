@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.create;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.OpenSearchGenerationException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;

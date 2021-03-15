@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;

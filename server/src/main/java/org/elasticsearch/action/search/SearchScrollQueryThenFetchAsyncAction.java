@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchShardTarget;

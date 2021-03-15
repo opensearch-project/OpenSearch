@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;

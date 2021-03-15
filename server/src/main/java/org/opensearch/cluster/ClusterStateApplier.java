@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster;
 
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 
 /**
  * A component that is in charge of applying an incoming cluster state to the node internal data structures.

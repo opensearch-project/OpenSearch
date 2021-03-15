@@ -23,7 +23,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;

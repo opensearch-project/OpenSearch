@@ -20,8 +20,8 @@
 package org.elasticsearch.action.search;
 
 import org.opensearch.action.OriginalIndices;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.PlainShardIterator;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Countable;

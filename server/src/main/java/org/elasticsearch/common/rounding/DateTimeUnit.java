@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.rounding;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;

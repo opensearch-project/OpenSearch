@@ -21,8 +21,9 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
+import org.opensearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 

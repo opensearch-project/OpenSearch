@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.ShardOperationFailedException;

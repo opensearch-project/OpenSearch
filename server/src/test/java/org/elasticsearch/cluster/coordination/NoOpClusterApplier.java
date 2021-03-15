@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterApplier;
+import org.opensearch.cluster.service.ClusterApplier;
 
 import java.util.function.Supplier;
 

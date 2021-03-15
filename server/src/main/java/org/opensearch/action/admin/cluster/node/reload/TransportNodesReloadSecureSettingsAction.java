@@ -29,7 +29,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

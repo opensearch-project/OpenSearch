@@ -20,7 +20,7 @@ package org.elasticsearch.env;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;

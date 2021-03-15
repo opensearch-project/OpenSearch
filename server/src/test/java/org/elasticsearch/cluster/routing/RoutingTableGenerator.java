@@ -23,6 +23,10 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 
 import static org.opensearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 

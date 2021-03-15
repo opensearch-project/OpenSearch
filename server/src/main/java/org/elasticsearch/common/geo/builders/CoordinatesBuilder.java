@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.util.ArrayList;
