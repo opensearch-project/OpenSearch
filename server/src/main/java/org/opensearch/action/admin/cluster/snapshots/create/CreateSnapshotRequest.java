@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.snapshots.create;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.OpenSearchGenerationException;
+import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -60,7 +60,7 @@ import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
  * <li>must not contain hash sign ('#')</li>
  * <li>must not start with underscore ('-')</li>
  * <li>must be lowercase</li>
- * <li>must not contain invalid file name characters {@link Strings#INVALID_FILENAME_CHARS} </li>
+ * <li>must not contain invalid file name characters {@link org.opensearch.common.Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  */
 public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest>
