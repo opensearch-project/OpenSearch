@@ -33,12 +33,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.ElectMasterService.MasterCandidate;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.UnicastZenPing.UnicastPingRequest;
-import org.elasticsearch.discovery.zen.UnicastZenPing.UnicastPingResponse;
-import org.elasticsearch.discovery.zen.ZenPing.PingResponse;
+import org.opensearch.discovery.zen.ElectMasterService;
+import org.opensearch.discovery.zen.ElectMasterService.MasterCandidate;
+import org.opensearch.discovery.zen.UnicastZenPing;
+import org.opensearch.discovery.zen.UnicastZenPing.UnicastPingRequest;
+import org.opensearch.discovery.zen.UnicastZenPing.UnicastPingResponse;
+import org.opensearch.discovery.zen.ZenPing.PingResponse;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportException;
@@ -62,8 +62,8 @@ import static java.lang.Math.max;
 import static org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.opensearch.cluster.ClusterState.UNKNOWN_VERSION;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
-import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
-import static org.elasticsearch.discovery.zen.ZenDiscovery.PING_TIMEOUT_SETTING;
+import static org.opensearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+import static org.opensearch.discovery.zen.ZenDiscovery.PING_TIMEOUT_SETTING;
 
 /**
  * Deals with rolling upgrades of the cluster coordination layer. In mixed clusters we prefer to elect the older nodes, but
