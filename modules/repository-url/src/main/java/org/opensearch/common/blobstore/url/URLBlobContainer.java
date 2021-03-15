@@ -20,11 +20,11 @@
 package org.opensearch.common.blobstore.url;
 
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * URL blob implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}
+ * URL blob implementation of {@link BlobContainer}
  */
 public class URLBlobContainer extends AbstractBlobContainer {
 

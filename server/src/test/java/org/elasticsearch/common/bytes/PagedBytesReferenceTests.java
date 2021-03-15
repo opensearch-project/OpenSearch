@@ -22,6 +22,9 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteArray;
 import org.hamcrest.Matchers;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.PagedBytesReference;
 
 import java.io.IOException;
 

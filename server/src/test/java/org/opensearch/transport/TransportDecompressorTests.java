@@ -19,9 +19,9 @@
 
 package org.opensearch.transport;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.CompositeBytesReference;
+import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

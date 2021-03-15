@@ -20,7 +20,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.unit.TimeValue;
 

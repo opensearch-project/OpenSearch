@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.compress;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;

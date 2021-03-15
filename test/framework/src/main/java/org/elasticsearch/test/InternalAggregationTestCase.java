@@ -21,8 +21,8 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;

@@ -58,7 +58,7 @@ import org.opensearch.client.FilterClient;
 import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;

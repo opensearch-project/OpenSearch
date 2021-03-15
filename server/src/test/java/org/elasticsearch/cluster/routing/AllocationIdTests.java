@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
