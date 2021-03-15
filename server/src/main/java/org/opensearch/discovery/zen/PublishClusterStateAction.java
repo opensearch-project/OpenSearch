@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.opensearch.discovery.zen;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,10 +43,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
-import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoverySettings;
+import org.opensearch.discovery.AckClusterStatePublishResponseHandler;
+import org.opensearch.discovery.BlockingClusterStatePublishResponseHandler;
+import org.opensearch.discovery.Discovery;
+import org.opensearch.discovery.DiscoverySettings;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;

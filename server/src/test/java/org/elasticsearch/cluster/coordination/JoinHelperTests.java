@@ -28,7 +28,7 @@ import org.opensearch.cluster.NotMasterException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.MembershipAction;
+import org.opensearch.discovery.zen.MembershipAction;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;

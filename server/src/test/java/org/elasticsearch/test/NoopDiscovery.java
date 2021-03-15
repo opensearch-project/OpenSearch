@@ -22,8 +22,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryStats;
+import org.opensearch.discovery.Discovery;
+import org.opensearch.discovery.DiscoveryStats;
 
 public class NoopDiscovery implements Discovery {
 
