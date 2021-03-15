@@ -20,7 +20,7 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;

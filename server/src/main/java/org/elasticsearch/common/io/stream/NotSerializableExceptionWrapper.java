@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.rest.RestStatus;
 

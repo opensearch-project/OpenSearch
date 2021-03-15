@@ -19,16 +19,16 @@
 
 package org.opensearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.FailedNodeException;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.monitor.jvm.HotThreads;
+import org.opensearch.monitor.jvm.HotThreads;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 

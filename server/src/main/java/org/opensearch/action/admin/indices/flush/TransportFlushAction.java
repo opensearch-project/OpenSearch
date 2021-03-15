@@ -24,7 +24,7 @@ import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.transport.TransportService;

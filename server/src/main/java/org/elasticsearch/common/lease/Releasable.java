@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lease;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 
 import java.io.Closeable;
 

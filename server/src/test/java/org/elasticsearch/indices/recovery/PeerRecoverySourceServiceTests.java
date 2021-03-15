@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.seqno.SequenceNumbers;

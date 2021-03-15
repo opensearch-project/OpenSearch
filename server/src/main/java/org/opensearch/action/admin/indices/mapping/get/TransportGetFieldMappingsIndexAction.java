@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;

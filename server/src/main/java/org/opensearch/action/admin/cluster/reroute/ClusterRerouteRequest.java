@@ -21,8 +21,8 @@ package org.opensearch.action.admin.cluster.reroute;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.hamcrest.Matchers;
+import org.opensearch.cluster.routing.PlainShardIterator;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -19,7 +19,7 @@
 package org.elasticsearch.common.geo.parsers;
 
 import org.locationtech.jts.geom.Coordinate;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

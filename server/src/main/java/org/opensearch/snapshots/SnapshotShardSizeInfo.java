@@ -19,8 +19,8 @@
 
 package org.opensearch.snapshots;
 
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 public class SnapshotShardSizeInfo {

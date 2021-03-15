@@ -19,7 +19,11 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.UnassignedInfo;
 
 /**
  * A helper class that allows access to package private APIs for testing.

@@ -19,7 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;

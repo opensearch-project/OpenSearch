@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;

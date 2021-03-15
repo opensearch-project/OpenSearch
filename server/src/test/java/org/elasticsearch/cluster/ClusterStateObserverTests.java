@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

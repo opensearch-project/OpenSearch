@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
+
 import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;

@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.tasks;
 
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.cluster.service.PendingClusterTask;
+import org.opensearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
