@@ -22,14 +22,14 @@ package org.elasticsearch.index.seqno;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.gateway.WriteStateException;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.gateway.WriteStateException;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;

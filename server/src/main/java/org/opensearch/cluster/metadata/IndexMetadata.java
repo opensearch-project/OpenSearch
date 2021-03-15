@@ -24,7 +24,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.Diff;
@@ -33,7 +33,7 @@ import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.node.DiscoveryNodeFilters;
-import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
+import org.opensearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -52,10 +52,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.Index;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -1665,7 +1665,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns the number of shards that should be used for routing. This basically defines the hash space we use in
-     * {@link org.elasticsearch.cluster.routing.OperationRouting#generateShardId(IndexMetadata, String, String)} to route documents
+     * {@link org.opensearch.cluster.routing.OperationRouting#generateShardId(IndexMetadata, String, String)} to route documents
      * to shards based on their ID or their specific routing value. The default value is {@link #getNumberOfShards()}. This value only
      * changes if and index is shrunk.
      */
@@ -1778,7 +1778,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * Returns the routing factor for and shrunk index with the given number of target shards.
      * This factor is used in the hash function in
-     * {@link org.elasticsearch.cluster.routing.OperationRouting#generateShardId(IndexMetadata, String, String)} to guarantee consistent
+     * {@link org.opensearch.cluster.routing.OperationRouting#generateShardId(IndexMetadata, String, String)} to guarantee consistent
      * hashing / routing of documents even if the number of shards changed (ie. a shrunk index).
      *
      * @param sourceNumberOfShards the total number of shards in the source index

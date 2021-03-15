@@ -27,12 +27,13 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.RoutingNodes;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
+import org.opensearch.cluster.routing.allocation.AllocationService;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTestCase {

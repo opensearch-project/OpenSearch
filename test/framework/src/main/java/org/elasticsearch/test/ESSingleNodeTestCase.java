@@ -30,7 +30,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

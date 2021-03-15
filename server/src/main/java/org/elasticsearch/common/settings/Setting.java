@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.elasticsearch.common.Booleans;

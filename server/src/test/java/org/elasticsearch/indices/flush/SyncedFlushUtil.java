@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.InternalTestCluster;
 

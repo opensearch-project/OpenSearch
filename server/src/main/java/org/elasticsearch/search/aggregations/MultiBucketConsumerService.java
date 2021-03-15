@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

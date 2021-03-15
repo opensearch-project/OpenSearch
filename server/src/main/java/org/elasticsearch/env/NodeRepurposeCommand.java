@@ -21,7 +21,7 @@ package org.elasticsearch.env;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;

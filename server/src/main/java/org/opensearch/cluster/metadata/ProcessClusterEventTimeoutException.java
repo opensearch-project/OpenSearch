@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.rest.RestStatus;

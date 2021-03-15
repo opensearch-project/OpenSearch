@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.opensearch.client.Client;
 import org.opensearch.client.FilterClient;
-import org.elasticsearch.cluster.routing.Preference;
+import org.opensearch.cluster.routing.Preference;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Arrays;

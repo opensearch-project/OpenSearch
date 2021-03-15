@@ -27,7 +27,7 @@ import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.tasks.TransportTasksAction;
 import org.opensearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.opensearch.index.reindex.BulkByScrollTask;
 import org.opensearch.index.reindex.LeaderBulkByScrollTaskState;

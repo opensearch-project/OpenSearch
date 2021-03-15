@@ -21,7 +21,7 @@ package org.elasticsearch.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;

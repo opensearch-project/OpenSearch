@@ -25,7 +25,7 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.List;

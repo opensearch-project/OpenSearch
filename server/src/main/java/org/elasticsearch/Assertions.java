@@ -22,7 +22,7 @@ package org.elasticsearch;
 /**
  * Provides a static final field that can be used to check if assertions are enabled. Since this field might be used elsewhere to check if
  * assertions are enabled, if you are running with assertions enabled for specific packages or classes, you should enable assertions on this
- * class too (e.g., {@code -ea org.elasticsearch.Assertions -ea org.elasticsearch.cluster.service.MasterService}).
+ * class too (e.g., {@code -ea org.opensearch.Assertions -ea org.opensearch.cluster.service.MasterService}).
  */
 public final class Assertions {
 

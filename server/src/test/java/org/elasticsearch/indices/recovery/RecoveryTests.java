@@ -33,7 +33,7 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;

@@ -19,7 +19,7 @@
 
 package org.opensearch.action.support.tasks;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;

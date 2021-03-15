@@ -21,7 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.store.FsDirectoryFactory;

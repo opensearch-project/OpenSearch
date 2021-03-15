@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;

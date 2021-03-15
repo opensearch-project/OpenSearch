@@ -31,14 +31,17 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingNodes;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
@@ -47,8 +50,8 @@ import org.hamcrest.Matchers;
 
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 
 public class BalanceConfigurationTests extends ESAllocationTestCase {
 

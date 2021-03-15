@@ -30,7 +30,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;

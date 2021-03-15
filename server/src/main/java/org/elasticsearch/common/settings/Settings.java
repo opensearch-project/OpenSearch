@@ -21,8 +21,8 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;

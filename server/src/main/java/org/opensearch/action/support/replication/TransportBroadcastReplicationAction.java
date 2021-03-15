@@ -32,8 +32,8 @@ import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedExce
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;

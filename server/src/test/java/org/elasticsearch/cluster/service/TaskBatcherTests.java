@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.junit.Before;
+import org.opensearch.cluster.service.TaskBatcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;

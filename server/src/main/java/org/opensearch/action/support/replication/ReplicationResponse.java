@@ -19,7 +19,7 @@
 
 package org.opensearch.action.support.replication;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ShardOperationFailedException;

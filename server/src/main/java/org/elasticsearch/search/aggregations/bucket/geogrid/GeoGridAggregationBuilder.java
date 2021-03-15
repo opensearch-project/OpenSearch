@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;

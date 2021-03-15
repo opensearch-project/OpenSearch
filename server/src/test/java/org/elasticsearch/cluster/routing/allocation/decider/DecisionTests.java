@@ -19,12 +19,13 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.NO;
-import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.THROTTLE;
-import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type.YES;
+import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.NO;
+import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.THROTTLE;
+import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.YES;
 
 /**
  * A class for unit testing the {@link Decision} class.
