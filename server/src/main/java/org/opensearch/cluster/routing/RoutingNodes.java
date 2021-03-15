@@ -28,12 +28,13 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -548,7 +549,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         assert replicaShard != null : "failed to re-resolve " + routing + " when failing replicas";
                         UnassignedInfo primaryFailedUnassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.PRIMARY_FAILED,
                             "primary failed while replica initializing", null, 0, unassignedInfo.getUnassignedTimeInNanos(),
-                            unassignedInfo.getUnassignedTimeInMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT, Collections.emptySet());
+                            unassignedInfo.getUnassignedTimeInMillis(), false, AllocationStatus.NO_ATTEMPT, Collections.emptySet());
                         failShard(logger, replicaShard, primaryFailedUnassignedInfo, indexMetadata, routingChangesObserver);
                     }
                 }
@@ -861,10 +862,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          * Should be used with caution, typically,
          * the correct usage is to removeAndIgnore from the iterator.
          * @see #ignored()
-         * @see UnassignedIterator#removeAndIgnore(UnassignedInfo.AllocationStatus, RoutingChangesObserver)
+         * @see UnassignedIterator#removeAndIgnore(AllocationStatus, RoutingChangesObserver)
          * @see #isIgnoredEmpty()
          */
-        public void ignoreShard(ShardRouting shard, UnassignedInfo.AllocationStatus allocationStatus, RoutingChangesObserver changes) {
+        public void ignoreShard(ShardRouting shard, AllocationStatus allocationStatus, RoutingChangesObserver changes) {
             nodes.ensureMutable();
             if (shard.primary()) {
                 ignoredPrimaries++;
@@ -924,7 +925,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              * @param attempt the result of the allocation attempt
              */
             @Override
-            public void removeAndIgnore(UnassignedInfo.AllocationStatus attempt, RoutingChangesObserver changes) {
+            public void removeAndIgnore(AllocationStatus attempt, RoutingChangesObserver changes) {
                 nodes.ensureMutable();
                 innerRemove();
                 ignoreShard(current, attempt, changes);
@@ -954,7 +955,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
             /**
              * Unsupported operation, just there for the interface. Use
-             * {@link #removeAndIgnore(UnassignedInfo.AllocationStatus, RoutingChangesObserver)} or
+             * {@link #removeAndIgnore(AllocationStatus, RoutingChangesObserver)} or
              * {@link #initialize(String, String, long, RoutingChangesObserver)}.
              */
             @Override
@@ -980,8 +981,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         /**
          * Returns <code>true</code> iff any unassigned shards are marked as temporarily ignored.
-         * @see UnassignedShards#ignoreShard(ShardRouting, UnassignedInfo.AllocationStatus, RoutingChangesObserver)
-         * @see UnassignedIterator#removeAndIgnore(UnassignedInfo.AllocationStatus, RoutingChangesObserver)
+         * @see UnassignedShards#ignoreShard(ShardRouting, AllocationStatus, RoutingChangesObserver)
+         * @see UnassignedIterator#removeAndIgnore(AllocationStatus, RoutingChangesObserver)
          */
         public boolean isIgnoredEmpty() {
             return ignored.isEmpty();

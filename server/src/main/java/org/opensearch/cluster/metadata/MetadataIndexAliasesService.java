@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;

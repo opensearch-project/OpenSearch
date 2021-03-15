@@ -20,13 +20,13 @@
 package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.opensearch.cluster.routing.allocation.decider.Decision;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -153,7 +153,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
     }
 
     /**
-     * Returns {@code true} if there is at least one node that returned a {@link Decision.Type#YES} decision for allocating this shard.
+     * Returns {@code true} if there is at least one node that returned a {@link Type#YES} decision for allocating this shard.
      */
     protected boolean atLeastOneNodeWithYesDecision() {
         if (nodeDecisions == null) {

@@ -20,17 +20,17 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.Version;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.seqno.RetentionLeaseStats;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.shard.ShardPath;
+import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.seqno.RetentionLeaseStats;
+import org.opensearch.index.seqno.SeqNoStats;
+import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 

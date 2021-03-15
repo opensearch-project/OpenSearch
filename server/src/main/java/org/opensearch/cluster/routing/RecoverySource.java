@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.opensearch.cluster.routing;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.RestoreInProgress;

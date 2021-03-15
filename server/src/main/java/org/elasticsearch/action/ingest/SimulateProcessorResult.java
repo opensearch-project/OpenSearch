@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;

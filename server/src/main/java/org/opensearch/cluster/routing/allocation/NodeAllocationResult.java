@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;

@@ -20,7 +20,7 @@ package org.opensearch.cluster.coordination;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import joptsimple.OptionSet;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;

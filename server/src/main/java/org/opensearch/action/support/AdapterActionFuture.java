@@ -19,7 +19,7 @@
 
 package org.opensearch.action.support;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;

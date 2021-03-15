@@ -36,14 +36,14 @@ import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.gateway.PriorityComparator;
-import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
+import org.opensearch.gateway.GatewayAllocator;
+import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.snapshots.SnapshotsInfoService;
 
 import java.util.ArrayList;
@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
 /**
  * This service manages the node allocation of a cluster. For this reason the
@@ -471,9 +472,9 @@ public class AllocationService {
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
                 final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-                boolean delayed = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
+                boolean delayed = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left [" + node.nodeId() + "]",
-                    null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed, UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                    null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed, AllocationStatus.NO_ATTEMPT,
                     Collections.emptySet());
                 allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, indexMetadata, allocation.changes());
             }
@@ -575,7 +576,7 @@ public class AllocationService {
         @Override
         public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
                                        UnassignedAllocationHandler unassignedAllocationHandler) {
-            unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
+            unassignedAllocationHandler.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
         }
 
         @Override
@@ -589,7 +590,7 @@ public class AllocationService {
                         "that allocator was not found; perhaps the corresponding plugin is not installed",
                     allocatorName)));
             }
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY, nodeAllocationResults);
+            return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, nodeAllocationResults);
         }
 
         @Override
@@ -612,7 +613,7 @@ public class AllocationService {
 
     /**
      * this class is used to describe results of applying a set of
-     * {@link AllocationCommand}
+     * {@link org.opensearch.cluster.routing.allocation.command.AllocationCommand}
      */
     public static class CommandsResult {
 

@@ -32,6 +32,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import static org.opensearch.cluster.routing.allocation.decider.Decision.THROTTLE;
+import static org.opensearch.cluster.routing.allocation.decider.Decision.YES;
+
 /**
  * {@link ThrottlingAllocationDecider} controls the recovery process per node in
  * the cluster. It exposes two settings via the cluster update API that allow
@@ -129,12 +132,12 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             }
             if (primariesInRecovery >= primariesInitialRecoveries) {
                 // TODO: Should index creation not be throttled for primary shards?
-                return allocation.decision(Decision.THROTTLE, NAME,
+                return allocation.decision(THROTTLE, NAME,
                     "reached the limit of ongoing initial primary recoveries [%d], cluster setting [%s=%d]",
                     primariesInRecovery, CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
                     primariesInitialRecoveries);
             } else {
-                return allocation.decision(Decision.YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
+                return allocation.decision(YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
             }
         } else {
             // Peer recovery
@@ -143,7 +146,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             // Allocating a shard to this node will increase the incoming recoveries
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
             if (currentInRecoveries >= concurrentIncomingRecoveries) {
-                return allocation.decision(Decision.THROTTLE, NAME,
+                return allocation.decision(THROTTLE, NAME,
                     "reached the limit of incoming shard recoveries [%d], cluster setting [%s=%d] (can also be set via [%s])",
                     currentInRecoveries, CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                     concurrentIncomingRecoveries,
@@ -156,7 +159,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 }
                 int primaryNodeOutRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
                 if (primaryNodeOutRecoveries >= concurrentOutgoingRecoveries) {
-                    return allocation.decision(Decision.THROTTLE, NAME,
+                    return allocation.decision(THROTTLE, NAME,
                         "reached the limit of outgoing shard recoveries [%d] on the node [%s] which holds the primary, " +
                         "cluster setting [%s=%d] (can also be set via [%s])",
                         primaryNodeOutRecoveries, primaryShard.currentNodeId(),
@@ -164,7 +167,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                         concurrentOutgoingRecoveries,
                         CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey());
                 } else {
-                    return allocation.decision(Decision.YES, NAME, "below shard recovery limit of outgoing: [%d < %d] incoming: [%d < %d]",
+                    return allocation.decision(YES, NAME, "below shard recovery limit of outgoing: [%d < %d] incoming: [%d < %d]",
                         primaryNodeOutRecoveries,
                         concurrentOutgoingRecoveries,
                         currentInRecoveries,

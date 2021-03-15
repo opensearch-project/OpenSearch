@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.opensearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -371,13 +371,13 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * A set of nodeIds that failed to complete allocations for this shard. {@link org.elasticsearch.gateway.ReplicaShardAllocator}
+     * A set of nodeIds that failed to complete allocations for this shard. {@link org.opensearch.gateway.ReplicaShardAllocator}
      * uses this set to avoid repeatedly canceling ongoing recoveries for copies on those nodes although they can perform noop recoveries.
      * This set will be discarded when a shard moves to started. And if a shard is failed while started (i.e., from started to unassigned),
      * the currently assigned node won't be added to this set.
      *
-     * @see org.elasticsearch.gateway.ReplicaShardAllocator#processExistingRecoveries(RoutingAllocation)
-     * @see org.elasticsearch.cluster.routing.allocation.AllocationService#applyFailedShards(ClusterState, List, List)
+     * @see org.opensearch.gateway.ReplicaShardAllocator#processExistingRecoveries(RoutingAllocation)
+     * @see org.opensearch.cluster.routing.allocation.AllocationService#applyFailedShards(ClusterState, List, List)
      */
     public Set<String> getFailedNodeIds() {
         return failedNodeIds;

@@ -21,7 +21,7 @@ package org.elasticsearch.action.explain;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;

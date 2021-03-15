@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;

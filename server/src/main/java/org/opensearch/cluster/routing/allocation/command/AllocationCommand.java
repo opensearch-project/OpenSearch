@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.routing.allocation.RerouteExplanation;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.NamedWriteable;

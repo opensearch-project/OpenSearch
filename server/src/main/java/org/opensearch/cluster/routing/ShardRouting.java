@@ -19,6 +19,8 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
+import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,8 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -82,7 +84,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         assert !(state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) : "unassigned shard must be created with meta";
         assert (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) == (recoverySource != null) :
             "recovery source only available on unassigned or initializing shard but was " + state;
-        assert recoverySource == null || recoverySource == RecoverySource.PeerRecoverySource.INSTANCE || primary :
+        assert recoverySource == null || recoverySource == PeerRecoverySource.INSTANCE || primary :
             "replica shards always recover from primary";
         assert (currentNodeId == null) == (state == ShardRoutingState.UNASSIGNED)  :
             "unassigned shard must not be assigned to a node " + this;
@@ -92,7 +94,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     private ShardRouting initializeTargetRelocatingShard() {
         if (state == ShardRoutingState.RELOCATING) {
             return new ShardRouting(shardId, relocatingNodeId, currentNodeId, primary, ShardRoutingState.INITIALIZING,
-                RecoverySource.PeerRecoverySource.INSTANCE, unassignedInfo, AllocationId.newTargetRelocation(allocationId), expectedShardSize);
+                PeerRecoverySource.INSTANCE, unassignedInfo, AllocationId.newTargetRelocation(allocationId), expectedShardSize);
         } else {
             return null;
         }
@@ -322,9 +324,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         final RecoverySource recoverySource;
         if (active()) {
             if (primary()) {
-                recoverySource = RecoverySource.ExistingStoreRecoverySource.INSTANCE;
+                recoverySource = ExistingStoreRecoverySource.INSTANCE;
             } else {
-                recoverySource = RecoverySource.PeerRecoverySource.INSTANCE;
+                recoverySource = PeerRecoverySource.INSTANCE;
             }
         } else {
             recoverySource = recoverySource();
@@ -439,7 +441,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (!primary) {
             throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");
         }
-        return new ShardRouting(shardId, currentNodeId, relocatingNodeId, false, state, RecoverySource.PeerRecoverySource.INSTANCE, unassignedInfo,
+        return new ShardRouting(shardId, currentNodeId, relocatingNodeId, false, state, PeerRecoverySource.INSTANCE, unassignedInfo,
             allocationId, expectedShardSize);
     }
 
@@ -660,7 +662,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns recovery source for the given shard. Replica shards always recover from the primary {@link RecoverySource.PeerRecoverySource}.
+     * Returns recovery source for the given shard. Replica shards always recover from the primary {@link PeerRecoverySource}.
      *
      * @return recovery source or null if shard is {@link #active()}
      */

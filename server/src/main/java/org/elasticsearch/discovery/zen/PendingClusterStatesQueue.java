@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.Metadata;

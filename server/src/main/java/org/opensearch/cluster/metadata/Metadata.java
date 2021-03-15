@@ -55,10 +55,10 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.gateway.MetadataStateFormat;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.plugins.MapperPlugin;
+import org.opensearch.gateway.MetadataStateFormat;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

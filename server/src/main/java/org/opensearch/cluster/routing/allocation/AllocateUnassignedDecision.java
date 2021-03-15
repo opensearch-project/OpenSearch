@@ -20,13 +20,14 @@
 package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.opensearch.cluster.routing.UnassignedInfo;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,36 +42,36 @@ import java.util.Objects;
 public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     /** a constant representing a shard decision where no decision was taken */
     public static final AllocateUnassignedDecision NOT_TAKEN =
-        new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.NO_ATTEMPT, null, null, null, false, 0L, 0L);
+        new AllocateUnassignedDecision(AllocationStatus.NO_ATTEMPT, null, null, null, false, 0L, 0L);
     /**
      * a map of cached common no/throttle decisions that don't need explanations,
      * this helps prevent unnecessary object allocations for the non-explain API case
      */
-    private static final Map<UnassignedInfo.AllocationStatus, AllocateUnassignedDecision> CACHED_DECISIONS;
+    private static final Map<AllocationStatus, AllocateUnassignedDecision> CACHED_DECISIONS;
     static {
-        Map<UnassignedInfo.AllocationStatus, AllocateUnassignedDecision> cachedDecisions = new EnumMap<>(UnassignedInfo.AllocationStatus.class);
-        cachedDecisions.put(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA,
-            new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, 0L, 0L));
-        cachedDecisions.put(UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
-            new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, false, 0L, 0L));
-        cachedDecisions.put(UnassignedInfo.AllocationStatus.DECIDERS_NO,
-            new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.DECIDERS_NO, null, null, null, false, 0L, 0L));
-        cachedDecisions.put(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED,
-            new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L));
-        cachedDecisions.put(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
-            new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, null, null, null, false, 0L, 0L));
+        Map<AllocationStatus, AllocateUnassignedDecision> cachedDecisions = new EnumMap<>(AllocationStatus.class);
+        cachedDecisions.put(AllocationStatus.FETCHING_SHARD_DATA,
+            new AllocateUnassignedDecision(AllocationStatus.FETCHING_SHARD_DATA, null, null, null, false, 0L, 0L));
+        cachedDecisions.put(AllocationStatus.NO_VALID_SHARD_COPY,
+            new AllocateUnassignedDecision(AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, false, 0L, 0L));
+        cachedDecisions.put(AllocationStatus.DECIDERS_NO,
+            new AllocateUnassignedDecision(AllocationStatus.DECIDERS_NO, null, null, null, false, 0L, 0L));
+        cachedDecisions.put(AllocationStatus.DECIDERS_THROTTLED,
+            new AllocateUnassignedDecision(AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L));
+        cachedDecisions.put(AllocationStatus.DELAYED_ALLOCATION,
+            new AllocateUnassignedDecision(AllocationStatus.DELAYED_ALLOCATION, null, null, null, false, 0L, 0L));
         CACHED_DECISIONS = Collections.unmodifiableMap(cachedDecisions);
     }
 
     @Nullable
-    private final UnassignedInfo.AllocationStatus allocationStatus;
+    private final AllocationStatus allocationStatus;
     @Nullable
     private final String allocationId;
     private final boolean reuseStore;
     private final long remainingDelayInMillis;
     private final long configuredDelayInMillis;
 
-    private AllocateUnassignedDecision(UnassignedInfo.AllocationStatus allocationStatus,
+    private AllocateUnassignedDecision(AllocationStatus allocationStatus,
                                        DiscoveryNode assignedNode,
                                        String allocationId,
                                        List<NodeAllocationResult> nodeDecisions,
@@ -91,7 +92,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
 
     public AllocateUnassignedDecision(StreamInput in) throws IOException {
         super(in);
-        allocationStatus = in.readOptionalWriteable(UnassignedInfo.AllocationStatus::readFrom);
+        allocationStatus = in.readOptionalWriteable(AllocationStatus::readFrom);
         allocationId = in.readOptionalString();
         reuseStore = in.readBoolean();
         remainingDelayInMillis = in.readVLong();
@@ -99,33 +100,33 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     }
 
     /**
-     * Returns a NO decision with the given {@link UnassignedInfo.AllocationStatus}, and the individual node-level
+     * Returns a NO decision with the given {@link AllocationStatus}, and the individual node-level
      * decisions that comprised the final NO decision if in explain mode.
      */
-    public static AllocateUnassignedDecision no(UnassignedInfo.AllocationStatus allocationStatus, @Nullable List<NodeAllocationResult> decisions) {
+    public static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable List<NodeAllocationResult> decisions) {
         return no(allocationStatus, decisions, false);
     }
 
     /**
      * Returns a NO decision for a delayed shard allocation on a replica shard, with the individual node-level
      * decisions that comprised the final NO decision, if in explain mode.  Instances created with this
-     * method will return {@link UnassignedInfo.AllocationStatus#DELAYED_ALLOCATION} for {@link #getAllocationStatus()}.
+     * method will return {@link AllocationStatus#DELAYED_ALLOCATION} for {@link #getAllocationStatus()}.
      */
     public static AllocateUnassignedDecision delayed(long remainingDelay, long totalDelay,
                                                      @Nullable List<NodeAllocationResult> decisions) {
-        return no(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, decisions, false, remainingDelay, totalDelay);
+        return no(AllocationStatus.DELAYED_ALLOCATION, decisions, false, remainingDelay, totalDelay);
     }
 
     /**
-     * Returns a NO decision with the given {@link UnassignedInfo.AllocationStatus}, and the individual node-level
+     * Returns a NO decision with the given {@link AllocationStatus}, and the individual node-level
      * decisions that comprised the final NO decision if in explain mode.
      */
-    public static AllocateUnassignedDecision no(UnassignedInfo.AllocationStatus allocationStatus, @Nullable List<NodeAllocationResult> decisions,
+    public static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable List<NodeAllocationResult> decisions,
                                                 boolean reuseStore) {
         return no(allocationStatus, decisions, reuseStore, 0L, 0L);
     }
 
-    private static AllocateUnassignedDecision no(UnassignedInfo.AllocationStatus allocationStatus, @Nullable List<NodeAllocationResult> decisions,
+    private static AllocateUnassignedDecision no(AllocationStatus allocationStatus, @Nullable List<NodeAllocationResult> decisions,
                                                  boolean reuseStore, long remainingDelay, long totalDelay) {
         if (decisions != null) {
             return new AllocateUnassignedDecision(allocationStatus, null, null, decisions, reuseStore, remainingDelay, totalDelay);
@@ -140,9 +141,9 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      */
     public static AllocateUnassignedDecision throttle(@Nullable List<NodeAllocationResult> decisions) {
         if (decisions != null) {
-            return new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, null, null, decisions, false, 0L, 0L);
+            return new AllocateUnassignedDecision(AllocationStatus.DECIDERS_THROTTLED, null, null, decisions, false, 0L, 0L);
         } else {
-            return getCachedDecision(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED);
+            return getCachedDecision(AllocationStatus.DECIDERS_THROTTLED);
         }
     }
 
@@ -161,19 +162,19 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      */
     public static AllocateUnassignedDecision fromDecision(Decision decision, @Nullable DiscoveryNode assignedNode,
                                                           @Nullable List<NodeAllocationResult> nodeDecisions) {
-        final Decision.Type decisionType = decision.type();
-        UnassignedInfo.AllocationStatus allocationStatus = decisionType != Decision.Type.YES ? UnassignedInfo.AllocationStatus.fromDecision(decisionType) : null;
+        final Type decisionType = decision.type();
+        AllocationStatus allocationStatus = decisionType != Decision.Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
         return new AllocateUnassignedDecision(allocationStatus, assignedNode, null, nodeDecisions, false, 0L, 0L);
     }
 
-    private static AllocateUnassignedDecision getCachedDecision(UnassignedInfo.AllocationStatus allocationStatus) {
+    private static AllocateUnassignedDecision getCachedDecision(AllocationStatus allocationStatus) {
         AllocateUnassignedDecision decision = CACHED_DECISIONS.get(allocationStatus);
         return Objects.requireNonNull(decision, "precomputed decision not found for " + allocationStatus);
     }
 
     @Override
     public boolean isDecisionTaken() {
-        return allocationStatus != UnassignedInfo.AllocationStatus.NO_ATTEMPT;
+        return allocationStatus != AllocationStatus.NO_ATTEMPT;
     }
 
     /**
@@ -192,7 +193,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
     @Nullable
-    public UnassignedInfo.AllocationStatus getAllocationStatus() {
+    public AllocationStatus getAllocationStatus() {
         checkDecisionState();
         return allocationStatus;
     }
@@ -214,7 +215,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * Gets the remaining delay for allocating the replica shard when a node holding the replica left
      * the cluster and the deciders are waiting to see if the node returns before allocating the replica
      * elsewhere.  Only returns a meaningful positive value if {@link #getAllocationStatus()} returns
-     * {@link UnassignedInfo.AllocationStatus#DELAYED_ALLOCATION}.  If {@link #isDecisionTaken()} returns {@code false},
+     * {@link AllocationStatus#DELAYED_ALLOCATION}.  If {@link #isDecisionTaken()} returns {@code false},
      * then invoking this method will throw an {@code IllegalStateException}.
      */
     public long getRemainingDelayInMillis() {
@@ -226,7 +227,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
      * Gets the total configured delay for allocating the replica shard when a node holding the replica left
      * the cluster and the deciders are waiting to see if the node returns before allocating the replica
      * elsewhere.  Only returns a meaningful positive value if {@link #getAllocationStatus()} returns
-     * {@link UnassignedInfo.AllocationStatus#DELAYED_ALLOCATION}.  If {@link #isDecisionTaken()} returns {@code false},
+     * {@link AllocationStatus#DELAYED_ALLOCATION}.  If {@link #isDecisionTaken()} returns {@code false},
      * then invoking this method will throw an {@code IllegalStateException}.
      */
     public long getConfiguredDelayInMillis() {
@@ -287,7 +288,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         if (allocationId != null) {
             builder.field("allocation_id", allocationId);
         }
-        if (allocationStatus == UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION) {
+        if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
             builder.humanReadableField("configured_delay_in_millis", "configured_delay",
                 TimeValue.timeValueMillis(configuredDelayInMillis));
             builder.humanReadableField("remaining_delay_in_millis", "remaining_delay",

@@ -20,7 +20,7 @@
 package org.opensearch.cluster;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.OpenSearchException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
