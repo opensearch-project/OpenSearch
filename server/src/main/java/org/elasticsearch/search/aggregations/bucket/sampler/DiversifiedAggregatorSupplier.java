@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;

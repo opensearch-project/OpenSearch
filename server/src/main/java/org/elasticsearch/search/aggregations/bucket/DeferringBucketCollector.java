@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;

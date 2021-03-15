@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,7 +40,7 @@ public abstract class MetricsAggregator extends AggregatorBase {
 
     /**
      * Build an aggregation for data that has been collected into
-     * {@code owningBucketOrd}. 
+     * {@code owningBucketOrd}.
      */
     public abstract InternalAggregation buildAggregation(long owningBucketOrd) throws IOException;
 

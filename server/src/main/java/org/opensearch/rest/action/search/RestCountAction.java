@@ -43,7 +43,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.action.RestActions.buildBroadcastShardsHeader;
-import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
+import static org.opensearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCountAction.class);

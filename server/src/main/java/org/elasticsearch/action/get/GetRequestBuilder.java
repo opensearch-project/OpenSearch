@@ -24,7 +24,7 @@ import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.index.VersionType;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A get document action request builder.

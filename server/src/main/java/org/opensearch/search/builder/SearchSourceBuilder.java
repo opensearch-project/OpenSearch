@@ -46,11 +46,11 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.fetch.StoredFieldsContext;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FieldAndFormat;
+import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.slice.SliceBuilder;
@@ -58,7 +58,7 @@ import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.opensearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,8 +68,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
-import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
-import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
+import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * A search source builder allowing to easily build search source. Simple

@@ -26,8 +26,8 @@ import org.opensearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;

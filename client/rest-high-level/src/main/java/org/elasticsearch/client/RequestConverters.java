@@ -82,7 +82,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.SearchTemplateRequest;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

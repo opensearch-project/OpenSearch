@@ -29,12 +29,12 @@ import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.opensearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.ShardFetchSearchRequest;
+import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.Transport;
 
 import java.util.List;

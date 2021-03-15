@@ -53,7 +53,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.internal.SearchContext;
 import org.junit.Before;
 import org.junit.BeforeClass;
 

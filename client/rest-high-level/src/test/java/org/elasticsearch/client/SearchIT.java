@@ -78,12 +78,12 @@ import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuild
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.opensearch.search.suggest.Suggest;
+import org.opensearch.search.suggest.SuggestBuilder;
+import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 

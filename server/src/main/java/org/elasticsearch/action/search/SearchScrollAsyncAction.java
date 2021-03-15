@@ -29,9 +29,9 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.InternalScrollSearchRequest;
+import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 

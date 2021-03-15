@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

@@ -22,10 +22,10 @@ package org.elasticsearch.search;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;

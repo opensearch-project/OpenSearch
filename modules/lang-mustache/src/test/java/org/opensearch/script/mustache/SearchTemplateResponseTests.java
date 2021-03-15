@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

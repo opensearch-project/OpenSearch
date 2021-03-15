@@ -41,7 +41,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;

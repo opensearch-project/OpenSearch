@@ -28,8 +28,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
-import org.elasticsearch.search.fetch.FetchContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.opensearch.search.fetch.FetchContext;
+import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
