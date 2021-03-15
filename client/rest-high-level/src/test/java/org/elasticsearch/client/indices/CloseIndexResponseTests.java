@@ -22,7 +22,7 @@ import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;

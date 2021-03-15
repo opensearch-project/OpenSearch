@@ -28,7 +28,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -240,7 +240,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         if (sortedByFields) {
             dataNodeComparator = sortFieldsComparator(((TopFieldDocs) inputs.get(0).getTopDocs().topDocs).fields);
         } else {
-            dataNodeComparator = scoreComparator(); 
+            dataNodeComparator = scoreComparator();
         }
         Comparator<ScoreDoc> reducedComparator = dataNodeComparator.thenComparing(s -> s.shardIndex);
         SearchHits actualHits = reduced.getHits();

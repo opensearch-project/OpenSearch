@@ -23,7 +23,7 @@ import org.apache.lucene.util.SetOnce;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterName;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;

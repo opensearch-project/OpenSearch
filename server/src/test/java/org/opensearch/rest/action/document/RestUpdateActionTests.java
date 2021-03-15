@@ -21,7 +21,7 @@ package org.opensearch.rest.action.document;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.opensearch.rest.RestRequest;

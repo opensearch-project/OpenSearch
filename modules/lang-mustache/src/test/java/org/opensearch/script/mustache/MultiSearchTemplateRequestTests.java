@@ -20,7 +20,7 @@
 package org.opensearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.script.ScriptType;

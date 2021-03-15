@@ -25,7 +25,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 

@@ -21,7 +21,7 @@ package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;

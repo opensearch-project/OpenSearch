@@ -21,7 +21,7 @@ package org.opensearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.BaseRestHandler;

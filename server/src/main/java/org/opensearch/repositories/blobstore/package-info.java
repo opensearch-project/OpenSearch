@@ -26,7 +26,7 @@
  * {@link org.opensearch.repositories.Repository} on top of a blob store. A blobstore can be used as the basis for an implementation
  * as long as it provides for GET, PUT, DELETE, and LIST operations. For a read-only repository, it suffices if the blobstore provides only
  * GET operations.
- * These operations are formally defined as specified by the {@link org.elasticsearch.common.blobstore.BlobContainer} interface that
+ * These operations are formally defined as specified by the {@link org.opensearch.common.blobstore.BlobContainer} interface that
  * any {@code BlobStoreRepository} implementation must provide via its implementation of
  * {@link org.opensearch.repositories.blobstore.BlobStoreRepository#getBlobContainer()}.</p>
  *

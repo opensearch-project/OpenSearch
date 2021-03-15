@@ -21,7 +21,7 @@ package org.elasticsearch.client.core.tasks;
 
 import org.opensearch.client.Requests;
 import org.elasticsearch.client.tasks.GetTaskResponse;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.tasks.RawTaskStatus;

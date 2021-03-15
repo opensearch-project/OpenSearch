@@ -59,7 +59,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

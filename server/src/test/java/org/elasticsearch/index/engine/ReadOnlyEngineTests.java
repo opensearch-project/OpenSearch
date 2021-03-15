@@ -22,7 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;

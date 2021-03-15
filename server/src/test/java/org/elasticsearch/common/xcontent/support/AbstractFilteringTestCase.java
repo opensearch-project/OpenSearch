@@ -20,7 +20,7 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
