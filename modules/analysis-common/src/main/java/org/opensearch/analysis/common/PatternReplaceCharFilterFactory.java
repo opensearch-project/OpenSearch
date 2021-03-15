@@ -22,7 +22,7 @@ import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
 import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;

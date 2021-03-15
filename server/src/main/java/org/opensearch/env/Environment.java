@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.env;
+package org.opensearch.env;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -325,7 +325,7 @@ public class Environment {
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {
-        return new ESFileStore(Files.getFileStore(path));
+        return new OpenSearchFileStore(Files.getFileStore(path));
     }
 
     /**

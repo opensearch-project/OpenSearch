@@ -46,7 +46,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import java.io.BufferedReader;
 import java.io.IOException;

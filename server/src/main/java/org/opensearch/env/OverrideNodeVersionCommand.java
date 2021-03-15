@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.env;
+package org.opensearch.env;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -34,8 +34,8 @@ public class OverrideNodeVersionCommand extends OpenSearchNodeCommand {
     private static final String TOO_NEW_MESSAGE =
         DELIMITER +
             "\n" +
-            "This data path was last written by Elasticsearch version [V_NEW] and may no\n" +
-            "longer be compatible with Elasticsearch version [V_CUR]. This tool will bypass\n" +
+            "This data path was last written by OpenSearch version [V_NEW] and may no\n" +
+            "longer be compatible with OpenSearch version [V_CUR]. This tool will bypass\n" +
             "this compatibility check, allowing a version [V_CUR] node to start on this data\n" +
             "path, but a version [V_CUR] node may not be able to read this data or may read\n" +
             "it incorrectly leading to data loss.\n" +
@@ -49,14 +49,14 @@ public class OverrideNodeVersionCommand extends OpenSearchNodeCommand {
     private static final String TOO_OLD_MESSAGE =
         DELIMITER +
             "\n" +
-            "This data path was last written by Elasticsearch version [V_OLD] which may be\n" +
-            "too old to be readable by Elasticsearch version [V_CUR].  This tool will bypass\n" +
+            "This data path was last written by OpenSearch version [V_OLD] which may be\n" +
+            "too old to be readable by OpenSearch version [V_CUR].  This tool will bypass\n" +
             "this compatibility check, allowing a version [V_CUR] node to start on this data\n" +
             "path, but this version [V_CUR] node may not be able to read this data or may\n" +
             "read it incorrectly leading to data loss.\n" +
             "\n" +
             "You should not use this tool. Instead, upgrade this data path from [V_OLD] to\n" +
-            "[V_CUR] using one or more intermediate versions of Elasticsearch.\n" +
+            "[V_CUR] using one or more intermediate versions of OpenSearch.\n" +
             "\n" +
             "Do you want to proceed?\n";
 

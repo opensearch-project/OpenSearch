@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.env;
+package org.opensearch.env;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -247,7 +247,7 @@ public final class NodeEnvironment  implements Closeable {
 
     /**
      * Setup the environment.
-     * @param settings settings from elasticsearch.yml
+     * @param settings settings from opensearch.yml
      */
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
@@ -476,7 +476,7 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Acquires, then releases, all {@code write.lock} files in the given
      * shard paths. The "write.lock" file is assumed to be under the shard
-     * path's "index" directory as used by Elasticsearch.
+     * path's "index" directory as used by OpenSearch.
      *
      * @throws LockObtainFailedException if any of the locks could not be acquired
      */
@@ -821,7 +821,7 @@ public final class NodeEnvironment  implements Closeable {
      **/
     public String nodeId() {
         // we currently only return the ID and hide the underlying nodeMetadata implementation in order to avoid
-        // confusion with other "metadata" like node settings found in elasticsearch.yml. In future
+        // confusion with other "metadata" like node settings found in opensearch.yml. In future
         // we can encapsulate both (and more) in one NodeMetadata (or NodeSettings) object ala IndexSettings
         return nodeMetadata.nodeId();
     }
@@ -1068,7 +1068,7 @@ public final class NodeEnvironment  implements Closeable {
             } catch (AtomicMoveNotSupportedException ex) {
                 throw new IllegalStateException("atomic_move is not supported by the filesystem on path ["
                         + nodePath.path
-                        + "] atomic_move is required for elasticsearch to work correctly.", ex);
+                        + "] atomic_move is required for opensearch to work correctly.", ex);
             } finally {
                 try {
                     Files.deleteIfExists(src);
@@ -1084,7 +1084,7 @@ public final class NodeEnvironment  implements Closeable {
         if (shardDataPaths.isEmpty() == false) {
             final String message = String.format(
                 Locale.ROOT,
-                "node does not have the %s role but has shard data: %s. Use 'elasticsearch-node repurpose' tool to clean up",
+                "node does not have the %s role but has shard data: %s. Use 'opensearch-node repurpose' tool to clean up",
                 DiscoveryNodeRole.DATA_ROLE.roleName(),
                 shardDataPaths
             );
@@ -1097,7 +1097,7 @@ public final class NodeEnvironment  implements Closeable {
         if (indexMetadataPaths.isEmpty() == false) {
             final String message = String.format(
                 Locale.ROOT,
-                "node does not have the %s and %s roles but has index metadata: %s. Use 'elasticsearch-node repurpose' tool to clean up",
+                "node does not have the %s and %s roles but has index metadata: %s. Use 'opensearch-node repurpose' tool to clean up",
                 DiscoveryNodeRole.DATA_ROLE.roleName(),
                 DiscoveryNodeRole.MASTER_ROLE.roleName(),
                 indexMetadataPaths
