@@ -32,7 +32,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

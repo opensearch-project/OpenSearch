@@ -20,7 +20,7 @@
 package org.elasticsearch.client.indices;
 
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;

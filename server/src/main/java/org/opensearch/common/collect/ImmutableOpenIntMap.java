@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,19 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.common.collect;
+package org.opensearch.common.collect;
 
-import com.carrotsearch.hppc.ObjectCollection;
+import com.carrotsearch.hppc.IntCollection;
+import com.carrotsearch.hppc.IntContainer;
+import com.carrotsearch.hppc.IntLookupContainer;
+import com.carrotsearch.hppc.IntObjectAssociativeContainer;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.ObjectLookupContainer;
-import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
+import com.carrotsearch.hppc.cursors.IntCursor;
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
-import com.carrotsearch.hppc.predicates.ObjectPredicate;
-import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
+import com.carrotsearch.hppc.predicates.IntObjectPredicate;
+import com.carrotsearch.hppc.predicates.IntPredicate;
+import com.carrotsearch.hppc.procedures.IntObjectProcedure;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -37,14 +39,14 @@ import java.util.Map;
 /**
  * An immutable map implementation based on open hash map.
  * <p>
- * Can be constructed using a {@link #builder()}, or using {@link #builder(ImmutableOpenMap)} (which is an optimized
- * option to copy over existing content and modify it).
+ * Can be constructed using a {@link #builder()}, or using {@link #builder(org.opensearch.common.collect.ImmutableOpenIntMap)}
+ * (which is an optimized option to copy over existing content and modify it).
  */
-public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObjectCursor<KType, VType>> {
+public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCursor<VType>> {
 
-    private final ObjectObjectHashMap<KType, VType> map;
+    private final IntObjectHashMap<VType> map;
 
-    private ImmutableOpenMap(ObjectObjectHashMap<KType, VType> map) {
+    private ImmutableOpenIntMap(IntObjectHashMap<VType> map) {
         this.map = map;
     }
 
@@ -56,23 +58,15 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      * key may not be the default value of the primitive type (it may be any value previously
      * assigned to that slot).
      */
-    public VType get(KType key) {
+    public VType get(int key) {
         return map.get(key);
-    }
-
-    /**
-     * @return Returns the value associated with the given key or the provided default value if the
-     * key is not associated with any value.
-     */
-    public VType getOrDefault(KType key, VType defaultValue) {
-        return map.getOrDefault(key, defaultValue);
     }
 
     /**
      * Returns <code>true</code> if this container has an association to a value for
      * the given key.
      */
-    public boolean containsKey(KType key) {
+    public boolean containsKey(int key) {
         return map.containsKey(key);
     }
 
@@ -93,7 +87,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     /**
      * Returns a cursor over the entries (key-value pairs) in this map. The iterator is
      * implemented as a cursor and it returns <b>the same cursor instance</b> on every
-     * call to {@link Iterator#next()}. To read the current key and value use the cursor's
+     * call to {@link java.util.Iterator#next()}. To read the current key and value use the cursor's
      * public fields. An example is shown below.
      * <pre>
      * for (IntShortCursor c : intShortMap)
@@ -109,29 +103,31 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      * to the container.
      */
     @Override
-    public Iterator<ObjectObjectCursor<KType, VType>> iterator() {
+    public Iterator<IntObjectCursor<VType>> iterator() {
         return map.iterator();
     }
 
     /**
      * Returns a specialized view of the keys of this associated container.
-     * The view additionally implements {@link ObjectLookupContainer}.
+     * The view additionally implements {@link com.carrotsearch.hppc.ObjectLookupContainer}.
      */
-    public ObjectLookupContainer<KType> keys() {
+    public IntLookupContainer keys() {
         return map.keys();
     }
 
     /**
      * Returns a direct iterator over the keys.
      */
-    public Iterator<KType> keysIt() {
-        final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
-        return new Iterator<KType>() {
+    public Iterator<Integer> keysIt() {
+        final Iterator<IntCursor> iterator = map.keys().iterator();
+        return new Iterator<Integer>() {
             @Override
-            public boolean hasNext() { return iterator.hasNext(); }
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
 
             @Override
-            public KType next() {
+            public Integer next() {
                 return iterator.next().value;
             }
 
@@ -156,7 +152,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         final Iterator<ObjectCursor<VType>> iterator = map.values().iterator();
         return new Iterator<VType>() {
             @Override
-            public boolean hasNext() { return iterator.hasNext(); }
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
 
             @Override
             public VType next() {
@@ -180,7 +178,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        ImmutableOpenMap that = (ImmutableOpenMap) o;
+        ImmutableOpenIntMap that = (ImmutableOpenIntMap) o;
 
         if (!map.equals(that.map)) return false;
 
@@ -193,36 +191,28 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     @SuppressWarnings("unchecked")
-    private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectHashMap());
+    private static final ImmutableOpenIntMap EMPTY = new ImmutableOpenIntMap(new IntObjectHashMap());
 
     @SuppressWarnings("unchecked")
-    public static <KType, VType> ImmutableOpenMap<KType, VType> of() {
+    public static <VType> ImmutableOpenIntMap<VType> of() {
         return EMPTY;
     }
 
-    /**
-     * @return  An immutable copy of the given map
-     */
-    public static <KType, VType> ImmutableOpenMap<KType, VType> copyOf(ObjectObjectMap<KType, VType> map) {
-        Builder<KType, VType> builder = builder();
-        builder.putAll(map);
-        return builder.build();
-    }
-
-    public static <KType, VType> Builder<KType, VType> builder() {
+    public static <VType> Builder<VType> builder() {
         return new Builder<>();
     }
 
-    public static <KType, VType> Builder<KType, VType> builder(int size) {
+    public static <VType> Builder<VType> builder(int size) {
         return new Builder<>(size);
     }
 
-    public static <KType, VType> Builder<KType, VType> builder(ImmutableOpenMap<KType, VType> map) {
+    public static <VType> Builder<VType> builder(ImmutableOpenIntMap<VType> map) {
         return new Builder<>(map);
     }
 
-    public static class Builder<KType, VType> implements ObjectObjectMap<KType, VType> {
-        private ObjectObjectHashMap<KType, VType> map;
+    public static class Builder<VType> implements IntObjectMap<VType> {
+
+        private IntObjectHashMap<VType> map;
 
         public Builder() {
             //noinspection unchecked
@@ -230,29 +220,27 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         public Builder(int size) {
-            this.map = new ObjectObjectHashMap<>(size);
+            this.map = new IntObjectHashMap<>(size);
         }
 
-        public Builder(ImmutableOpenMap<KType, VType> map) {
+        public Builder(ImmutableOpenIntMap<VType> map) {
             this.map = map.map.clone();
         }
 
         /**
          * Builds a new instance of the
          */
-        public ImmutableOpenMap<KType, VType> build() {
-            ObjectObjectHashMap<KType, VType> map = this.map;
+        public ImmutableOpenIntMap<VType> build() {
+            IntObjectHashMap<VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
-            return new ImmutableOpenMap<>(map);
+            return new ImmutableOpenIntMap<>(map);
         }
-
-
 
         /**
          * Puts all the entries in the map to the builder.
          */
-        public Builder<KType, VType> putAll(Map<KType, VType> map) {
-            for (Map.Entry<KType, VType> entry : map.entrySet()) {
+        public Builder<VType> putAll(Map<Integer, VType> map) {
+            for (Map.Entry<Integer, VType> entry : map.entrySet()) {
                 this.map.put(entry.getKey(), entry.getValue());
             }
             return this;
@@ -261,56 +249,46 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         /**
          * A put operation that can be used in the fluent pattern.
          */
-        public Builder<KType, VType> fPut(KType key, VType value) {
+        public Builder<VType> fPut(int key, VType value) {
             map.put(key, value);
             return this;
         }
 
         @Override
-        public VType put(KType key, VType value) {
+        public VType put(int key, VType value) {
             return map.put(key, value);
         }
 
         @Override
-        public VType get(KType key) {
+        public VType get(int key) {
             return map.get(key);
         }
 
         @Override
-        public VType getOrDefault(KType kType, VType vType) {
+        public VType getOrDefault(int kType, VType vType) {
             return map.getOrDefault(kType, vType);
-        }
-
-        @Override
-        public int putAll(ObjectObjectAssociativeContainer<? extends KType, ? extends VType> container) {
-            return map.putAll(container);
-        }
-
-        @Override
-        public int putAll(Iterable<? extends ObjectObjectCursor<? extends KType, ? extends VType>> iterable) {
-            return map.putAll(iterable);
         }
 
         /**
          * Remove that can be used in the fluent pattern.
          */
-        public Builder<KType, VType> fRemove(KType key) {
+        public Builder<VType> fRemove(int key) {
             map.remove(key);
             return this;
         }
 
         @Override
-        public VType remove(KType key) {
+        public VType remove(int key) {
             return map.remove(key);
         }
 
         @Override
-        public Iterator<ObjectObjectCursor<KType, VType>> iterator() {
+        public Iterator<IntObjectCursor<VType>> iterator() {
             return map.iterator();
         }
 
         @Override
-        public boolean containsKey(KType key) {
+        public boolean containsKey(int key) {
             return map.containsKey(key);
         }
 
@@ -325,27 +303,37 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         @Override
-        public int removeAll(ObjectContainer<? super KType> container) {
-            return map.removeAll(container);
-        }
-
-        @Override
-        public int removeAll(ObjectPredicate<? super KType> predicate) {
-            return map.removeAll(predicate);
-        }
-
-        @Override
-        public <T extends ObjectObjectProcedure<? super KType, ? super VType>> T forEach(T procedure) {
-            return map.forEach(procedure);
-        }
-
-        @Override
         public void clear() {
             map.clear();
         }
 
         @Override
-        public ObjectCollection<KType> keys() {
+        public int putAll(IntObjectAssociativeContainer<? extends VType> container) {
+            return map.putAll(container);
+        }
+
+        @Override
+        public int putAll(Iterable<? extends IntObjectCursor<? extends VType>> iterable) {
+            return map.putAll(iterable);
+        }
+
+        @Override
+        public int removeAll(IntContainer container) {
+            return map.removeAll(container);
+        }
+
+        @Override
+        public int removeAll(IntPredicate predicate) {
+            return map.removeAll(predicate);
+        }
+
+        @Override
+        public <T extends IntObjectProcedure<? super VType>> T forEach(T procedure) {
+            return map.forEach(procedure);
+        }
+
+        @Override
+        public IntCollection keys() {
             return map.keys();
         }
 
@@ -354,23 +342,18 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             return map.values();
         }
 
-        @SuppressWarnings("unchecked")
-        public <K, V> Builder<K, V> cast() {
-            return (Builder) this;
-        }
-
         @Override
-        public int removeAll(ObjectObjectPredicate<? super KType, ? super VType> predicate) {
+        public int removeAll(IntObjectPredicate<? super VType> predicate) {
             return map.removeAll(predicate);
         }
 
         @Override
-        public <T extends ObjectObjectPredicate<? super KType, ? super VType>> T forEach(T predicate) {
+        public <T extends IntObjectPredicate<? super VType>> T forEach(T predicate) {
             return map.forEach(predicate);
         }
 
         @Override
-        public int indexOf(KType key) {
+        public int indexOf(int key) {
             return map.indexOf(key);
         }
 
@@ -390,7 +373,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         @Override
-        public void indexInsert(int index, KType key, VType value) {
+        public void indexInsert(int index, int key, VType value) {
             map.indexInsert(index, key, value);
         }
 

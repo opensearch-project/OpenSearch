@@ -98,7 +98,7 @@ import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.Strings;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;

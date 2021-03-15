@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;

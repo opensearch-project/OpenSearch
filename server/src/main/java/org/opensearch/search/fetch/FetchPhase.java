@@ -33,7 +33,7 @@ import org.apache.lucene.util.BitSet;
 import org.opensearch.Version;
 import org.opensearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.document.DocumentField;
+import org.opensearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.text.Text;

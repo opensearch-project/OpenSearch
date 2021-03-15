@@ -42,7 +42,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;

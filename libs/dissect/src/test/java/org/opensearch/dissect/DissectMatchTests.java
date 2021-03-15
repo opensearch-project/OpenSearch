@@ -19,7 +19,7 @@
 
 package org.opensearch.dissect;
 
-import org.elasticsearch.common.collect.MapBuilder;
+import org.opensearch.common.collect.MapBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;

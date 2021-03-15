@@ -23,7 +23,7 @@ import org.opensearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;

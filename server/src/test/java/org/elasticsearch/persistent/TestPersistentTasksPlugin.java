@@ -41,7 +41,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.component.Lifecycle;
+import org.opensearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;

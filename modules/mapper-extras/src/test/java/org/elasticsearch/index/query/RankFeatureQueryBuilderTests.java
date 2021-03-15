@@ -24,7 +24,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.RankFeatureQueryBuilder.ScoreFunction;

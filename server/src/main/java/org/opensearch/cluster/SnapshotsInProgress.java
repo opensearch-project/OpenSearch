@@ -26,7 +26,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

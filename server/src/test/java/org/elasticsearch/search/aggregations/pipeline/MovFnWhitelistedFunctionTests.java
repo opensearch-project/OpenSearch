@@ -19,8 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.collect.EvictingQueue;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
+import org.opensearch.common.collect.EvictingQueue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

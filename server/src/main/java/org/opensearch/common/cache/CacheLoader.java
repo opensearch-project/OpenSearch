@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,19 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.common.component;
+package org.opensearch.common.cache;
 
-import org.elasticsearch.common.lease.Releasable;
-
-public interface LifecycleComponent extends Releasable {
-
-    Lifecycle.State lifecycleState();
-
-    void addLifecycleListener(LifecycleListener listener);
-
-    void removeLifecycleListener(LifecycleListener listener);
-
-    void start();
-
-    void stop();
+@FunctionalInterface
+public interface CacheLoader<K, V> {
+    V load(K key) throws Exception;
 }

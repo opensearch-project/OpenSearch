@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

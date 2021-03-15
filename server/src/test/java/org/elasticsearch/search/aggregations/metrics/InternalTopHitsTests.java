@@ -30,7 +30,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.document.DocumentField;
+import org.opensearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;

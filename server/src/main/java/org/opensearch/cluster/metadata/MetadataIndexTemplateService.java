@@ -39,7 +39,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;

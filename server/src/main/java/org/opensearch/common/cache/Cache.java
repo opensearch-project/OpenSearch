@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.cache;
+package org.opensearch.common.cache;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -505,7 +505,7 @@ public class Cache<K, V> {
 
     /**
      * Invalidate the association for the specified key. A removal notification will be issued for invalidated
-     * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+     * entries with {@link org.opensearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
      *
      * @param key the key whose mapping is to be invalidated from the cache
      */
@@ -517,7 +517,7 @@ public class Cache<K, V> {
     /**
      * Invalidate the entry for the specified key and value. If the value provided is not equal to the value in
      * the cache, no removal will occur. A removal notification will be issued for invalidated
-     * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+     * entries with {@link org.opensearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
      *
      * @param key the key whose mapping is to be invalidated from the cache
      * @param value the expected value that should be associated with the key
@@ -529,7 +529,7 @@ public class Cache<K, V> {
 
     /**
      * Invalidate all cache entries. A removal notification will be issued for invalidated entries with
-     * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+     * {@link org.opensearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
      */
     public void invalidateAll() {
         Entry<K, V> h;
