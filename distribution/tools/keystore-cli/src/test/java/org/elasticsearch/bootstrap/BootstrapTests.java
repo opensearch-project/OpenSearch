@@ -28,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.bootstrap.Bootstrap;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

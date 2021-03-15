@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
@@ -29,8 +29,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
-
-import static org.elasticsearch.bootstrap.JNAKernel32Library.SizeT;
 
 /**
  * This class performs the actual work with JNA and library bindings to call native methods. It should only be used after
@@ -183,7 +181,7 @@ class JNANatives {
             // By default, Windows limits the number of pages that can be locked.
             // Thus, we need to first increase the working set size of the JVM by
             // the amount of memory we wish to lock, plus a small overhead (1MB).
-            SizeT size = new SizeT(JvmInfo.jvmInfo().getMem().getHeapInit().getBytes() + (1024 * 1024));
+            JNAKernel32Library.SizeT size = new JNAKernel32Library.SizeT(JvmInfo.jvmInfo().getMem().getHeapInit().getBytes() + (1024 * 1024));
             if (!kernel.SetProcessWorkingSetSize(process, size, size)) {
                 logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code {}", Native.getLastError());
             } else {
@@ -194,7 +192,7 @@ class JNANatives {
                             && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_NOACCESS) != JNAKernel32Library.PAGE_NOACCESS
                             && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_GUARD) != JNAKernel32Library.PAGE_GUARD;
                     if (lockable) {
-                        kernel.VirtualLock(memInfo.BaseAddress, new SizeT(memInfo.RegionSize.longValue()));
+                        kernel.VirtualLock(memInfo.BaseAddress, new JNAKernel32Library.SizeT(memInfo.RegionSize.longValue()));
                     }
                     // Move to the next region
                     address += memInfo.RegionSize.longValue();

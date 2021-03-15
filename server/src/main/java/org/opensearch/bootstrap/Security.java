@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
+import org.elasticsearch.bootstrap.JarHell;
 import org.opensearch.cli.Command;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -53,9 +54,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
-import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -258,7 +256,7 @@ final class Security {
     private static Permissions createRecursiveDataPathPermission(Environment environment) throws IOException {
         Permissions policy = new Permissions();
         for (Path path : environment.dataFiles()) {
-            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
+            FilePermissionUtils.addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
         }
         return policy;
     }
@@ -277,9 +275,9 @@ final class Security {
             }
             // resource itself
             if (Files.isDirectory(path)) {
-                addDirectoryPath(policy, "class.path", path, "read,readlink", false);
+                FilePermissionUtils.addDirectoryPath(policy, "class.path", path, "read,readlink", false);
             } else {
-                addSingleFilePath(policy, path, "read,readlink");
+                FilePermissionUtils.addSingleFilePath(policy, path, "read,readlink");
             }
         }
     }
@@ -289,21 +287,21 @@ final class Security {
      */
     static void addFilePermissions(Permissions policy, Environment environment) throws IOException {
         // read-only dirs
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
-        addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink", false);
+        FilePermissionUtils.addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink", false);
+        FilePermissionUtils.addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
+        FilePermissionUtils.addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
+        FilePermissionUtils.addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
+        FilePermissionUtils.addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink", false);
         // read-write dirs
-        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
-        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
+        FilePermissionUtils.addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
+        FilePermissionUtils.addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
         if (environment.sharedDataFile() != null) {
-            addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),
+            FilePermissionUtils.addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),
                 "read,readlink,write,delete", false);
         }
         final Set<Path> dataFilesPaths = new HashSet<>();
         for (Path path : environment.dataFiles()) {
-            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", false);
+            FilePermissionUtils.addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", false);
             /*
              * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
              * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
@@ -319,11 +317,11 @@ final class Security {
             }
         }
         for (Path path : environment.repoFiles()) {
-            addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
+            FilePermissionUtils.addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
         }
         if (environment.pidFile() != null) {
             // we just need permission to remove the file if its elsewhere.
-            addSingleFilePath(policy, environment.pidFile(), "delete");
+            FilePermissionUtils.addSingleFilePath(policy, environment.pidFile(), "delete");
         }
     }
 
