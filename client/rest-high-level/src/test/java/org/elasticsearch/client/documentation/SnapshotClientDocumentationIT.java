@@ -41,9 +41,9 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRespo
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
+import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
+import org.opensearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.opensearch.cluster.SnapshotsInProgress;

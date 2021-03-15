@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.client.ResponseException;
+import org.opensearch.client.ResponseException;
 
 import java.io.IOException;
 

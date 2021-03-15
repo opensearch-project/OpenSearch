@@ -20,7 +20,7 @@
 package org.elasticsearch.upgrades;
 
 import org.opensearch.Version;
-import org.elasticsearch.client.Request;
+import org.opensearch.client.Request;
 import org.elasticsearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
