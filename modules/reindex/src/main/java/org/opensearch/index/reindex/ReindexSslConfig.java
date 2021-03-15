@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.ssl.SslConfiguration;
 import org.opensearch.common.ssl.SslConfigurationKeys;
 import org.opensearch.common.ssl.SslConfigurationLoader;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;

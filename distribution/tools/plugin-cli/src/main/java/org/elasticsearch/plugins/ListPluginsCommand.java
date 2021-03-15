@@ -23,7 +23,7 @@ import joptsimple.OptionSet;
 import org.opensearch.Version;
 import org.opensearch.cli.EnvironmentAwareCommand;
 import org.opensearch.cli.Terminal;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
