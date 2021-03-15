@@ -22,7 +22,7 @@ package org.elasticsearch.search.suggest;
 import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

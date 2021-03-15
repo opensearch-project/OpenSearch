@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.fs;
+package org.opensearch.common.blobstore.fs;
 
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -54,10 +54,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * A file system based implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}.
+ * A file system based implementation of {@link org.opensearch.common.blobstore.BlobContainer}.
  * All blobs in the container are stored on a file system, the location of which is specified by the {@link BlobPath}.
  *
- * Note that the methods in this implementation of {@link org.elasticsearch.common.blobstore.BlobContainer} may
+ * Note that the methods in this implementation of {@link org.opensearch.common.blobstore.BlobContainer} may
  * additionally throw a {@link java.lang.SecurityException} if the configured {@link java.lang.SecurityManager}
  * does not permit read and/or write access to the underlying files.
  */

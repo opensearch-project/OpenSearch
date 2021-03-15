@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -41,7 +41,7 @@ public class DocsStatsTests extends ESTestCase {
         assertThat(stats.getTotalSizeInBytes(), equalTo(600L));
         assertThat(stats.getAverageSizeInBytes(), equalTo(12L));
     }
-    
+
     public void testUninitialisedShards() {
         DocsStats stats = new DocsStats(0, 0, -1);
         assertThat(stats.getTotalSizeInBytes(), equalTo(-1L));

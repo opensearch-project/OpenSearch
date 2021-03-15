@@ -20,6 +20,8 @@ package org.elasticsearch.common.bytes;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.hamcrest.Matchers;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 

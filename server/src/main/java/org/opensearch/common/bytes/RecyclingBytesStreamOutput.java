@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.bytes;
+package org.opensearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;

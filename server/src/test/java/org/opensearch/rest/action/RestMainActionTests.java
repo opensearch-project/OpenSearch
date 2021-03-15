@@ -23,7 +23,7 @@ import org.elasticsearch.Build;
 import org.opensearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.opensearch.cluster.ClusterName;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;

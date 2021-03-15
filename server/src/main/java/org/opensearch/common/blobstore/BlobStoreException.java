@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,25 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.support;
+package org.opensearch.common.blobstore;
 
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
+import org.opensearch.OpenSearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-/**
- * A base abstract blob container that implements higher level container methods.
- */
-public abstract class AbstractBlobContainer implements BlobContainer {
+import java.io.IOException;
 
-    private final BlobPath path;
+public class BlobStoreException extends OpenSearchException {
 
-    protected AbstractBlobContainer(BlobPath path) {
-        this.path = path;
+    public BlobStoreException(String msg) {
+        super(msg);
     }
 
-    @Override
-    public BlobPath path() {
-        return this.path;
+    public BlobStoreException(String msg, Throwable cause) {
+        super(msg, cause);
     }
 
+    public BlobStoreException(StreamInput in) throws IOException{
+        super(in);
+    }
 }

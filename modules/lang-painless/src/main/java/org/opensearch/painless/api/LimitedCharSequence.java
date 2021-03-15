@@ -19,8 +19,8 @@
 
 package org.opensearch.painless.api;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.painless.CompilerSettings;
 
 import java.util.regex.Pattern;

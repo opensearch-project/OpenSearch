@@ -21,8 +21,8 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;

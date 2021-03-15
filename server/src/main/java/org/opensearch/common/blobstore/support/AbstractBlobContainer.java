@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,20 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore;
+package org.opensearch.common.blobstore.support;
+
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
 
 /**
- * An interface for providing basic metadata about a blob.
+ * A base abstract blob container that implements higher level container methods.
  */
-public interface BlobMetadata {
+public abstract class AbstractBlobContainer implements BlobContainer {
 
-    /**
-     * Gets the name of the blob.
-     */
-    String name();
+    private final BlobPath path;
 
-    /**
-     * Gets the size of the blob in bytes.
-     */
-    long length();
+    protected AbstractBlobContainer(BlobPath path) {
+        this.path = path;
+    }
+
+    @Override
+    public BlobPath path() {
+        return this.path;
+    }
+
 }

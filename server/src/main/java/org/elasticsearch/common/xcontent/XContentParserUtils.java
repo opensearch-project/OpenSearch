@@ -21,7 +21,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
