@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.env;
+package org.opensearch.env;
 
 import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;

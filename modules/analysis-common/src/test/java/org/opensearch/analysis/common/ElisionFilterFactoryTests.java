@@ -20,7 +20,7 @@
 package org.opensearch.analysis.common;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 

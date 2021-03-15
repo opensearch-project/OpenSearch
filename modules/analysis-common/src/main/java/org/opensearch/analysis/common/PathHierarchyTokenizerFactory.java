@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.path.ReversePathHierarchyTokenizer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
