@@ -26,7 +26,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
-import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.client.Client;
 import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.ClusterModule;

@@ -101,7 +101,7 @@ ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
   -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
   -Des.bundled_jdk="%ES_BUNDLED_JDK%" ^
-  -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.OpenSearch" !newparams!
+  -cp "%ES_CLASSPATH%" "org.opensearch.bootstrap.OpenSearch" !newparams!
 
 endlocal
 endlocal
