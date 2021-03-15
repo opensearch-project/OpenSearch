@@ -116,7 +116,7 @@ criteria
 * <<term-level-queries,Term-level queries>> for filtering and finding exact matches
 * <<full-text-queries,Full text queries>>, which are commonly used in search
 engines
-* <<geo-queries,Geo>> and <<shape-queries,spatial queries>>
+* <<geo-queries,Geo>>
 
 *Aggregations* +
 You can use <<search-aggregations,search aggregations>> to get statistics and
@@ -155,12 +155,7 @@ _synchronous_ by default. The search request waits for complete results before
 returning a response.
 
 However, complete results can take longer for searches across
-<<frozen-indices,frozen indices>> or <<modules-cross-cluster-search,multiple
-clusters>>.
-
-To avoid long waits, you can run an _asynchronous_, or _async_, search
-instead. An <<async-search-intro,async search>> lets you retrieve partial
-results for a long-running search now and get complete results later.
+<<modules-cross-cluster-search,multiple clusters>>.
 
 [discrete]
 [[search-timeout]]
@@ -169,8 +164,7 @@ results for a long-running search now and get complete results later.
 By default, search requests don't time out. The request waits for complete
 results before returning a response.
 
-While <<async-search-intro,async search>> is designed for long-running
-searches, you can also use the `timeout` parameter to specify a duration you'd
+You can use the `timeout` parameter to specify a duration you'd
 like to wait for a search to complete. If no response is received before this
 period ends, the request fails and returns an error.
 
