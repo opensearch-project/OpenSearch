@@ -20,8 +20,8 @@ package org.elasticsearch.node;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.bootstrap.BootstrapContext;
+import org.opensearch.bootstrap.BootstrapCheck;
+import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;

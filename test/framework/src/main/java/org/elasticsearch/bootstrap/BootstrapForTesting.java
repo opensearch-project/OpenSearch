@@ -31,6 +31,12 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginInfo;
+import org.opensearch.bootstrap.Bootstrap;
+import org.opensearch.bootstrap.BootstrapInfo;
+import org.opensearch.bootstrap.BootstrapSettings;
+import org.opensearch.bootstrap.FilePermissionUtils;
+import org.opensearch.bootstrap.OpenSearchPolicy;
+import org.opensearch.bootstrap.Security;
 import org.opensearch.secure_sm.SecureSM;
 import org.junit.Assert;
 

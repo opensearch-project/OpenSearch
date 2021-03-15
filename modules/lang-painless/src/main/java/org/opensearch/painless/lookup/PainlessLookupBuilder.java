@@ -19,7 +19,7 @@
 
 package org.opensearch.painless.lookup;
 
-import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.opensearch.bootstrap.BootstrapInfo;
 import org.opensearch.painless.Def;
 import org.opensearch.painless.MethodWriter;
 import org.opensearch.painless.WriterConstants;

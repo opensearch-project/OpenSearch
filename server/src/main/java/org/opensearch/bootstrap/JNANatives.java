@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.opensearch.bootstrap;
 
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
@@ -26,11 +26,11 @@ import com.sun.jna.WString;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
 
-import static org.elasticsearch.bootstrap.JNAKernel32Library.SizeT;
+import static org.opensearch.bootstrap.JNAKernel32Library.SizeT;
 
 /**
  * This class performs the actual work with JNA and library bindings to call native methods. It should only be used after
