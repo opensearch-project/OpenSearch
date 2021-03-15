@@ -16,10 +16,10 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Scope;
-import org.elasticsearch.common.inject.Scopes;
-import org.elasticsearch.common.inject.Singleton;
-import org.elasticsearch.common.inject.Stage;
+import org.opensearch.common.inject.Scope;
+import org.opensearch.common.inject.Scopes;
+import org.opensearch.common.inject.Singleton;
+import org.opensearch.common.inject.Stage;
 import org.elasticsearch.common.inject.binder.ScopedBindingBuilder;
 import org.elasticsearch.common.inject.spi.BindingScopingVisitor;
 

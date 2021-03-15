@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.spi.TypeConverter;
 

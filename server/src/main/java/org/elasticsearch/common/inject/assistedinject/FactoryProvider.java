@@ -16,11 +16,11 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.ConfigurationException;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.inject.Injector;
+import org.opensearch.common.inject.Provider;
+import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.HasDependencies;
@@ -65,7 +65,7 @@ import static java.util.Collections.unmodifiableSet;
  * }</pre>
  * Any parameter that permits a null value should also be annotated {@code @Nullable}.
  * <h3>Configuring factories</h3>
- * In your {@link org.elasticsearch.common.inject.Module module}, bind the factory interface to the returned
+ * In your {@link org.opensearch.common.inject.Module module}, bind the factory interface to the returned
  * factory:
  * <pre>bind(PaymentFactory.class).toProvider(
  *     FactoryProvider.newFactory(PaymentFactory.class, RealPayment.class));</pre>

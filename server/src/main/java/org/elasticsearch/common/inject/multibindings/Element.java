@@ -17,7 +17,7 @@
 
 package org.elasticsearch.common.inject.multibindings;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
+import org.opensearch.common.inject.BindingAnnotation;
 
 import java.lang.annotation.Retention;
 

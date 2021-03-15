@@ -16,9 +16,9 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Provider;
+import org.opensearch.common.inject.Binding;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.Provider;
 
 /**
  * A binding to a provider key. To resolve injections, the provider key is first resolved, then that

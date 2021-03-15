@@ -17,8 +17,8 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.ConfigurationException;
+import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.lang.reflect.Constructor;

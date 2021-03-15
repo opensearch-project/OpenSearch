@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject.name;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Key;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.Key;
 
 import java.util.Enumeration;
 import java.util.Map;

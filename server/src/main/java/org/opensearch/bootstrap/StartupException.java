@@ -19,7 +19,7 @@
 
 package org.opensearch.bootstrap;
 
-import org.elasticsearch.common.inject.CreationException;
+import org.opensearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.io.PrintStream;

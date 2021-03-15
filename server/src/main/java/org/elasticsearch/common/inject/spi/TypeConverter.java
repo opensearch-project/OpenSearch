@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.TypeLiteral;
 
 /**
  * Converts constant string values to a different type.

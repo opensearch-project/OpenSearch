@@ -76,7 +76,7 @@ public interface BindingTargetVisitor<T, V> {
     V visit(ConvertedConstantBinding<? extends T> binding);
 
     /**
-     * Visit a binding to a {@link org.elasticsearch.common.inject.Provider} that delegates to the binding for the
+     * Visit a binding to a {@link org.opensearch.common.inject.Provider} that delegates to the binding for the
      * provided type. This target is found only on injector bindings.
      */
     V visit(ProviderBinding<? extends T> binding);

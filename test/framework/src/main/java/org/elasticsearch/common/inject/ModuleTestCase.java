@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.spi.Elements;
 import org.elasticsearch.common.inject.spi.InstanceBinding;
 import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.inject.Module;
 
 import java.lang.annotation.Annotation;
 import java.util.List;

@@ -35,16 +35,16 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.InvalidTypeNameException;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.InvalidTypeNameException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,8 +54,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.opensearch.index.mapper.MapperService.isMappingSourceTyped;
+import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting mapping changes

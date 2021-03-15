@@ -16,10 +16,10 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.ConfigurationException;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
@@ -151,7 +151,7 @@ public final class InjectionPoint {
     /**
      * Returns true if this injection point shall be skipped if the injector cannot resolve bindings
      * for all required dependencies. Both explicit bindings (as specified in a module), and implicit
-     * bindings ({@literal @}{@link org.elasticsearch.common.inject.ImplementedBy ImplementedBy}, default
+     * bindings ({@literal @}{@link org.opensearch.common.inject.ImplementedBy ImplementedBy}, default
      * constructors etc.) may be used to satisfy optional injection points.
      */
     public boolean isOptional() {

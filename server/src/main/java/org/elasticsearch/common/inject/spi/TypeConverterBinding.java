@@ -16,15 +16,15 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.matcher.Matcher;
 
 import java.util.Objects;
 
 /**
  * Registration of type converters for matching target types. Instances are created
- * explicitly in a module using {@link org.elasticsearch.common.inject.Binder#convertToTypes(Matcher,
+ * explicitly in a module using {@link org.opensearch.common.inject.Binder#convertToTypes(Matcher,
  * TypeConverter) convertToTypes()} statements:
  * <pre>
  *     convertToTypes(Matchers.only(DateTime.class), new DateTimeConverter());</pre>

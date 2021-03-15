@@ -16,15 +16,15 @@
 
 package org.elasticsearch.common.inject.multibindings;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.Binding;
+import org.opensearch.common.inject.ConfigurationException;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.inject.Injector;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.Module;
+import org.opensearch.common.inject.Provider;
+import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Dependency;
