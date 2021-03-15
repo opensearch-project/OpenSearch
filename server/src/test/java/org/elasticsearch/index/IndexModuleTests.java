@@ -85,7 +85,7 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.search.internal.ReaderContext;
+import org.opensearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;

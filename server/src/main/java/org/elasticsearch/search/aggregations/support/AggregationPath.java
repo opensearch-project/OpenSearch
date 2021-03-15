@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.sort.SortOrder;
 
 import java.util.ArrayList;

@@ -47,7 +47,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.StringF
 import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregator.CollectConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;

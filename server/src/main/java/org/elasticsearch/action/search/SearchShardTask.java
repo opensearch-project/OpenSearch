@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.fetch.ShardFetchSearchRequest;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.TaskId;
 

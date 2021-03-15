@@ -25,9 +25,9 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.transport.Transport;
 
 import java.util.concurrent.Executor;
@@ -101,8 +101,8 @@ interface SearchPhaseContext extends Executor {
 
     /**
      * Releases a search context with the given context ID on the node the given connection is connected to.
-     * @see org.elasticsearch.search.query.QuerySearchResult#getContextId()
-     * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
+     * @see org.opensearch.search.query.QuerySearchResult#getContextId()
+     * @see org.opensearch.search.fetch.FetchSearchResult#getContextId()
      *
      */
     default void sendReleaseSearchContext(ShardSearchContextId contextId,

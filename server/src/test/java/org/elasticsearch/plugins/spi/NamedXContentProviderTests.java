@@ -24,8 +24,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
-import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.opensearch.search.suggest.Suggest;
+import org.opensearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

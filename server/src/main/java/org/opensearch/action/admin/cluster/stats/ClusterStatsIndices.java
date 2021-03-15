@@ -30,7 +30,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
 import java.util.List;

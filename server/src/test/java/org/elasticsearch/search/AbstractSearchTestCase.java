@@ -34,9 +34,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilderTests;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
+import org.opensearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.opensearch.search.rescore.QueryRescorerBuilderTests;
-import org.elasticsearch.search.suggest.SuggestBuilderTests;
+import org.opensearch.search.suggest.SuggestBuilderTests;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.search.internal.SearchContext;
+import org.opensearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.List;

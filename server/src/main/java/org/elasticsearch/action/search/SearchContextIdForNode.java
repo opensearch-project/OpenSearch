@@ -23,7 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
 

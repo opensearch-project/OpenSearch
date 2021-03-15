@@ -49,7 +49,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.time.Instant;
 import java.util.List;

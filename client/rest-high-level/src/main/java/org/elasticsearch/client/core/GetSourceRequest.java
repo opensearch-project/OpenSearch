@@ -21,7 +21,7 @@ package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 public final class GetSourceRequest implements Validatable {
     private String routing;

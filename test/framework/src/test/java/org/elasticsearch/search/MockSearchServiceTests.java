@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.search.internal.ReaderContext;
+import org.opensearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;

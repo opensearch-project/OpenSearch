@@ -25,8 +25,8 @@ import org.opensearch.Version;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.InternalScrollSearchRequest;
+import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;

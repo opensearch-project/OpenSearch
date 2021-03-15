@@ -32,12 +32,12 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.opensearch.search.suggest.SuggestBuilder;
 
 import java.util.Arrays;
 import java.util.List;
@@ -555,7 +555,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * If specified, Elasticsearch will execute this search request using reader contexts from that point in time.
+     * If specified, OpenSearch will execute this search request using reader contexts from that point in time.
      */
     public SearchRequestBuilder setPointInTime(PointInTimeBuilder pointInTimeBuilder) {
         sourceBuilder().pointInTimeBuilder(pointInTimeBuilder);
