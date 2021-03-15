@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -19,14 +19,14 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.publish'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.rest-test'
+apply plugin: 'opensearch.publish'
+apply plugin: 'opensearch.rest-resources'
 
-group = 'org.elasticsearch.client'
-archivesBaseName = 'elasticsearch-rest-high-level-client'
+group = 'org.opensearch.client'
+archivesBaseName = 'opensearch-rest-high-level-client'
 
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
@@ -61,7 +61,7 @@ tasks.named('forbiddenApisMain').configure {
 
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
-File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
+File pkiTrustCert = file("./src/test/resources/org/opensearch/client/security/delegate_pki/testRootCA.crt")
 
 integTest {
   systemProperty 'tests.rest.async', 'false'
