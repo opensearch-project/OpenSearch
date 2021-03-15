@@ -20,6 +20,7 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.Priority;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,7 +37,7 @@ public class PriorityTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
             Priority.valueOf("foobar");
         });
-        assertEquals("No enum constant org.elasticsearch.common.Priority.foobar", exception.getMessage());
+        assertEquals("No enum constant org.opensearch.common.Priority.foobar", exception.getMessage());
     }
 
     public void testToString() {

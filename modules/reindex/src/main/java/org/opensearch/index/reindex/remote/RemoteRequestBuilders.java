@@ -25,7 +25,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;

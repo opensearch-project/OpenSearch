@@ -20,7 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Explicit;
+import org.opensearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;

@@ -19,7 +19,7 @@
 package org.opensearch.join.query;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;

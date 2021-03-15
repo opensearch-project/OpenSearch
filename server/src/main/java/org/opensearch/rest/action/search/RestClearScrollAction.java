@@ -21,7 +21,7 @@ package org.opensearch.rest.action.search;
 
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;

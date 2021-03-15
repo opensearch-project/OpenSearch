@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.Priority;
+import org.opensearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;

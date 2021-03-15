@@ -32,7 +32,7 @@ import org.elasticsearch.client.indices.ComponentTemplatesExistRequest;
 import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 import java.io.IOException;
 

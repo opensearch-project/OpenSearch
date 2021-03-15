@@ -20,7 +20,7 @@
 package org.opensearch.rest;
 
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
 
 import java.nio.charset.Charset;

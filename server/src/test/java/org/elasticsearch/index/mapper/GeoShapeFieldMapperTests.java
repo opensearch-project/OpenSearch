@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Explicit;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;

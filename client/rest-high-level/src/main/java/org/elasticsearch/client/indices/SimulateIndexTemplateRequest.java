@@ -21,7 +21,7 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 /**
  * A request to simulate matching a provided index name and an optional new index template against the existing index templates.

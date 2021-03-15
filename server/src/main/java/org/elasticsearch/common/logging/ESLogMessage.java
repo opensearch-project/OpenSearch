@@ -20,7 +20,7 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.SuppressLoggerChecks;
+import org.opensearch.common.SuppressLoggerChecks;
 
 import java.util.Map;
 import java.util.stream.Collectors;

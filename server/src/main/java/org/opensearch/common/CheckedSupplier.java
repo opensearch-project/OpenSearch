@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -15,26 +15,16 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
 
-package org.elasticsearch.common;
+package org.opensearch.common;
+
+import java.util.function.Supplier;
 
 /**
- * Represents an operation that accepts three arguments and returns no result.
- *
- * @param <S> the type of the first argument
- * @param <T> the type of the second argument
- * @param <U> the type of the third argument
+ * A {@link Supplier}-like interface which allows throwing checked exceptions.
  */
 @FunctionalInterface
-public interface TriConsumer<S, T, U> {
-    /**
-     * Applies this function to the given arguments.
-     *
-     * @param s the first function argument
-     * @param t the second function argument
-     * @param u the third function argument
-     */
-    void apply(S s, T t, U u);
+public interface CheckedSupplier<R, E extends Exception> {
+    R get() throws E;
 }

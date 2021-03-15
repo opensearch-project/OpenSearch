@@ -20,10 +20,10 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.CheckedBiConsumer;
+import org.opensearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;

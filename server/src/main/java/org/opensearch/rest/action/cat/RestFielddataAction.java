@@ -24,7 +24,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.Table;
+import org.opensearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;

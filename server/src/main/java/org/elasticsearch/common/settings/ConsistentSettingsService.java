@@ -26,8 +26,8 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.Priority;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.hash.MessageDigests;
 
 import javax.crypto.SecretKey;

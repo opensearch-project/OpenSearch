@@ -24,7 +24,7 @@ import org.opensearch.action.admin.indices.datastream.GetDataStreamAction.Respon
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.UUIDs;
+import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;

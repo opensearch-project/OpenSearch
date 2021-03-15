@@ -19,7 +19,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.util.Objects;

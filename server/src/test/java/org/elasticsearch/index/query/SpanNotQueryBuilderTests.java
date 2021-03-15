@@ -21,8 +21,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNotQuery;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.ParsingException;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.AbstractQueryTestCase;

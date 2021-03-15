@@ -20,7 +20,7 @@
 package org.opensearch.search.builder;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;

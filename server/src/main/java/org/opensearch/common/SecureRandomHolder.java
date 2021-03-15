@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.common;
+package org.opensearch.common;
 
-/**
- * Generates opaque unique strings.
- */
-interface UUIDGenerator {
-    String getBase64UUID();
+import java.security.SecureRandom;
+
+class SecureRandomHolder {
+    // class loading is atomic - this is a lazy & safe singleton to be used by this package
+    public static final SecureRandom INSTANCE = new SecureRandom();
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.client.indices;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 
 public class GetMappingsRequest extends TimedRequest {
 

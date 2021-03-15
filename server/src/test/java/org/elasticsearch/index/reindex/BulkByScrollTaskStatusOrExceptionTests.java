@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;

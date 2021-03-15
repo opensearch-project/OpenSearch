@@ -21,7 +21,7 @@ package org.opensearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.common.Randomness;
+import org.opensearch.common.Randomness;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;

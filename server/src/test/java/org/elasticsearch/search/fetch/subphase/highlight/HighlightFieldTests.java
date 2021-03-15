@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.elasticsearch.common.Strings;
+import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;

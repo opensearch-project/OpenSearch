@@ -20,7 +20,7 @@
 package org.opensearch.join.aggregations;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParsingException;
+import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
