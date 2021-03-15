@@ -33,7 +33,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Holds an elasticsearch response. It wraps the {@link HttpResponse} returned and associates it with
+ * Holds an opensearch response. It wraps the {@link HttpResponse} returned and associates it with
  * its corresponding {@link RequestLine} and {@link HttpHost}.
  */
 public class Response {

@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Exception thrown when an elasticsearch node responds to a request with a status code that indicates an error.
+ * Exception thrown when an opensearch node responds to a request with a status code that indicates an error.
  * Holds the response that was returned.
  */
 public final class ResponseException extends IOException {
