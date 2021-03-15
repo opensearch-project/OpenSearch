@@ -22,9 +22,9 @@ package org.opensearch.index.reindex.remote;
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.RestClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.opensearch.Version;
-import org.elasticsearch.client.NodeSelector;
+import org.opensearch.client.NodeSelector;
 import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;

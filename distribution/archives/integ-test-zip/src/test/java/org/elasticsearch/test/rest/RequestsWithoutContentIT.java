@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.rest;
 
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.Request;
+import org.opensearch.client.ResponseException;
+import org.opensearch.client.Request;
 
 import java.io.IOException;
 

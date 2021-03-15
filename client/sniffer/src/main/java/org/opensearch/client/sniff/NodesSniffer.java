@@ -19,7 +19,7 @@
 
 package org.opensearch.client.sniff;
 
-import org.elasticsearch.client.Node;
+import org.opensearch.client.Node;
 
 import java.io.IOException;
 import java.util.List;

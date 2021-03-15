@@ -19,7 +19,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.client.Request;
+import org.opensearch.client.Request;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 

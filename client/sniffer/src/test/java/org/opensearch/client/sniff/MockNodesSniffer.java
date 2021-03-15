@@ -20,7 +20,7 @@
 package org.opensearch.client.sniff;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.Node;
+import org.opensearch.client.Node;
 
 import java.util.Collections;
 import java.util.List;

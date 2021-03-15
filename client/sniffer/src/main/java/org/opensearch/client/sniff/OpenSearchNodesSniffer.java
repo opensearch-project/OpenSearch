@@ -26,11 +26,11 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.Node;
-import org.elasticsearch.client.Node.Roles;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
+import org.opensearch.client.Node;
+import org.opensearch.client.Node.Roles;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
+import org.opensearch.client.RestClient;
 
 import java.io.IOException;
 import java.io.InputStream;
