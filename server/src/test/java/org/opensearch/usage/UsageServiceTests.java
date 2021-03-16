@@ -22,7 +22,7 @@ package org.opensearch.usage;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
+import static org.opensearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 

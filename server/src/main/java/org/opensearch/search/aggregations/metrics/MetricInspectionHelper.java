@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.opensearch.search.aggregations.pipeline.InternalDerivative;
 
 /**
- * Counterpart to {@link org.elasticsearch.search.aggregations.support.AggregationInspectionHelper}, providing
+ * Counterpart to {@link org.opensearch.search.aggregations.support.AggregationInspectionHelper}, providing
  * helpers for some aggs that have package-private getters.  AggregationInspectionHelper delegates to these
  * helpers when needed, and consumers should prefer to use AggregationInspectionHelper instead of these
  * helpers.

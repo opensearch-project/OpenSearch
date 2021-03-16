@@ -28,16 +28,16 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
+import static org.opensearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
 public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
 
