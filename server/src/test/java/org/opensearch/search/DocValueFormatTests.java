@@ -35,7 +35,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
+import static org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 
 public class DocValueFormatTests extends ESTestCase {
 

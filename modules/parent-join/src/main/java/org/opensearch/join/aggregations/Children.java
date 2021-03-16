@@ -19,7 +19,7 @@
 
 package org.opensearch.join.aggregations;
 
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.opensearch.search.aggregations.bucket.SingleBucketAggregation;
 
 /**
  * An single bucket aggregation that translates parent documents to their children documents.

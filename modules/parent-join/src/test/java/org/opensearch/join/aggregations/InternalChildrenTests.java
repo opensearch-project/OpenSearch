@@ -27,7 +27,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.List;

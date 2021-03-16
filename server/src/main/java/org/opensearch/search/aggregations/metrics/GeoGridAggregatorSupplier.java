@@ -23,7 +23,7 @@ import org.opensearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregator;
+import org.opensearch.search.aggregations.bucket.geogrid.GeoGridAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 
