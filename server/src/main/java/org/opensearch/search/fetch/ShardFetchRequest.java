@@ -27,7 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.search.RescoreDocIds;
+import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.internal.ShardSearchContextId;

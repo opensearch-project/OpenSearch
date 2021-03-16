@@ -21,7 +21,7 @@ package org.opensearch.search.sort;
 import java.util.Objects;
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 
 public final class SortFieldAndFormat {
 

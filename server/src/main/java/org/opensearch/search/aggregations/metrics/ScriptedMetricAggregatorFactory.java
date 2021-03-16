@@ -23,7 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptedMetricAggContexts;
-import org.elasticsearch.search.SearchParseException;
+import org.opensearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;

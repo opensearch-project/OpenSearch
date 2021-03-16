@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;

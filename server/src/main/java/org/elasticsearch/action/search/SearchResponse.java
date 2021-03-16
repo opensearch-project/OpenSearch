@@ -36,8 +36,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestActions;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
@@ -221,7 +221,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     /**
-     * If scrolling was enabled ({@link SearchRequest#scroll(org.elasticsearch.search.Scroll)}, the
+     * If scrolling was enabled ({@link SearchRequest#scroll(org.opensearch.search.Scroll)}, the
      * scroll id that can be used to continue scrolling.
      */
     public String getScrollId() {

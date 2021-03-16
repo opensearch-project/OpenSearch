@@ -49,7 +49,7 @@ import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.elasticsearch.search.SearchService;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchRequest;

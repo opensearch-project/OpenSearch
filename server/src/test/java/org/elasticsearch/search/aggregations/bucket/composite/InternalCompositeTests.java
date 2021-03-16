@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;

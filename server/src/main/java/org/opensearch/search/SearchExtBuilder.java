@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
 import org.elasticsearch.common.CheckedFunction;
 import org.opensearch.common.io.stream.NamedWriteable;

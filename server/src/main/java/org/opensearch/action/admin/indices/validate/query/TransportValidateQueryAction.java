@@ -43,7 +43,7 @@ import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.indices.IndexClosedException;
-import org.elasticsearch.search.SearchService;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;

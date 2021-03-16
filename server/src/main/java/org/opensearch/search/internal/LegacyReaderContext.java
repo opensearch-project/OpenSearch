@@ -22,7 +22,7 @@ package org.opensearch.search.internal;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.RescoreDocIds;
+import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.dfs.AggregatedDfs;
 
 import java.util.Objects;

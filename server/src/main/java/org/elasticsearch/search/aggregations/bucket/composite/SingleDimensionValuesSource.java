@@ -26,7 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.sort.SortOrder;
 

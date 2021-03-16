@@ -31,7 +31,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.network.NetworkAddress;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
 import java.net.InetAddress;

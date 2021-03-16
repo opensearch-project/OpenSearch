@@ -26,6 +26,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.threadpool.ThreadPool;

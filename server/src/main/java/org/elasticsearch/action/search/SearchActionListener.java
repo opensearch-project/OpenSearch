@@ -19,8 +19,8 @@
 package org.elasticsearch.action.search;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
 
 /**
  * A base action listener that ensures shard target and shard index is set on all responses

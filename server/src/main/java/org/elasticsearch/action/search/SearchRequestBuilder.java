@@ -26,9 +26,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
-import org.elasticsearch.search.Scroll;
+import org.opensearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
@@ -209,7 +210,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with an
+     * Should each {@link org.opensearch.search.SearchHit} be returned with an
      * explanation of the hit (ranking).
      */
     public SearchRequestBuilder setExplain(boolean explain) {
@@ -218,7 +219,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with its
+     * Should each {@link org.opensearch.search.SearchHit} be returned with its
      * version.
      */
     public SearchRequestBuilder setVersion(boolean version) {
@@ -227,7 +228,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
+     * Should each {@link org.opensearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
      */
     public SearchRequestBuilder seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {

@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.SearchHits;
+import org.opensearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 /**

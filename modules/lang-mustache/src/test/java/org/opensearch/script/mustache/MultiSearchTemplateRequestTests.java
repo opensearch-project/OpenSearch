@@ -24,7 +24,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.Scroll;
+import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;

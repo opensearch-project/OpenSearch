@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;

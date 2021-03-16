@@ -20,8 +20,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
 
 /**
  * This is a simple base class to simplify fan out to shards and collect their results. Each results passed to
