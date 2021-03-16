@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
+import static org.opensearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
 
 /**
  * Encapsulates a request to _count API against one, several or all indices.

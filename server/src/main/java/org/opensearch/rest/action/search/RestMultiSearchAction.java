@@ -19,9 +19,9 @@
 
 package org.opensearch.rest.action.search;
 
-import org.elasticsearch.action.search.MultiSearchAction;
-import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.MultiSearchAction;
+import org.opensearch.action.search.MultiSearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedBiConsumer;

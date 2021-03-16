@@ -25,7 +25,7 @@ import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.geo.GeoPoint;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {

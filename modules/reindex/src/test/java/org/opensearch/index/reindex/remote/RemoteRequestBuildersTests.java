@@ -22,7 +22,7 @@ package org.opensearch.index.reindex.remote;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.opensearch.Version;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.Request;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;

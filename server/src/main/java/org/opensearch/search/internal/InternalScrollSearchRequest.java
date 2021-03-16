@@ -19,8 +19,8 @@
 
 package org.opensearch.search.internal;
 
-import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.SearchShardTask;
+import org.opensearch.action.search.SearchScrollRequest;
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.search.Scroll;

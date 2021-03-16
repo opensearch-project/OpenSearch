@@ -19,7 +19,7 @@
 
 package org.opensearch.index.rankeval;
 
-import org.elasticsearch.action.search.SearchType;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;

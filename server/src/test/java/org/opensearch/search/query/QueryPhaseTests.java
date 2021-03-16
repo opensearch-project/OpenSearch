@@ -77,7 +77,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.bkd.BKDConfig;
 import org.apache.lucene.util.bkd.BKDReader;
 import org.apache.lucene.util.bkd.BKDWriter;
-import org.elasticsearch.action.search.SearchShardTask;
+import org.opensearch.action.search.SearchShardTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;

@@ -21,8 +21,8 @@ package org.opensearch.index.rankeval;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.NoMasterBlockService;
 import org.opensearch.common.ParsingException;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchType;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.text.Text;

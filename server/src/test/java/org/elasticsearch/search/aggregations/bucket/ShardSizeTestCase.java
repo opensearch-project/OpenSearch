@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.is;

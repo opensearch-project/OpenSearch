@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.opensearch.tasks.TaskId;

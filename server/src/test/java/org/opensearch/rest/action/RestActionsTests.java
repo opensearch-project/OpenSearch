@@ -22,7 +22,7 @@ package org.opensearch.rest.action;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;

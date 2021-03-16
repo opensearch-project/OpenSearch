@@ -37,9 +37,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.Rewriteable;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryRewriteContext;
+import org.opensearch.index.query.Rewriteable;
 import org.opensearch.script.Script;
 import org.opensearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -67,7 +67,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
@@ -76,7 +76,7 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
  * construction using
  * {@link org.opensearch.search.builder.SearchSourceBuilder#searchSource()}.
  *
- * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
+ * @see org.opensearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);

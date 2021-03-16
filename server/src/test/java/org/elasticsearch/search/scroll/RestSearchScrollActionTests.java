@@ -21,8 +21,8 @@ package org.elasticsearch.search.scroll;
 
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;

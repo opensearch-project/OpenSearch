@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.search;
 
-import org.elasticsearch.action.search.SearchScrollRequest;
+import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
