@@ -16,8 +16,8 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Annotations;
-import org.elasticsearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.Annotations;
+import org.opensearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.ScopeBinding;
 
 import java.lang.annotation.Annotation;

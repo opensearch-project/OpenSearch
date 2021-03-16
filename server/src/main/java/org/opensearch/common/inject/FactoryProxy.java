@@ -17,11 +17,11 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import org.opensearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.ErrorsException;
+import org.opensearch.common.inject.internal.InternalContext;
+import org.opensearch.common.inject.internal.InternalFactory;
+import org.opensearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.inject.spi.Dependency;
 
 /**

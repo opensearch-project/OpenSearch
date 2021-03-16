@@ -21,7 +21,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.HasDependencies;
 import org.elasticsearch.common.inject.spi.Message;

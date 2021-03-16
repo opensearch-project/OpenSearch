@@ -16,7 +16,7 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.MoreTypes;
+import org.opensearch.common.inject.internal.MoreTypes;
 import org.elasticsearch.common.inject.util.Types;
 
 import java.lang.reflect.Constructor;
@@ -32,7 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
+import static org.opensearch.common.inject.internal.MoreTypes.canonicalize;
 
 /**
  * Represents a generic type {@code T}. Java doesn't yet provide a way to
