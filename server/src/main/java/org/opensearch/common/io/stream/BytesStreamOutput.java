@@ -174,8 +174,8 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     /**
-     * Returns the number of bytes used by the underlying {@link ByteArray}
-     * @see ByteArray#ramBytesUsed()
+     * Returns the number of bytes used by the underlying {@link org.opensearch.common.util.ByteArray}
+     * @see org.opensearch.common.util.ByteArray#ramBytesUsed()
      */
     public long ramBytesUsed() {
         return bytes.ramBytesUsed();

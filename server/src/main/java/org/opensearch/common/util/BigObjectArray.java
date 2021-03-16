@@ -24,6 +24,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 
+import static org.opensearch.common.util.PageCacheRecycler.OBJECT_PAGE_SIZE;
+
 /**
  * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
@@ -36,7 +38,7 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
 
     /** Constructor. */
     BigObjectArray(long size, BigArrays bigArrays) {
-        super(PageCacheRecycler.OBJECT_PAGE_SIZE, bigArrays, true);
+        super(OBJECT_PAGE_SIZE, bigArrays, true);
         this.size = size;
         pages = new Object[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {

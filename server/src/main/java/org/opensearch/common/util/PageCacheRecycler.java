@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.opensearch.common.util;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.recycler.AbstractRecyclerC;
