@@ -129,18 +129,7 @@ You can solve this problem by adding a third node and making all three nodes
 master-eligible. A <<modules-discovery-quorums,master election>> requires only
 two of the three master-eligible nodes. This means the cluster can tolerate the
 loss of any single node. This third node acts as a tiebreaker in cases where the
-two original nodes are disconnected from each other. You can reduce the resource
-requirements of this extra node by making it a <<voting-only-node,dedicated
-voting-only master-eligible node>>, also known as a dedicated tiebreaker.
-Because it has no other roles, a dedicated tiebreaker does not need to be as
-powerful as the other two nodes. It will not perform any searches nor coordinate
-any client requests and cannot be elected as the master of the cluster.
-
-The two original nodes should not be voting-only master-eligible nodes since a
-resilient cluster requires at least three master-eligible nodes, at least two
-of which are not voting-only master-eligible nodes. If two of your three nodes
-are voting-only master-eligible nodes then the elected master must be the third
-node. This node then becomes a single point of failure.
+two original nodes are disconnected from each other.
 
 We recommend assigning both non-tiebreaker nodes all other roles. This creates
 redundancy by ensuring any task in the cluster can be handled by either node.
@@ -199,13 +188,6 @@ sending any client requests to these dedicated nodes. Your cluster may become
 unstable if the master-eligible nodes are overwhelmed with unnecessary extra
 work that could be handled by one of the other nodes.
 
-You may configure one of your master-eligible nodes to be a
-<<voting-only-node,voting-only node>> so that it can never be elected as the
-master node. For instance, you may have two dedicated master nodes and a third
-node that is both a data node and a voting-only master-eligible node. This
-third voting-only node will act as a tiebreaker in master elections but will
-never become the master itself.
-
 [[high-availability-cluster-design-small-cluster-summary]]
 ==== Summary
 
@@ -215,8 +197,7 @@ The cluster will be resilient to the loss of any node as long as:
 - There are at least two data nodes. 
 - Every index has at least one replica of each shard, in addition to the 
   primary.
-- The cluster has at least three master-eligible nodes, as long as at least two
-  of these nodes are not voting-only master-eligible nodes.
+- The cluster has at least three master-eligible nodes.
 - Clients are configured to send their requests to more than one node or are
   configured to use a load balancer that balances the requests across an
   appropriate set of nodes.
@@ -297,18 +278,13 @@ mean there is no master at all until connectivity is restored.
 You can solve this by placing one master-eligible node in each of your two
 zones and adding a single extra master-eligible node in an independent third
 zone. The extra master-eligible node acts as a tiebreaker in cases
-where the two original zones are disconnected from each other. The extra
-tiebreaker node should be a <<voting-only-node,dedicated voting-only
-master-eligible node>>, also known as a dedicated tiebreaker. A dedicated
-tiebreaker need not be as powerful as the other two nodes since it has no other
-roles and will not perform any searches nor coordinate any client requests nor
-be elected as the master of the cluster.
+where the two original zones are disconnected from each other.
 
 You should use <<allocation-awareness,shard allocation awareness>> to ensure
 that there is a copy of each shard in each zone. This means either zone remains
 fully available if the other zone fails.
 
-All master-eligible nodes, including voting-only nodes, are on the critical path
+All master-eligible nodes are on the critical path
 for publishing cluster state updates. Because of this, these nodes require
 reasonably fast persistent storage and a reliable, low-latency network
 connection to the rest of the cluster. If you add a tiebreaker node in a third
@@ -343,8 +319,7 @@ The cluster will be resilient to the loss of any zone as long as:
   primary.
 - Shard allocation awareness is configured to avoid concentrating all copies of
   a shard within a single zone.
-- The cluster has at least three master-eligible nodes. At least two of these 
-  nodes are not voting-only master-eligible nodes, and they are spread evenly
+- The cluster has at least three master-eligible nodes, and they are spread evenly
   across at least three zones.
 - Clients are configured to send their requests to nodes in more than one zone
   or are configured to use a load balancer that balances the requests across an
