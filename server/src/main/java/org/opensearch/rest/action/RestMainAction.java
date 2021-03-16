@@ -19,9 +19,9 @@
 
 package org.opensearch.rest.action;
 
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.MainRequest;
-import org.elasticsearch.action.main.MainResponse;
+import org.opensearch.action.main.MainAction;
+import org.opensearch.action.main.MainRequest;
+import org.opensearch.action.main.MainResponse;
 import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;

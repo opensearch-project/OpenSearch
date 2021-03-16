@@ -28,7 +28,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
-import org.elasticsearch.action.index.IndexResponse;
+import org.opensearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;

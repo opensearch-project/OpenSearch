@@ -21,7 +21,7 @@ package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteRequest;
+import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;

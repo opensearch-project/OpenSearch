@@ -19,8 +19,8 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.get.GetResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 
