@@ -53,7 +53,7 @@ COPY config/opensearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/opensearch.yml config/log4j2.properties
 
 ################################################################################
-# Build stage 1 (the actual Elasticsearch image):
+# Build stage 1 (the actual OpenSearch image):
 #
 # Copy opensearch from stage 0
 # Add entrypoint
