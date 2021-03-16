@@ -56,7 +56,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.suggest.Suggest;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.hamcrest.CoreMatchers;

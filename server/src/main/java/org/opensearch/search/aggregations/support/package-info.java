@@ -39,7 +39,7 @@ package org.opensearch.search.aggregations.support;
  * <h3> {@link org.opensearch.search.aggregations.support.ValuesSourceRegistry} </h3>
  * <p>
  * ValuesSourceRegistry stores the mappings for what types are supported by what aggregations.  It is configured at startup, when
- * {@link org.elasticsearch.search.SearchModule} is configuring aggregations.  It shouldn't be necessary to access the registry in most
+ * {@link org.opensearch.search.SearchModule} is configuring aggregations.  It shouldn't be necessary to access the registry in most
  * cases, but you can get a read copy from {@link org.elasticsearch.index.query.QueryShardContext#getValuesSourceRegistry()} if necessary.
  * </p>
  *

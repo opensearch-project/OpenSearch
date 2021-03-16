@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 
 import java.util.Arrays;
 import java.util.HashMap;

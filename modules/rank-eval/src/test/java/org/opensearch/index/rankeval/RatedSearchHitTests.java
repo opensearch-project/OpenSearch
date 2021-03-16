@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

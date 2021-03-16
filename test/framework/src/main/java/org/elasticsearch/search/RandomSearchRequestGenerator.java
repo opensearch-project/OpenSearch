@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;

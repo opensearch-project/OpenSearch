@@ -44,7 +44,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;

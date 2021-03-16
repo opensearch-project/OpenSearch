@@ -23,7 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.search.SearchExtBuilder;
+import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.fetch.subphase.FetchDocValuesContext;
 import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;

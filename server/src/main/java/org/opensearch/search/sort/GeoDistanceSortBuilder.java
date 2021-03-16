@@ -57,8 +57,8 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.ArrayList;

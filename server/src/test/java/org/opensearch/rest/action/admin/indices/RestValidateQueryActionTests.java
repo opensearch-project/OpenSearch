@@ -34,7 +34,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.search.AbstractSearchTestCase;
+import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.elasticsearch.test.rest.FakeRestChannel;

@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.rest.action.RestActions;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

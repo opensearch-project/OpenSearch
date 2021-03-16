@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.Iterator;

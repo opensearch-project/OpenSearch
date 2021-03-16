@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.search.RandomSearchRequestGenerator;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;

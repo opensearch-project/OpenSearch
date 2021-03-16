@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.search.SearchHit.Fields;
+import org.opensearch.search.SearchHit.Fields;
 
 import java.io.IOException;
 import java.util.Arrays;

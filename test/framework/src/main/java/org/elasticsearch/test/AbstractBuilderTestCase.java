@@ -75,7 +75,7 @@ import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.search.SearchModule;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;

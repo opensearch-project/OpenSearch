@@ -40,9 +40,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.search.AbstractSearchTestCase;
+import org.opensearch.search.AbstractSearchTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
+import org.opensearch.search.SearchSortValuesAndFormatsTests;
 
 import java.io.IOException;
 import java.io.InputStream;

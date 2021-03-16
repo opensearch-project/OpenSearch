@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.hamcrest;
 
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.hamcrest.Description;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;

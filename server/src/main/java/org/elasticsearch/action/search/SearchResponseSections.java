@@ -22,7 +22,7 @@ package org.elasticsearch.action.search;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchHits;
+import org.opensearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;

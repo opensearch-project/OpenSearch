@@ -74,7 +74,7 @@ import org.opensearch.index.rankeval.PrecisionAtK;
 import org.opensearch.index.rankeval.RecallAtK;
 import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHits;
+import org.opensearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;

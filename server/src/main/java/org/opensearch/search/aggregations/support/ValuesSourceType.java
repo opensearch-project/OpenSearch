@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.support;
 
 import org.opensearch.script.AggregationScript;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 
 import java.time.ZoneId;
 import java.util.function.LongSupplier;

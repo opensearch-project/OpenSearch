@@ -19,7 +19,7 @@
 package org.opensearch.search.sort;
 
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 
 public final class SortAndFormats {
 
