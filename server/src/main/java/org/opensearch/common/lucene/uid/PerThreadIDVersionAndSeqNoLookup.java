@@ -29,13 +29,15 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
+import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 
 /** Utility class to do efficient primary-key (only 1 doc contains the
@@ -96,7 +98,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * using the same cache key. Otherwise we'd have to disable caching
      * entirely for these readers.
      */
-    public VersionsAndSeqNoResolver.DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context)
+    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context)
         throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
@@ -113,7 +115,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
                 term = UNASSIGNED_PRIMARY_TERM;
             }
             final long version = readNumericDocValues(context.reader(), VersionFieldMapper.NAME, docID);
-            return new VersionsAndSeqNoResolver.DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
+            return new DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
         } else {
             return null;
         }
@@ -152,13 +154,13 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    VersionsAndSeqNoResolver.DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
+    DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
         final int docID = getDocID(id, context);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final long seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);
-            return new VersionsAndSeqNoResolver.DocIdAndSeqNo(docID, seqNo, context);
+            return new DocIdAndSeqNo(docID, seqNo, context);
         } else {
             return null;
         }
