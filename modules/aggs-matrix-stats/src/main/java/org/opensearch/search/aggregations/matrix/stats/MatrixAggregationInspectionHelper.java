@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.matrix.stats;
 
 /**
- * Counterpart to {@link org.elasticsearch.search.aggregations.support.AggregationInspectionHelper}, providing
+ * Counterpart to {@link org.opensearch.search.aggregations.support.AggregationInspectionHelper}, providing
  * helpers for some aggs in the MatrixStats package
  */
 public class MatrixAggregationInspectionHelper {

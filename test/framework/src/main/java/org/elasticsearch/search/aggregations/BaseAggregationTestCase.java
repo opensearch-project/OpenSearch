@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 
 import java.io.IOException;

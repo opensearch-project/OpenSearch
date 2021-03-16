@@ -24,7 +24,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
+import org.opensearch.search.aggregations.support.AggregationPath.PathElement;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.sort.SortOrder;

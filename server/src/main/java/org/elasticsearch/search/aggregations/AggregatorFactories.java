@@ -37,8 +37,8 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
+import org.opensearch.search.aggregations.support.AggregationPath;
+import org.opensearch.search.aggregations.support.AggregationPath.PathElement;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.aggregation.ProfilingAggregator;

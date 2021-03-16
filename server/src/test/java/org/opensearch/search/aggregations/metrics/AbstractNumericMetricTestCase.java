@@ -20,8 +20,8 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 public abstract class AbstractNumericMetricTestCase<AF extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AF>>
         extends BaseAggregationTestCase<AF> {

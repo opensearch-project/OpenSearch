@@ -76,8 +76,8 @@ import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.InternalSimpleValue;
-import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
+import org.opensearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;

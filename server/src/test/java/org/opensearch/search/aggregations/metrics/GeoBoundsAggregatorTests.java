@@ -30,7 +30,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import static org.opensearch.search.aggregations.metrics.InternalGeoBoundsTests.GEOHASH_TOLERANCE;

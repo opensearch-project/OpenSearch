@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.pipeline;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.opensearch.search.aggregations.support.ValueType;
 
 import java.util.HashSet;
 import java.util.Set;
