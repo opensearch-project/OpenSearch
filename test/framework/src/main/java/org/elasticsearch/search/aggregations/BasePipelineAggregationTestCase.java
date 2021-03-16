@@ -46,7 +46,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder.ValidationContext;
-import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 

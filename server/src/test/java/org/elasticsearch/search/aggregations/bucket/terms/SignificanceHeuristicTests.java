@@ -43,7 +43,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
