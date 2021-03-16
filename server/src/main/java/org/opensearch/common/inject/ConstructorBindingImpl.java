@@ -23,10 +23,10 @@ import org.opensearch.common.inject.internal.InternalContext;
 import org.opensearch.common.inject.internal.InternalFactory;
 import org.opensearch.common.inject.internal.Scoping;
 import org.opensearch.common.inject.internal.ToStringBuilder;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.ConstructorBinding;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.BindingTargetVisitor;
+import org.opensearch.common.inject.spi.ConstructorBinding;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.InjectionPoint;
 
 import java.util.HashSet;
 import java.util.Set;

@@ -22,7 +22,7 @@ import org.opensearch.common.inject.internal.InstanceBindingImpl;
 import org.opensearch.common.inject.internal.InternalFactory;
 import org.opensearch.common.inject.internal.MatcherAndConverter;
 import org.opensearch.common.inject.internal.SourceProvider;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
+import org.opensearch.common.inject.spi.TypeListenerBinding;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;

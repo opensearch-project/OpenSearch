@@ -21,11 +21,11 @@ import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.MatcherAndConverter;
 import org.opensearch.common.inject.internal.SourceProvider;
 import org.opensearch.common.inject.internal.Strings;
-import org.elasticsearch.common.inject.matcher.AbstractMatcher;
-import org.elasticsearch.common.inject.matcher.Matcher;
-import org.elasticsearch.common.inject.matcher.Matchers;
-import org.elasticsearch.common.inject.spi.TypeConverter;
-import org.elasticsearch.common.inject.spi.TypeConverterBinding;
+import org.opensearch.common.inject.matcher.AbstractMatcher;
+import org.opensearch.common.inject.matcher.Matcher;
+import org.opensearch.common.inject.matcher.Matchers;
+import org.opensearch.common.inject.spi.TypeConverter;
+import org.opensearch.common.inject.spi.TypeConverterBinding;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

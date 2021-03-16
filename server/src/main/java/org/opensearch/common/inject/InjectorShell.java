@@ -25,12 +25,12 @@ import org.opensearch.common.inject.internal.ProviderInstanceBindingImpl;
 import org.opensearch.common.inject.internal.Scoping;
 import org.opensearch.common.inject.internal.SourceProvider;
 import org.opensearch.common.inject.internal.Stopwatch;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.Elements;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.PrivateElements;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.Elements;
+import org.opensearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.PrivateElements;
+import org.opensearch.common.inject.spi.TypeListenerBinding;
 
 import java.util.ArrayList;
 import java.util.List;

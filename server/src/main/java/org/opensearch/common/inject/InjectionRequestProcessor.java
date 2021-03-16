@@ -19,9 +19,9 @@ package org.opensearch.common.inject;
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.ErrorsException;
 import org.opensearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.InjectionRequest;
-import org.elasticsearch.common.inject.spi.StaticInjectionRequest;
+import org.opensearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.InjectionRequest;
+import org.opensearch.common.inject.spi.StaticInjectionRequest;
 
 import java.util.ArrayList;
 import java.util.List;

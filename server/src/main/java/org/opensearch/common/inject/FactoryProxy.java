@@ -22,7 +22,7 @@ import org.opensearch.common.inject.internal.ErrorsException;
 import org.opensearch.common.inject.internal.InternalContext;
 import org.opensearch.common.inject.internal.InternalFactory;
 import org.opensearch.common.inject.internal.ToStringBuilder;
-import org.elasticsearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.Dependency;
 
 /**
  * A placeholder which enables us to swap in the real factory once the injector is created.

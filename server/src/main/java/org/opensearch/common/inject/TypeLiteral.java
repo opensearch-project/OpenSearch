@@ -17,7 +17,7 @@
 package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.MoreTypes;
-import org.elasticsearch.common.inject.util.Types;
+import org.opensearch.common.inject.util.Types;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;

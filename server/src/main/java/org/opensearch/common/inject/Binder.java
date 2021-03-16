@@ -16,13 +16,13 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
-import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
-import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.common.inject.matcher.Matcher;
-import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.TypeConverter;
-import org.elasticsearch.common.inject.spi.TypeListener;
+import org.opensearch.common.inject.binder.AnnotatedBindingBuilder;
+import org.opensearch.common.inject.binder.AnnotatedConstantBindingBuilder;
+import org.opensearch.common.inject.binder.LinkedBindingBuilder;
+import org.opensearch.common.inject.matcher.Matcher;
+import org.opensearch.common.inject.spi.Message;
+import org.opensearch.common.inject.spi.TypeConverter;
+import org.opensearch.common.inject.spi.TypeListener;
 
 import java.lang.annotation.Annotation;
 
@@ -162,7 +162,7 @@ import java.lang.annotation.Annotation;
  *         .to(BlueService.class);</pre>
  *
  * Differentiating by names is a common enough use case that we provided a
- * standard annotation, {@link org.elasticsearch.common.inject.name.Named @Named}.  Because of
+ * standard annotation, {@link org.opensearch.common.inject.name.Named @Named}.  Because of
  * Guice's library support, binding by name is quite easier than in the
  * arbitrary binding annotation case we just saw.  However, remember that these
  * names will live in a single flat namespace with all the other names used in

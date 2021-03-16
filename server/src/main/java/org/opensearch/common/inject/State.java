@@ -19,7 +19,7 @@ package org.opensearch.common.inject;
 import org.opensearch.common.inject.internal.BindingImpl;
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.MatcherAndConverter;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
+import org.opensearch.common.inject.spi.TypeListenerBinding;
 
 import java.lang.annotation.Annotation;
 import java.util.Collections;

@@ -16,7 +16,7 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.InjectionPoint;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
