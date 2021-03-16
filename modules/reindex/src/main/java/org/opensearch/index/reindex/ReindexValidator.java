@@ -26,7 +26,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.cluster.ClusterState;

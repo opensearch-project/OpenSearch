@@ -26,7 +26,7 @@ import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.update.UpdateResponse;
+import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.tasks.Task;

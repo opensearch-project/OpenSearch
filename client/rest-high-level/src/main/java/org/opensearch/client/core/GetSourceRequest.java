@@ -19,7 +19,7 @@
 
 package org.opensearch.client.core;
 
-import org.elasticsearch.action.get.GetRequest;
+import org.opensearch.action.get.GetRequest;
 import org.opensearch.client.Validatable;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 

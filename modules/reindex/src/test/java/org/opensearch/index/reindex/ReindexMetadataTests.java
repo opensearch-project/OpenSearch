@@ -22,7 +22,7 @@ package org.opensearch.index.reindex;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.

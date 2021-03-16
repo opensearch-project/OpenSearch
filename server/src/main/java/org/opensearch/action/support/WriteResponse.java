@@ -21,9 +21,9 @@ package org.opensearch.action.support;
 
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexResponse;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.update.UpdateResponse;
+import org.opensearch.action.update.UpdateResponse;
 import org.elasticsearch.index.IndexSettings;
 
 /**

@@ -20,15 +20,15 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.delete.DeleteRequestBuilder;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;

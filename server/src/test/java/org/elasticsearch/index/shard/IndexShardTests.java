@@ -40,7 +40,7 @@ import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;

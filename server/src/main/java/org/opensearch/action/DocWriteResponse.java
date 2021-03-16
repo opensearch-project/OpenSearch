@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.index.IndexAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -146,7 +147,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.IndexAction} and BwC
+     * Needed for deserialization of single item requests in {@link IndexAction} and BwC
      * deserialization path
      */
     protected DocWriteResponse(StreamInput in) throws IOException {

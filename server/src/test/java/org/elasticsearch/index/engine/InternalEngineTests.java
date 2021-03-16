@@ -72,7 +72,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;

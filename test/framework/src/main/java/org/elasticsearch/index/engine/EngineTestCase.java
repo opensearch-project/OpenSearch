@@ -49,7 +49,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;

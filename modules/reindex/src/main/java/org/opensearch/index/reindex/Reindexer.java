@@ -33,7 +33,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.Client;
 import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.client.RestClient;

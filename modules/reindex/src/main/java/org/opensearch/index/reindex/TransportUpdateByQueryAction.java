@@ -22,7 +22,7 @@ package org.opensearch.index.reindex;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.client.Client;

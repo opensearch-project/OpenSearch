@@ -19,9 +19,9 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.resync.ResyncReplicationRequest;
-import org.elasticsearch.action.resync.ResyncReplicationResponse;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.resync.ResyncReplicationRequest;
+import org.opensearch.action.resync.ResyncReplicationResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.Strings;

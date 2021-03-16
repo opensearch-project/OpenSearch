@@ -21,9 +21,9 @@ package org.opensearch.rest.action.document;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.update.UpdateRequest;
+import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
