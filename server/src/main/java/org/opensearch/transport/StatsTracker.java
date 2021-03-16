@@ -19,7 +19,7 @@
 
 package org.opensearch.transport;
 
-import org.elasticsearch.common.metrics.MeanMetric;
+import org.opensearch.common.metrics.MeanMetric;
 
 import java.util.concurrent.atomic.LongAdder;
 

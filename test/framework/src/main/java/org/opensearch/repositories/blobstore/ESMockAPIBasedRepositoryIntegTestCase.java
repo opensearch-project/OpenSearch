@@ -32,7 +32,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.network.InetAddresses;
+import org.opensearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.repositories.RepositoriesService;

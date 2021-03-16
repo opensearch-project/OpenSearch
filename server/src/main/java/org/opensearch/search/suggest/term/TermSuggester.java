@@ -27,7 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.text.Text;
+import org.opensearch.common.text.Text;
 import org.opensearch.search.suggest.Suggester;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.opensearch.search.suggest.phrase.DirectCandidateGenerator;

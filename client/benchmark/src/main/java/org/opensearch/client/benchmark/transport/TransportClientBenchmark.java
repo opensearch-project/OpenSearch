@@ -29,7 +29,7 @@ import org.opensearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.opensearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.opensearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.opensearch.plugin.noop.NoopPlugin;

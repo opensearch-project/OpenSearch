@@ -28,7 +28,7 @@ import org.opensearch.common.LocalTimeOffset.Overlap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.time.DateUtils;
+import org.opensearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;

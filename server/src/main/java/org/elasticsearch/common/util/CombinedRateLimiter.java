@@ -20,7 +20,7 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.store.RateLimiter;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.util.concurrent.atomic.AtomicLong;
 

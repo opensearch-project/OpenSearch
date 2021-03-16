@@ -23,7 +23,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 

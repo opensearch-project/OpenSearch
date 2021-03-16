@@ -27,7 +27,7 @@ import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.text.Text;
+import org.opensearch.common.text.Text;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.Suggester;

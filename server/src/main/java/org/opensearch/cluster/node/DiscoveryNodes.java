@@ -31,8 +31,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.opensearch.common.regex.Regex;
+import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;

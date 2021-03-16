@@ -20,6 +20,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.time.DateUtilsRounding;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;

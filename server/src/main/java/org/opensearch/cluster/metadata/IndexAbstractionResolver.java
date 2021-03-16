@@ -20,7 +20,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
 
 import java.util.ArrayList;

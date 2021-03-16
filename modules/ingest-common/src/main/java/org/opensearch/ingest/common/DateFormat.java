@@ -19,8 +19,8 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateFormatters;
 
 import java.time.Instant;
 import java.time.LocalDate;

@@ -20,7 +20,7 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.support.RetryableAction;
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ReplicationGroup;

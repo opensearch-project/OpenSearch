@@ -19,6 +19,7 @@
 package org.elasticsearch.common.regex;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.regex.Regex;
 
 import java.util.Locale;
 import java.util.Random;
@@ -81,7 +82,7 @@ public class RegexTests extends ESTestCase {
                 pattern = pattern.substring(0, shrinkStart) + "*" + pattern.substring(shrinkEnd);
             }
             assertTrue("[" + pattern + "] should match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
-            assertTrue("[" + pattern + "] should match [" + matchingString.toUpperCase(Locale.ROOT) + "]", 
+            assertTrue("[" + pattern + "] should match [" + matchingString.toUpperCase(Locale.ROOT) + "]",
                 Regex.simpleMatch(pattern, matchingString.toUpperCase(Locale.ROOT), true));
 
             // construct a pattern that does not match this string by inserting a non-matching character (a digit)

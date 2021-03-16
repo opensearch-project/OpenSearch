@@ -19,7 +19,7 @@
 
 package org.opensearch.common.io;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.nio.ByteBuffer;

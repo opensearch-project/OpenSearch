@@ -21,7 +21,7 @@ package org.opensearch.transport.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.opensearch.client.transport.TransportClient;
-import org.elasticsearch.common.network.NetworkModule;
+import org.opensearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.index.reindex.ReindexPlugin;
 import org.opensearch.join.ParentJoinPlugin;

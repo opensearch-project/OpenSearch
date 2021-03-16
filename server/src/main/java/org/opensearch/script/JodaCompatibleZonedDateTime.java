@@ -22,9 +22,9 @@ package org.opensearch.script;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.time.DateUtils;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateFormatters;
+import org.opensearch.common.time.DateUtils;
 import org.joda.time.DateTime;
 
 import java.security.AccessController;

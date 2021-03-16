@@ -26,8 +26,8 @@ import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.time.DateFormatter;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.test.ESTestCase;
 

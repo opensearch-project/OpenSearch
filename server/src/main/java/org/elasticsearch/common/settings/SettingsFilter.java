@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.opensearch.rest.RestRequest;
 

@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.path;
 
-import org.elasticsearch.common.path.PathTrie.TrieMatchingMode;
+import org.opensearch.common.path.PathTrie;
+import org.opensearch.common.path.PathTrie.TrieMatchingMode;
 import org.opensearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 

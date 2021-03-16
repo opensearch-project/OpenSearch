@@ -23,7 +23,7 @@ import org.opensearch.OpenSearchException;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.opensearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;

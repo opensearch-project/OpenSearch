@@ -25,7 +25,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Streams;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 
