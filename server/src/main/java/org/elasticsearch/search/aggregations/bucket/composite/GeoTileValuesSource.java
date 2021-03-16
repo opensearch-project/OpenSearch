@@ -24,7 +24,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;

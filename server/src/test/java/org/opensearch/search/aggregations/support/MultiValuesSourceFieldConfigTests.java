@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.opensearch.script.Script;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

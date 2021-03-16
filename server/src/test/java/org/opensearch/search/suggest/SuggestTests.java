@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.suggest.Suggest.Suggestion;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry.Option;

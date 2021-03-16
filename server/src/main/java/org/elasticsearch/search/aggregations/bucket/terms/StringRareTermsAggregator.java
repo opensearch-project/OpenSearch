@@ -25,7 +25,7 @@ import org.opensearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;

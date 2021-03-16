@@ -36,7 +36,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.query.Rewriteable;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;

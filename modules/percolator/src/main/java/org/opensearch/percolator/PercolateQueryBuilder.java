@@ -94,7 +94,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
     public static final String NAME = "percolate";

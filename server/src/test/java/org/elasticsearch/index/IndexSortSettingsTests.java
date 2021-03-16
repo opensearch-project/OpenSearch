@@ -20,7 +20,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 

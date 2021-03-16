@@ -56,7 +56,7 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchPlugin;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.search.SearchModule;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;

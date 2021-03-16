@@ -68,7 +68,7 @@ import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;

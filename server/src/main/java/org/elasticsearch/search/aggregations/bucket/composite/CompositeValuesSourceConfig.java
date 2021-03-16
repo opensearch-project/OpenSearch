@@ -23,7 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.sort.SortOrder;
 

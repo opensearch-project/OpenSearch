@@ -22,7 +22,7 @@ package org.elasticsearch.action.search;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.Scroll;
+import org.opensearch.search.Scroll;
 
 /**
  * A search scroll action request builder.

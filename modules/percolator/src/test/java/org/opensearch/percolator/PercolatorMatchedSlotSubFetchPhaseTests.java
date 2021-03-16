@@ -35,7 +35,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 import org.opensearch.search.fetch.FetchSubPhaseProcessor;

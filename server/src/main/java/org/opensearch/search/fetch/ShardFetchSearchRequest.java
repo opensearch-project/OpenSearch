@@ -28,7 +28,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.RescoreDocIds;
+import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.internal.ShardSearchRequest;
 

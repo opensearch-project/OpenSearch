@@ -34,7 +34,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;

@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.Scroll;
+import org.opensearch.search.Scroll;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 

@@ -25,7 +25,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 import org.opensearch.search.fetch.FetchSubPhaseProcessor;

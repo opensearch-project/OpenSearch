@@ -39,7 +39,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.search.AbstractSearchTestCase;
+import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;

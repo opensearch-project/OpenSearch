@@ -24,7 +24,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneOffset;

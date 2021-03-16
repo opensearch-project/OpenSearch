@@ -55,7 +55,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A query builder for {@code has_child} query.

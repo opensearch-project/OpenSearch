@@ -52,8 +52,8 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.opensearch.script.NumberSortScript;
 import org.opensearch.script.Script;
 import org.opensearch.script.StringSortScript;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Locale;

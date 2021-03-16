@@ -40,8 +40,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
 
 import java.io.IOException;

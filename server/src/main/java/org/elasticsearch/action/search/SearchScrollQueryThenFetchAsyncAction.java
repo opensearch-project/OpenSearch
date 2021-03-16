@@ -27,7 +27,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchRequest;
 import org.opensearch.search.internal.InternalScrollSearchRequest;

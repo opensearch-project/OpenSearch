@@ -45,7 +45,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.join.mapper.ParentIdFieldMapper;
 import org.opensearch.join.mapper.ParentJoinFieldMapper;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.internal.SearchContext;
 

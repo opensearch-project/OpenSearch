@@ -19,8 +19,8 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.query.QuerySearchRequest;

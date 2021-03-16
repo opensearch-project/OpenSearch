@@ -18,7 +18,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

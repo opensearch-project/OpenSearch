@@ -37,7 +37,7 @@ import org.opensearch.geometry.Rectangle;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchHits;
+import org.opensearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.locationtech.jts.geom.Coordinate;

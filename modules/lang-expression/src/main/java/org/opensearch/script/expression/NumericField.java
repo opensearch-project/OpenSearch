@@ -21,7 +21,7 @@ package org.opensearch.script.expression;
 
 import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.search.MultiValueMode;
 
 /**
  * Expressions API for numeric fields.

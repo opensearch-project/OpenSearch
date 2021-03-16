@@ -42,7 +42,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchService;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;

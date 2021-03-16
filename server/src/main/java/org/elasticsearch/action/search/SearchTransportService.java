@@ -32,8 +32,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchService;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.QueryFetchSearchResult;
@@ -63,7 +63,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
- * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
+ * An encapsulation of {@link org.opensearch.search.SearchService} operations exposed through
  * transport.
  */
 public class SearchTransportService {

@@ -45,8 +45,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.MultiValueMode;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;

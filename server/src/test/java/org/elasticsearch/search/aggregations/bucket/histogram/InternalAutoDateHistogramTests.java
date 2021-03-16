@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;

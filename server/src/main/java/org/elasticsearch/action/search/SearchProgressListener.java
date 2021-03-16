@@ -25,8 +25,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.opensearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.util.Collections;

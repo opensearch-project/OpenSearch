@@ -41,7 +41,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.opensearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 

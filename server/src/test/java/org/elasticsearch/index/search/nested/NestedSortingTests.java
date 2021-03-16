@@ -63,7 +63,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.NestedSortBuilder;
 import org.opensearch.search.sort.SortOrder;

@@ -18,7 +18,7 @@
  */
 
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;

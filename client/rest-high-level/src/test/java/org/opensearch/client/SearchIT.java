@@ -60,7 +60,7 @@ import org.opensearch.script.mustache.MultiSearchTemplateResponse;
 import org.opensearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.opensearch.script.mustache.SearchTemplateRequest;
 import org.opensearch.script.mustache.SearchTemplateResponse;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;

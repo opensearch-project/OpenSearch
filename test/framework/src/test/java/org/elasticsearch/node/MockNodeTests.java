@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
-import org.elasticsearch.search.SearchService;
+import org.opensearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 
