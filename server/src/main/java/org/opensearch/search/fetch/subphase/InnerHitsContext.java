@@ -31,7 +31,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.mapper.Uid;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.internal.SearchContext;

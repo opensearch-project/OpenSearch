@@ -20,7 +20,7 @@ package org.opensearch.search.aggregations.support.values;
 
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.LongValues;
-import org.elasticsearch.common.lucene.ScorerAware;
+import org.opensearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.script.JodaCompatibleZonedDateTime;

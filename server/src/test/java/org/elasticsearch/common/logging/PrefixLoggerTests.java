@@ -20,6 +20,7 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.logging.PrefixLogger;
 
 import static org.hamcrest.Matchers.containsString;
 

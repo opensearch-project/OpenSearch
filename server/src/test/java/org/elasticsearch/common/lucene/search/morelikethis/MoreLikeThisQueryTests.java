@@ -29,8 +29,8 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;

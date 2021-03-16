@@ -20,7 +20,7 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 
 import java.util.Map;
 import java.util.function.Function;

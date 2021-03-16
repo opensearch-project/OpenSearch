@@ -19,7 +19,7 @@
 
 package org.opensearch.common.time;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.joda.time.DateTimeZone;
 
 import java.time.Clock;

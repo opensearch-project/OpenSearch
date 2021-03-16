@@ -21,7 +21,7 @@ package org.opensearch.ingest.common;
 
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

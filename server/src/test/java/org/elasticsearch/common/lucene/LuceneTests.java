@@ -70,6 +70,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSou
 import org.opensearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.io.StringReader;

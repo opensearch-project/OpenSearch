@@ -25,7 +25,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;

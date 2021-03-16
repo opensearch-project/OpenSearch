@@ -22,7 +22,7 @@ package org.opensearch.rest.action.document;
 import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;

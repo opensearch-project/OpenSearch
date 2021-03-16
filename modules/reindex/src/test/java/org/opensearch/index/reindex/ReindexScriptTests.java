@@ -20,9 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.index.IndexRequest;
-import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ReindexRequest;
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.script.ScriptService;
 import org.mockito.Mockito;
 

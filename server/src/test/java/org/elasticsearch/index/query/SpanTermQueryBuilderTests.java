@@ -25,7 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.lucene.BytesRefs;
+import org.opensearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;

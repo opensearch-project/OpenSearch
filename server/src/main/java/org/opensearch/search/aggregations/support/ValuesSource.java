@@ -30,7 +30,7 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.Prepared;
-import org.elasticsearch.common.lucene.ScorerAware;
+import org.opensearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.DocValueBits;

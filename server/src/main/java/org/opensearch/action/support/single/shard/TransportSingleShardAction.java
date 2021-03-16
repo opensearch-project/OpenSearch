@@ -40,7 +40,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.opensearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
