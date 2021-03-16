@@ -21,8 +21,8 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,11 +31,11 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.geo.GeoBoundingBox.BOTTOM_RIGHT_FIELD;
-import static org.elasticsearch.common.geo.GeoBoundingBox.BOUNDS_FIELD;
-import static org.elasticsearch.common.geo.GeoBoundingBox.LAT_FIELD;
-import static org.elasticsearch.common.geo.GeoBoundingBox.LON_FIELD;
-import static org.elasticsearch.common.geo.GeoBoundingBox.TOP_LEFT_FIELD;
+import static org.opensearch.common.geo.GeoBoundingBox.BOTTOM_RIGHT_FIELD;
+import static org.opensearch.common.geo.GeoBoundingBox.BOUNDS_FIELD;
+import static org.opensearch.common.geo.GeoBoundingBox.LAT_FIELD;
+import static org.opensearch.common.geo.GeoBoundingBox.LON_FIELD;
+import static org.opensearch.common.geo.GeoBoundingBox.TOP_LEFT_FIELD;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {

@@ -21,8 +21,8 @@ package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.tasks.BaseTasksRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 

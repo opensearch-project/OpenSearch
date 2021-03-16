@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 

@@ -19,7 +19,7 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 

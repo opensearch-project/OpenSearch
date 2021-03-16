@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.index.fielddata.MultiGeoPointValues;
 
 /**
  * Class representing {@link CellValues} that are unbounded by any
@@ -32,7 +32,7 @@ class UnboundedCellValues extends CellValues {
     }
 
     @Override
-    int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
+    int advanceValue(org.opensearch.common.geo.GeoPoint target, int valuesIdx) {
         values[valuesIdx] = encoder.encode(target.getLon(), target.getLat(), precision);
         return valuesIdx + 1;
     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.hashing;
 
-import org.elasticsearch.common.hash.MurmurHash3;
+import org.opensearch.common.hash.MurmurHash3;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.UnsupportedEncodingException;

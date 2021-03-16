@@ -19,11 +19,13 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.geo.GeoShapeType;
+import org.opensearch.common.geo.GeometryIO;
+import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
 import org.opensearch.geometry.ShapeType;

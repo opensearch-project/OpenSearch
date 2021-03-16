@@ -20,7 +20,7 @@
 package org.opensearch.search.suggest.completion;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;

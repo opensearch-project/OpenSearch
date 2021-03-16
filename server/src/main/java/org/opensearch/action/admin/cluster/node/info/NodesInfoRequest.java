@@ -21,8 +21,8 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;

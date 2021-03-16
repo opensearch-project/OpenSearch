@@ -24,7 +24,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
 import org.opensearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

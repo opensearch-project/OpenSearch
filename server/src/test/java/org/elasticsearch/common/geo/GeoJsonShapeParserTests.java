@@ -24,7 +24,9 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.common.geo.GeometryParser;
+import org.opensearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -62,7 +64,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
+import static org.opensearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
 
 
 /**

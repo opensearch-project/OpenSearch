@@ -21,8 +21,8 @@ package org.opensearch.search.suggest.completion.context;
 
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.geo.GeoUtils.parsePrecision;
+import static org.opensearch.common.geo.GeoUtils.parsePrecision;
 import static org.opensearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_BOOST;
 import static org.opensearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_NEIGHBOURS;
 import static org.opensearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_PRECISION;

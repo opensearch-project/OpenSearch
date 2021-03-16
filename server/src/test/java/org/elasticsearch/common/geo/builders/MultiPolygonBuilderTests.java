@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.opensearch.common.geo.builders.MultiPolygonBuilder;
+import org.opensearch.common.geo.builders.PolygonBuilder;
+import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 

@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
+import org.opensearch.common.geo.GeoDistance;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.fielddata.MultiGeoPointValues;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -143,10 +143,10 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
         private final ValuesSource.GeoPoint source;
         private final GeoDistance distanceType;
         private final DistanceUnit units;
-        private final org.elasticsearch.common.geo.GeoPoint origin;
+        private final org.opensearch.common.geo.GeoPoint origin;
 
         DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType,
-                org.elasticsearch.common.geo.GeoPoint origin, DistanceUnit units) {
+                       org.opensearch.common.geo.GeoPoint origin, DistanceUnit units) {
             this.source = source;
             // even if the geo points are unique, there's no guarantee the
             // distances are

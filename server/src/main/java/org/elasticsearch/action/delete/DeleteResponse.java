@@ -20,7 +20,7 @@
 package org.elasticsearch.action.delete;
 
 import org.opensearch.action.DocWriteResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;

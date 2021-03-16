@@ -22,6 +22,8 @@ package org.elasticsearch.common.geo.builders;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.locationtech.jts.geom.Coordinate;
+import org.opensearch.common.geo.builders.CoordinatesBuilder;
+import org.opensearch.common.geo.builders.LineStringBuilder;
 
 import java.io.IOException;
 import java.util.List;

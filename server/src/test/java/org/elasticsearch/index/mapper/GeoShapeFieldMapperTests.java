@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;

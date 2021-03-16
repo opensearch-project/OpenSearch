@@ -20,9 +20,9 @@ package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.action.support.master.TransportMasterNodeAction;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -40,7 +40,7 @@ import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 

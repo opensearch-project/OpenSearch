@@ -41,7 +41,7 @@ import org.opensearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
+import org.opensearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;

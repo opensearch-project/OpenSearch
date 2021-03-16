@@ -19,8 +19,8 @@
 
 package org.opensearch.transport;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 
 public abstract class TransportMessage implements Writeable {

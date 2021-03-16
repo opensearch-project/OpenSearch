@@ -25,6 +25,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 

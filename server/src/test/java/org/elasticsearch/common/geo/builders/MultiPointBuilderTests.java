@@ -23,6 +23,8 @@ import org.locationtech.jts.geom.Coordinate;
 
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
+import org.opensearch.common.geo.builders.CoordinatesBuilder;
+import org.opensearch.common.geo.builders.MultiPointBuilder;
 
 import java.io.IOException;
 import java.util.List;

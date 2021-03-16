@@ -20,8 +20,8 @@ package org.opensearch.common.breaker;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
 

@@ -40,7 +40,7 @@ import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.Index;
 import org.opensearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.opensearch.threadpool.ThreadPool;

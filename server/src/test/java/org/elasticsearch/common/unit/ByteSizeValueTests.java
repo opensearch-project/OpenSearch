@@ -20,7 +20,7 @@
 package org.elasticsearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
 

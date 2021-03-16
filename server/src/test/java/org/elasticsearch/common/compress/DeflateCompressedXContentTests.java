@@ -21,7 +21,7 @@ package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.TestUtil;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 import org.opensearch.common.compress.CompressedXContent;
