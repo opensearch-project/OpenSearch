@@ -36,7 +36,7 @@ import static org.opensearch.common.io.Streams.copyToString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Unit tests for {@link Streams}.
+ * Unit tests for {@link org.opensearch.common.io.Streams}.
  */
 public class StreamsTests extends ESTestCase {
 

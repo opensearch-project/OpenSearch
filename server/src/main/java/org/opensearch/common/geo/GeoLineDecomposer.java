@@ -56,7 +56,7 @@ public class GeoLineDecomposer {
 
         for (int i = 0; i < lons.length; i++) {
             double[] lonLat = new double[] {line.getX(i), line.getY(i)};
-            GeoUtils.normalizePoint(lonLat,false, true);
+            normalizePoint(lonLat,false, true);
             lons[i] = lonLat[0];
             lats[i] = lonLat[1];
         }

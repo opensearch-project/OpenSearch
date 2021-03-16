@@ -40,7 +40,7 @@ class BoundedCellValues extends CellValues {
 
 
     @Override
-    int advanceValue(GeoPoint target, int valuesIdx) {
+    int advanceValue(org.opensearch.common.geo.GeoPoint target, int valuesIdx) {
         if (geoBoundingBox.pointInBounds(target.getLon(), target.getLat())) {
             values[valuesIdx] = encoder.encode(target.getLon(), target.getLat(), precision);
             return valuesIdx + 1;

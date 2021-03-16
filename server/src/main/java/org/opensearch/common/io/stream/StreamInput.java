@@ -973,7 +973,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an array from the stream using the specified {@link Writeable.Reader} to read array elements
+     * Reads an array from the stream using the specified {@link org.opensearch.common.io.stream.Writeable.Reader} to read array elements
      * from the stream. This method can be seen as the reader version of {@link StreamOutput#writeArray(Writeable.Writer, Object[])}. It is
      * assumed that the stream first contains a variable-length integer representing the size of the array, and then contains that many
      * elements that can be read from the stream.
