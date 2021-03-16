@@ -19,11 +19,11 @@
 
 package org.opensearch.transport.nio;
 
-import org.elasticsearch.nio.ChannelContext;
-import org.elasticsearch.nio.EventHandler;
-import org.elasticsearch.nio.NioSelector;
-import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.nio.SocketChannelContext;
+import org.opensearch.nio.ChannelContext;
+import org.opensearch.nio.EventHandler;
+import org.opensearch.nio.NioSelector;
+import org.opensearch.nio.ServerChannelContext;
+import org.opensearch.nio.SocketChannelContext;
 
 import java.io.IOException;
 import java.util.Collections;

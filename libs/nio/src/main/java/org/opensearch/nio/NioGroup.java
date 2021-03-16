@@ -16,23 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.publish'
 
-dependencies {
-  api project(':libs:opensearch-core')
+package org.opensearch.nio;
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+import java.io.Closeable;
+import java.io.IOException;
+import java.net.InetSocketAddress;
 
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-nio'
-  }
-}
+/**
+ * An class for interfacing with java.nio. Implementations implement the underlying logic for opening
+ * channels and registering them with the OS.
+ */
+public interface NioGroup extends Closeable {
 
+    /**
+     * Opens and binds a server channel to accept incoming connections.
+     */
+    <S extends NioServerSocketChannel> S bindServerChannel(InetSocketAddress address, ChannelFactory<S, ?> factory) throws IOException;
 
-tasks.named('forbiddenApisMain').configure {
-  // nio does not depend on core, so only jdk signatures should be checked
-  // es-all is not checked as we connect and accept sockets
-  replaceSignatureFiles 'jdk-signatures'
+    /**
+     * Opens a outgoing client channel.
+     */
+    <S extends NioSocketChannel> S openChannel(InetSocketAddress address, ChannelFactory<?, S> factory) throws IOException;
+
+    @Override
+    void close() throws IOException;
 }
