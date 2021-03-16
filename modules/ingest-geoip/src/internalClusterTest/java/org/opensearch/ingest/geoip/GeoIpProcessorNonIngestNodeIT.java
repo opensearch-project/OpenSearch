@@ -22,7 +22,7 @@ package org.opensearch.ingest.geoip;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
