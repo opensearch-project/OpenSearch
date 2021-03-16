@@ -20,7 +20,7 @@
 package org.opensearch.search.suggest;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
+import org.opensearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;

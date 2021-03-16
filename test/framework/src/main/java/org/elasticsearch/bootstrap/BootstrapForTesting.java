@@ -28,7 +28,7 @@ import org.opensearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.network.IfConfig;
+import org.opensearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginInfo;
 import org.opensearch.bootstrap.Bootstrap;

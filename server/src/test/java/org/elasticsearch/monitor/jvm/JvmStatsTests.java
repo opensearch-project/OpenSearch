@@ -20,7 +20,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

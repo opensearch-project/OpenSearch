@@ -37,17 +37,17 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.network.NetworkUtils;
+import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.common.network.CloseableChannel;
+import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.PortsRange;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.transport.PortsRange;
+import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -92,8 +92,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
-import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
+import static org.opensearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
+import static org.opensearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {

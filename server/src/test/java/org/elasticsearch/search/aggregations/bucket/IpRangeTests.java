@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.network.NetworkAddress;
+import org.opensearch.common.network.NetworkAddress;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
 

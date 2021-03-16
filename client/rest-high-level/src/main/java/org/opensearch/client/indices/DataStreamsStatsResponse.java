@@ -21,7 +21,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.client.core.BroadcastResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;

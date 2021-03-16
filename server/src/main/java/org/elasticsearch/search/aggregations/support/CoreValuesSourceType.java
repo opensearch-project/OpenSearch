@@ -24,7 +24,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.geo.GeoPoint;
-import org.elasticsearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;

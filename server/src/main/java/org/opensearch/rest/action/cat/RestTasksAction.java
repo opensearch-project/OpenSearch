@@ -27,7 +27,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
-import org.elasticsearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;

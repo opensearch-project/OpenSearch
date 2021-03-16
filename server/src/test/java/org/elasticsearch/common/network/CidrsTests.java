@@ -21,6 +21,7 @@ package org.elasticsearch.common.network;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.network.Cidrs;
 
 import java.util.ArrayList;
 import java.util.List;

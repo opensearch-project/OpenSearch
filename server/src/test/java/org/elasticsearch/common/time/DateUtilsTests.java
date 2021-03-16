@@ -21,6 +21,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
+import org.opensearch.common.time.DateUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -35,11 +36,11 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.common.time.DateUtils.clampToNanosRange;
-import static org.elasticsearch.common.time.DateUtils.toInstant;
-import static org.elasticsearch.common.time.DateUtils.toLong;
-import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
-import static org.elasticsearch.common.time.DateUtils.toNanoSeconds;
+import static org.opensearch.common.time.DateUtils.clampToNanosRange;
+import static org.opensearch.common.time.DateUtils.toInstant;
+import static org.opensearch.common.time.DateUtils.toLong;
+import static org.opensearch.common.time.DateUtils.toMilliSeconds;
+import static org.opensearch.common.time.DateUtils.toNanoSeconds;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

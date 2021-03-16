@@ -23,7 +23,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.opensearch.common.LocalTimeOffset;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
-import org.elasticsearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;

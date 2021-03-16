@@ -19,7 +19,7 @@
 
 package org.opensearch.common;
 
-import org.elasticsearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateFormatter;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

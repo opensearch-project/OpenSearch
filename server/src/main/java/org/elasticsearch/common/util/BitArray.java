@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 
 /**
  * A bit array that is implemented using a growing {@link LongArray}

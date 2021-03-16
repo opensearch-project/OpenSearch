@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.recycler;
 
-import org.elasticsearch.common.recycler.Recycler.V;
+import org.opensearch.common.recycler.AbstractRecyclerC;
+import org.opensearch.common.recycler.Recycler;
+import org.opensearch.common.recycler.Recycler.V;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

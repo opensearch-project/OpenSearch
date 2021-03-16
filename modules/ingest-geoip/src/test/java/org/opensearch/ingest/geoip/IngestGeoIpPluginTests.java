@@ -20,7 +20,7 @@
 package org.opensearch.ingest.geoip;
 
 import com.maxmind.geoip2.model.AbstractResponse;
-import org.elasticsearch.common.network.InetAddresses;
+import org.opensearch.common.network.InetAddresses;
 import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.elasticsearch.test.ESTestCase;
 

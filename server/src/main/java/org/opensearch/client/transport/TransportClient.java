@@ -34,13 +34,13 @@ import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.ModulesBuilder;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.network.NetworkService;
+import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -83,9 +83,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using
- * {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
+ * {@link #addTransportAddress(org.opensearch.common.transport.TransportAddress)}.
  * <p>
- * The transport client important modules used is the {@link org.elasticsearch.common.network.NetworkModule} which is
+ * The transport client important modules used is the {@link org.opensearch.common.network.NetworkModule} which is
  * started in client mode (only connects, no bind).
  *
  * @deprecated {@link TransportClient} is deprecated in favour of the High Level REST client and will
@@ -304,7 +304,7 @@ public abstract class TransportClient extends AbstractClient {
 
     /**
      * Returns the current registered transport addresses to use (added using
-     * {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
+     * {@link #addTransportAddress(org.opensearch.common.transport.TransportAddress)}.
      */
     public List<TransportAddress> transportAddresses() {
         return nodesService.transportAddresses();

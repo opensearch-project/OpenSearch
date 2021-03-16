@@ -22,15 +22,17 @@ package org.elasticsearch.common.unit;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
-import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
-import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
-import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
-import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
-import static org.elasticsearch.common.unit.ByteSizeUnit.TB;
+import static org.opensearch.common.unit.ByteSizeUnit.BYTES;
+import static org.opensearch.common.unit.ByteSizeUnit.GB;
+import static org.opensearch.common.unit.ByteSizeUnit.KB;
+import static org.opensearch.common.unit.ByteSizeUnit.MB;
+import static org.opensearch.common.unit.ByteSizeUnit.PB;
+import static org.opensearch.common.unit.ByteSizeUnit.TB;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

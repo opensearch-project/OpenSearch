@@ -24,8 +24,8 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.IntArray;
@@ -34,7 +34,7 @@ import org.elasticsearch.common.util.LongArray;
 import java.io.IOException;
 
 /**
- * A frequency terms enum that maintains a cache of docFreq, totalTermFreq, or both for repeated term lookup. 
+ * A frequency terms enum that maintains a cache of docFreq, totalTermFreq, or both for repeated term lookup.
  */
 public class FreqTermsEnum extends FilterableTermsEnum implements Releasable {
 
@@ -85,11 +85,11 @@ public class FreqTermsEnum extends FilterableTermsEnum implements Releasable {
             current = found ? text : null;
             return found;
         }
-        
+
         //Cache miss - gather stats
         final boolean found = super.seekExact(text);
 
-        //Cache the result - found or not. 
+        //Cache the result - found or not.
         if (needDocFreqs) {
             termDocFreqs = bigArrays.grow(termDocFreqs, currentTermOrd + 1);
             termDocFreqs.set(currentTermOrd, currentDocFreq);

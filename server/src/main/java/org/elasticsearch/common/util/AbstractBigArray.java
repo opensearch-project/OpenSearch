@@ -21,8 +21,8 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.recycler.Recycler;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.recycler.Recycler;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;

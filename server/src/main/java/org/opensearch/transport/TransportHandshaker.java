@@ -25,7 +25,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 

@@ -22,7 +22,7 @@ package org.opensearch.common.compress;
 import org.elasticsearch.Assertions;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;

@@ -20,8 +20,8 @@
 package org.opensearch.ingest.common;
 
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateUtils;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.ZoneId;

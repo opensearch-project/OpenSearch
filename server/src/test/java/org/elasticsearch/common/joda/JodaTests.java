@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.joda;
 
-import org.elasticsearch.common.time.DateFormatter;
+import org.opensearch.common.joda.Joda;
+import org.opensearch.common.joda.JodaDateFormatter;
+import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
