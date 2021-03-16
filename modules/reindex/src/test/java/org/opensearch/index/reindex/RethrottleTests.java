@@ -24,7 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;

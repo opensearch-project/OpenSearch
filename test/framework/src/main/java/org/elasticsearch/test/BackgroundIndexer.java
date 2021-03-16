@@ -30,7 +30,7 @@ import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.index.IndexResponse;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;

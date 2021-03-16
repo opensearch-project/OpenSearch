@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 

@@ -20,8 +20,8 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;

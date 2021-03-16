@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 

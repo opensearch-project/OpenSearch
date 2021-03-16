@@ -22,7 +22,7 @@ package org.opensearch.client;
 import org.elasticsearch.client.RequestOptions;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.document.RestBulkAction;

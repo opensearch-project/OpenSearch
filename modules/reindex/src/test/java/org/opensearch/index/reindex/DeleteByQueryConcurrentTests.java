@@ -19,7 +19,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;

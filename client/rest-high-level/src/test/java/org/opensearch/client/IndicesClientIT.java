@@ -53,7 +53,7 @@ import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.broadcast.BroadcastResponse;

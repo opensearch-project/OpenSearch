@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;

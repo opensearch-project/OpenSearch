@@ -20,8 +20,8 @@
 package org.opensearch.ingest.geoip;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
@@ -29,8 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.ingest.IngestService;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;

@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.document;
 
-import org.elasticsearch.action.get.MultiGetRequest;
+import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;

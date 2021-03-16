@@ -21,8 +21,8 @@ package org.opensearch.action.bulk;
 
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
+import org.opensearch.action.delete.DeleteResponse;
+import org.opensearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.index.engine.Engine;

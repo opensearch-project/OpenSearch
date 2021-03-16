@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fieldstats;
 
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexResponse;
+import org.opensearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;

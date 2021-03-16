@@ -24,7 +24,7 @@ import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.update.UpdateResponse;
+import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;

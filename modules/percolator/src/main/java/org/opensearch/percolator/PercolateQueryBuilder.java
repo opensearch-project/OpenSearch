@@ -46,7 +46,7 @@ import org.opensearch.OpenSearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.get.GetRequest;
+import org.opensearch.action.get.GetRequest;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.InputStreamStreamInput;

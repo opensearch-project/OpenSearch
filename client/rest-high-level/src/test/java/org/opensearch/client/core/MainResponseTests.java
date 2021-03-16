@@ -32,9 +32,9 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.main.MainResponse, MainResponse> {
+public class MainResponseTests extends AbstractResponseTestCase<org.opensearch.action.main.MainResponse, MainResponse> {
     @Override
-    protected org.elasticsearch.action.main.MainResponse createServerTestInstance(XContentType xContentType) {
+    protected org.opensearch.action.main.MainResponse createServerTestInstance(XContentType xContentType) {
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
@@ -44,7 +44,7 @@ public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearc
             Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
             version.toString()
         );
-        return new org.elasticsearch.action.main.MainResponse(nodeName, version, clusterName, clusterUuid , build);
+        return new org.opensearch.action.main.MainResponse(nodeName, version, clusterName, clusterUuid , build);
     }
 
     @Override
@@ -53,7 +53,7 @@ public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearc
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.main.MainResponse serverTestInstance, MainResponse clientInstance) {
+    protected void assertInstances(org.opensearch.action.main.MainResponse serverTestInstance, MainResponse clientInstance) {
         assertThat(serverTestInstance.getClusterName().value(), equalTo(clientInstance.getClusterName()));
         assertThat(serverTestInstance.getClusterUuid(), equalTo(clientInstance.getClusterUuid()));
         assertThat(serverTestInstance.getNodeName(), equalTo(clientInstance.getNodeName()));
