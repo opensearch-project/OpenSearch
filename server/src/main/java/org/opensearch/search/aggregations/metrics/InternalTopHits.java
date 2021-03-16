@@ -29,8 +29,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;

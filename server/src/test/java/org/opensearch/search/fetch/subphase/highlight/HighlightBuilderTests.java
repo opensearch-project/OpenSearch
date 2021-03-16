@@ -48,7 +48,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.Order;

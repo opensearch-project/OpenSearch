@@ -21,7 +21,7 @@ package org.opensearch.search.internal;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.search.Scroll;
+import org.opensearch.search.Scroll;
 
 /** Wrapper around information that needs to stay around when scrolling. */
 public final class ScrollContext {

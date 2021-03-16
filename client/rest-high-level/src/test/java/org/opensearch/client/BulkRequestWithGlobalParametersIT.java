@@ -26,7 +26,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.function.Function;

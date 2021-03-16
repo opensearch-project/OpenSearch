@@ -537,7 +537,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned
+     * Should each {@link org.opensearch.search.SearchHit} be returned
      * with an explanation of the hit (ranking).
      */
     public TopHitsAggregationBuilder explain(boolean explain) {
@@ -554,7 +554,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned
+     * Should each {@link org.opensearch.search.SearchHit} be returned
      * with a version associated with it.
      */
     public TopHitsAggregationBuilder version(boolean version) {
@@ -571,7 +571,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
+     * Should each {@link org.opensearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
      */
     public TopHitsAggregationBuilder seqNoAndPrimaryTerm(Boolean seqNoAndPrimaryTerm) {
@@ -580,7 +580,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Indicates whether {@link org.elasticsearch.search.SearchHit}s should be returned with the
+     * Indicates whether {@link org.opensearch.search.SearchHit}s should be returned with the
      * sequence number and primary term of the last modification of the document.
      */
     public Boolean seqNoAndPrimaryTerm() {

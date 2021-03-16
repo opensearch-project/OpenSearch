@@ -22,7 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.elasticsearch.search.SearchHit;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;

@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.search.SearchException;
+import org.opensearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.transport.TcpTransport;
 
@@ -779,8 +779,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         //      22 was CreateFailedEngineException
         INDEX_SHARD_STARTED_EXCEPTION(org.elasticsearch.index.shard.IndexShardStartedException.class,
                 org.elasticsearch.index.shard.IndexShardStartedException::new, 23, UNKNOWN_VERSION_ADDED),
-        SEARCH_CONTEXT_MISSING_EXCEPTION(org.elasticsearch.search.SearchContextMissingException.class,
-                org.elasticsearch.search.SearchContextMissingException::new, 24, UNKNOWN_VERSION_ADDED),
+        SEARCH_CONTEXT_MISSING_EXCEPTION(org.opensearch.search.SearchContextMissingException.class,
+                org.opensearch.search.SearchContextMissingException::new, 24, UNKNOWN_VERSION_ADDED),
         GENERAL_SCRIPT_EXCEPTION(org.opensearch.script.GeneralScriptException.class,
                 org.opensearch.script.GeneralScriptException::new, 25, UNKNOWN_VERSION_ADDED),
         // 26 was BatchOperationException
@@ -801,8 +801,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.transport.TransportException::new, 34, UNKNOWN_VERSION_ADDED),
         ELASTICSEARCH_PARSE_EXCEPTION(org.elasticsearch.OpenSearchParseException.class,
                 org.elasticsearch.OpenSearchParseException::new, 35, UNKNOWN_VERSION_ADDED),
-        SEARCH_EXCEPTION(org.elasticsearch.search.SearchException.class,
-                org.elasticsearch.search.SearchException::new, 36, UNKNOWN_VERSION_ADDED),
+        SEARCH_EXCEPTION(org.opensearch.search.SearchException.class,
+                org.opensearch.search.SearchException::new, 36, UNKNOWN_VERSION_ADDED),
         MAPPER_EXCEPTION(org.elasticsearch.index.mapper.MapperException.class,
                 org.elasticsearch.index.mapper.MapperException::new, 37, UNKNOWN_VERSION_ADDED),
         INVALID_TYPE_NAME_EXCEPTION(org.opensearch.indices.InvalidTypeNameException.class,
@@ -865,7 +865,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.action.PrimaryMissingActionException::new, 70, UNKNOWN_VERSION_ADDED),
         FAILED_NODE_EXCEPTION(org.opensearch.action.FailedNodeException.class, org.opensearch.action.FailedNodeException::new, 71,
             UNKNOWN_VERSION_ADDED),
-        SEARCH_PARSE_EXCEPTION(org.elasticsearch.search.SearchParseException.class, org.elasticsearch.search.SearchParseException::new, 72,
+        SEARCH_PARSE_EXCEPTION(org.opensearch.search.SearchParseException.class, org.opensearch.search.SearchParseException::new, 72,
             UNKNOWN_VERSION_ADDED),
         CONCURRENT_SNAPSHOT_EXECUTION_EXCEPTION(org.opensearch.snapshots.ConcurrentSnapshotExecutionException.class,
                 org.opensearch.snapshots.ConcurrentSnapshotExecutionException::new, 73, UNKNOWN_VERSION_ADDED),

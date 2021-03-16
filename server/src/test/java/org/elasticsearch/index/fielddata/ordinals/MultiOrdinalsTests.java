@@ -22,7 +22,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.search.MultiValueMode;
+import org.opensearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

@@ -41,7 +41,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.opensearch.script.Script;
-import org.elasticsearch.search.SearchExtBuilder;
+import org.opensearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -438,7 +438,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with
+     * Should each {@link org.opensearch.search.SearchHit} be returned with
      * an explanation of the hit (ranking).
      */
     public SearchSourceBuilder explain(Boolean explain) {
@@ -455,7 +455,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with a
+     * Should each {@link org.opensearch.search.SearchHit} be returned with a
      * version associated with it.
      */
     public SearchSourceBuilder version(Boolean version) {
@@ -472,7 +472,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
+     * Should each {@link org.opensearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
      */
     public SearchSourceBuilder seqNoAndPrimaryTerm(Boolean seqNoAndPrimaryTerm) {
@@ -481,7 +481,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Indicates whether {@link org.elasticsearch.search.SearchHit}s should be returned with the
+     * Indicates whether {@link org.opensearch.search.SearchHit}s should be returned with the
      * sequence number and primary term of the last modification of the document.
      */
     public Boolean seqNoAndPrimaryTerm() {

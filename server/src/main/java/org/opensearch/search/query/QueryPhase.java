@@ -55,9 +55,9 @@ import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecuto
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchContextSourcePrinter;
-import org.elasticsearch.search.SearchService;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchContextSourcePrinter;
+import org.opensearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;

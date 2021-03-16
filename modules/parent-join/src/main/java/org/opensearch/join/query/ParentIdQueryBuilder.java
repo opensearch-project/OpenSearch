@@ -39,7 +39,7 @@ import org.opensearch.join.mapper.ParentJoinFieldMapper;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQueryBuilder> {
     public static final String NAME = "parent_id";

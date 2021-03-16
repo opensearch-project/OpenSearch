@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
 import org.opensearch.search.suggest.term.TermSuggestionBuilderTests;

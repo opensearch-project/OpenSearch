@@ -32,8 +32,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.search.SearchException;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.search.SearchException;
+import org.opensearch.search.SearchShardTarget;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;

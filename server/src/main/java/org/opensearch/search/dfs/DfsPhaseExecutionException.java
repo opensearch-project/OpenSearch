@@ -20,8 +20,8 @@
 package org.opensearch.search.dfs;
 
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.SearchException;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.search.SearchException;
+import org.opensearch.search.SearchShardTarget;
 
 import java.io.IOException;
 

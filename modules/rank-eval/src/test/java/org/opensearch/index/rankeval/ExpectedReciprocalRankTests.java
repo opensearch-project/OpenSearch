@@ -32,8 +32,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchShardTarget;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

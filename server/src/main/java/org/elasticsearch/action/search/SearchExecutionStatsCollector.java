@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.node.ResponseCollectorService;
-import org.elasticsearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.Transport;
 

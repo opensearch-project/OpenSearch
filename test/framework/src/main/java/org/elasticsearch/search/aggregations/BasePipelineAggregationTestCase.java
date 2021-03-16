@@ -44,7 +44,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder.ValidationContext;
 import org.opensearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;

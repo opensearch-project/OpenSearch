@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.support;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.SearchModule;
+import org.opensearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.util.AbstractMap;

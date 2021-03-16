@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.unit.DistanceUnit;
-import org.elasticsearch.search.DocValueFormat;
+import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;

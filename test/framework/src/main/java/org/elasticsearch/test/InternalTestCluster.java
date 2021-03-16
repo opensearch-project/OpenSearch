@@ -111,7 +111,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.search.SearchService;
+import org.opensearch.search.SearchService;
 import org.opensearch.tasks.TaskManager;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;

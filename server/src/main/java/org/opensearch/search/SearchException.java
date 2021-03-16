@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
 import org.opensearch.OpenSearchException;
 import org.elasticsearch.OpenSearchWrapperException;

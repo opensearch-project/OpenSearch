@@ -37,7 +37,7 @@ import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.search.SearchHits;
+import org.opensearch.search.SearchHits;
 
 import java.io.IOException;
 import java.util.List;

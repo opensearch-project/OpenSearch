@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.search.SearchHit.NestedIdentity;
+import org.opensearch.search.SearchHit.NestedIdentity;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
