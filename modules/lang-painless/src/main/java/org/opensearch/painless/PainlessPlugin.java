@@ -53,7 +53,7 @@ import org.opensearch.script.ScoreScript;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
+import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.opensearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 

@@ -76,11 +76,11 @@ import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests
 import org.elasticsearch.search.aggregations.metrics.InternalTopHitsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCountTests;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvgTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivativeTests;
+import org.opensearch.search.aggregations.pipeline.InternalSimpleValueTests;
+import org.opensearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
+import org.opensearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
+import org.opensearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
+import org.opensearch.search.aggregations.pipeline.InternalDerivativeTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
