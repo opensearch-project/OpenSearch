@@ -32,7 +32,7 @@ import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.IndicesService;

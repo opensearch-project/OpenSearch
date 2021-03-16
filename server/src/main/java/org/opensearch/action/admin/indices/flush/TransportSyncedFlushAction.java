@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.flush;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;

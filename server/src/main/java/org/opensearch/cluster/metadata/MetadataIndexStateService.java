@@ -60,7 +60,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

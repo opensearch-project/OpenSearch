@@ -30,7 +30,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.opensearch.repositories.RepositoryMissingException;

@@ -38,7 +38,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;

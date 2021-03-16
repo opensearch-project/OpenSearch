@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.Key;
+import org.opensearch.common.inject.Binding;
+import org.opensearch.common.inject.Key;
 
 /**
  * A binding to a linked key. The other key's binding is used to resolve injections.

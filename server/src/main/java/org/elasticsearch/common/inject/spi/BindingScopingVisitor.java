@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Scope;
+import org.opensearch.common.inject.Scope;
 
 import java.lang.annotation.Annotation;
 
@@ -42,7 +42,7 @@ public interface BindingScopingVisitor<V> {
 
     /**
      * Visit a scope annotation. This scope strategy is found only on module bindings. The instance
-     * that implements this scope is registered by {@link org.elasticsearch.common.inject.Binder#bindScope(Class,
+     * that implements this scope is registered by {@link org.opensearch.common.inject.Binder#bindScope(Class,
      * Scope) Binder.bindScope()}.
      */
     V visitScopeAnnotation(Class<? extends Annotation> scopeAnnotation);

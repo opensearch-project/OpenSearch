@@ -33,7 +33,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterStateHealth;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexService;

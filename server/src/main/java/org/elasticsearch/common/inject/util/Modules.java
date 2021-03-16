@@ -16,13 +16,13 @@
 
 package org.elasticsearch.common.inject.util;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PrivateBinder;
-import org.elasticsearch.common.inject.Scope;
+import org.opensearch.common.inject.AbstractModule;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.Binding;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.Module;
+import org.opensearch.common.inject.PrivateBinder;
+import org.opensearch.common.inject.Scope;
 import org.elasticsearch.common.inject.spi.DefaultBindingScopingVisitor;
 import org.elasticsearch.common.inject.spi.DefaultElementVisitor;
 import org.elasticsearch.common.inject.spi.Element;

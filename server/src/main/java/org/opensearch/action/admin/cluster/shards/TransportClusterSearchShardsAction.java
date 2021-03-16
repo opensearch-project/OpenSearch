@@ -31,7 +31,7 @@ import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;

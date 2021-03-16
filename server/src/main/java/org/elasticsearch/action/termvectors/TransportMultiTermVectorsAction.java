@@ -27,7 +27,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;

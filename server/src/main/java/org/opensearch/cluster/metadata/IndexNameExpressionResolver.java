@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -37,10 +37,10 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.InvalidIndexNameException;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.indices.IndexClosedException;
+import org.opensearch.indices.InvalidIndexNameException;
 
 import java.time.Instant;
 import java.time.ZoneId;

@@ -35,7 +35,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;

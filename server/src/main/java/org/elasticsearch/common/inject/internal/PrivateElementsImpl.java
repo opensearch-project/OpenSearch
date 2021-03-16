@@ -16,10 +16,10 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.PrivateBinder;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.Injector;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.PrivateBinder;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.ElementVisitor;
 import org.elasticsearch.common.inject.spi.PrivateElements;
