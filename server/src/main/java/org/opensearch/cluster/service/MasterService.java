@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.service;
+package org.opensearch.cluster.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,7 +38,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.component.AbstractLifecycleComponent;

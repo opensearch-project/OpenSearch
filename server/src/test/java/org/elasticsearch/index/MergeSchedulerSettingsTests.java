@@ -71,7 +71,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     public void testUpdateAutoThrottleSettings() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         mockAppender.start();
-        final Logger settingsLogger = LogManager.getLogger("IndexScopedSettings");
+        final Logger settingsLogger = LogManager.getLogger("org.opensearch.common.settings.IndexScopedSettings");
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
@@ -102,7 +102,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     public void testUpdateMergeMaxThreadCount() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         mockAppender.start();
-        final Logger settingsLogger = LogManager.getLogger("IndexScopedSettings");
+        final Logger settingsLogger = LogManager.getLogger("org.opensearch.common.settings.IndexScopedSettings");
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {

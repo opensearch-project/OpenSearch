@@ -28,7 +28,6 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.AbstractScopedSettings;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -1206,7 +1205,7 @@ public class SettingTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("must be stored inside elasticsearch.yml"));
     }
 
-    @TestLogging(value="IndexScopedSettings:INFO",
+    @TestLogging(value="org.opensearch.common.settings.IndexScopedSettings:INFO",
         reason="to ensure we log INFO-level messages from IndexScopedSettings")
     public void testLogSettingUpdate() throws Exception {
         final IndexMetadata metadata = newIndexMeta("index1",
@@ -1216,7 +1215,7 @@ public class SettingTests extends ESTestCase {
         final MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
             "message",
-            "IndexScopedSettings",
+            "org.opensearch.common.settings.IndexScopedSettings",
             Level.INFO,
             "updating [index.refresh_interval] from [20s] to [10s]") {
             @Override

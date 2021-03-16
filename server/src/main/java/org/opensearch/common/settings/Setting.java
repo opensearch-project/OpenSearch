@@ -21,7 +21,7 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
