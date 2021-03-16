@@ -19,7 +19,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;

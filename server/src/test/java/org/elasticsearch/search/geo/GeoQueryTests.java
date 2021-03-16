@@ -20,7 +20,7 @@
 package org.elasticsearch.search.geo;
 
 import org.opensearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.CircleBuilder;
@@ -34,9 +34,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;

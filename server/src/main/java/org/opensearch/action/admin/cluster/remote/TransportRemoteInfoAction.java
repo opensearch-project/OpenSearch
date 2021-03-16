@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.cluster.remote;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchTransportService;
+import org.opensearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;

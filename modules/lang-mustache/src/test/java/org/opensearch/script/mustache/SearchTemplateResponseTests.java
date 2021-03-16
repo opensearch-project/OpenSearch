@@ -20,8 +20,8 @@
 package org.opensearch.script.mustache;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;

@@ -25,7 +25,7 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;

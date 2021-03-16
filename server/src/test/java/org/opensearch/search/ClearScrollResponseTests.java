@@ -19,7 +19,7 @@
 
 package org.opensearch.search;
 
-import org.elasticsearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

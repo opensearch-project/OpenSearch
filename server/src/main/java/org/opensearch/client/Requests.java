@@ -61,8 +61,8 @@ import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchScrollRequest;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchScrollRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 
 /**
@@ -133,7 +133,7 @@ public class Requests {
      *
      * @param indices The indices to search against. Use {@code null} or {@code _all} to execute against all indices
      * @return The search request
-     * @see org.opensearch.client.Client#search(org.elasticsearch.action.search.SearchRequest)
+     * @see org.opensearch.client.Client#search(org.opensearch.action.search.SearchRequest)
      */
     public static SearchRequest searchRequest(String... indices) {
         return new SearchRequest(indices);
@@ -144,7 +144,7 @@ public class Requests {
      *
      * @param scrollId The scroll id representing the scrollable search
      * @return The search scroll request
-     * @see org.opensearch.client.Client#searchScroll(org.elasticsearch.action.search.SearchScrollRequest)
+     * @see org.opensearch.client.Client#searchScroll(org.opensearch.action.search.SearchScrollRequest)
      */
     public static SearchScrollRequest searchScrollRequest(String scrollId) {
         return new SearchScrollRequest(scrollId);

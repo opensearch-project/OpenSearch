@@ -20,7 +20,7 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.script.ScriptType;
 

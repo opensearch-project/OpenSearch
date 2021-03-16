@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;

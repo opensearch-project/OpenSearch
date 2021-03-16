@@ -20,7 +20,7 @@
 package org.elasticsearch.test.search.aggregations.bucket;
 
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;

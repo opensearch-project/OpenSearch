@@ -19,7 +19,7 @@
 
 package org.opensearch.client.core;
 
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ToXContent;

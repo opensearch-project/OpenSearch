@@ -21,7 +21,7 @@ package org.opensearch.search.internal;
 
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;

@@ -21,7 +21,7 @@ package org.opensearch.script.mustache;
 import org.elasticsearch.ResourceNotFoundException;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.opensearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;

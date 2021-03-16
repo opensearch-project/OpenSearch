@@ -21,12 +21,12 @@ package org.elasticsearch.index.fieldstats;
 
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndicesRequestCache;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 

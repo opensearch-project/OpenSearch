@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.OriginalIndicesTests;
-import org.elasticsearch.action.search.SearchShardIterator;
+import org.opensearch.action.search.SearchShardIterator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;

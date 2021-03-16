@@ -40,7 +40,7 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.HeapBufferedAsyncResponseConsumer;
 import org.opensearch.client.RestClient;
 import org.opensearch.common.ParsingException;
