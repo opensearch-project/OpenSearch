@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations;
+package org.opensearch.search.aggregations;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.metrics.InternalAvg;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
+import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.metrics.InternalAvg;
+import org.opensearch.search.aggregations.support.AggregationPath;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.InternalMultiBucketAggregation.resolvePropertyFromPath;
+import static org.opensearch.search.aggregations.InternalMultiBucketAggregation.resolvePropertyFromPath;
 import static org.hamcrest.Matchers.equalTo;
 
-public class InternalMultiBucketAggregationTests extends ESTestCase {
+public class InternalMultiBucketAggregationTests extends OpenSearchTestCase {
 
     public void testResolveToAgg() {
         AggregationPath path = AggregationPath.parse("the_avg");

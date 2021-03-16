@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.geogrid;
+package org.opensearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
-import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
-import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.hashToGeoPoint;
-import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.keyToGeoPoint;
-import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
-import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
+import static org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
+import static org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
+import static org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils.hashToGeoPoint;
+import static org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils.keyToGeoPoint;
+import static org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
+import static org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoTileUtilsTests extends ESTestCase {
+public class GeoTileUtilsTests extends OpenSearchTestCase {
 
     private static final double GEOTILE_TOLERANCE = 1E-5D;
 

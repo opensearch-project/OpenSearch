@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.opensearch.search.aggregations.metrics;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,7 +28,7 @@ import java.util.function.Function;
 
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.search.lookup.LeafDocLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 /**
  * Provides a number of dummy scripts for tests.
@@ -97,7 +97,7 @@ public class MetricAggScriptPlugin extends MockScriptPlugin {
     protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-        scripts.put("Math.random()", vars -> ESTestCase.randomDouble());
+        scripts.put("Math.random()", vars -> OpenSearchTestCase.randomDouble());
 
         return scripts;
     }

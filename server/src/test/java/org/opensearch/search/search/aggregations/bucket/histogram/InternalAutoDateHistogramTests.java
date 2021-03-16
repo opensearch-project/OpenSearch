@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.opensearch.common.Rounding;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
+import org.opensearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;

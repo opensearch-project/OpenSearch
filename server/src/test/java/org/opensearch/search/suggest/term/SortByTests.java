@@ -19,7 +19,7 @@
 
 package org.opensearch.search.suggest.term;
 
-import org.elasticsearch.common.io.stream.AbstractWriteableEnumTestCase;
+import org.opensearch.common.io.stream.AbstractWriteableEnumTestCase;
 import org.opensearch.search.suggest.SortBy;
 
 import java.io.IOException;

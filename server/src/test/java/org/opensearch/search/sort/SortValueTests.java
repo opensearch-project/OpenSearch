@@ -20,13 +20,13 @@
 package org.opensearch.search.sort;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;
 import java.time.ZoneId;

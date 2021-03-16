@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.AbstractWriteableEnumTestCase;
+import org.opensearch.common.io.stream.AbstractWriteableEnumTestCase;
 
 import java.io.IOException;
 

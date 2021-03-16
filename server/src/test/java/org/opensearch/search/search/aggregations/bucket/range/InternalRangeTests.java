@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.range;
+package org.opensearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.Collections;

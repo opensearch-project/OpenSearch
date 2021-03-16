@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.terms;
+package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Randomness;
-import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.common.util.SetBackedScalingCuckooFilter;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.HashMap;

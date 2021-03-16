@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.pipeline;
+package org.opensearch.search.aggregations.pipeline;
 
-import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.opensearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 

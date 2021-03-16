@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.search.lookup.LeafDocLookup;

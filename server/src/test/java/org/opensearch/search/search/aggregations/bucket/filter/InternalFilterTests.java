@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.filter;
+package org.opensearch.search.aggregations.bucket.filter;
 
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.util.Collections;
 import java.util.List;
@@ -75,7 +75,7 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
             }
         };
         PipelineTree tree = new PipelineTree(
-            org.elasticsearch.common.collect.Map.of(inner.getName(), new PipelineTree(emptyMap(), singletonList(mockPipeline))),
+            org.opensearch.common.collect.Map.of(inner.getName(), new PipelineTree(emptyMap(), singletonList(mockPipeline))),
             emptyList());
         InternalFilter reduced = (InternalFilter) test.reducePipelines(test, emptyReduceContextBuilder().forFinalReduction(), tree);
         assertThat(reduced.getAggregations().get(dummy.getName()), sameInstance(dummy));

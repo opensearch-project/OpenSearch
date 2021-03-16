@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.opensearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.IntHashSet;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MAX_PRECISION;
-import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MIN_PRECISION;
+import static org.opensearch.search.aggregations.metrics.AbstractHyperLogLog.MAX_PRECISION;
+import static org.opensearch.search.aggregations.metrics.AbstractHyperLogLog.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class HyperLogLogPlusPlusTests extends ESTestCase {
+public class HyperLogLogPlusPlusTests extends OpenSearchTestCase {
     public void testEncodeDecode() {
         final int iters = scaledRandomIntBetween(100000, 500000);
         // random hashes

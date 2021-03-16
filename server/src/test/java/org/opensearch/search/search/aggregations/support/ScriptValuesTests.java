@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.support;
+package org.opensearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import java.util.Collections;
@@ -26,12 +26,12 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
 import org.opensearch.script.AggregationScript;
-import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
-import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
-import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
+import org.opensearch.search.aggregations.support.values.ScriptBytesValues;
+import org.opensearch.search.aggregations.support.values.ScriptDoubleValues;
+import org.opensearch.search.aggregations.support.values.ScriptLongValues;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

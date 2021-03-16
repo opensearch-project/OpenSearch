@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.GND;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.JLHScore;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.util.SortedSet;
 import java.util.TreeSet;

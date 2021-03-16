@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.adjacency;
+package org.opensearch.search.aggregations.bucket.adjacency;
 
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;

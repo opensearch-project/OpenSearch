@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
-public class CompensatedSumTests extends ESTestCase {
+public class CompensatedSumTests extends OpenSearchTestCase {
 
     /**
      * When adding a series of numbers the order of the numbers should not impact the results.

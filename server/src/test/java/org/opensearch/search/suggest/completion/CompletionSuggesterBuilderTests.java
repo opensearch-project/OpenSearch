@@ -21,12 +21,12 @@ package org.opensearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.opensearch.search.suggest.completion.context.CategoryQueryContext;

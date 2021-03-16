@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.search.aggregations.ParsedAggregation;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
 import java.util.List;

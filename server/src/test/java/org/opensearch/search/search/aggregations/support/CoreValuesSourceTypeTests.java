@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.support;
+package org.opensearch.search.aggregations.support;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CoreValuesSourceTypeTests extends ESTestCase {
+public class CoreValuesSourceTypeTests extends OpenSearchTestCase {
 
     public void testFromString() {
         assertThat(CoreValuesSourceType.fromString("numeric"), equalTo(CoreValuesSourceType.NUMERIC));
@@ -33,7 +33,7 @@ public class CoreValuesSourceTypeTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> CoreValuesSourceType.fromString("does_not_exist"));
         assertThat(e.getMessage(),
-            equalTo("No enum constant org.elasticsearch.search.aggregations.support.CoreValuesSourceType.DOES_NOT_EXIST"));
+            equalTo("No enum constant org.opensearch.search.aggregations.support.CoreValuesSourceType.DOES_NOT_EXIST"));
         expectThrows(NullPointerException.class, () -> CoreValuesSourceType.fromString(null));
     }
 }

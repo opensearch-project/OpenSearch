@@ -20,16 +20,16 @@
 package org.opensearch.search.sort;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BitArray;
+import org.opensearch.common.util.IntArray;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTestCase {
+public abstract class BucketedSortTestCase<T extends BucketedSort> extends OpenSearchTestCase {
     /**
      * Build a {@link BucketedSort} to test. Sorts built by this method shouldn't need scores.
      * @param values values to test, always sent as doubles just to have

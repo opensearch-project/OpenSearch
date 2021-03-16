@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AutoDateHistogramAggregationBuilderTests extends ESTestCase {
+public class AutoDateHistogramAggregationBuilderTests extends OpenSearchTestCase {
 
     public void testInvalidInterval() {
         AutoDateHistogramAggregationBuilder builder = new AutoDateHistogramAggregationBuilder("name");

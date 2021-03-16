@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.geogrid;
+package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.opensearch.geometry.utils.Geohash;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.util.List;
 import java.util.Map;

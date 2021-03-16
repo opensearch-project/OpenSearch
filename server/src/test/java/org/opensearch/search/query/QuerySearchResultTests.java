@@ -24,34 +24,34 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
-import org.elasticsearch.action.OriginalIndicesTests;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.OriginalIndicesTests;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalAggregationsTests;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchModule;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.Aggregations;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregationsTests;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.suggest.SuggestTests;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Base64;
 
 import static java.util.Collections.emptyList;
 
-public class QuerySearchResultTests extends ESTestCase {
+public class QuerySearchResultTests extends OpenSearchTestCase {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 

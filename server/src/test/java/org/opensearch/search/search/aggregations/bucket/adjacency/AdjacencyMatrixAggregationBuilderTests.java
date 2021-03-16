@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.adjacency;
+package org.opensearch.search.aggregations.bucket.adjacency;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestSearchContext;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
+public class AdjacencyMatrixAggregationBuilderTests extends OpenSearchTestCase {
 
     public void testFilterSizeLimitation() throws Exception {
         // filter size grater than max size should thrown a exception

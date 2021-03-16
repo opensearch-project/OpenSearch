@@ -16,28 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations;
+package org.opensearch.search.aggregations;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
-import org.elasticsearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
-import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchModule;
+import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.StringTermsTests;
+import org.opensearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.InternalSimpleValueTests;
+import org.opensearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
+import org.opensearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
-public class InternalAggregationsTests extends ESTestCase {
+public class InternalAggregationsTests extends OpenSearchTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
         new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());

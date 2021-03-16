@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.terms;
+package org.opensearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 import org.junit.Before;
 
 import java.util.HashMap;

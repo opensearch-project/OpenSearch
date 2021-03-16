@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.range;
+package org.opensearch.search.aggregations.bucket.range;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,16 +25,16 @@ import java.util.Set;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedBinaryRangeLeafCollector;
-import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedSetRangeLeafCollector;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedBinaryRangeLeafCollector;
+import org.opensearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedSetRangeLeafCollector;
+import org.opensearch.test.OpenSearchTestCase;
 
 import com.carrotsearch.hppc.LongHashSet;
 
-public class BinaryRangeAggregatorTests extends ESTestCase {
+public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
 
     private static class FakeSortedSetDocValues extends AbstractSortedSetDocValues {
 

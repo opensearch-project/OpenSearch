@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.composite;
+package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.ParsedAggregation;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 import org.junit.After;
 
 import java.io.IOException;

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.opensearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.search.aggregations.AggregationExecutionException;
+import org.opensearch.search.aggregations.Aggregations;
+import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.opensearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +35,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class BucketHelpersTests extends ESTestCase {
+public class BucketHelpersTests extends OpenSearchTestCase {
 
     public void testReturnsObjectArray() {
 

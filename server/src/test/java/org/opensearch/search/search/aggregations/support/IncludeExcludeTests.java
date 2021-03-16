@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.support;
+package org.opensearch.search.aggregations.support;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
-import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.opensearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.TreeSet;
 
-public class IncludeExcludeTests extends ESTestCase {
+public class IncludeExcludeTests extends OpenSearchTestCase {
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(
                 new TreeSet<>(Collections.singleton(new BytesRef("foo"))),

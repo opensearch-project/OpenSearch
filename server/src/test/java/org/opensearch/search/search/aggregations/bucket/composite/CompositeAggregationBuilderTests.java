@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.composite;
+package org.opensearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.common.geo.GeoBoundingBoxTests;
+import org.opensearch.common.geo.GeoBoundingBoxTests;
 import org.opensearch.script.Script;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.sort.SortOrder;
 
 import java.util.ArrayList;

@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class BucketUtilsTests extends ESTestCase {
+public class BucketUtilsTests extends OpenSearchTestCase {
 
     public void testBadInput() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

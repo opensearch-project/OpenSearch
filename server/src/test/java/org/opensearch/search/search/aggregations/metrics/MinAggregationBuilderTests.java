@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.opensearch.search.aggregations.metrics;
 
 public class MinAggregationBuilderTests extends AbstractNumericMetricTestCase<MinAggregationBuilder> {
 

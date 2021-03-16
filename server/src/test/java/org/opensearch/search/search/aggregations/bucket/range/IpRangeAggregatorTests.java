@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.range;
+package org.opensearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.InetAddressPoint;
@@ -27,12 +27,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.index.mapper.IpFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.AggregatorTestCase;
 
 import java.net.InetAddress;
 import java.util.Arrays;

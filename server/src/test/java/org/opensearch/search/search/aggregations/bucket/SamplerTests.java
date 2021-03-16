@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 
 public class SamplerTests extends BaseAggregationTestCase<SamplerAggregationBuilder> {
 

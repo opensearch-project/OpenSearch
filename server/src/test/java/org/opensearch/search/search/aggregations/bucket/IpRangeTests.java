@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
+import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
 
 public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuilder> {
 

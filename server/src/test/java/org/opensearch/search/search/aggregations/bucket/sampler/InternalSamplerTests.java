@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.sampler;
+package org.opensearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.util.List;
 import java.util.Map;

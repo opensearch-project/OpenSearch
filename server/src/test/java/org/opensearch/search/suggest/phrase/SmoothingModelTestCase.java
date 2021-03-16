@@ -30,15 +30,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.search.SearchModule;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -48,9 +48,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public abstract class SmoothingModelTestCase extends ESTestCase {
+public abstract class SmoothingModelTestCase extends OpenSearchTestCase {
 
     private static NamedWriteableRegistry namedWriteableRegistry;
 
@@ -147,7 +147,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     }
 
     private SmoothingModel copy(SmoothingModel original) throws IOException {
-        return ESTestCase.copyWriteable(original, namedWriteableRegistry,
+        return OpenSearchTestCase.copyWriteable(original, namedWriteableRegistry,
                 namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()));
     }
 }

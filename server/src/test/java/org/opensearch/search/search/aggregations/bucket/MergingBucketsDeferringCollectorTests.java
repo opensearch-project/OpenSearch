@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
@@ -30,9 +30,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.CheckedBiConsumer;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.BucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -61,13 +61,13 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
             deferringCollector.prepareSelectedBuckets(0, 8, 9);
 
             equalTo(
-                org.elasticsearch.common.collect.Map.of(
+                org.opensearch.common.collect.Map.of(
                     0L,
-                    org.elasticsearch.common.collect.List.of(0, 1, 2, 3, 4, 5, 6, 7),
+                    org.opensearch.common.collect.List.of(0, 1, 2, 3, 4, 5, 6, 7),
                     1L,
-                    org.elasticsearch.common.collect.List.of(8),
+                    org.opensearch.common.collect.List.of(8),
                     2L,
-                    org.elasticsearch.common.collect.List.of(9)
+                    org.opensearch.common.collect.List.of(9)
                 )
             );
         });
@@ -89,13 +89,13 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(
                 finalCollector.collection,
                 equalTo(
-                    org.elasticsearch.common.collect.Map.of(
+                    org.opensearch.common.collect.Map.of(
                         0L,
-                        org.elasticsearch.common.collect.List.of(4, 5, 6, 7),
+                        org.opensearch.common.collect.List.of(4, 5, 6, 7),
                         1L,
-                        org.elasticsearch.common.collect.List.of(8),
+                        org.opensearch.common.collect.List.of(8),
                         2L,
-                        org.elasticsearch.common.collect.List.of(9)
+                        org.opensearch.common.collect.List.of(9)
                     )
                 )
             );
@@ -119,13 +119,13 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(
                 finalCollector.collection,
                 equalTo(
-                    org.elasticsearch.common.collect.Map.of(
+                    org.opensearch.common.collect.Map.of(
                         0L,
-                        org.elasticsearch.common.collect.List.of(0, 1, 2, 3),
+                        org.opensearch.common.collect.List.of(0, 1, 2, 3),
                         1L,
-                        org.elasticsearch.common.collect.List.of(8),
+                        org.opensearch.common.collect.List.of(8),
                         2L,
-                        org.elasticsearch.common.collect.List.of(9)
+                        org.opensearch.common.collect.List.of(9)
                     )
                 )
             );

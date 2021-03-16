@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.collect.EvictingQueue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MovFnWhitelistedFunctionTests extends ESTestCase {
+public class MovFnWhitelistedFunctionTests extends OpenSearchTestCase {
 
     public void testWindowMax() {
         int numValues = randomIntBetween(1, 100);

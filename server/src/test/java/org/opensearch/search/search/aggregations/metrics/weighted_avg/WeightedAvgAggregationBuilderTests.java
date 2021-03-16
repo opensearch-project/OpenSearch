@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics.weighted_avg;
+package org.opensearch.search.aggregations.metrics.weighted_avg;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.search.SearchModule;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
+import org.opensearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.opensearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;

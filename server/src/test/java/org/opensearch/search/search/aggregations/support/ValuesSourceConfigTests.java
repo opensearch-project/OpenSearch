@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.support;
+package org.opensearch.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.mapper.TypeFieldMapper;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 // TODO: This whole set of tests needs to be rethought.
 public class ValuesSourceConfigTests extends ESSingleNodeTestCase {

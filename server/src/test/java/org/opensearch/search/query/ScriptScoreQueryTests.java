@@ -32,13 +32,13 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.Script;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -52,7 +52,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ScriptScoreQueryTests extends ESTestCase {
+public class ScriptScoreQueryTests extends OpenSearchTestCase {
 
     private Directory dir;
     private IndexWriter w;

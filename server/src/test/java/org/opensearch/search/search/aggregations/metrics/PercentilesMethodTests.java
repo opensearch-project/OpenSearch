@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.search.aggregations.metrics.PercentilesMethod;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PercentilesMethodTests extends ESTestCase {
+public class PercentilesMethodTests extends OpenSearchTestCase {
 
     public void testValidOrdinals() {
         assertThat(PercentilesMethod.TDIGEST.ordinal(), equalTo(0));

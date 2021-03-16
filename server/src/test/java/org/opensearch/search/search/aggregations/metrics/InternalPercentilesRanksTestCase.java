@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.ParsedAggregation;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class InternalPercentilesRanksTestCase<T extends InternalAggregation & PercentileRanks>
-        extends AbstractPercentilesTestCase<T> {
+        extends AbstractPercentilOpenSearchTestCase<T> {
 
     @Override
     protected final void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {

@@ -19,9 +19,9 @@
 
 package org.opensearch.search.suggest.completion;
 
-import org.elasticsearch.common.text.Text;
+import org.opensearch.common.text.Text;
 import org.opensearch.search.suggest.Suggest;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;

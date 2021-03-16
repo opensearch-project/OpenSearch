@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.search.aggregations.Aggregation.CommonFields;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.opensearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -256,7 +256,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         // A single element list looks like a fully reduced agg
         InternalScriptedMetric original = new InternalScriptedMetric(
             "test",
-            org.elasticsearch.common.collect.List.of("foo"),
+            org.opensearch.common.collect.List.of("foo"),
             new Script("test"),
             null
         );
@@ -272,7 +272,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         // A multi-element list looks like a non-reduced agg
         InternalScriptedMetric unreduced = new InternalScriptedMetric(
             "test",
-            org.elasticsearch.common.collect.List.of("foo", "bar"),
+            org.opensearch.common.collect.List.of("foo", "bar"),
             new Script("test"),
             null
         );

@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.composite;
+package org.opensearch.search.aggregations.bucket.composite;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.geo.GeoBoundingBoxTests;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.common.geo.GeoBoundingBoxTests;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoTileGridValuesSourceBuilderTests extends ESTestCase {
+public class GeoTileGridValuesSourceBuilderTests extends OpenSearchTestCase {
 
     public void testSetFormat() {
         CompositeValuesSourceBuilder<?> builder = new GeoTileGridValuesSourceBuilder("name");

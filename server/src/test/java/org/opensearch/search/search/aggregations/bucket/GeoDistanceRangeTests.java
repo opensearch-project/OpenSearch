@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.opensearch.common.geo.GeoDistance;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.common.xcontent.XContentParseException;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
+import org.opensearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
 

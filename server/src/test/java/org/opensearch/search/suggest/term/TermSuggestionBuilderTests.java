@@ -21,8 +21,8 @@ package org.opensearch.search.suggest.term;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.opensearch.search.suggest.SortBy;
 import org.opensearch.search.suggest.SuggestBuilder;

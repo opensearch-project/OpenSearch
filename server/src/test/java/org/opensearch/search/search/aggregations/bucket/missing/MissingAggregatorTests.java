@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.missing;
+package org.opensearch.search.aggregations.bucket.missing;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -29,24 +29,24 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
+import org.opensearch.index.mapper.RangeFieldMapper;
+import org.opensearch.index.mapper.RangeType;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
@@ -64,7 +64,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.common.lucene.search.Queries.newMatchAllQuery;
+import static org.opensearch.common.lucene.search.Queries.newMatchAllQuery;
 
 public class MissingAggregatorTests extends AggregatorTestCase {
 
@@ -121,7 +121,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(numDocs, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType)
         );
     }
 
@@ -153,7 +153,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType)
         );
     }
 
@@ -263,7 +263,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(0, internalMissing.getDocCount());
                 assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType)
         );
     }
 
@@ -280,7 +280,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             if (randomBoolean()) {
                 final long randomLong = randomLong();
-                docs.add(org.elasticsearch.common.collect.Set.of(
+                docs.add(org.opensearch.common.collect.Set.of(
                     new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
                     new SortedNumericDocValuesField(aggFieldType.name(), randomLong + 1)
                 ));
@@ -299,7 +299,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType)
         );
     }
 
@@ -340,13 +340,13 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(finalDocsMissingField, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType)
         );
     }
 
     public void testMultiValuedFieldWithFieldScriptWithParams() throws IOException {
         final long threshold = 10;
-        final Map<String, Object> params = org.elasticsearch.common.collect.Map.of("field", "agg_field", "threshold", threshold);
+        final Map<String, Object> params = org.opensearch.common.collect.Map.of("field", "agg_field", "threshold", threshold);
         fieldScriptTestCase(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_PARAMS, params), threshold);
     }
 
@@ -370,7 +370,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             if (firstValue < threshold && secondValue < threshold) {
                 docsBelowThreshold++;
             }
-            docs.add(org.elasticsearch.common.collect.Set.of(
+            docs.add(org.opensearch.common.collect.Set.of(
                 new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
                 new SortedNumericDocValuesField(aggFieldType.name(), secondValue)
             ));
@@ -416,7 +416,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.opensearch.common.collect.List.of(
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.BYTES,
             CoreValuesSourceType.GEOPOINT,

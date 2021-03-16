@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.range;
+package org.opensearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,6 +114,6 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
             "{\"test\":{\"range\":{\"field\":\"f\",\"ranges\":[{\"key\":1,\"to\":0}]}}}"));
         assertThat(builder.getName(), equalTo("test"));
         assertThat(builder.field(), equalTo("f"));
-        assertThat(builder.ranges, equalTo(org.elasticsearch.common.collect.List.of(new RangeAggregator.Range("1", null, 0d))));
+        assertThat(builder.ranges, equalTo(org.opensearch.common.collect.List.of(new RangeAggregator.Range("1", null, 0d))));
     }
 }

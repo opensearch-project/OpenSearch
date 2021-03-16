@@ -19,16 +19,16 @@
 
 package org.opensearch.search.suggest.completion;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class FuzzyOptionsTests extends ESTestCase {
 

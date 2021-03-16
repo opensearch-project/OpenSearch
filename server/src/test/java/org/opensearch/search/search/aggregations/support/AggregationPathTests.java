@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.support;
+package org.opensearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.search.aggregations.AggregationExecutionException;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AggregationPathTests extends ESTestCase {
+public class AggregationPathTests extends OpenSearchTestCase {
     public void testInvalidPaths() throws Exception {
         assertInvalidPath("[foo]", "brackets at the beginning of the token expression");
         assertInvalidPath("foo[bar", "open brackets without closing at the token expression");

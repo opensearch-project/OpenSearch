@@ -18,12 +18,12 @@
  */
 package org.opensearch.search.lookup;
 
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.index.fielddata.LeafFieldData;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import static org.opensearch.search.lookup.LeafDocLookup.TYPES_DEPRECATION_MESSAGE;
@@ -33,7 +33,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class LeafDocLookupTests extends ESTestCase {
+public class LeafDocLookupTests extends OpenSearchTestCase {
     private ScriptDocValues<?> docValues;
     private LeafDocLookup docLookup;
 

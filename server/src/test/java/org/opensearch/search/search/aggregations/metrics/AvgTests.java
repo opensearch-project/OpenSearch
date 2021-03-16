@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.opensearch.search.aggregations.metrics;
 
 public class AvgTests extends AbstractNumericMetricTestCase<AvgAggregationBuilder> {
 

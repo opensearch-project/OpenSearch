@@ -17,27 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.opensearch.search;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.CheckedFunction;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilderTests;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.opensearch.search.rescore.QueryRescorerBuilderTests;
 import org.opensearch.search.suggest.SuggestBuilderTests;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +51,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public abstract class AbstractSearchTestCase extends ESTestCase {
+public abstract class AbstractSearchTestCase extends OpenSearchTestCase {
 
     protected NamedWriteableRegistry namedWriteableRegistry;
     private TestSearchExtPlugin searchExtPlugin;

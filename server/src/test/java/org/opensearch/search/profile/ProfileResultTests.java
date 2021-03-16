@@ -21,12 +21,12 @@ package org.opensearch.search.profile;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,12 +36,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class ProfileResultTests extends ESTestCase {
+public class ProfileResultTests extends OpenSearchTestCase {
 
     public static ProfileResult createTestItem(int depth) {
         String type = randomAlphaOfLengthBetween(5, 10);
@@ -111,18 +111,18 @@ public class ProfileResultTests extends ESTestCase {
         children.add(new ProfileResult(
             "child1",
             "desc1",
-            org.elasticsearch.common.collect.Map.of("key1", 100L),
-            org.elasticsearch.common.collect.Map.of(),
+            org.opensearch.common.collect.Map.of("key1", 100L),
+            org.opensearch.common.collect.Map.of(),
             100L,
-            org.elasticsearch.common.collect.List.of())
+            org.opensearch.common.collect.List.of())
         );
         children.add(new ProfileResult(
             "child2",
             "desc2",
-            org.elasticsearch.common.collect.Map.of("key1", 123356L),
-            org.elasticsearch.common.collect.Map.of(),
+            org.opensearch.common.collect.Map.of("key1", 123356L),
+            org.opensearch.common.collect.Map.of(),
             123356L,
-            org.elasticsearch.common.collect.List.of()));
+            org.opensearch.common.collect.List.of()));
         Map<String, Long> breakdown = new LinkedHashMap<>();
         breakdown.put("key1", 123456L);
         breakdown.put("stuff", 10000L);
@@ -204,10 +204,10 @@ public class ProfileResultTests extends ESTestCase {
         result = new ProfileResult(
             "profileName",
             "some description",
-            org.elasticsearch.common.collect.Map.of("key1", 12345678L),
-            org.elasticsearch.common.collect.Map.of(),
+            org.opensearch.common.collect.Map.of("key1", 12345678L),
+            org.opensearch.common.collect.Map.of(),
             12345678L,
-            org.elasticsearch.common.collect.List.of()
+            org.opensearch.common.collect.List.of()
         );
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -224,10 +224,10 @@ public class ProfileResultTests extends ESTestCase {
         result = new ProfileResult(
             "profileName",
             "some description",
-            org.elasticsearch.common.collect.Map.of("key1", 1234567890L),
-            org.elasticsearch.common.collect.Map.of(),
+            org.opensearch.common.collect.Map.of("key1", 1234567890L),
+            org.opensearch.common.collect.Map.of(),
             1234567890L,
-            org.elasticsearch.common.collect.List.of()
+            org.opensearch.common.collect.List.of()
         );
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);

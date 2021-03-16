@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.geogrid;
+package org.opensearch.search.aggregations.bucket.geogrid;
 
 import static org.opensearch.geometry.utils.Geohash.stringEncode;
 

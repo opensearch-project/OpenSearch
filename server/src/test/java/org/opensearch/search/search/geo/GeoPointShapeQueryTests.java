@@ -17,28 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.search.geo;
+package org.opensearch.search.geo;
 
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiPointBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.common.geo.GeoShapeType;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.builders.CoordinatesBuilder;
+import org.opensearch.common.geo.builders.LineStringBuilder;
+import org.opensearch.common.geo.builders.MultiLineStringBuilder;
+import org.opensearch.common.geo.builders.MultiPointBuilder;
+import org.opensearch.common.geo.builders.PointBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.geometry.Line;
 import org.opensearch.geometry.LinearRing;
 import org.opensearch.geometry.MultiLine;
 import org.opensearch.geometry.MultiPoint;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
 
 import static org.hamcrest.Matchers.containsString;
 

@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.Percentile;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.Aggregation.CommonFields;
+import org.opensearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.metrics.Percentile;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.search.aggregations.metrics.InternalPercentilesTestCase.randomPercents;
+import static org.opensearch.search.aggregations.metrics.InternalPercentilOpenSearchTestCase.randomPercents;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalPercentilesBucketTests extends InternalAggregationTestCase<InternalPercentilesBucket> {

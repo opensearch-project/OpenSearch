@@ -46,7 +46,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.CharArrayReader;
 import java.io.IOException;

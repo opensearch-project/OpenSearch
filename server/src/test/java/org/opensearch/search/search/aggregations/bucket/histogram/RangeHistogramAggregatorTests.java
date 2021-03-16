@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -29,14 +29,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
-import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.index.mapper.RangeFieldMapper;
+import org.opensearch.index.mapper.RangeType;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.metrics.InternalMin;
+import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -465,14 +465,14 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             List<List<IndexableField>> docs = new ArrayList<>();
             for (int n = 0; n < 10000; n++) {
-                BytesRef outerRange = RangeType.LONG.encodeRanges(org.elasticsearch.common.collect.Set.of(
+                BytesRef outerRange = RangeType.LONG.encodeRanges(org.opensearch.common.collect.Set.of(
                     new RangeFieldMapper.Range(RangeType.LONG, n % 100, n % 100 + 10, true, true)
                 ));
-                BytesRef innerRange = RangeType.LONG.encodeRanges(org.elasticsearch.common.collect.Set.of(
+                BytesRef innerRange = RangeType.LONG.encodeRanges(org.opensearch.common.collect.Set.of(
                     new RangeFieldMapper.Range(RangeType.LONG, n / 100, n / 100 + 10, true, true)
                 ));
 
-                docs.add(org.elasticsearch.common.collect.List.of(
+                docs.add(org.opensearch.common.collect.List.of(
                     new BinaryDocValuesField("outer", outerRange),
                     new BinaryDocValuesField("inner", innerRange),
                     new SortedNumericDocValuesField("n", n)

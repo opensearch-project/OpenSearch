@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.support;
+package org.opensearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
@@ -26,13 +26,13 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
-import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.index.fielddata.AbstractSortedNumericDocValues;
+import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
+import org.opensearch.index.fielddata.MultiGeoPointValues;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.LongUnaryOperator;
 
-public class MissingValuesTests extends ESTestCase {
+public class MissingValuesTests extends OpenSearchTestCase {
 
     public void testMissingBytes() throws IOException {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);

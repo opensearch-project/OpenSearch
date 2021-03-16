@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.terms;
+package org.opensearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
-import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.GND;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.JLHScore;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
