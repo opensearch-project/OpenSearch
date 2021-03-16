@@ -50,8 +50,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
+import org.opensearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
 

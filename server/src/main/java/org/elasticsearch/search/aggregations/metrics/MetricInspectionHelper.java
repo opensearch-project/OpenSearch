@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
+import org.opensearch.search.aggregations.pipeline.InternalDerivative;
 
 /**
  * Counterpart to {@link org.elasticsearch.search.aggregations.support.AggregationInspectionHelper}, providing

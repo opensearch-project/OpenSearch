@@ -20,21 +20,21 @@
 package org.elasticsearch.search.aggregations;
 
 import org.opensearch.script.Script;
-import org.elasticsearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovFnPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.MovFnPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 
 import java.util.List;

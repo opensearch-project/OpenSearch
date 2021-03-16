@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.opensearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.opensearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;

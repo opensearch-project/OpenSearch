@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Collection;

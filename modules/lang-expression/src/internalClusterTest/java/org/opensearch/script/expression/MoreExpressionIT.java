@@ -37,7 +37,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Stats;
-import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
+import org.opensearch.search.aggregations.pipeline.SimpleValue;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
