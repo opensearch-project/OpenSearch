@@ -64,7 +64,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.common.lucene.search.Queries.newMatchAllQuery;
+import static org.opensearch.common.lucene.search.Queries.newMatchAllQuery;
 
 public class MissingAggregatorTests extends AggregatorTestCase {
 

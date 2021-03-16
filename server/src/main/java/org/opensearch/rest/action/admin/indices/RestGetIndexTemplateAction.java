@@ -23,7 +23,7 @@ import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesRequest
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.opensearch.rest.BaseRestHandler;

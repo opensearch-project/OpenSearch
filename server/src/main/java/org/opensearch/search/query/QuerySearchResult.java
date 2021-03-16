@@ -20,8 +20,8 @@
 package org.opensearch.search.query;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
-import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
+import static org.opensearch.common.lucene.Lucene.readTopDocs;
+import static org.opensearch.common.lucene.Lucene.writeTopDocs;
 
 import java.io.IOException;
 
@@ -31,7 +31,7 @@ import org.opensearch.Version;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchPhaseResult;

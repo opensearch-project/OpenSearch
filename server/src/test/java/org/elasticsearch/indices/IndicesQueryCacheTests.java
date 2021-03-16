@@ -37,7 +37,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.query.QueryCacheStats;

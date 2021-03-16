@@ -36,7 +36,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.lucene.uid.Versions;
+import org.opensearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;

@@ -27,7 +27,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.Loggers;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;

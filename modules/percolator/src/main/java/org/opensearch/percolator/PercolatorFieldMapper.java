@@ -49,7 +49,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;

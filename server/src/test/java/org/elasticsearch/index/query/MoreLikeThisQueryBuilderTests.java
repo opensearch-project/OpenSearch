@@ -35,7 +35,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
+import org.opensearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;

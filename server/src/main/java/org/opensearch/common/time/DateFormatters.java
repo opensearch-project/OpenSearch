@@ -21,7 +21,7 @@ package org.opensearch.common.time;
 
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.LazyInitializable;
 
 import java.time.DayOfWeek;

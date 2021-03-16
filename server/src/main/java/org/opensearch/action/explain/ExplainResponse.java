@@ -35,8 +35,8 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
 
-import static org.elasticsearch.common.lucene.Lucene.readExplanation;
-import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
+import static org.opensearch.common.lucene.Lucene.readExplanation;
+import static org.opensearch.common.lucene.Lucene.writeExplanation;
 
 /**
  * Response containing the score explanation.

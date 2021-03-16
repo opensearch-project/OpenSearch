@@ -28,7 +28,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.mapper.SearchAsYouTypeFieldMapper.Defaults;
 import org.opensearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
 import org.opensearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;

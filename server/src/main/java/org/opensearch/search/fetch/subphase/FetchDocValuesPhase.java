@@ -20,7 +20,7 @@ package org.opensearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.common.document.DocumentField;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;

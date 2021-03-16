@@ -24,7 +24,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.lucene.index.FreqTermsEnum;
+import org.opensearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.common.util.BigArrays;
 import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.opensearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;

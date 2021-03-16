@@ -61,7 +61,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.uid.Versions;
+import org.opensearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;

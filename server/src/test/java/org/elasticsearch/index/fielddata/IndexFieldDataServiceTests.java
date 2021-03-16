@@ -31,7 +31,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;

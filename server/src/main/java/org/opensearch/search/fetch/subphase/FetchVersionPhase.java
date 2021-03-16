@@ -20,7 +20,7 @@ package org.opensearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.elasticsearch.common.lucene.uid.Versions;
+import org.opensearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase;

@@ -25,7 +25,7 @@ import org.opensearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;

@@ -54,7 +54,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

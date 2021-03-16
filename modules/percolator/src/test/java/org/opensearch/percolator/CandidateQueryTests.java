@@ -84,7 +84,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
