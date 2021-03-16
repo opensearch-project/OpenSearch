@@ -80,14 +80,7 @@ buildRestTests.docs = fileTree(projectDir) {
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests
-  exclude 'reference/data-streams'
-  exclude 'reference/indices/create-data-stream.asciidoc'
-  exclude 'reference/indices/data-stream-stats.asciidoc'
-  exclude 'reference/indices/delete-data-stream.asciidoc'
-  exclude 'reference/indices/get-data-stream.asciidoc'
-  exclude 'reference/indices/put-index-template.asciidoc'
-  exclude 'reference/indices/resolve.asciidoc'
-  exclude 'reference/indices/rollover-index.asciidoc'
+
   if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
     // We don't install/support this plugin in FIPS 140
     exclude 'plugins/ingest-attachment.asciidoc'
