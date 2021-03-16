@@ -236,14 +236,14 @@ public abstract class MapBinder<K, V> {
         private final TypeLiteral<V> valueType;
         private final Key<Map<K, V>> mapKey;
         private final Key<Map<K, Provider<V>>> providerMapKey;
-        private final RealMultibinder<Entry<K, Provider<V>>> entrySetBinder;
+        private final RealMultibinder<Map.Entry<K, Provider<V>>> entrySetBinder;
 
         /* the target injector's binder. non-null until initialization, null afterwards */
         private Binder binder;
 
         private RealMapBinder(Binder binder, TypeLiteral<V> valueType,
                               Key<Map<K, V>> mapKey, Key<Map<K, Provider<V>>> providerMapKey,
-                              Multibinder<Entry<K, Provider<V>>> entrySetBinder) {
+                              Multibinder<Map.Entry<K, Provider<V>>> entrySetBinder) {
             this.valueType = valueType;
             this.mapKey = mapKey;
             this.providerMapKey = providerMapKey;
