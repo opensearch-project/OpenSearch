@@ -64,7 +64,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

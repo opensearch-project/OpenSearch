@@ -29,7 +29,7 @@ import org.opensearch.action.bulk.Retry;
 import org.opensearch.client.Client;
 import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.query.QueryBuilders;

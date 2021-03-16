@@ -29,7 +29,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.mocksocket.MockHttpServer;

@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;

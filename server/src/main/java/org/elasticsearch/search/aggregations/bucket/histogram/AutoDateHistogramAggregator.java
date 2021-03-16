@@ -24,7 +24,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.Prepared;
-import org.elasticsearch.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;

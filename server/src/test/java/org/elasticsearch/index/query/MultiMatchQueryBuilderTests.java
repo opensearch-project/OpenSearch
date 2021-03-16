@@ -38,7 +38,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
+import org.opensearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;

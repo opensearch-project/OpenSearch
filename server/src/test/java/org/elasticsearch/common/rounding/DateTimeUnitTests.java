@@ -19,15 +19,16 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.rounding.DateTimeUnit;
 
-import static org.elasticsearch.common.rounding.DateTimeUnit.DAY_OF_MONTH;
-import static org.elasticsearch.common.rounding.DateTimeUnit.HOUR_OF_DAY;
-import static org.elasticsearch.common.rounding.DateTimeUnit.MINUTES_OF_HOUR;
-import static org.elasticsearch.common.rounding.DateTimeUnit.MONTH_OF_YEAR;
-import static org.elasticsearch.common.rounding.DateTimeUnit.QUARTER;
-import static org.elasticsearch.common.rounding.DateTimeUnit.SECOND_OF_MINUTE;
-import static org.elasticsearch.common.rounding.DateTimeUnit.WEEK_OF_WEEKYEAR;
-import static org.elasticsearch.common.rounding.DateTimeUnit.YEAR_OF_CENTURY;
+import static org.opensearch.common.rounding.DateTimeUnit.DAY_OF_MONTH;
+import static org.opensearch.common.rounding.DateTimeUnit.HOUR_OF_DAY;
+import static org.opensearch.common.rounding.DateTimeUnit.MINUTES_OF_HOUR;
+import static org.opensearch.common.rounding.DateTimeUnit.MONTH_OF_YEAR;
+import static org.opensearch.common.rounding.DateTimeUnit.QUARTER;
+import static org.opensearch.common.rounding.DateTimeUnit.SECOND_OF_MINUTE;
+import static org.opensearch.common.rounding.DateTimeUnit.WEEK_OF_WEEKYEAR;
+import static org.opensearch.common.rounding.DateTimeUnit.YEAR_OF_CENTURY;
 
 public class DateTimeUnitTests extends ESTestCase {
 

@@ -21,7 +21,7 @@ package org.opensearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.Fuzziness;
+import org.opensearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;

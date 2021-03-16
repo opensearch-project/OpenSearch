@@ -21,7 +21,7 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
 
-import org.elasticsearch.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 
 /**
  * Specialized hash table implementation similar to BytesRefHash that maps

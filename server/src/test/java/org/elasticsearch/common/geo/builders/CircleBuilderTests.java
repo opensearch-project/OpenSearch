@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.opensearch.common.unit.DistanceUnit;
 import org.locationtech.jts.geom.Coordinate;
 import org.opensearch.common.geo.builders.CircleBuilder;
 

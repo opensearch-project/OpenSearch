@@ -73,7 +73,7 @@ import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

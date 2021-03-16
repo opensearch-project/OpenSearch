@@ -24,8 +24,8 @@ import org.opensearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.RatioValue;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Arrays;

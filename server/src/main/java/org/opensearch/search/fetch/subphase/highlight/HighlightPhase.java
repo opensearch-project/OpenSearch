@@ -21,7 +21,7 @@ package org.opensearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;

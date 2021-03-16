@@ -21,7 +21,7 @@ package org.opensearch.common.geo;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.geometry.Circle;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;

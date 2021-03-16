@@ -28,7 +28,7 @@ import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;

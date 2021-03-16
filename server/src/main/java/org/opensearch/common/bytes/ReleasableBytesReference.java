@@ -22,7 +22,7 @@ package org.opensearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

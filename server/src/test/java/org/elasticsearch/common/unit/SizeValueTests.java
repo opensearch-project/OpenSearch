@@ -19,6 +19,8 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.unit.SizeUnit;
+import org.opensearch.common.unit.SizeValue;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;

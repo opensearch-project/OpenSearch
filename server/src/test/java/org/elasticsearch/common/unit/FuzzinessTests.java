@@ -23,6 +23,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.unit.Fuzziness;
 
 import java.io.IOException;
 

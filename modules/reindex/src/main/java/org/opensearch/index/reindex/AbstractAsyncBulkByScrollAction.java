@@ -37,7 +37,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.VersionType;

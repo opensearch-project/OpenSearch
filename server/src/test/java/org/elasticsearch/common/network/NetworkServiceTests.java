@@ -20,6 +20,7 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.network.NetworkService;
 
 import java.net.InetAddress;
 import java.util.Collections;

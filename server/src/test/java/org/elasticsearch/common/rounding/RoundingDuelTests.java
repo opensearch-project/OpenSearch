@@ -25,6 +25,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTimeZone;
+import org.opensearch.common.rounding.DateTimeUnit;
+import org.opensearch.common.rounding.Rounding;
 
 import java.time.ZoneOffset;
 

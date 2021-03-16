@@ -19,7 +19,7 @@
 
 package org.opensearch.transport;
 
-import org.elasticsearch.common.network.CloseableChannel;
+import org.opensearch.common.network.CloseableChannel;
 
 import java.net.InetSocketAddress;
 

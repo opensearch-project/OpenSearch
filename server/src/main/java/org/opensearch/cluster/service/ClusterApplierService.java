@@ -37,7 +37,7 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.StopWatch;
 import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

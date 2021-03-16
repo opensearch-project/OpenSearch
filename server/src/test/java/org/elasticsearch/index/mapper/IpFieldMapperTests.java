@@ -26,7 +26,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.network.InetAddresses;
+import org.opensearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 

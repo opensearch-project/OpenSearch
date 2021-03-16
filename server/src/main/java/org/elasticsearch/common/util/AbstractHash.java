@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 
 /**
  * Base implementation for {@link BytesRefHash} and {@link LongHash}, or any class that

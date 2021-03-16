@@ -18,7 +18,7 @@
  */
 package org.opensearch;
 
-import org.elasticsearch.common.network.NetworkModule;
+import org.opensearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;

@@ -28,8 +28,8 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.threadpool.Scheduler;
@@ -137,7 +137,7 @@ public class BulkProcessor implements Closeable {
         /**
          * Sets a flush interval flushing *any* bulk actions pending if the interval passes. Defaults to not set.
          * <p>
-         * Note, both {@link #setBulkActions(int)} and {@link #setBulkSize(org.elasticsearch.common.unit.ByteSizeValue)}
+         * Note, both {@link #setBulkActions(int)} and {@link #setBulkSize(ByteSizeValue)}
          * can be set to {@code -1} with the flush interval set allowing for complete async processing of bulk actions.
          */
         public Builder setFlushInterval(TimeValue flushInterval) {

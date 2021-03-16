@@ -20,7 +20,7 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.recycler.Recycler.V;
+import org.opensearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
