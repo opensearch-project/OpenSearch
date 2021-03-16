@@ -26,10 +26,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.LongArray;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BytesRefHash;
+import org.opensearch.common.util.IntArray;
+import org.opensearch.common.util.LongArray;
 
 import java.io.IOException;
 

@@ -25,7 +25,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.common.util.LongArray;
+import org.opensearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;

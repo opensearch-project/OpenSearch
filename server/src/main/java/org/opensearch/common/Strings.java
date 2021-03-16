@@ -24,7 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.OpenSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -45,7 +45,7 @@ import java.util.TreeSet;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.common.util.set.Sets.newHashSet;
 
 public class Strings {
 

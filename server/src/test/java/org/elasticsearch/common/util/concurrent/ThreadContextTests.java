@@ -22,6 +22,8 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.Arrays;

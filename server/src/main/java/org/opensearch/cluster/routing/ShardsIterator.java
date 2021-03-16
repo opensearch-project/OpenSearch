@@ -18,7 +18,7 @@
  */
 package org.opensearch.cluster.routing;
 
-import org.elasticsearch.common.util.Countable;
+import org.opensearch.common.util.Countable;
 
 import java.util.List;
 

@@ -24,7 +24,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
+import org.opensearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;

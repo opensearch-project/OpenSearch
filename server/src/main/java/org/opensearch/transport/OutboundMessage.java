@@ -25,7 +25,7 @@ import org.opensearch.common.bytes.CompositeBytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.Set;

@@ -20,8 +20,8 @@
 package org.opensearch.script.mustache;
 
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.iterable.Iterables;
+import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.util.iterable.Iterables;
 
 import java.lang.reflect.Array;
 import java.util.AbstractMap;

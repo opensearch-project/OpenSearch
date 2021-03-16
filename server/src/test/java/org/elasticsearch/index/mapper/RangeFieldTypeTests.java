@@ -37,7 +37,7 @@ import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.BigArrays;
+import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;

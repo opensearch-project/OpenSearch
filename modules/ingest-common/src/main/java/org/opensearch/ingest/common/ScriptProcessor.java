@@ -22,16 +22,16 @@ package org.opensearch.ingest.common;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.AbstractProcessor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 import org.opensearch.script.DynamicMap;
 import org.opensearch.script.IngestScript;
 import org.opensearch.script.Script;
@@ -44,7 +44,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
 
 /**
  * Processor that evaluates a script with an ingest document in its context.

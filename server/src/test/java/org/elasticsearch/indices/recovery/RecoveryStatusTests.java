@@ -20,12 +20,11 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.opensearch.Version;
 
 import java.io.IOException;
 import java.util.Set;
