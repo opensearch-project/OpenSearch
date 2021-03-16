@@ -46,7 +46,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;

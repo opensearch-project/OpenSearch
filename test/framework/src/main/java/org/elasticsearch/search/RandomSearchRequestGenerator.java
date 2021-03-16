@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
+import org.opensearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

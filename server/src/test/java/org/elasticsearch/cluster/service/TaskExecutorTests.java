@@ -22,7 +22,7 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;

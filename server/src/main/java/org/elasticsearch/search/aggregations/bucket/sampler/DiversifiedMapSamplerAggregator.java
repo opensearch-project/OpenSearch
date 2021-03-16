@@ -26,7 +26,7 @@ import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;

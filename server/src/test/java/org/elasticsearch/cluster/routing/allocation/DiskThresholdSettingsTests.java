@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 

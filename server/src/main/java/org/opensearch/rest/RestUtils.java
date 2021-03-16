@@ -21,7 +21,7 @@ package org.opensearch.rest;
 
 import org.elasticsearch.common.Booleans;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.path.PathTrie;
+import org.opensearch.common.path.PathTrie;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;

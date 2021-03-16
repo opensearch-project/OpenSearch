@@ -20,8 +20,10 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.rounding.Rounding.TimeIntervalRounding;
-import org.elasticsearch.common.rounding.Rounding.TimeUnitRounding;
+import org.opensearch.common.rounding.DateTimeUnit;
+import org.opensearch.common.rounding.Rounding;
+import org.opensearch.common.rounding.Rounding.TimeIntervalRounding;
+import org.opensearch.common.rounding.Rounding.TimeUnitRounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;

@@ -19,10 +19,10 @@
 package org.opensearch.transport;
 
 import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction;
-import org.elasticsearch.common.network.NetworkService;
+import org.opensearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Arrays;

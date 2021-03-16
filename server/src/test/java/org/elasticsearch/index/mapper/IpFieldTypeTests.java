@@ -26,7 +26,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.network.InetAddresses;
+import org.opensearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;

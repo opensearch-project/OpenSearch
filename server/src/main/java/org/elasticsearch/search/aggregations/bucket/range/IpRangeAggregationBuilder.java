@@ -25,7 +25,7 @@ import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.network.InetAddresses;
+import org.opensearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;

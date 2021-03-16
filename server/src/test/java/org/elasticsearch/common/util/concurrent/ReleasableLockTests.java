@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 

@@ -60,7 +60,7 @@ import org.opensearch.Version;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
-import org.elasticsearch.common.network.InetAddresses;
+import org.opensearch.common.network.InetAddresses;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.opensearch.percolator.QueryAnalyzer.QueryExtraction;
 import org.opensearch.percolator.QueryAnalyzer.Result;

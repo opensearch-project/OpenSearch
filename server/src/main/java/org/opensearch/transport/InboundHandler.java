@@ -28,7 +28,7 @@ import org.opensearch.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

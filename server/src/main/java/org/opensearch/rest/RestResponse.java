@@ -21,6 +21,7 @@ package org.opensearch.rest;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.lease.Releasable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,7 +40,7 @@ public abstract class RestResponse {
     public abstract String contentType();
 
     /**
-     * The response content. Note, if the content is {@link org.elasticsearch.common.lease.Releasable} it
+     * The response content. Note, if the content is {@link org.opensearch.common.lease.Releasable} it
      * should automatically be released when done by the channel sending it.
      */
     public abstract BytesReference content();

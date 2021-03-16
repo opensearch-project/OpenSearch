@@ -30,12 +30,12 @@ import org.opensearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.Rewriteable;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.opensearch.index.mapper.ObjectMapper;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardException;
+import org.opensearch.index.query.Rewriteable;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
 

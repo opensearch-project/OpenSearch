@@ -22,7 +22,7 @@ package org.opensearch.search.fetch.subphase.highlight;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.text.Text;
+import org.opensearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

@@ -31,7 +31,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.path.PathTrie;
+import org.opensearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;

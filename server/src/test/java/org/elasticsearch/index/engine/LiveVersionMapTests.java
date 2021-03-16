@@ -24,7 +24,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.RamUsageTester;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 

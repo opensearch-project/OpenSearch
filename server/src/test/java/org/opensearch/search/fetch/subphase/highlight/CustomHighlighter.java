@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.fetch.subphase.highlight;
 
-import org.elasticsearch.common.text.Text;
+import org.opensearch.common.text.Text;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;

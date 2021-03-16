@@ -23,7 +23,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;

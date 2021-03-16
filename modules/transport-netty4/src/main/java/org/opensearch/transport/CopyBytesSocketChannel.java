@@ -39,7 +39,7 @@ import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

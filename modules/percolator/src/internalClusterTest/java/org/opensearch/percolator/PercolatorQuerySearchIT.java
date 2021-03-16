@@ -27,7 +27,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.opensearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;

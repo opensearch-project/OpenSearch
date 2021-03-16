@@ -20,21 +20,21 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.recycler.AbstractRecyclerC;
-import org.elasticsearch.common.recycler.Recycler;
+import org.opensearch.common.recycler.AbstractRecyclerC;
+import org.opensearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 import java.util.Arrays;
 import java.util.Locale;
 
-import static org.elasticsearch.common.recycler.Recyclers.concurrent;
-import static org.elasticsearch.common.recycler.Recyclers.concurrentDeque;
-import static org.elasticsearch.common.recycler.Recyclers.dequeFactory;
-import static org.elasticsearch.common.recycler.Recyclers.none;
+import static org.opensearch.common.recycler.Recyclers.concurrent;
+import static org.opensearch.common.recycler.Recyclers.concurrentDeque;
+import static org.opensearch.common.recycler.Recyclers.dequeFactory;
+import static org.opensearch.common.recycler.Recyclers.none;
 
 /** A recycler of fixed-size pages. */
 public class PageCacheRecycler {

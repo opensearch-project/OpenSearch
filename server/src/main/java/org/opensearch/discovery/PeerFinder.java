@@ -34,7 +34,7 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.discovery.zen.UnicastZenPing;

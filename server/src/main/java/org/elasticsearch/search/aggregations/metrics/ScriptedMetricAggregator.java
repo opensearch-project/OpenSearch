@@ -24,7 +24,7 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.ObjectArray;
 import org.opensearch.script.Script;

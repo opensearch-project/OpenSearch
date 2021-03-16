@@ -28,7 +28,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.opensearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params {

@@ -27,8 +27,8 @@ import org.locationtech.jts.geom.Coordinate;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.unit.DistanceUnit.Distance;
+import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -105,7 +105,7 @@ public class CircleBuilder extends ShapeBuilder<Circle, org.opensearch.geometry.
 
     /**
      * Set the radius of the circle
-     * @param radius radius of the circle (see {@link org.elasticsearch.common.unit.DistanceUnit.Distance})
+     * @param radius radius of the circle (see {@link org.opensearch.common.unit.DistanceUnit.Distance})
      * @return this
      */
     public CircleBuilder radius(Distance radius) {

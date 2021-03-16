@@ -24,7 +24,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;
 import org.opensearch.common.geo.builders.MultiPointBuilder;
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.opensearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;

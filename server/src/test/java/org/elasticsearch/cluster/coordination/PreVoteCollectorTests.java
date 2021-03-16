@@ -24,7 +24,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;

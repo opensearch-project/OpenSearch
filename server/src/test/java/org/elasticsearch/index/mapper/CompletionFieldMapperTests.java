@@ -35,7 +35,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.Fuzziness;
+import org.opensearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;

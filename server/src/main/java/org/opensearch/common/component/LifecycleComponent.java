@@ -19,7 +19,7 @@
 
 package org.opensearch.common.component;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasable;
 
 public interface LifecycleComponent extends Releasable {
 

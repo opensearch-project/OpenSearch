@@ -21,6 +21,7 @@ package org.elasticsearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.unit.RatioValue;
 
 import static org.hamcrest.Matchers.is;
 

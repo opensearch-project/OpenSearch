@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 
 public abstract class TransportMessage implements Writeable {
 

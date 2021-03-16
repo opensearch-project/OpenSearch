@@ -25,7 +25,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.recycler.Recycler;
+import org.opensearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.Closeable;

@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.transport.PortsRange;
+import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.transport.PortsRange;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

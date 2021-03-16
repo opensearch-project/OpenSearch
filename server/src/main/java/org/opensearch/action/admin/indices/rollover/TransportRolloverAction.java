@@ -40,7 +40,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;

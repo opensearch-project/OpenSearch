@@ -26,7 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.lease.Releasables;
+import org.opensearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;

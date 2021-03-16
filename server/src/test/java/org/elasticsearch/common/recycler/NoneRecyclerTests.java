@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.recycler;
 
+import org.opensearch.common.recycler.Recycler;
+import org.opensearch.common.recycler.Recyclers;
+
 public class NoneRecyclerTests extends AbstractRecyclerTestCase {
 
     @Override

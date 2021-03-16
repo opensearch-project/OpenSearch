@@ -34,7 +34,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexRequest;

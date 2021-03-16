@@ -38,7 +38,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.ValidationException;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

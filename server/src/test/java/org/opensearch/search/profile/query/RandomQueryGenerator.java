@@ -20,7 +20,7 @@
 package org.opensearch.search.profile.query;
 
 import org.apache.lucene.util.English;
-import org.elasticsearch.common.unit.Fuzziness;
+import org.opensearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;

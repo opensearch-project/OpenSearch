@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.network.CloseableChannel;
+import org.opensearch.common.network.CloseableChannel;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.InetSocketAddress;

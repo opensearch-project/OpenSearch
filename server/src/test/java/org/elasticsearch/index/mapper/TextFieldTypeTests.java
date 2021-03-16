@@ -38,7 +38,7 @@ import org.opensearch.OpenSearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.unit.Fuzziness;
+import org.opensearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;

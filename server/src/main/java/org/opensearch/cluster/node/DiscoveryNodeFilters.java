@@ -21,11 +21,11 @@ package org.opensearch.cluster.node;
 
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.regex.Regex;
+import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;

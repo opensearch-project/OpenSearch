@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.CounterMetric;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;

@@ -19,7 +19,7 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.CounterMetric;
 
 public class ScriptMetrics {
     final CounterMetric compilationsMetric = new CounterMetric();

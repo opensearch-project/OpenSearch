@@ -50,7 +50,7 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.common.Priority;
 import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
