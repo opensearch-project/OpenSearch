@@ -16,15 +16,15 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.ConfigurationException;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.ConfigurationException;
 
 import java.util.Objects;
 import java.util.Set;
 
 /**
  * A request to inject the static fields and methods of a type. Requests are created
- * explicitly in a module using {@link org.elasticsearch.common.inject.Binder#requestStaticInjection(Class[])
+ * explicitly in a module using {@link org.opensearch.common.inject.Binder#requestStaticInjection(Class[])
  * requestStaticInjection()} statements:
  * <pre>
  *     requestStaticInjection(MyLegacyService.class);</pre>

@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
+import org.opensearch.common.inject.BindingAnnotation;
 
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Retention;
@@ -35,7 +35,7 @@ public class UniqueAnnotations {
 
     /**
      * Returns an annotation instance that is not equal to any other annotation
-     * instances, for use in creating distinct {@link org.elasticsearch.common.inject.Key}s.
+     * instances, for use in creating distinct {@link org.opensearch.common.inject.Key}s.
      */
     public static Annotation create() {
         return create(nextUniqueValue.getAndIncrement());

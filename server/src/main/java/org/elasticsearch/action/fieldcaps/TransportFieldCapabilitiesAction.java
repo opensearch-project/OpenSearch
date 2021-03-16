@@ -28,7 +28,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;

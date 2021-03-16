@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.internal.SearchContext;

@@ -40,7 +40,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.gateway.LocalAllocateDangledIndices;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;

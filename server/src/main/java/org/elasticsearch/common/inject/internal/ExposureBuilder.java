@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Key;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.Key;
 import org.elasticsearch.common.inject.binder.AnnotatedElementBuilder;
 
 import java.lang.annotation.Annotation;

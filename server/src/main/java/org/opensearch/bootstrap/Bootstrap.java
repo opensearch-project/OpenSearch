@@ -36,7 +36,7 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.inject.CreationException;
+import org.opensearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;

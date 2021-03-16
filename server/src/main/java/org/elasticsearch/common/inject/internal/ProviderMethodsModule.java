@@ -16,12 +16,12 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.Provides;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.Module;
+import org.opensearch.common.inject.Provider;
+import org.opensearch.common.inject.Provides;
+import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.inject.util.Modules;

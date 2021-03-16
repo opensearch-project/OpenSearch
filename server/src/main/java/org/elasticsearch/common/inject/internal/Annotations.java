@@ -17,10 +17,10 @@
 package org.elasticsearch.common.inject.internal;
 
 import org.opensearch.common.Classes;
-import org.elasticsearch.common.inject.BindingAnnotation;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.ScopeAnnotation;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.BindingAnnotation;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.ScopeAnnotation;
+import org.opensearch.common.inject.TypeLiteral;
 
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Retention;

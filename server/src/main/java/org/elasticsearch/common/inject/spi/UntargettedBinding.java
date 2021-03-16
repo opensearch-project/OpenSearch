@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binding;
+import org.opensearch.common.inject.Binding;
 
 /**
  * An untargetted binding. This binding indicates that the injector should use its implicit binding

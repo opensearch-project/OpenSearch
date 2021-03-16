@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.inject.TypeLiteral;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
