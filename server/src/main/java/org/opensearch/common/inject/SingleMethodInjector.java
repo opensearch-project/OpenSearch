@@ -17,9 +17,9 @@
 package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.InjectorImpl.MethodInvoker;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.InternalContext;
+import org.opensearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.ErrorsException;
+import org.opensearch.common.inject.internal.InternalContext;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.lang.reflect.InvocationTargetException;

@@ -17,8 +17,8 @@
 package org.elasticsearch.common.inject.spi;
 
 import org.opensearch.common.inject.Binder;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.SourceProvider;
+import org.opensearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.SourceProvider;
 
 import java.util.Collections;
 import java.util.List;
