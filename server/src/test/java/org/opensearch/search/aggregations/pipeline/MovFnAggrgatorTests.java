@@ -46,7 +46,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
-import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;

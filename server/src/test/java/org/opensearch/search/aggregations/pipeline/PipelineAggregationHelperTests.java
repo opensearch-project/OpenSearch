@@ -24,10 +24,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 

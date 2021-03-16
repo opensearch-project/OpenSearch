@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.elasticsearch.search.aggregations.metrics.Stats;
+import org.opensearch.search.aggregations.metrics.Stats;
 
 /**
  * Statistics over a set of buckets

@@ -67,10 +67,10 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.Max;
-import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.InternalTopHits;
+import org.opensearch.search.aggregations.metrics.Max;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 

@@ -33,8 +33,8 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
-import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.InternalMin;
+import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;

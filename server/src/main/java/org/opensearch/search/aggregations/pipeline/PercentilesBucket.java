@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.elasticsearch.search.aggregations.metrics.Percentiles;
+import org.opensearch.search.aggregations.metrics.Percentiles;
 
 public interface PercentilesBucket extends Percentiles {
 }

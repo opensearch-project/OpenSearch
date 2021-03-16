@@ -41,8 +41,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.InternalStats;
+import org.opensearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
