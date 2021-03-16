@@ -6,20 +6,20 @@ setlocal enableextensions
 set NOJAVA=nojava
 if /i "%1" == "install" set NOJAVA=
 
-call "%~dp0elasticsearch-env.bat" %NOJAVA% || exit /b 1
+call "%~dp0opensearch-env.bat" %NOJAVA% || exit /b 1
 
-set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
-if "%SERVICE_ID%" == "" set SERVICE_ID=elasticsearch-service-x64
+set EXECUTABLE=%OPENSEARCH_HOME%\bin\opensearch-service-x64.exe
+if "%SERVICE_ID%" == "" set SERVICE_ID=opensearch-service-x64
 set ARCH=64-bit
 
 if EXIST "%EXECUTABLE%" goto okExe
-echo elasticsearch-service-x64.exe was not found...
+echo opensearch-service-x64.exe was not found...
 exit /B 1
 
 :okExe
-set ES_VERSION=${project.version}
+set OPENSEARCH_VERSION=${project.version}
 
-if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%ES_HOME%\logs
+if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%OPENSEARCH_HOME%\logs
 
 if "x%1x" == "xx" goto displayUsage
 set SERVICE_CMD=%1
@@ -41,11 +41,11 @@ exit /B 1
 
 :displayUsage
 echo.
-echo Usage: elasticsearch-service.bat install^|remove^|start^|stop^|manager [SERVICE_ID]
+echo Usage: opensearch-service.bat install^|remove^|start^|stop^|manager [SERVICE_ID]
 goto:eof
 
 :doStart
-"%EXECUTABLE%" //ES//%SERVICE_ID% %LOG_OPTS%
+"%EXECUTABLE%" //OPENSEARCH//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto started
 echo Failed starting '%SERVICE_ID%' service
 exit /B 1
@@ -65,8 +65,8 @@ echo The service '%SERVICE_ID%' has been stopped
 goto:eof
 
 :doManagment
-set EXECUTABLE_MGR=%ES_HOME%\bin\elasticsearch-service-mgr
-"%EXECUTABLE_MGR%" //ES//%SERVICE_ID%
+set EXECUTABLE_MGR=%OPENSEARCH_HOME%\bin\opensearch-service-mgr
+"%EXECUTABLE_MGR%" //OPENSEARCH//%SERVICE_ID%
 if not errorlevel 1 goto managed
 echo Failed starting service manager for '%SERVICE_ID%'
 exit /B 1
@@ -106,23 +106,23 @@ if exist "%JAVA_HOME%\bin\server\jvm.dll" (
 )
 
 :foundJVM
-if not defined ES_TMPDIR (
-  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set ES_TMPDIR=%%a
+if not defined OPENSEARCH_TMPDIR (
+  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!OPENSEARCH_CLASSPATH!" "org.opensearch.tools.launchers.TempDirectory"`) do set OPENSEARCH_TMPDIR=%%a
 )
 
 rem The JVM options parser produces the final JVM options to start
-rem Elasticsearch. It does this by incorporating JVM options in the following
+rem OpenSearch. It does this by incorporating JVM options in the following
 rem way:
 rem   - first, system JVM options are applied (these are hardcoded options in
 rem     the parser)
 rem   - second, JVM options are read from jvm.options and
 rem     jvm.options.d/*.options
-rem   - third, JVM options from ES_JAVA_OPTS are applied
+rem   - third, JVM options from OPENSEARCH_JAVA_OPTS are applied
 rem   - fourth, ergonomic JVM options are applied
 
 @setlocal
-for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
-@endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%ES_JAVA_OPTS%" & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
+for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!OPENSEARCH_CLASSPATH!" "org.opensearch.tools.launchers.JvmOptionsParser" "!OPENSEARCH_PATH_CONF!" ^|^| echo jvm_options_parser_failed`) do set OPENSEARCH_JAVA_OPTS=%%a
+@endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%OPENSEARCH_JAVA_OPTS%" & set OPENSEARCH_JAVA_OPTS=%OPENSEARCH_JAVA_OPTS%
 
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
@@ -131,18 +131,18 @@ if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
 rem The output of the JVM options parses is space-delimited. We need to
 rem convert to semicolon-delimited and avoid doubled semicolons.
 @setlocal
-if not "%ES_JAVA_OPTS%" == "" (
-  set ES_JAVA_OPTS=!ES_JAVA_OPTS: =;!
-  set ES_JAVA_OPTS=!ES_JAVA_OPTS:;;=;!
+if not "%OPENSEARCH_JAVA_OPTS%" == "" (
+  set OPENSEARCH_JAVA_OPTS=!OPENSEARCH_JAVA_OPTS: =;!
+  set OPENSEARCH_JAVA_OPTS=!OPENSEARCH_JAVA_OPTS:;;=;!
 )
-@endlocal & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
+@endlocal & set OPENSEARCH_JAVA_OPTS=%OPENSEARCH_JAVA_OPTS%
 
-if "%ES_JAVA_OPTS:~-1%"==";" set ES_JAVA_OPTS=%ES_JAVA_OPTS:~0,-1%
+if "%OPENSEARCH_JAVA_OPTS:~-1%"==";" set OPENSEARCH_JAVA_OPTS=%OPENSEARCH_JAVA_OPTS:~0,-1%
 
-echo %ES_JAVA_OPTS%
+echo %OPENSEARCH_JAVA_OPTS%
 
 @setlocal EnableDelayedExpansion
-for %%a in ("%ES_JAVA_OPTS:;=","%") do (
+for %%a in ("%OPENSEARCH_JAVA_OPTS:;=","%") do (
   set var=%%a
   set other_opt=true
   if "!var:~1,4!" == "-Xms" (
@@ -180,34 +180,34 @@ for %%a in ("%ES_JAVA_OPTS:;=","%") do (
 @endlocal & set JVM_MS=%JVM_MS% & set JVM_MX=%JVM_MX% & set JVM_SS=%JVM_SS% & set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS%
 
 if "%JVM_MS%" == "" (
-  echo minimum heap size not set; configure using -Xms via "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
+  echo minimum heap size not set; configure using -Xms via "%OPENSEARCH_PATH_CONF%/jvm.options.d", or OPENSEARCH_JAVA_OPTS
   goto:eof
 )
 if "%JVM_MX%" == "" (
-  echo maximum heap size not set; configure using -Xmx via "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
+  echo maximum heap size not set; configure using -Xmx via "%OPENSEARCH_PATH_CONF%/jvm.options.d", or OPENSEARCH_JAVA_OPTS
   goto:eof
 )
 if "%JVM_SS%" == "" (
-  echo thread stack size not set; configure using -Xss via "%ES_PATH_CONF%/jvm.options.d", or ES_JAVA_OPTS
+  echo thread stack size not set; configure using -Xss via "%OPENSEARCH_PATH_CONF%/jvm.options.d", or OPENSEARCH_JAVA_OPTS
   goto:eof
 )
 set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:"=%
 set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:~1%
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%";-Des.distribution.type="%ES_DISTRIBUTION_TYPE%";-Des.bundled_jdk="%ES_BUNDLED_JDK%"
+set OPENSEARCH_PARAMS=-Dopensearch;-Des.path.home="%OPENSEARCH_HOME%";-Des.path.conf="%OPENSEARCH_PATH_CONF%";-Des.distribution.type="%OPENSEARCH_DISTRIBUTION_TYPE%";-Des.bundled_jdk="%OPENSEARCH_BUNDLED_JDK%"
 
-if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
-if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0
+if "%OPENSEARCH_START_TYPE%" == "" set OPENSEARCH_START_TYPE=manual
+if "%OPENSEARCH_STOP_TIMEOUT%" == "" set OPENSEARCH_STOP_TIMEOUT=0
 
-if "%SERVICE_DISPLAY_NAME%" == "" set SERVICE_DISPLAY_NAME=Elasticsearch %ES_VERSION% (%SERVICE_ID%)
-if "%SERVICE_DESCRIPTION%" == "" set SERVICE_DESCRIPTION=Elasticsearch %ES_VERSION% Windows Service - https://elastic.co
+if "%SERVICE_DISPLAY_NAME%" == "" set SERVICE_DISPLAY_NAME=OpenSearch %OPENSEARCH_VERSION% (%SERVICE_ID%)
+if "%SERVICE_DESCRIPTION%" == "" set SERVICE_DESCRIPTION=OpenSearch %OPENSEARCH_VERSION% Windows Service - https://elastic.co
 
 if not "%SERVICE_USERNAME%" == "" (
 	if not "%SERVICE_PASSWORD%" == "" (
 		set SERVICE_PARAMS=%SERVICE_PARAMS% --ServiceUser "%SERVICE_USERNAME%" --ServicePassword "%SERVICE_PASSWORD%"
 	)
 )
-"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.opensearch.bootstrap.OpenSearch --StartMethod main ++StartParams --quiet --StopClass org.opensearch.bootstrap.OpenSearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %OTHER_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %OPENSEARCH_START_TYPE% --StopTimeout %OPENSEARCH_STOP_TIMEOUT% --StartClass org.opensearch.bootstrap.OpenSearch --StartMethod main ++StartParams --quiet --StopClass org.opensearch.bootstrap.OpenSearch --StopMethod close --Classpath "%OPENSEARCH_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %OTHER_JAVA_OPTS% ++JvmOptions %OPENSEARCH_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%OPENSEARCH_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
 
 if not errorlevel 1 goto installed
 echo Failed installing '%SERVICE_ID%' service

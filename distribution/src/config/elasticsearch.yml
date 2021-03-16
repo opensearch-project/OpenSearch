@@ -1,6 +1,6 @@
-# ======================== Elasticsearch Configuration =========================
+# ======================== OpenSearch Configuration =========================
 #
-# NOTE: Elasticsearch comes with reasonable defaults for most settings.
+# NOTE: OpenSearch comes with reasonable defaults for most settings.
 #       Before you set out to tweak and tune the configuration, make sure you
 #       understand what are you trying to accomplish and the consequences.
 #
@@ -46,7 +46,7 @@ ${path.logs}
 # on the system and that the owner of the process is allowed to use this
 # limit.
 #
-# Elasticsearch performs poorly when the system is swapping the memory.
+# OpenSearch performs poorly when the system is swapping the memory.
 #
 # ---------------------------------- Network -----------------------------------
 #

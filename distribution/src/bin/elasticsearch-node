@@ -1,5 +1,5 @@
 #!/bin/bash
 
-ES_MAIN_CLASS=org.opensearch.cluster.coordination.NodeToolCli \
+OPENSEARCH_MAIN_CLASS=org.opensearch.cluster.coordination.NodeToolCli \
   "`dirname "$0"`"/opensearch-cli \
   "$@"
