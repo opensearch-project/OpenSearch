@@ -25,7 +25,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;

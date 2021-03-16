@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.ingest;
 
-import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
 import org.opensearch.rest.BaseRestHandler;

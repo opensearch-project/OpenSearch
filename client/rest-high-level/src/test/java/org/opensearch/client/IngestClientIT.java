@@ -19,15 +19,15 @@
 
 package org.opensearch.client;
 
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
-import org.elasticsearch.action.ingest.SimulateDocumentResult;
-import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.opensearch.action.ingest.DeletePipelineRequest;
+import org.opensearch.action.ingest.GetPipelineRequest;
+import org.opensearch.action.ingest.GetPipelineResponse;
+import org.opensearch.action.ingest.PutPipelineRequest;
+import org.opensearch.action.ingest.SimulateDocumentBaseResult;
+import org.opensearch.action.ingest.SimulateDocumentResult;
+import org.opensearch.action.ingest.SimulateDocumentVerboseResult;
+import org.opensearch.action.ingest.SimulatePipelineRequest;
+import org.opensearch.action.ingest.SimulatePipelineResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
