@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
 /**
  * Defines behavior for comparing {@link Bucket#getKey() bucket keys} to imposes a total ordering

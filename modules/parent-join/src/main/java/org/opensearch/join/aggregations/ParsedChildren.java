@@ -19,7 +19,7 @@
 package org.opensearch.join.aggregations;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.io.IOException;
 

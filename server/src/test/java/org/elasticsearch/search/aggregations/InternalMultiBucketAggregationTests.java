@@ -21,9 +21,9 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
+import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESTestCase;

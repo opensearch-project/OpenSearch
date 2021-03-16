@@ -23,7 +23,7 @@ import java.util.List;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
 
 import static java.util.Collections.singletonList;
 

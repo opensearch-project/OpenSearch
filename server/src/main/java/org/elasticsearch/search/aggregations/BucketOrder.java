@@ -22,7 +22,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.opensearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;

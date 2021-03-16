@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.opensearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.metrics.TopHits;
 import org.opensearch.search.sort.SortOrder;
