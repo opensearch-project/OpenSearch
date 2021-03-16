@@ -33,6 +33,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.common.time.DateUtilsRounding.getMonthOfYear;
+import static org.opensearch.common.time.DateUtilsRounding.getTotalMillisByYearMonth;
+import static org.opensearch.common.time.DateUtilsRounding.getYear;
+import static org.opensearch.common.time.DateUtilsRounding.utcMillisAtStartOfYear;
+
 public class DateUtils {
     public static DateTimeZone zoneIdToDateTimeZone(ZoneId zoneId) {
         if (zoneId == null) {
@@ -328,8 +333,8 @@ public class DateUtils {
      * @return The milliseconds since the epoch rounded down to the quarter of the year
      */
     public static long roundQuarterOfYear(final long utcMillis) {
-        int year = DateUtilsRounding.getYear(utcMillis);
-        int month = DateUtilsRounding.getMonthOfYear(utcMillis, year);
+        int year = getYear(utcMillis);
+        int month = getMonthOfYear(utcMillis, year);
         int firstMonthOfQuarter = (((month-1) / 3) * 3) + 1;
         return DateUtils.of(year, firstMonthOfQuarter);
     }
@@ -340,8 +345,8 @@ public class DateUtils {
      * @return The milliseconds since the epoch rounded down to the month of the year
      */
     public static long roundMonthOfYear(final long utcMillis) {
-        int year = DateUtilsRounding.getYear(utcMillis);
-        int month = DateUtilsRounding.getMonthOfYear(utcMillis, year);
+        int year = getYear(utcMillis);
+        int month = getMonthOfYear(utcMillis, year);
         return DateUtils.of(year, month);
     }
 
@@ -351,8 +356,8 @@ public class DateUtils {
      * @return The milliseconds since the epoch rounded down to the beginning of the year
      */
     public static long roundYear(final long utcMillis) {
-        int year = DateUtilsRounding.getYear(utcMillis);
-        return DateUtilsRounding.utcMillisAtStartOfYear(year);
+        int year = getYear(utcMillis);
+        return utcMillisAtStartOfYear(year);
     }
 
     /**
@@ -371,8 +376,8 @@ public class DateUtils {
      * @return the milliseconds since the epoch of the first day of the month in the year
      */
     private static long of(final int year, final int month) {
-        long millis = DateUtilsRounding.utcMillisAtStartOfYear(year);
-        millis += DateUtilsRounding.getTotalMillisByYearMonth(year, month);
+        long millis = utcMillisAtStartOfYear(year);
+        millis += getTotalMillisByYearMonth(year, month);
         return millis;
     }
 

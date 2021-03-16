@@ -105,7 +105,7 @@ public class CircleBuilder extends ShapeBuilder<Circle, org.opensearch.geometry.
 
     /**
      * Set the radius of the circle
-     * @param radius radius of the circle (see {@link DistanceUnit.Distance})
+     * @param radius radius of the circle (see {@link org.opensearch.common.unit.DistanceUnit.Distance})
      * @return this
      */
     public CircleBuilder radius(Distance radius) {

@@ -40,7 +40,7 @@ public abstract class RestResponse {
     public abstract String contentType();
 
     /**
-     * The response content. Note, if the content is {@link Releasable} it
+     * The response content. Note, if the content is {@link org.opensearch.common.lease.Releasable} it
      * should automatically be released when done by the channel sending it.
      */
     public abstract BytesReference content();

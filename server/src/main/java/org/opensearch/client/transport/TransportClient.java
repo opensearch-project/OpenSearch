@@ -83,9 +83,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using
- * {@link #addTransportAddress(TransportAddress)}.
+ * {@link #addTransportAddress(org.opensearch.common.transport.TransportAddress)}.
  * <p>
- * The transport client important modules used is the {@link NetworkModule} which is
+ * The transport client important modules used is the {@link org.opensearch.common.network.NetworkModule} which is
  * started in client mode (only connects, no bind).
  *
  * @deprecated {@link TransportClient} is deprecated in favour of the High Level REST client and will
@@ -304,7 +304,7 @@ public abstract class TransportClient extends AbstractClient {
 
     /**
      * Returns the current registered transport addresses to use (added using
-     * {@link #addTransportAddress(TransportAddress)}.
+     * {@link #addTransportAddress(org.opensearch.common.transport.TransportAddress)}.
      */
     public List<TransportAddress> transportAddresses() {
         return nodesService.transportAddresses();
