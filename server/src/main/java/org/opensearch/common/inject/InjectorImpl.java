@@ -17,19 +17,19 @@
 package org.opensearch.common.inject;
 
 import org.opensearch.common.Classes;
-import org.elasticsearch.common.inject.internal.Annotations;
-import org.elasticsearch.common.inject.internal.BindingImpl;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
-import org.elasticsearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.internal.LinkedBindingImpl;
-import org.elasticsearch.common.inject.internal.LinkedProviderBindingImpl;
-import org.elasticsearch.common.inject.internal.MatcherAndConverter;
-import org.elasticsearch.common.inject.internal.Scoping;
-import org.elasticsearch.common.inject.internal.SourceProvider;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import org.opensearch.common.inject.internal.Annotations;
+import org.opensearch.common.inject.internal.BindingImpl;
+import org.opensearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.ErrorsException;
+import org.opensearch.common.inject.internal.InstanceBindingImpl;
+import org.opensearch.common.inject.internal.InternalContext;
+import org.opensearch.common.inject.internal.InternalFactory;
+import org.opensearch.common.inject.internal.LinkedBindingImpl;
+import org.opensearch.common.inject.internal.LinkedProviderBindingImpl;
+import org.opensearch.common.inject.internal.MatcherAndConverter;
+import org.opensearch.common.inject.internal.Scoping;
+import org.opensearch.common.inject.internal.SourceProvider;
+import org.opensearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
 import org.elasticsearch.common.inject.spi.ConvertedConstantBinding;
 import org.elasticsearch.common.inject.spi.Dependency;
@@ -52,7 +52,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.common.inject.internal.Annotations.findScopeAnnotation;
+import static org.opensearch.common.inject.internal.Annotations.findScopeAnnotation;
 
 /**
  * Default {@link Injector} implementation.
@@ -240,7 +240,7 @@ class InjectorImpl implements Injector, Lookups {
      * Converts a constant string binding to the required type.
      *
      * @return the binding if it could be resolved, or null if the binding doesn't exist
-     * @throws org.elasticsearch.common.inject.internal.ErrorsException
+     * @throws ErrorsException
      *          if there was an error resolving the binding
      */
     private <T> BindingImpl<T> convertConstantStringBinding(Key<T> key, Errors errors)
@@ -572,7 +572,7 @@ class InjectorImpl implements Injector, Lookups {
      * <li>The constructor of the raw type. Only for unannotated keys.
      * </ol>
      *
-     * @throws org.elasticsearch.common.inject.internal.ErrorsException
+     * @throws ErrorsException
      *          if the binding cannot be created.
      */
     <T> BindingImpl<T> createJustInTimeBinding(Key<T> key, Errors errors) throws ErrorsException {

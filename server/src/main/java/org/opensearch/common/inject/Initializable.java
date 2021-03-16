@@ -16,8 +16,8 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.opensearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.ErrorsException;
 
 /**
  * Holds a reference that requires initialization to be performed before it can be used.

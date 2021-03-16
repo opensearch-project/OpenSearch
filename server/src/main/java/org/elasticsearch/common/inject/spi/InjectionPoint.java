@@ -20,11 +20,11 @@ import org.opensearch.common.inject.ConfigurationException;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.internal.Annotations;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.MoreTypes;
-import org.elasticsearch.common.inject.internal.Nullability;
+import org.opensearch.common.inject.internal.Annotations;
+import org.opensearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.ErrorsException;
+import org.opensearch.common.inject.internal.MoreTypes;
+import org.opensearch.common.inject.internal.Nullability;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
@@ -43,7 +43,7 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.inject.internal.MoreTypes.getRawType;
+import static org.opensearch.common.inject.internal.MoreTypes.getRawType;
 
 /**
  * A constructor, field or method that can receive injections. Typically this is a member with the
