@@ -16,15 +16,15 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
+import org.opensearch.common.inject.Injector;
+import org.opensearch.common.inject.Key;
 
 import java.util.List;
 import java.util.Set;
 
 /**
  * A private collection of elements that are hidden from the enclosing injector or module by
- * default. See {@link org.elasticsearch.common.inject.PrivateModule PrivateModule} for details.
+ * default. See {@link org.opensearch.common.inject.PrivateModule PrivateModule} for details.
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0

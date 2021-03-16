@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.bytes;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.ByteArray;
 import org.hamcrest.Matchers;
 import org.opensearch.common.bytes.BytesArray;

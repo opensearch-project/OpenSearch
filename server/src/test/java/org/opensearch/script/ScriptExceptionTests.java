@@ -19,10 +19,10 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.DataOutputStreamOutput;
+import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;

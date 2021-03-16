@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -36,7 +36,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Transport;
 import org.opensearch.transport.netty4.Netty4Transport;
 
 import java.util.Arrays;

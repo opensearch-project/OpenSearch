@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Provider;
+import org.opensearch.common.inject.Provider;
 
 /**
  * A provider with dependencies on other injected types. If a {@link Provider} has dependencies that

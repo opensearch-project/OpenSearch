@@ -2,31 +2,31 @@
 
 set -e -o pipefail
 
-source "`dirname "$0"`"/elasticsearch-env
+source "`dirname "$0"`"/opensearch-env
 
-IFS=';' read -r -a additional_sources <<< "$ES_ADDITIONAL_SOURCES"
+IFS=';' read -r -a additional_sources <<< "$OPENSEARCH_ADDITIONAL_SOURCES"
 for additional_source in "${additional_sources[@]}"
 do
-  source "$ES_HOME"/bin/$additional_source
+  source "$OPENSEARCH_HOME"/bin/$additional_source
 done
 
-IFS=';' read -r -a additional_classpath_directories <<< "$ES_ADDITIONAL_CLASSPATH_DIRECTORIES"
+IFS=';' read -r -a additional_classpath_directories <<< "$OPENSEARCH_ADDITIONAL_CLASSPATH_DIRECTORIES"
 for additional_classpath_directory in "${additional_classpath_directories[@]}"
 do
-  ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/$additional_classpath_directory/*"
+  OPENSEARCH_CLASSPATH="$OPENSEARCH_CLASSPATH:$OPENSEARCH_HOME/$additional_classpath_directory/*"
 done
 
 # use a small heap size for the CLI tools, and thus the serial collector to
-# avoid stealing many CPU cycles; a user can override by setting ES_JAVA_OPTS
-ES_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${ES_JAVA_OPTS}"
+# avoid stealing many CPU cycles; a user can override by setting OPENSEARCH_JAVA_OPTS
+OPENSEARCH_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${OPENSEARCH_JAVA_OPTS}"
 
 exec \
   "$JAVA" \
   "$XSHARE" \
-  $ES_JAVA_OPTS \
-  -Des.path.home="$ES_HOME" \
-  -Des.path.conf="$ES_PATH_CONF" \
-  -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
-  -cp "$ES_CLASSPATH" \
-  "$ES_MAIN_CLASS" \
+  $OPENSEARCH_JAVA_OPTS \
+  -Des.path.home="$OPENSEARCH_HOME" \
+  -Des.path.conf="$OPENSEARCH_PATH_CONF" \
+  -Des.distribution.type="$OPENSEARCH_DISTRIBUTION_TYPE" \
+  -cp "$OPENSEARCH_CLASSPATH" \
+  "$OPENSEARCH_MAIN_CLASS" \
   "$@"

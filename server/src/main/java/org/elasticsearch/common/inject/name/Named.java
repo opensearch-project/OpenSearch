@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.name;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
+import org.opensearch.common.inject.BindingAnnotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

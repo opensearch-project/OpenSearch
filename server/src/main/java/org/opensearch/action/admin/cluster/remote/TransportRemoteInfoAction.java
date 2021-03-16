@@ -23,7 +23,7 @@ import org.opensearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.TransportService;

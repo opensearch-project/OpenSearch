@@ -21,7 +21,8 @@ package org.elasticsearch.common.io;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.Streams;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -31,11 +32,11 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.io.Streams.copyToString;
+import static org.opensearch.common.io.Streams.copyToString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Unit tests for {@link org.elasticsearch.common.io.Streams}.
+ * Unit tests for {@link org.opensearch.common.io.Streams}.
  */
 public class StreamsTests extends ESTestCase {
 

@@ -17,14 +17,14 @@
 package org.elasticsearch.common.inject.internal;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.MembersInjector;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.ProvisionException;
-import org.elasticsearch.common.inject.Scope;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.ConfigurationException;
+import org.opensearch.common.inject.CreationException;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.MembersInjector;
+import org.opensearch.common.inject.Provider;
+import org.opensearch.common.inject.ProvisionException;
+import org.opensearch.common.inject.Scope;
+import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.InjectionListener;
 import org.elasticsearch.common.inject.spi.InjectionPoint;

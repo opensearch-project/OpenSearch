@@ -19,7 +19,7 @@
 
 package org.opensearch.search.suggest.completion;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.test.ESTestCase;
 

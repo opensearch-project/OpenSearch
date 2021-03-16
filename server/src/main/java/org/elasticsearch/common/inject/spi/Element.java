@@ -16,13 +16,13 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binder;
+import org.opensearch.common.inject.Binder;
 
 /**
  * A core component of a module or injector.
  * <p>
  * The elements of a module can be inspected, validated and rewritten. Use {@link
- * Elements#getElements(org.elasticsearch.common.inject.Module[]) Elements.getElements()} to read the elements
+ * Elements#getElements(org.opensearch.common.inject.Module[]) Elements.getElements()} to read the elements
  * from a module, and {@link Elements#getModule(Iterable) Elements.getModule()} to rewrite them.
  * This can be used for static analysis and generation of Guice modules.
  *

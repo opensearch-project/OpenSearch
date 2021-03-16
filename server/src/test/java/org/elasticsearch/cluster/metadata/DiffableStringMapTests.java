@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.opensearch.cluster.Diff;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 

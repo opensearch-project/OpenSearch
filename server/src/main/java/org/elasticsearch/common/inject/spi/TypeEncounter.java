@@ -16,10 +16,10 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.MembersInjector;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.MembersInjector;
+import org.opensearch.common.inject.Provider;
+import org.opensearch.common.inject.TypeLiteral;
 
 /**
  * Context of an injectable type encounter. Enables reporting errors, registering injection

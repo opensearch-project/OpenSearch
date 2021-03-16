@@ -19,7 +19,7 @@
 
 package org.opensearch.action.support.replication;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;

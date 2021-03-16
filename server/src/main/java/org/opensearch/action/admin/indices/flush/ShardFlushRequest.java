@@ -21,8 +21,8 @@ package org.opensearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;

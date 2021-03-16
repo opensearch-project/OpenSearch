@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.transport.TransportRequestOptions;
 
@@ -48,7 +48,7 @@ public class ActionType<Response extends ActionResponse> {
     }
 
     /**
-     * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
+     * Get a reader that can create a new instance of the class from a {@link org.opensearch.common.io.stream.StreamInput}
      */
     public Writeable.Reader<Response> getResponseReader() {
         return responseReader;

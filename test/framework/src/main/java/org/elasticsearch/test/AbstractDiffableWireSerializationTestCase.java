@@ -21,7 +21,7 @@ package org.elasticsearch.test;
 
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
 

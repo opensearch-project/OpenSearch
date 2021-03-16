@@ -29,7 +29,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.SnapshotId;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.snapshots.Snapshot;
 import org.elasticsearch.test.ESTestCase;
 

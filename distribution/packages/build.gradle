@@ -15,10 +15,10 @@
  * KIND, either express or implied.  See the License for the
  */
 
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.LoggedExec
+import org.opensearch.gradle.MavenFilteringHack
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.info.BuildParams
 import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
@@ -47,8 +47,8 @@ import java.util.regex.Pattern
  * The following commands are useful when it comes to check the user/group
  * and files permissions set within the RPM and DEB packages:
  *
- *    rpm -qlp --dump path/to/elasticsearch.rpm
- *    dpkg -c path/to/elasticsearch.deb
+ *    rpm -qlp --dump path/to/opensearch.rpm
+ *    dpkg -c path/to/opensearch.deb
  */
 
 plugins {
@@ -68,20 +68,20 @@ void addProcessFilesTask(String type, boolean jdk) {
       MavenFilteringHack.filter(it, expansionsForDistribution(type, jdk))
     }
 
-    into('etc/elasticsearch') {
+    into('etc/opensearch') {
       with configFiles(type, jdk)
     }
     MavenFilteringHack.filter(it, expansionsForDistribution(type, jdk))
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
-      mkdir "${packagingFiles}/var/log/elasticsearch"
-      mkdir "${packagingFiles}/var/lib/elasticsearch"
-      mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
+      mkdir "${packagingFiles}/var/log/opensearch"
+      mkdir "${packagingFiles}/var/lib/opensearch"
+      mkdir "${packagingFiles}/usr/share/opensearch/plugins"
 
-      // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
-      mkdir "${packagingFiles}/elasticsearch"
-      mkdir "${packagingFiles}/elasticsearch/jvm.options.d"
+      // bare empty dir for /etc/opensearch and /etc/opensearch/jvm.options.d
+      mkdir "${packagingFiles}/opensearch"
+      mkdir "${packagingFiles}/opensearch/jvm.options.d"
     }
   }
 }
@@ -100,7 +100,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       OS.current().equals(OS.WINDOWS) == false
     }
     dependsOn "processOss'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
-    packageName "elasticsearch-oss"
+    packageName "opensearch-oss"
     if (type == 'deb') {
       if (architecture == 'x64') {
         arch('amd64')
@@ -117,7 +117,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         arch('aarch64')
       }
     }
-    // Follow elasticsearch's file naming convention
+    // Follow opensearch's file naming convention
     String jdkString = jdk ? "" : "no-jdk-"
     String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}oss-${jdk ? '' : 'no-jdk-'}${type}"
     destinationDirectory = file("${prefix}/build/distributions")
@@ -138,7 +138,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
     // specify it again explicitly for copying common files
-    into('/usr/share/elasticsearch') {
+    into('/usr/share/opensearch') {
       into('bin') {
         with binFiles(type, jdk)
       }
@@ -183,7 +183,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       }
     } else {
       assert type == 'rpm'
-      into('/usr/share/elasticsearch') {
+      into('/usr/share/opensearch') {
         from(rootProject.file('licenses')) {
           include 'APACHE-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
@@ -193,23 +193,23 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     }
 
     // ========= config files =========
-    configurationFile '/etc/elasticsearch/elasticsearch.yml'
-    configurationFile '/etc/elasticsearch/jvm.options'
-    configurationFile '/etc/elasticsearch/log4j2.properties'
+    configurationFile '/etc/opensearch/opensearch.yml'
+    configurationFile '/etc/opensearch/jvm.options'
+    configurationFile '/etc/opensearch/log4j2.properties'
     from("${packagingFiles}") {
       dirMode 02750
       into('/etc')
-      permissionGroup 'elasticsearch'
+      permissionGroup 'opensearch'
       includeEmptyDirs true
       createDirectoryEntry true
-      include("elasticsearch") // empty dir, just to add directory entry
-      include("elasticsearch/jvm.options.d") // empty dir, just to add directory entry
+      include("opensearch") // empty dir, just to add directory entry
+      include("opensearch/jvm.options.d") // empty dir, just to add directory entry
     }
-    from("${packagingFiles}/etc/elasticsearch") {
-      into('/etc/elasticsearch')
+    from("${packagingFiles}/etc/opensearch") {
+      into('/etc/opensearch')
       dirMode 02750
       fileMode 0660
-      permissionGroup 'elasticsearch'
+      permissionGroup 'opensearch'
       includeEmptyDirs true
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
@@ -218,37 +218,37 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
-      permissionGroup 'elasticsearch'
+      permissionGroup 'opensearch'
       fileMode 0660
-      from "${packagingFiles}/env/elasticsearch"
+      from "${packagingFiles}/env/opensearch"
     }
 
     // ========= systemd =========
     into('/usr/lib/tmpfiles.d') {
-      from "${packagingFiles}/systemd/elasticsearch.conf"
+      from "${packagingFiles}/systemd/opensearch.conf"
       fileMode 0644
     }
     into('/usr/lib/systemd/system') {
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/systemd/elasticsearch.service"
+      from "${packagingFiles}/systemd/opensearch.service"
       fileMode 0644
     }
     into('/usr/lib/sysctl.d') {
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
+      from "${packagingFiles}/systemd/sysctl/opensearch.conf"
       fileMode 0644
     }
-    into('/usr/share/elasticsearch/bin') {
+    into('/usr/share/opensearch/bin') {
       from "${packagingFiles}/systemd/systemd-entrypoint"
       fileMode 0755
     }
 
     // ========= sysV init =========
-    configurationFile '/etc/init.d/elasticsearch'
+    configurationFile '/etc/init.d/opensearch'
     into('/etc/init.d') {
       fileMode 0750
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/init.d/elasticsearch"
+      from "${packagingFiles}/init.d/opensearch"
     }
 
     // ========= empty dirs =========
@@ -265,11 +265,11 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         dirMode mode
       }
     }
-    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
-    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
-    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
+    copyEmptyDir('/var/log/opensearch', 'opensearch', 'opensearch', 02750)
+    copyEmptyDir('/var/lib/opensearch', 'opensearch', 'opensearch', 02750)
+    copyEmptyDir('/usr/share/opensearch/plugins', 'root', 'root', 0755)
 
-    into '/usr/share/elasticsearch'
+    into '/usr/share/opensearch'
     with noticeFile(jdk)
   }
 }
@@ -305,7 +305,7 @@ ospackage {
   user 'root'
   permissionGroup 'root'
 
-  into '/usr/share/elasticsearch'
+  into '/usr/share/opensearch'
 }
 
 Closure commonDebConfig(boolean jdk, String architecture) {
@@ -326,8 +326,8 @@ Closure commonDebConfig(boolean jdk, String architecture) {
     requires 'adduser'
 
     into('/usr/share/lintian/overrides') {
-      from('src/deb/lintian/elasticsearch')
-      rename('elasticsearch', 'elasticsearch-oss')
+      from('src/deb/lintian/opensearch')
+      rename('opensearch', 'opensearch-oss')
     }
   }
 }
@@ -356,15 +356,15 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
     obsoletes packageName, '7.0.0', Flags.LESS
 
     prefix '/usr'
-    packager 'Elasticsearch'
+    packager 'OpenSearch'
     archiveVersion = project.version.replace('-', '_')
     release = '1'
     os 'LINUX'
-    distribution 'Elasticsearch'
-    vendor 'Elasticsearch'
+    distribution 'OpenSearch'
+    vendor 'OpenSearch'
     // TODO ospackage doesn't support icon but we used to have one
 
-    // without this the rpm will have parent dirs of any files we copy in, eg /etc/elasticsearch
+    // without this the rpm will have parent dirs of any files we copy in, eg /etc/opensearch
     addParentDirs false
   }
 }
@@ -455,7 +455,7 @@ subprojects {
           Path copyrightPath
           String expectedLicense
           String licenseFilename
-          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch-oss/copyright")
+          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/opensearch-oss/copyright")
           expectedLicense = "ASL-2.0"
           licenseFilename = "APACHE-LICENSE-2.0.txt"
           final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
@@ -473,7 +473,7 @@ subprojects {
         doLast {
           String licenseFilename = "APACHE-LICENSE-2.0.txt"
           final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
-          final Path licensePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/LICENSE.txt")
+          final Path licensePath = packageExtractionDir.toPath().resolve("usr/share/opensearch/LICENSE.txt")
           assertLinesInFile(licensePath, licenseLines)
         }
       }
@@ -486,7 +486,7 @@ subprojects {
       }
       doLast {
         final List<String> noticeLines = Arrays.asList("OpenSearch", "Copyright 2021 OpenSearch Contributors")
-        final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/NOTICE.txt")
+        final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/opensearch/NOTICE.txt")
         assertLinesInFile(noticePath, noticeLines)
       }
     }

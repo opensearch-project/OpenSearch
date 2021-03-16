@@ -22,7 +22,7 @@ package org.elasticsearch.action.index;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.opensearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.transport.TransportService;
 
 /**

@@ -20,7 +20,7 @@
 package org.elasticsearch.plugins.spi;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.Streams;
+import org.opensearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.pipeline.ParsedSimpleValue;

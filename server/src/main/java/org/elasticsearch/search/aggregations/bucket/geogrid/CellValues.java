@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.opensearch.index.fielddata.AbstractSortingNumericDocValues;
+import org.opensearch.index.fielddata.MultiGeoPointValues;
 
 import java.io.IOException;
 
@@ -64,5 +64,5 @@ abstract class CellValues extends AbstractSortingNumericDocValues {
      * @param valuesIdx the index into <code>values</code> to set
      * @return          valuesIdx + 1 if value was set, valuesIdx otherwise.
      */
-    abstract int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx);
+    abstract int advanceValue(org.opensearch.common.geo.GeoPoint target, int valuesIdx);
 }

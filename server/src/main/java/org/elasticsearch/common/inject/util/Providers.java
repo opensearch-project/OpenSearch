@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.util;
 
-import org.elasticsearch.common.inject.Provider;
+import org.opensearch.common.inject.Provider;
 
 /**
  * Static utility methods for creating and working with instances of

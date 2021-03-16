@@ -51,7 +51,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;

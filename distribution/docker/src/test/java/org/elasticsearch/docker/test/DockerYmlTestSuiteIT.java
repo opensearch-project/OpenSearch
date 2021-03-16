@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.docker.test;
+package org.opensearch.docker.test;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.OpenSearchException;
@@ -53,10 +53,10 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected String getTestRestCluster() {
         return new StringBuilder()
             .append("localhost:")
-            .append(getProperty("test.fixtures.elasticsearch-oss-1.tcp.9200"))
+            .append(getProperty("test.fixtures.opensearch-oss-1.tcp.9200"))
             .append(",")
             .append("localhost:")
-            .append(getProperty("test.fixtures.elasticsearch-oss-2.tcp.9200"))
+            .append(getProperty("test.fixtures.opensearch-oss-2.tcp.9200"))
             .toString();
     }
 
@@ -69,7 +69,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
         String value = System.getProperty(key);
         if (value == null) {
             throw new IllegalStateException("Could not find system properties from test.fixtures. " +
-                "This test expects to run with the elasticsearch.test.fixtures Gradle plugin");
+                "This test expects to run with the opensearch.test.fixtures Gradle plugin");
         }
         return value;
     }

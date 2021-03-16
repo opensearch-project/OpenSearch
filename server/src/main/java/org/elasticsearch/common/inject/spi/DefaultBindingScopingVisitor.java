@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Scope;
+import org.opensearch.common.inject.Scope;
 
 import java.lang.annotation.Annotation;
 

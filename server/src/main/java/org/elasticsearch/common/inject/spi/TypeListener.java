@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.TypeLiteral;
 
 /**
  * Listens for Guice to encounter injectable types. If a given type has its constructor injected in

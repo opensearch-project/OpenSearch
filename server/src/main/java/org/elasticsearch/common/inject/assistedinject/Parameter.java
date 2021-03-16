@@ -16,10 +16,10 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Provider;
+import org.opensearch.common.inject.BindingAnnotation;
+import org.opensearch.common.inject.Injector;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.Provider;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;

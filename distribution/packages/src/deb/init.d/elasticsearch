@@ -1,20 +1,20 @@
 #!/bin/bash
 #
-# /etc/init.d/elasticsearch -- startup script for Elasticsearch
+# /etc/init.d/opensearch -- startup script for OpenSearch
 #
 ### BEGIN INIT INFO
-# Provides:          elasticsearch
+# Provides:          opensearch
 # Required-Start:    $network $remote_fs $named
 # Required-Stop:     $network $remote_fs $named
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Starts elasticsearch
-# Description:       Starts elasticsearch using start-stop-daemon
+# Short-Description: Starts opensearch
+# Description:       Starts opensearch using start-stop-daemon
 ### END INIT INFO
 
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
-NAME=elasticsearch
-DESC="Elasticsearch Server"
+NAME=opensearch
+DESC="OpenSearch Server"
 DEFAULT=/etc/default/$NAME
 
 if [ `id -u` -ne 0 ]; then
@@ -32,11 +32,11 @@ fi
 
 # The following variables can be overwritten in $DEFAULT
 
-# Directory where the Elasticsearch binary distribution resides
-ES_HOME=/usr/share/$NAME
+# Directory where the OpenSearch binary distribution resides
+OPENSEARCH_HOME=/usr/share/$NAME
 
 # Additional Java OPTS
-#ES_JAVA_OPTS=
+#OPENSEARCH_JAVA_OPTS=
 
 # Maximum number of open files
 MAX_OPEN_FILES=65535
@@ -44,14 +44,14 @@ MAX_OPEN_FILES=65535
 # Maximum amount of locked memory
 #MAX_LOCKED_MEMORY=
 
-# Elasticsearch configuration directory
-ES_PATH_CONF=/etc/$NAME
+# OpenSearch configuration directory
+OPENSEARCH_PATH_CONF=/etc/$NAME
 
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
 
-# Elasticsearch PID file directory
-PID_DIR="/var/run/elasticsearch"
+# OpenSearch PID file directory
+PID_DIR="/var/run/opensearch"
 
 # End of variables that can be overwritten in $DEFAULT
 
@@ -68,15 +68,15 @@ fi
 
 # Define other required variables
 PID_FILE="$PID_DIR/$NAME.pid"
-DAEMON=$ES_HOME/bin/elasticsearch
+DAEMON=$OPENSEARCH_HOME/bin/opensearch
 DAEMON_OPTS="-d -p $PID_FILE"
 
-export ES_JAVA_OPTS
+export OPENSEARCH_JAVA_OPTS
 export JAVA_HOME
-export ES_PATH_CONF
+export OPENSEARCH_PATH_CONF
 
 if [ ! -x "$DAEMON" ]; then
-	echo "The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"
+	echo "The opensearch startup script does not exists or it is not executable, tried: $DAEMON"
 	exit 1
 fi
 
@@ -85,7 +85,7 @@ case "$1" in
 
 	log_daemon_msg "Starting $DESC"
 
-	pid=`pidofproc -p $PID_FILE elasticsearch`
+	pid=`pidofproc -p $PID_FILE opensearch`
 	if [ -n "$pid" ] ; then
 		log_begin_msg "Already running."
 		log_end_msg 0
@@ -94,10 +94,10 @@ case "$1" in
 
 	# Ensure that the PID_DIR exists (it is cleaned at OS startup time)
 	if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
-		mkdir -p "$PID_DIR" && chown elasticsearch:elasticsearch "$PID_DIR"
+		mkdir -p "$PID_DIR" && chown opensearch:opensearch "$PID_DIR"
 	fi
 	if [ -n "$PID_FILE" ] && [ ! -e "$PID_FILE" ]; then
-		touch "$PID_FILE" && chown elasticsearch:elasticsearch "$PID_FILE"
+		touch "$PID_FILE" && chown opensearch:opensearch "$PID_FILE"
 	fi
 
 	if [ -n "$MAX_OPEN_FILES" ]; then
@@ -113,7 +113,7 @@ case "$1" in
 	fi
 
 	# Start Daemon
-	start-stop-daemon -d $ES_HOME --start --user elasticsearch -c elasticsearch --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
+	start-stop-daemon -d $OPENSEARCH_HOME --start --user opensearch -c opensearch --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
 	return=$?
 	if [ $return -eq 0 ]; then
 		i=0
@@ -137,7 +137,7 @@ case "$1" in
 
 	if [ -f "$PID_FILE" ]; then
 		start-stop-daemon --stop --pidfile "$PID_FILE" \
-			--user elasticsearch \
+			--user opensearch \
 			--quiet \
 			--retry forever/TERM/20 > /dev/null
 		if [ $? -eq 1 ]; then
@@ -154,7 +154,7 @@ case "$1" in
 	log_end_msg 0
 	;;
   status)
-	status_of_proc -p $PID_FILE elasticsearch elasticsearch && exit 0 || exit $?
+	status_of_proc -p $PID_FILE opensearch opensearch && exit 0 || exit $?
 	;;
   restart|force-reload)
 	if [ -f "$PID_FILE" ]; then

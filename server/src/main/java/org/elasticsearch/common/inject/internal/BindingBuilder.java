@@ -16,11 +16,11 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.ConfigurationException;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.Provider;
+import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.InjectionPoint;

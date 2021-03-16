@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;

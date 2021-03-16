@@ -16,16 +16,16 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.ConfigurationException;
+import org.opensearch.common.inject.TypeLiteral;
 
 import java.util.Objects;
 import java.util.Set;
 
 /**
  * A request to inject the instance fields and methods of an instance. Requests are created
- * explicitly in a module using {@link org.elasticsearch.common.inject.Binder#requestInjection(Object)
+ * explicitly in a module using {@link org.opensearch.common.inject.Binder#requestInjection(Object)
  * requestInjection()} statements:
  * <pre>
  *     requestInjection(serviceInstance);</pre>

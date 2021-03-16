@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.opensearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

@@ -25,7 +25,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.common.AsyncBiFunction;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.component.Lifecycle;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
