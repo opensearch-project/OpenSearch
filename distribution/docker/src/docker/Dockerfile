@@ -16,7 +16,7 @@
 */ %>
 ################################################################################
 # Build stage 0 `builder`:
-# Extract Elasticsearch artifact
+# Extract OpenSearch artifact
 ################################################################################
 
 FROM ${base_image} AS builder
