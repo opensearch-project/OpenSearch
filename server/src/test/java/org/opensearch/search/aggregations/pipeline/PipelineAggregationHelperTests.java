@@ -28,7 +28,7 @@ import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

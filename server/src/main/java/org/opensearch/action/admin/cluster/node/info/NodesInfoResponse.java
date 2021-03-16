@@ -35,7 +35,7 @@ import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
-import org.elasticsearch.search.aggregations.support.AggregationInfo;
+import org.opensearch.search.aggregations.support.AggregationInfo;
 import org.opensearch.threadpool.ThreadPoolInfo;
 import org.opensearch.transport.TransportInfo;
 

@@ -28,7 +28,7 @@ import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 

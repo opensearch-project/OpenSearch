@@ -47,7 +47,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.opensearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Collections;

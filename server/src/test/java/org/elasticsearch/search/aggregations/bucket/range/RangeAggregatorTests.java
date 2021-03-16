@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.time.ZoneOffset;

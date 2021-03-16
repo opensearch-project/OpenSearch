@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;

@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.aggregations.support.ArrayValuesSource;
 

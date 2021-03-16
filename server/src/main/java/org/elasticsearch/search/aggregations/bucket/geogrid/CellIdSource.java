@@ -24,7 +24,7 @@ import org.opensearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSource;
 
 /**
  * Wrapper class to help convert {@link MultiGeoPointValues}
