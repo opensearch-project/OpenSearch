@@ -46,7 +46,7 @@ import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;

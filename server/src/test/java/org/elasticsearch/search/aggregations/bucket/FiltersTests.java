@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.opensearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -34,7 +34,7 @@ import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.node.ReportingService;
-import org.elasticsearch.search.aggregations.support.AggregationInfo;
+import org.opensearch.search.aggregations.support.AggregationInfo;
 import org.opensearch.threadpool.ThreadPoolInfo;
 import org.opensearch.transport.TransportInfo;
 

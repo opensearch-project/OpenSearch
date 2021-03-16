@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.opensearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.List;

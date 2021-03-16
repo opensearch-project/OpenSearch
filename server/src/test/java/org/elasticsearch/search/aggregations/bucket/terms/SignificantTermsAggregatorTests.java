@@ -53,8 +53,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;

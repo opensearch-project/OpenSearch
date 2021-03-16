@@ -24,7 +24,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.opensearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 

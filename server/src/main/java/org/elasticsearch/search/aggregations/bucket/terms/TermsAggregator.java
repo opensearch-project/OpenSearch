@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;

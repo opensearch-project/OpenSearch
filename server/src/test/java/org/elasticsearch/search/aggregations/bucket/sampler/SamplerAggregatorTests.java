@@ -44,7 +44,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Min;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 

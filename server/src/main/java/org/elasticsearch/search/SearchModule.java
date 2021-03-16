@@ -243,7 +243,7 @@ import org.opensearch.search.aggregations.pipeline.StatsBucketPipelineAggregatio
 import org.opensearch.search.aggregations.pipeline.StatsBucketPipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.FetchDocValuesPhase;

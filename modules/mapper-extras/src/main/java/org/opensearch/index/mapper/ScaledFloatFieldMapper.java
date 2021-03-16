@@ -44,7 +44,7 @@ import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

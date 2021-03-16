@@ -35,7 +35,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.opensearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;

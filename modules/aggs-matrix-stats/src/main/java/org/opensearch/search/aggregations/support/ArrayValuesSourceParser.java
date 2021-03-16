@@ -25,11 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder.CommonFields;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;

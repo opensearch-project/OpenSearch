@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;

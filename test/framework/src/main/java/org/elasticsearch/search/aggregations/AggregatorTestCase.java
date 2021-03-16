@@ -110,9 +110,9 @@ import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuil
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.opensearch.search.fetch.subphase.FetchSourcePhase;
