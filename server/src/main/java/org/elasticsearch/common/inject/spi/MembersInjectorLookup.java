@@ -16,15 +16,15 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.MembersInjector;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.MembersInjector;
+import org.opensearch.common.inject.TypeLiteral;
 
 import java.util.Objects;
 
 /**
  * A lookup of the members injector for a type. Lookups are created explicitly in a module using
- * {@link org.elasticsearch.common.inject.Binder#getMembersInjector(Class) getMembersInjector()} statements:
+ * {@link org.opensearch.common.inject.Binder#getMembersInjector(Class) getMembersInjector()} statements:
  * <pre>
  *     MembersInjector&lt;PaymentService&gt; membersInjector
  *         = getMembersInjector(PaymentService.class);</pre>

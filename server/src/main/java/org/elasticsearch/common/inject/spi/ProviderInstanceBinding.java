@@ -16,8 +16,8 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.Provider;
+import org.opensearch.common.inject.Binding;
+import org.opensearch.common.inject.Provider;
 
 import java.util.Set;
 

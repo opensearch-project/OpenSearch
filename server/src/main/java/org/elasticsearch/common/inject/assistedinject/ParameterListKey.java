@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.opensearch.common.inject.TypeLiteral;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;

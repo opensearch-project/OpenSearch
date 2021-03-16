@@ -16,9 +16,9 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Provider;
+import org.opensearch.common.inject.Binding;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.Provider;
 
 /**
  * A binding to a {@link Provider} that delegates to the binding for the provided type. This binding

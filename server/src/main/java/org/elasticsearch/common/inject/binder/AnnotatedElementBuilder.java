@@ -19,7 +19,7 @@ package org.elasticsearch.common.inject.binder;
 import java.lang.annotation.Annotation;
 
 /**
- * See the EDSL examples at {@link org.elasticsearch.common.inject.Binder}.
+ * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
@@ -27,12 +27,12 @@ import java.lang.annotation.Annotation;
 public interface AnnotatedElementBuilder {
 
     /**
-     * See the EDSL examples at {@link org.elasticsearch.common.inject.Binder}.
+     * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
      */
     void annotatedWith(Class<? extends Annotation> annotationType);
 
     /**
-     * See the EDSL examples at {@link org.elasticsearch.common.inject.Binder}.
+     * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
      */
     void annotatedWith(Annotation annotation);
 }

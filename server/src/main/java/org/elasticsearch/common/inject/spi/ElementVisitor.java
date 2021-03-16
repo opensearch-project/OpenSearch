@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binding;
+import org.opensearch.common.inject.Binding;
 
 /**
  * Visit elements.
@@ -69,7 +69,7 @@ public interface ElementVisitor<V> {
     V visit(Message message);
 
     /**
-     * Visit a collection of configuration elements for a {@linkplain org.elasticsearch.common.inject.PrivateBinder
+     * Visit a collection of configuration elements for a {@linkplain org.opensearch.common.inject.PrivateBinder
      * private binder}.
      */
     V visit(PrivateElements elements);

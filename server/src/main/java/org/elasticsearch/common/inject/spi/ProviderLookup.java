@@ -16,15 +16,15 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Provider;
+import org.opensearch.common.inject.Binder;
+import org.opensearch.common.inject.Key;
+import org.opensearch.common.inject.Provider;
 
 import java.util.Objects;
 
 /**
  * A lookup of the provider for a type. Lookups are created explicitly in a module using
- * {@link org.elasticsearch.common.inject.Binder#getProvider(Class) getProvider()} statements:
+ * {@link org.opensearch.common.inject.Binder#getProvider(Class) getProvider()} statements:
  * <pre>
  *     Provider&lt;PaymentService&gt; paymentServiceProvider
  *         = getProvider(PaymentService.class);</pre>
