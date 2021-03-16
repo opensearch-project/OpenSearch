@@ -48,7 +48,7 @@
 14-:-XX:InitiatingHeapOccupancyPercent=30
 
 ## JVM temporary directory
--Djava.io.tmpdir=${ES_TMPDIR}
+-Djava.io.tmpdir=${OPENSEARCH_TMPDIR}
 
 ## heap dumps
 

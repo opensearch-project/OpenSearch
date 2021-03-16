@@ -1,14 +1,14 @@
-import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.DockerBase
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.docker.DockerBuildTask
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.internal-distribution-download'
-apply plugin: 'elasticsearch.rest-resources'
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.DockerBase
+import org.opensearch.gradle.LoggedExec
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.docker.DockerBuildTask
+import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.testfixtures.TestFixturesPlugin
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.test.fixtures'
+apply plugin: 'opensearch.internal-distribution-download'
+apply plugin: 'opensearch.rest-resources'
 
 testFixtures.useFixture()
 
@@ -33,23 +33,24 @@ ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
       throw new IllegalArgumentException("Unsupported architecture [" + architecture + "]")
     }
   } else {
-    /* When sourcing the Elasticsearch build remotely, the same Dockerfile needs
+    /* When sourcing the OpenSearch build remotely, the same Dockerfile needs
      * to be able to fetch the artifact for any supported platform. We can't make
      * the decision here. Bash will interpolate the `arch` command for us. */
     classifier = "linux-\$(arch)"
   }
 
-  final String elasticsearch = "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
+  final String opensearch = "opensearch-oss-${VersionProperties.opensearch}-${classifier}.tar.gz"
 
   /* Both the following Dockerfile commands put the resulting artifact at
    * the same location, regardless of classifier, so that the commands that
    * follow in the Dockerfile don't have to know about the runtime
    * architecture. */
-  String sourceElasticsearch
+  String sourceOpenSearch
   if (local) {
-    sourceElasticsearch = "COPY $elasticsearch /opt/elasticsearch.tar.gz"
+    sourceOpenSearch = "COPY $opensearch /opt/opensearch.tar.gz"
   } else {
-    sourceElasticsearch = """
+    //TODO - replace the URL for OpenSearch when available
+    sourceOpenSearch = """
 RUN curl --retry 8 -S -L \\
       --output /opt/elasticsearch.tar.gz \\
       https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/$elasticsearch
@@ -62,9 +63,9 @@ RUN curl --retry 8 -S -L \\
     'git_revision'        : BuildParams.gitRevision,
     'license'             : 'Apache-2.0',
     'package_manager'     : 'yum',
-    'source_elasticsearch': sourceElasticsearch,
+    'source_opensearch'   : sourceOpenSearch,
     'docker_base'         : base.name().toLowerCase(),
-    'version'             : VersionProperties.elasticsearch
+    'version'             : VersionProperties.opensearch
   ]
 }
 
@@ -129,19 +130,19 @@ def createAndSetWritable(Object... locations) {
   }
 }
 
-elasticsearch_distributions {
+opensearch_distributions {
   Architecture.values().each { eachArchitecture ->
     "docker${ eachArchitecture == Architecture.AARCH64 ? '_aarch64' : '' }" {
       architecture = eachArchitecture
       type = 'docker'
-      version = VersionProperties.getElasticsearch()
+      version = VersionProperties.getOpenSearch()
       failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
     }
   }
 }
 
 tasks.named("preProcessFixture").configure {
-  dependsOn elasticsearch_distributions.docker
+  dependsOn opensearch_distributions.docker
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -178,10 +179,11 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
     baseImages = [ base.getImage() ]
 
-    String version = VersionProperties.elasticsearch
+    String version = VersionProperties.opensearch
       tags = [
+        //TODO remove the tag and replace with OpenSearch docker tag
         "docker.elastic.co/elasticsearch/elasticsearch-oss:${version}",
-        "elasticsearch-oss:test"
+        "opensearch-oss:test"
       ]
   }
   tasks.named("assemble").configure {
@@ -220,11 +222,11 @@ subprojects { Project subProject ->
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     final String suffix = '-oss'
     final String extension = 'docker.tar'
-    final String artifactName = "elasticsearch${arch}${suffix}_test"
+    final String artifactName = "opensearch${arch}${suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, "DockerImage")
     final String buildTaskName = taskName("build", architecture, base, "DockerImage")
-    final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
+    final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.opensearch}.${extension}"
 
     tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
@@ -233,7 +235,7 @@ subprojects { Project subProject ->
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${suffix}:test"
+        "opensearch${suffix}:test"
 
       dependsOn(parent.path + ":" + buildTaskName)
       onlyIf { Architecture.current() == architecture }

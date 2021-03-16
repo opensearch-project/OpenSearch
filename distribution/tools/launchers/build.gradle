@@ -18,7 +18,7 @@
  */
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
-apply plugin: 'elasticsearch.build'
+apply plugin: 'opensearch.build'
 
 dependencies {
   compileOnly project(':distribution:tools:java-version-checker')
@@ -27,7 +27,7 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
-archivesBaseName = 'elasticsearch-launchers'
+archivesBaseName = 'opensearch-launchers'
 
 tasks.withType(CheckForbiddenApis).configureEach {
   replaceSignatureFiles 'jdk-signatures'
@@ -37,7 +37,7 @@ testingConventions {
   naming.clear()
   naming {
     Tests {
-      baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
+      baseClass 'org.opensearch.tools.launchers.LaunchersTestCase'
     }
   }
 }

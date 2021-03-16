@@ -1,30 +1,30 @@
 [Unit]
-Description=Elasticsearch
+Description=OpenSearch
 Documentation=https://www.elastic.co
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=notify
-RuntimeDirectory=elasticsearch
+RuntimeDirectory=opensearch
 PrivateTmp=true
-Environment=ES_HOME=/usr/share/elasticsearch
-Environment=ES_PATH_CONF=${path.conf}
-Environment=PID_DIR=/var/run/elasticsearch
-Environment=ES_SD_NOTIFY=true
+Environment=OPENSEARCH_HOME=/usr/share/opensearch
+Environment=OPENSEARCH_PATH_CONF=${path.conf}
+Environment=PID_DIR=/var/run/opensearch
+Environment=OPENSEARCH_SD_NOTIFY=true
 EnvironmentFile=-${path.env}
 
-WorkingDirectory=/usr/share/elasticsearch
+WorkingDirectory=/usr/share/opensearch
 
-User=elasticsearch
-Group=elasticsearch
+User=opensearch
+Group=opensearch
 
-ExecStart=/usr/share/elasticsearch/bin/systemd-entrypoint -p ${PID_DIR}/elasticsearch.pid --quiet
+ExecStart=/usr/share/opensearch/bin/systemd-entrypoint -p ${PID_DIR}/opensearch.pid --quiet
 
 # StandardOutput is configured to redirect to journalctl since
 # some error messages may be logged in standard output before
-# elasticsearch logging system is initialized. Elasticsearch
-# stores its logs in /var/log/elasticsearch and does not use
+# opensearch logging system is initialized. OpenSearch
+# stores its logs in /var/log/opensearch and does not use
 # journalctl by default. If you also want to enable journalctl
 # logging, you can simply remove the "quiet" option from ExecStart.
 StandardOutput=journal
