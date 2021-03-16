@@ -48,7 +48,7 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	)
 )
 
-CALL "%~dp0elasticsearch-env.bat" || exit /b 1
+CALL "%~dp0opensearch-env.bat" || exit /b 1
 IF ERRORLEVEL 1 (
 	IF NOT DEFINED nopauseonerror (
 		PAUSE
@@ -58,9 +58,9 @@ IF ERRORLEVEL 1 (
 
 SET KEYSTORE_PASSWORD=
 IF "%checkpassword%"=="Y" (
-  CALL "%~dp0elasticsearch-keystore.bat" has-passwd --silent
+  CALL "%~dp0opensearch-keystore.bat" has-passwd --silent
   IF !ERRORLEVEL! EQU 0 (
-    SET /P KEYSTORE_PASSWORD=Elasticsearch keystore password:
+    SET /P KEYSTORE_PASSWORD=OpenSearch keystore password:
     IF !ERRORLEVEL! NEQ 0 (
       ECHO Failed to read keystore password on standard input
       EXIT /B !ERRORLEVEL!
@@ -68,22 +68,22 @@ IF "%checkpassword%"=="Y" (
   )
 )
 
-if not defined ES_TMPDIR (
-  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a
+if not defined OPENSEARCH_TMPDIR (
+  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!OPENSEARCH_CLASSPATH!" "org.opensearch.tools.launchers.TempDirectory"`) do set  OPENSEARCH_TMPDIR=%%a
 )
 
 rem The JVM options parser produces the final JVM options to start
-rem Elasticsearch. It does this by incorporating JVM options in the following
+rem OpenSearch. It does this by incorporating JVM options in the following
 rem way:
 rem   - first, system JVM options are applied (these are hardcoded options in
 rem     the parser)
 rem   - second, JVM options are read from jvm.options and
 rem     jvm.options.d/*.options
-rem   - third, JVM options from ES_JAVA_OPTS are applied
+rem   - third, JVM options from OPENSEARCH_JAVA_OPTS are applied
 rem   - fourth, ergonomic JVM options are applied
 @setlocal
-for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
-@endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%ES_JAVA_OPTS%" & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
+for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!OPENSEARCH_CLASSPATH!" "org.opensearch.tools.launchers.JvmOptionsParser" "!OPENSEARCH_PATH_CONF!" ^|^| echo jvm_options_parser_failed`) do set OPENSEARCH_JAVA_OPTS=%%a
+@endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%OPENSEARCH_JAVA_OPTS%" & set OPENSEARCH_JAVA_OPTS=%OPENSEARCH_JAVA_OPTS%
 
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
@@ -97,11 +97,11 @@ SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
-ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
-  -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" ^
-  -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-  -Des.bundled_jdk="%ES_BUNDLED_JDK%" ^
-  -cp "%ES_CLASSPATH%" "org.opensearch.bootstrap.OpenSearch" !newparams!
+ECHO.!KEYSTORE_PASSWORD!| %JAVA% %OPENSEARCH_JAVA_OPTS% -Dopensearch ^
+  -Des.path.home="%OPENSEARCH_HOME%" -Des.path.conf="%OPENSEARCH_PATH_CONF%" ^
+  -Des.distribution.type="%OPENSEARCH_DISTRIBUTION_TYPE%" ^
+  -Des.bundled_jdk="%OPENSEARCH_BUNDLED_JDK%" ^
+  -cp "%OPENSEARCH_CLASSPATH%" "org.opensearch.bootstrap.OpenSearch" !newparams!
 
 endlocal
 endlocal

@@ -1,28 +1,28 @@
-call "%~dp0elasticsearch-env.bat" || exit /b 1
+call "%~dp0opensearch-env.bat" || exit /b 1
 
-if defined ES_ADDITIONAL_SOURCES (
-  for %%a in ("%ES_ADDITIONAL_SOURCES:;=","%") do (
+if defined OPENSEARCH_ADDITIONAL_SOURCES (
+  for %%a in ("%OPENSEARCH_ADDITIONAL_SOURCES:;=","%") do (
     call "%~dp0%%a"
   )
 )
 
-if defined ES_ADDITIONAL_CLASSPATH_DIRECTORIES (
-  for %%a in ("%ES_ADDITIONAL_CLASSPATH_DIRECTORIES:;=","%") do (
-    set ES_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!/%%a/*
+if defined OPENSEARCH_ADDITIONAL_CLASSPATH_DIRECTORIES (
+  for %%a in ("%OPENSEARCH_ADDITIONAL_CLASSPATH_DIRECTORIES:;=","%") do (
+    set OPENSEARCH_CLASSPATH=!OPENSEARCH_CLASSPATH!;!OPENSEARCH_HOME!/%%a/*
   )
 )
 
 rem use a small heap size for the CLI tools, and thus the serial collector to
-rem avoid stealing many CPU cycles; a user can override by setting ES_JAVA_OPTS
-set ES_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %ES_JAVA_OPTS%
+rem avoid stealing many CPU cycles; a user can override by setting OPENSEARCH_JAVA_OPTS
+set OPENSEARCH_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %OPENSEARCH_JAVA_OPTS%
 
 %JAVA% ^
-  %ES_JAVA_OPTS% ^
-  -Des.path.home="%ES_HOME%" ^
-  -Des.path.conf="%ES_PATH_CONF%" ^
-  -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-  -cp "%ES_CLASSPATH%" ^
-  "%ES_MAIN_CLASS%" ^
+  %OPENSEARCH_JAVA_OPTS% ^
+  -Des.path.home="%OPENSEARCH_HOME%" ^
+  -Des.path.conf="%OPENSEARCH_PATH_CONF%" ^
+  -Des.distribution.type="%OPENSEARCH_DISTRIBUTION_TYPE%" ^
+  -cp "%OPENSEARCH_CLASSPATH%" ^
+  "%OPENSEARCH_MAIN_CLASS%" ^
   %*
 
 exit /b %ERRORLEVEL%
