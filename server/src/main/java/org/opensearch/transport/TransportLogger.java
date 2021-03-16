@@ -23,8 +23,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 

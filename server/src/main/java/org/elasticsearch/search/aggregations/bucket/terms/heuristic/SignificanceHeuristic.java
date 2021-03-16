@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -64,7 +64,7 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
 
     /**
      * Provides a hook for subclasses to provide a version of the heuristic
-     * prepared for execution on data on a shard. 
+     * prepared for execution on data on a shard.
      * @param queryShardContext the shard context on the data node
      * @return a version of this heuristic suitable for execution
      */

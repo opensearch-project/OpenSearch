@@ -36,7 +36,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;

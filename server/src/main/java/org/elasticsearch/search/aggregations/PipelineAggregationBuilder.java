@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;

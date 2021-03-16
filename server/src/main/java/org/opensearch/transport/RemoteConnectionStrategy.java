@@ -27,7 +27,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

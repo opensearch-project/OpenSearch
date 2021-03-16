@@ -18,10 +18,9 @@
  */
 package org.opensearch.geometry.utils;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
-import org.opensearch.geometry.utils.Geohash;
 
 /**
  * Tests for {@link Geohash}

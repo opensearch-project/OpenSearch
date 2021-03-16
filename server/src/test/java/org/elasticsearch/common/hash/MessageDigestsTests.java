@@ -20,6 +20,7 @@
 package org.elasticsearch.common.hash;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.hash.MessageDigests;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

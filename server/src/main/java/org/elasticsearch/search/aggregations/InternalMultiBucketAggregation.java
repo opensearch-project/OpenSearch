@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;

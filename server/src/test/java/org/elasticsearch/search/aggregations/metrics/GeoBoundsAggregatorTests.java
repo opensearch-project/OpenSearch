@@ -26,7 +26,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;

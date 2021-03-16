@@ -26,7 +26,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.FileSystemUtils;
+import org.opensearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;

@@ -34,7 +34,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -20,7 +20,7 @@ package org.opensearch.action.admin.indices.template.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.TransportMasterNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -29,7 +29,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;

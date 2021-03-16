@@ -44,7 +44,7 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.hash.MessageDigests;
+import org.opensearch.common.hash.MessageDigests;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
 

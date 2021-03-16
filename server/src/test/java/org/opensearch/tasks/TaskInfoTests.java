@@ -21,8 +21,8 @@ package org.opensearch.tasks;
 
 import org.opensearch.client.Requests;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;

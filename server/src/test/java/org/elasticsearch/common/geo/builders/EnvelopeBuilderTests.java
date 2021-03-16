@@ -23,6 +23,7 @@ import org.locationtech.jts.geom.Coordinate;
 
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Rectangle;
+import org.opensearch.common.geo.builders.EnvelopeBuilder;
 
 import java.io.IOException;
 

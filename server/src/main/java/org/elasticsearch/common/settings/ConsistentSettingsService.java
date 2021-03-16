@@ -28,7 +28,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.hash.MessageDigests;
+import org.opensearch.common.hash.MessageDigests;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;

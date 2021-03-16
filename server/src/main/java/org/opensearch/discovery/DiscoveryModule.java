@@ -31,7 +31,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.Randomness;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;

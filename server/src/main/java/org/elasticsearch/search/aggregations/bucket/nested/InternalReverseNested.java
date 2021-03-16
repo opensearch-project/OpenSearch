@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 

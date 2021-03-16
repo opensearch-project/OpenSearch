@@ -20,7 +20,7 @@
 package org.opensearch.cluster;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.NamedWriteable;
 
 /**
  * Diff that also support NamedWriteable interface

@@ -21,10 +21,10 @@ package org.opensearch.transport;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.BytesStream;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.EOFException;

@@ -25,7 +25,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;

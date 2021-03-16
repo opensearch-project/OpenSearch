@@ -20,7 +20,7 @@
 package org.elasticsearch.common.geo;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.opensearch.common.geo.GeoJson;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.test.AbstractXContentTestCase;

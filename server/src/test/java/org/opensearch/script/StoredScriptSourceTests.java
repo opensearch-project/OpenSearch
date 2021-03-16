@@ -21,7 +21,7 @@ package org.opensearch.script;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;

@@ -33,7 +33,7 @@ import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

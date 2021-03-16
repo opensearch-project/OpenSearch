@@ -88,7 +88,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;

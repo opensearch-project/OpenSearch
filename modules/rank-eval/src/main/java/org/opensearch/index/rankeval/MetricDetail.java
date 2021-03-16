@@ -19,7 +19,7 @@
 
 package org.opensearch.index.rankeval;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

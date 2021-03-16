@@ -30,7 +30,7 @@ import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;

@@ -26,7 +26,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.opensearch.client.Request;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
+import org.opensearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;

@@ -24,7 +24,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
+import org.opensearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;

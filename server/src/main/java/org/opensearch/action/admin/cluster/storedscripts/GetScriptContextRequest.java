@@ -20,7 +20,7 @@ package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 

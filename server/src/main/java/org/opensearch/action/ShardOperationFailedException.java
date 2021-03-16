@@ -20,7 +20,7 @@
 package org.opensearch.action;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.opensearch.rest.RestStatus;
 

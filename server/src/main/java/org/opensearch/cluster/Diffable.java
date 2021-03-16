@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster;
 
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.Writeable;
 
 
 /**

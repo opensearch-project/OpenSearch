@@ -23,8 +23,8 @@ import org.opensearch.Version;
 import org.opensearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteResponse;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;

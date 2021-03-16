@@ -29,7 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.hash.MurmurHash3;
+import org.opensearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;

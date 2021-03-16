@@ -25,9 +25,9 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -828,12 +828,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.index.translog.TranslogCorruptedException::new, 48, UNKNOWN_VERSION_ADDED),
         CLUSTER_BLOCK_EXCEPTION(org.opensearch.cluster.block.ClusterBlockException.class,
                 org.opensearch.cluster.block.ClusterBlockException::new, 49, UNKNOWN_VERSION_ADDED),
-        FETCH_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.fetch.FetchPhaseExecutionException.class,
-                org.elasticsearch.search.fetch.FetchPhaseExecutionException::new, 50, UNKNOWN_VERSION_ADDED),
+        FETCH_PHASE_EXECUTION_EXCEPTION(org.opensearch.search.fetch.FetchPhaseExecutionException.class,
+                org.opensearch.search.fetch.FetchPhaseExecutionException::new, 50, UNKNOWN_VERSION_ADDED),
         // 51 used to be for IndexShardAlreadyExistsException which was deprecated in 5.1 removed in 6.0
-        VERSION_CONFLICT_ENGINE_EXCEPTION(org.elasticsearch.index.engine.VersionConflictEngineException.class,
-                org.elasticsearch.index.engine.VersionConflictEngineException::new, 52, UNKNOWN_VERSION_ADDED),
-        ENGINE_EXCEPTION(org.elasticsearch.index.engine.EngineException.class, org.elasticsearch.index.engine.EngineException::new, 53,
+        VERSION_CONFLICT_ENGINE_EXCEPTION(org.opensearch.index.engine.VersionConflictEngineException.class,
+                org.opensearch.index.engine.VersionConflictEngineException::new, 52, UNKNOWN_VERSION_ADDED),
+        ENGINE_EXCEPTION(org.opensearch.index.engine.EngineException.class, org.opensearch.index.engine.EngineException::new, 53,
             UNKNOWN_VERSION_ADDED),
         // 54 was DocumentAlreadyExistsException, which is superseded by VersionConflictEngineException
         NO_SUCH_NODE_EXCEPTION(org.opensearch.action.NoSuchNodeException.class, org.opensearch.action.NoSuchNodeException::new, 55,
@@ -842,13 +842,13 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.common.settings.SettingsException::new, 56, UNKNOWN_VERSION_ADDED),
         INDEX_TEMPLATE_MISSING_EXCEPTION(org.opensearch.indices.IndexTemplateMissingException.class,
                 org.opensearch.indices.IndexTemplateMissingException::new, 57, UNKNOWN_VERSION_ADDED),
-        SEND_REQUEST_TRANSPORT_EXCEPTION(org.elasticsearch.transport.SendRequestTransportException.class,
+        SEND_REQUEST_TRANSPORT_EXCEPTION(org.opensearch.transport.SendRequestTransportException.class,
                 org.opensearch.transport.SendRequestTransportException::new, 58, UNKNOWN_VERSION_ADDED),
         // 59 used to be EsRejectedExecutionException
         // 60 used to be for EarlyTerminationException
         // 61 used to be for RoutingValidationException
-        NOT_SERIALIZABLE_EXCEPTION_WRAPPER(org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class,
-                org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper::new, 62, UNKNOWN_VERSION_ADDED),
+        NOT_SERIALIZABLE_EXCEPTION_WRAPPER(org.opensearch.common.io.stream.NotSerializableExceptionWrapper.class,
+                org.opensearch.common.io.stream.NotSerializableExceptionWrapper::new, 62, UNKNOWN_VERSION_ADDED),
         ALIAS_FILTER_PARSING_EXCEPTION(org.opensearch.indices.AliasFilterParsingException.class,
                 org.opensearch.indices.AliasFilterParsingException::new, 63, UNKNOWN_VERSION_ADDED),
         // 64 was DeleteByQueryFailedEngineException, which was removed in 5.0

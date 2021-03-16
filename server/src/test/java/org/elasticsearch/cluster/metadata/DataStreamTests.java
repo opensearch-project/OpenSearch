@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractSerializingTestCase;

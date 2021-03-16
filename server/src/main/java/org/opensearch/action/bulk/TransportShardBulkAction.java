@@ -49,7 +49,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;

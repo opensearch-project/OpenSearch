@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
