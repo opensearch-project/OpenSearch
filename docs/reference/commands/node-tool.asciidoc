@@ -406,14 +406,15 @@ If your nodes contain persistent cluster settings that prevent the cluster
 from forming, i.e., can't be removed using the <<cluster-update-settings>> API,
 you can run the following commands to remove one or more cluster settings.
 
+// TODO(OpenSearch): Add new example to replace <setting_name>
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.exporters.my_exporter.host
+node$ ./bin/elasticsearch-node remove-settings <setting_name>
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
 The following settings will be removed:
-xpack.monitoring.exporters.my_exporter.host: "10.1.2.3"
+<setting_name>: <setting_value>
 
 You should only run this tool if you have incompatible settings in the
 cluster state that prevent the cluster from forming.
@@ -430,7 +431,7 @@ You can also use wildcards to remove multiple settings, for example using
 
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node remove-settings xpack.monitoring.*
+node$ ./bin/elasticsearch-node remove-settings <setting_name>
 ----
 
 [discrete]
@@ -440,14 +441,15 @@ If the on-disk cluster state contains custom metadata that prevents the node
 from starting up and loading the cluster state, you can run the following
 commands to remove this custom metadata.
 
+// TODO(OpenSearch): Add new example to replace <custom-metadata>
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node remove-customs snapshot_lifecycle
+node$ ./bin/elasticsearch-node remove-customs <custom-metadata>
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
 The following customs will be removed:
-snapshot_lifecycle
+<custom-metadata>
 
 You should only run this tool if you have broken custom metadata in the
 cluster state that prevents the cluster state from being loaded.
