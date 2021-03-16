@@ -32,7 +32,7 @@ import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.search.geo.GeoShapeQueryTests;
+import org.opensearch.search.geo.GeoShapeQueryTests;
 import org.junit.Assert;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;
