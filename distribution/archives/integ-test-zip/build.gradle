@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.opensearch.gradle.MavenFilteringHack
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.rest-test'
 
 // The integ-test-distribution is published to maven
-apply plugin: 'elasticsearch.publish'
+apply plugin: 'opensearch.publish'
 
-group = "org.elasticsearch.distribution.integ-test-zip"
+group = "org.opensearch.distribution.integ-test-zip"
 
 integTest {
   dependsOn assemble
@@ -35,8 +35,8 @@ processTestResources {
   MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
 }
 
-// make the pom file name use elasticsearch instead of the project name
-archivesBaseName = "elasticsearch"
+// make the pom file name use opensearch instead of the project name
+archivesBaseName = "opensearch"
 ext.buildDist = parent.tasks.named("buildIntegTestZip")
 
 publishing {

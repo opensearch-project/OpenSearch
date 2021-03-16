@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.DockerBase
+import org.opensearch.gradle.DockerBase
 
 apply plugin: 'base'
 
@@ -6,7 +6,7 @@ tasks.register("buildOssDockerBuildContext", Tar) {
   archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
-  archiveBaseName = "elasticsearch-oss"
+  archiveBaseName = "opensearch-oss"
   // Non-local builds don't need to specify an architecture.
   with dockerBuildContext(null, DockerBase.CENTOS, false)
 }
