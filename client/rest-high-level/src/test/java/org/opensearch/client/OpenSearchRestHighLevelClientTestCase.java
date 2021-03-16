@@ -36,7 +36,7 @@ import org.opensearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedRunnable;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;

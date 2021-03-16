@@ -33,7 +33,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.EsExecutors;

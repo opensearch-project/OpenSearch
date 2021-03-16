@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.memory.breaker;
 
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;

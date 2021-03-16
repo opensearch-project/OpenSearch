@@ -35,6 +35,8 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.settings.NoClassSettingsException;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
@@ -840,8 +842,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         // 54 was DocumentAlreadyExistsException, which is superseded by VersionConflictEngineException
         NO_SUCH_NODE_EXCEPTION(org.opensearch.action.NoSuchNodeException.class, org.opensearch.action.NoSuchNodeException::new, 55,
             UNKNOWN_VERSION_ADDED),
-        SETTINGS_EXCEPTION(org.elasticsearch.common.settings.SettingsException.class,
-                org.elasticsearch.common.settings.SettingsException::new, 56, UNKNOWN_VERSION_ADDED),
+        SETTINGS_EXCEPTION(SettingsException.class,
+                SettingsException::new, 56, UNKNOWN_VERSION_ADDED),
         INDEX_TEMPLATE_MISSING_EXCEPTION(org.opensearch.indices.IndexTemplateMissingException.class,
                 org.opensearch.indices.IndexTemplateMissingException::new, 57, UNKNOWN_VERSION_ADDED),
         SEND_REQUEST_TRANSPORT_EXCEPTION(org.opensearch.transport.SendRequestTransportException.class,
@@ -934,8 +936,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         DOCUMENT_SOURCE_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentSourceMissingException.class,
                 org.elasticsearch.index.engine.DocumentSourceMissingException::new, 109, UNKNOWN_VERSION_ADDED),
         // 110 used to be FlushNotAllowedEngineException
-        NO_CLASS_SETTINGS_EXCEPTION(org.elasticsearch.common.settings.NoClassSettingsException.class,
-                org.elasticsearch.common.settings.NoClassSettingsException::new, 111, UNKNOWN_VERSION_ADDED),
+        NO_CLASS_SETTINGS_EXCEPTION(NoClassSettingsException.class,
+                NoClassSettingsException::new, 111, UNKNOWN_VERSION_ADDED),
         BIND_TRANSPORT_EXCEPTION(org.opensearch.transport.BindTransportException.class,
                 org.opensearch.transport.BindTransportException::new, 112, UNKNOWN_VERSION_ADDED),
         ALIASES_NOT_FOUND_EXCEPTION(org.opensearch.rest.action.admin.indices.AliasesNotFoundException.class,

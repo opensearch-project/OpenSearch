@@ -33,8 +33,8 @@ import org.opensearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.ThreadPool;
@@ -49,8 +49,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.settings.Setting.Property;
-import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
+import static org.opensearch.common.settings.Setting.Property;
+import static org.opensearch.common.settings.Setting.positiveTimeSetting;
 
 /**
  * This component is responsible for maintaining connections from this node to all the nodes listed in the cluster state, and for

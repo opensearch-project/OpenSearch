@@ -20,9 +20,9 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.RemoteClusterService;
 
 import java.util.Arrays;

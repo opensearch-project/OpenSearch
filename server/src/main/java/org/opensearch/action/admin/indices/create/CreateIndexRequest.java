@@ -36,7 +36,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -56,14 +56,14 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.opensearch.common.settings.Settings.readSettingsFromStream;
+import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * A request to create an index. Best created with {@link org.opensearch.client.Requests#createIndexRequest(String)}.
  * <p>
- * The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
+ * The index created can optionally be created with {@link #settings(Settings)}.
  *
  * @see org.opensearch.client.IndicesAdminClient#create(CreateIndexRequest)
  * @see org.opensearch.client.Requests#createIndexRequest(String)

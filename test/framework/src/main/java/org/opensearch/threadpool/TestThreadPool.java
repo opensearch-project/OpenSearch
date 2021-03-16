@@ -19,9 +19,9 @@
 
 package org.opensearch.threadpool;
 
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;

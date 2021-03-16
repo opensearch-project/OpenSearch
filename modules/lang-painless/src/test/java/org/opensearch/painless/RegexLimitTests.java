@@ -20,7 +20,7 @@
 package org.opensearch.painless;
 
 import org.opensearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 
 import java.util.Collections;
 

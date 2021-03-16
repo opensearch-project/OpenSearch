@@ -25,7 +25,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;

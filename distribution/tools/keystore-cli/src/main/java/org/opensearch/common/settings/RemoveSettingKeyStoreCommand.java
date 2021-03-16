@@ -21,8 +21,6 @@ package org.opensearch.common.settings;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.common.settings.BaseKeyStoreCommand;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;

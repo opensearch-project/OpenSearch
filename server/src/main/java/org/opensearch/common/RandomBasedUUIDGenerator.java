@@ -21,7 +21,7 @@ package org.opensearch.common;
 
 
 import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.settings.SecureString;
+import org.opensearch.common.settings.SecureString;
 
 import java.util.Arrays;
 import java.util.Base64;

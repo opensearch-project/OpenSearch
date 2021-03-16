@@ -30,7 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.SecureString;
+import org.opensearch.common.settings.SecureString;
 
 import java.util.Arrays;
 

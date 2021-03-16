@@ -36,7 +36,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;

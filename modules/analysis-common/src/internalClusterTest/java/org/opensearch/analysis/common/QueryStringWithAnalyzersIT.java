@@ -20,15 +20,15 @@
 package org.opensearch.analysis.common;
 
 import org.opensearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.Operator;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.Operator;
 import org.opensearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 

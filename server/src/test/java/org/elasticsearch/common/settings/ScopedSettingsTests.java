@@ -26,9 +26,12 @@ import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.index.IndexModule;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.SettingUpgrader;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;

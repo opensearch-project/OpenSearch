@@ -25,7 +25,6 @@ import java.util.Arrays;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.KeyStoreAwareCommand;
 import org.opensearch.cli.Terminal;

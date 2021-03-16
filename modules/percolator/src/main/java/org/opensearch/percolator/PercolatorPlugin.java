@@ -19,7 +19,7 @@
 
 package org.opensearch.percolator;
 
-import org.elasticsearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;

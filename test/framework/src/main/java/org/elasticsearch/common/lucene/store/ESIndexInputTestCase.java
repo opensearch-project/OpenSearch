@@ -21,7 +21,7 @@ package org.elasticsearch.common.lucene.store;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.EsExecutors;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;

@@ -22,7 +22,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.CheckedRunnable;
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
