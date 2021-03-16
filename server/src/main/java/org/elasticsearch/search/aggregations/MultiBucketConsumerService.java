@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 
 import java.io.IOException;
 import java.util.function.IntConsumer;

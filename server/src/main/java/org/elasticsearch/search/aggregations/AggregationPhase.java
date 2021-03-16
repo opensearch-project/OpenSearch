@@ -22,7 +22,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lucene.search.Queries;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
+import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.InternalProfileCollector;
