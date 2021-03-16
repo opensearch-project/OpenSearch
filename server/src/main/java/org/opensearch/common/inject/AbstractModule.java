@@ -16,13 +16,13 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
-import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
-import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.common.inject.matcher.Matcher;
-import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.TypeConverter;
-import org.elasticsearch.common.inject.spi.TypeListener;
+import org.opensearch.common.inject.binder.AnnotatedBindingBuilder;
+import org.opensearch.common.inject.binder.AnnotatedConstantBindingBuilder;
+import org.opensearch.common.inject.binder.LinkedBindingBuilder;
+import org.opensearch.common.inject.matcher.Matcher;
+import org.opensearch.common.inject.spi.Message;
+import org.opensearch.common.inject.spi.TypeConverter;
+import org.opensearch.common.inject.spi.TypeListener;
 
 import java.lang.annotation.Annotation;
 import java.util.Objects;
@@ -228,8 +228,8 @@ public abstract class AbstractModule implements Module {
     }
 
     /**
-     * @see Binder#bindListener(org.elasticsearch.common.inject.matcher.Matcher,
-     *      org.elasticsearch.common.inject.spi.TypeListener)
+     * @see Binder#bindListener(org.opensearch.common.inject.matcher.Matcher,
+     *      org.opensearch.common.inject.spi.TypeListener)
      * @since 2.0
      */
     protected void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher,

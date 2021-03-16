@@ -17,7 +17,7 @@
 package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.opensearch.common.inject.spi.PrivateElements;
 
 import java.util.ArrayList;
 import java.util.List;

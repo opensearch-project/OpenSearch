@@ -21,10 +21,10 @@ import org.opensearch.common.inject.ConfigurationException;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.Message;
+import org.opensearch.common.inject.binder.AnnotatedBindingBuilder;
+import org.opensearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.Message;
 
 import java.lang.annotation.Annotation;
 import java.util.HashSet;

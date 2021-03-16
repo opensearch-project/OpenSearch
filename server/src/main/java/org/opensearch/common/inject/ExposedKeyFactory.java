@@ -21,8 +21,8 @@ import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.ErrorsException;
 import org.opensearch.common.inject.internal.InternalContext;
 import org.opensearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.PrivateElements;
 
 /**
  * This factory exists in a parent injector. When invoked, it retrieves its value from a child

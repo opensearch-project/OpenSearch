@@ -16,7 +16,7 @@
 
 package org.opensearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.spi.Message;
+import org.opensearch.common.inject.spi.Message;
 
 /**
  * Handles errors in the Injector.

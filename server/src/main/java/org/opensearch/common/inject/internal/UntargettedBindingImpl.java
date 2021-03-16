@@ -19,9 +19,9 @@ package org.opensearch.common.inject.internal;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.UntargettedBinding;
+import org.opensearch.common.inject.spi.BindingTargetVisitor;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.UntargettedBinding;
 
 public class UntargettedBindingImpl<T> extends BindingImpl<T> implements UntargettedBinding<T> {
 

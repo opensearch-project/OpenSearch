@@ -20,9 +20,9 @@ import org.opensearch.common.inject.Binding;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
-import org.elasticsearch.common.inject.spi.BindingScopingVisitor;
-import org.elasticsearch.common.inject.spi.ElementVisitor;
-import org.elasticsearch.common.inject.spi.InstanceBinding;
+import org.opensearch.common.inject.spi.BindingScopingVisitor;
+import org.opensearch.common.inject.spi.ElementVisitor;
+import org.opensearch.common.inject.spi.InstanceBinding;
 
 /**
  * @author crazybob@google.com (Bob Lee)

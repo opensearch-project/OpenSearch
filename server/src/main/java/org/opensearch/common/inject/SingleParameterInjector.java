@@ -20,7 +20,7 @@ import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.ErrorsException;
 import org.opensearch.common.inject.internal.InternalContext;
 import org.opensearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.Dependency;
 
 /**
  * Resolves a single parameter, to be used in a constructor or method invocation.

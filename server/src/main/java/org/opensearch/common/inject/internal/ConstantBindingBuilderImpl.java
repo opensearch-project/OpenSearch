@@ -18,9 +18,9 @@ package org.opensearch.common.inject.internal;
 
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Key;
-import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
-import org.elasticsearch.common.inject.binder.ConstantBindingBuilder;
-import org.elasticsearch.common.inject.spi.Element;
+import org.opensearch.common.inject.binder.AnnotatedConstantBindingBuilder;
+import org.opensearch.common.inject.binder.ConstantBindingBuilder;
+import org.opensearch.common.inject.spi.Element;
 
 import java.lang.annotation.Annotation;
 import java.util.List;

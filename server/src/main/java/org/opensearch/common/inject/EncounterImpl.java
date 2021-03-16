@@ -17,9 +17,9 @@
 package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.spi.InjectionListener;
-import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.TypeEncounter;
+import org.opensearch.common.inject.spi.InjectionListener;
+import org.opensearch.common.inject.spi.Message;
+import org.opensearch.common.inject.spi.TypeEncounter;
 
 import java.util.ArrayList;
 import java.util.Collections;

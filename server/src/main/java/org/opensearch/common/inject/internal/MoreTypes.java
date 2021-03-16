@@ -19,7 +19,7 @@ package org.opensearch.common.inject.internal;
 
 import org.opensearch.common.inject.ConfigurationException;
 import org.opensearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.spi.Message;
+import org.opensearch.common.inject.spi.Message;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;

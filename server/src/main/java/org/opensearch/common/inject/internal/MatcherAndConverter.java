@@ -17,8 +17,8 @@
 package org.opensearch.common.inject.internal;
 
 import org.opensearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.matcher.Matcher;
-import org.elasticsearch.common.inject.spi.TypeConverter;
+import org.opensearch.common.inject.matcher.Matcher;
+import org.opensearch.common.inject.spi.TypeConverter;
 
 import java.util.Objects;
 

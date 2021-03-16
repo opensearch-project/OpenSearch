@@ -20,8 +20,8 @@ import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
+import org.opensearch.common.inject.spi.BindingTargetVisitor;
+import org.opensearch.common.inject.spi.ProviderKeyBinding;
 
 public final class LinkedProviderBindingImpl<T>
         extends BindingImpl<T> implements ProviderKeyBinding<T> {

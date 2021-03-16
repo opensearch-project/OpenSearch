@@ -17,17 +17,17 @@
 package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.ElementVisitor;
-import org.elasticsearch.common.inject.spi.InjectionRequest;
-import org.elasticsearch.common.inject.spi.MembersInjectorLookup;
-import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.PrivateElements;
-import org.elasticsearch.common.inject.spi.ProviderLookup;
-import org.elasticsearch.common.inject.spi.ScopeBinding;
-import org.elasticsearch.common.inject.spi.StaticInjectionRequest;
-import org.elasticsearch.common.inject.spi.TypeConverterBinding;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
+import org.opensearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.ElementVisitor;
+import org.opensearch.common.inject.spi.InjectionRequest;
+import org.opensearch.common.inject.spi.MembersInjectorLookup;
+import org.opensearch.common.inject.spi.Message;
+import org.opensearch.common.inject.spi.PrivateElements;
+import org.opensearch.common.inject.spi.ProviderLookup;
+import org.opensearch.common.inject.spi.ScopeBinding;
+import org.opensearch.common.inject.spi.StaticInjectionRequest;
+import org.opensearch.common.inject.spi.TypeConverterBinding;
+import org.opensearch.common.inject.spi.TypeListenerBinding;
 
 import java.util.Iterator;
 import java.util.List;
