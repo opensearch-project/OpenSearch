@@ -24,6 +24,8 @@ import org.apache.logging.log4j.message.SimpleMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.common.logging.DeprecatedMessage;
+import org.opensearch.common.logging.RateLimitingFilter;
 
 import static org.apache.logging.log4j.core.Filter.Result;
 import static org.hamcrest.Matchers.equalTo;

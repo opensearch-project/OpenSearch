@@ -20,7 +20,7 @@ package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 
 import java.util.Objects;
 

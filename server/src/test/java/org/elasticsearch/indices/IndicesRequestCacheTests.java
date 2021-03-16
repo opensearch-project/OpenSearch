@@ -36,7 +36,7 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.bytes.AbstractBytesReference;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;

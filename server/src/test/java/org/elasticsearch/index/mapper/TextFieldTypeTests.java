@@ -35,9 +35,9 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 

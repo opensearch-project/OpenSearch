@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.common.lucene.ScorerAware;
+import org.opensearch.common.lucene.ScorerAware;
 
 import java.io.IOException;
 

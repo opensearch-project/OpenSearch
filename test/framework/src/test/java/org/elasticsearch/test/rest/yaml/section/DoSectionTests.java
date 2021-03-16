@@ -24,7 +24,7 @@ import org.opensearch.Version;
 import org.opensearch.client.Node;
 import org.opensearch.client.NodeSelector;
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.logging.HeaderWarning;
+import org.opensearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;

@@ -22,7 +22,7 @@ package org.opensearch.search.sort;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.Comparator;

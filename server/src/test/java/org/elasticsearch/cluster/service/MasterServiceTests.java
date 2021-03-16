@@ -41,7 +41,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
+import org.opensearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

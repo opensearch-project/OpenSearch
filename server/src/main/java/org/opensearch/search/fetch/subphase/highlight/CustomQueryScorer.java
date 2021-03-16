@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;

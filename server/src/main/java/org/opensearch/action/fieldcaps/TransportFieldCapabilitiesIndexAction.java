@@ -42,7 +42,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.opensearch.common.logging.LoggerMessageFormat;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;

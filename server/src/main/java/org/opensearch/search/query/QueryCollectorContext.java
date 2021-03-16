@@ -26,8 +26,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.lucene.MinimumScoreCollector;
-import org.elasticsearch.common.lucene.search.FilteredCollector;
+import org.opensearch.common.lucene.MinimumScoreCollector;
+import org.opensearch.common.lucene.search.FilteredCollector;
 import org.opensearch.search.profile.query.InternalProfileCollector;
 
 import java.io.IOException;

@@ -22,7 +22,7 @@ package org.opensearch.search.rescore;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;

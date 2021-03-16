@@ -33,7 +33,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
-import org.elasticsearch.common.logging.Loggers;
+import org.opensearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;

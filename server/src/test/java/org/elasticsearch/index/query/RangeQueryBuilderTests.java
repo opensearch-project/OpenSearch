@@ -35,7 +35,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.lucene.BytesRefs;
+import org.opensearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;

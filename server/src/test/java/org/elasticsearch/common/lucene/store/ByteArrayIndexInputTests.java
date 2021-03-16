@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.lucene.store;
 
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
