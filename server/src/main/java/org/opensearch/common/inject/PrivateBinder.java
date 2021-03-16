@@ -34,7 +34,7 @@ public interface PrivateBinder extends Binder {
 
     /**
      * Makes a binding for {@code type} available to the enclosing environment. Use {@link
-     * AnnotatedElementBuilder#annotatedWith(Class) annotatedWith()} to expose {@code type} with a
+     * org.opensearch.common.inject.binder.AnnotatedElementBuilder#annotatedWith(Class) annotatedWith()} to expose {@code type} with a
      * binding annotation.
      */
     AnnotatedElementBuilder expose(Class<?> type);
