@@ -28,6 +28,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,10 +36,10 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.opensearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;

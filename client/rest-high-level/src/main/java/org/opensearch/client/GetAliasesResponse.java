@@ -21,7 +21,7 @@ package org.opensearch.client;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,7 +35,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Response obtained from the get aliases API.

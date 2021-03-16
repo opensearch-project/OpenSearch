@@ -27,7 +27,7 @@ import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 

@@ -22,7 +22,7 @@ package org.opensearch.search.profile.aggregation;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.opensearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileResultTests;
@@ -35,7 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class AggregationProfileShardResultTests extends ESTestCase {

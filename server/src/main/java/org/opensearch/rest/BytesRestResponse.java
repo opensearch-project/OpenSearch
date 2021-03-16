@@ -37,7 +37,7 @@ import java.io.IOException;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.opensearch.OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 
 public class BytesRestResponse extends RestResponse {

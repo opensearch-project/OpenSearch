@@ -24,14 +24,14 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
+import static org.opensearch.common.xcontent.XContentHelper.convertToMap;
 
 /**
  * Raw, unparsed status from the task results index.

@@ -24,7 +24,7 @@ import org.opensearch.client.Request;
 import org.elasticsearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 

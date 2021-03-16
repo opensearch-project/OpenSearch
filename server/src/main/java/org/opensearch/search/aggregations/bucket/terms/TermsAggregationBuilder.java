@@ -22,7 +22,7 @@ import org.opensearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;

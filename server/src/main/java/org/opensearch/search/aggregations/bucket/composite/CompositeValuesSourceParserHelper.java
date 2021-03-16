@@ -34,7 +34,7 @@ import org.opensearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class CompositeValuesSourceParserHelper {
 

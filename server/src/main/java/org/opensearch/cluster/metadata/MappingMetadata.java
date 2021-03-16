@@ -27,7 +27,7 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -35,7 +35,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Mapping configuration for a type.

@@ -24,7 +24,7 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequ
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

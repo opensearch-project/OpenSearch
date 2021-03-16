@@ -25,6 +25,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.xcontent.XContentHelper;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

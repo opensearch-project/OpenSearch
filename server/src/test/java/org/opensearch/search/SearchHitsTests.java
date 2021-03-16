@@ -28,7 +28,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
 import org.opensearch.common.text.Text;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

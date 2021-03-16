@@ -30,7 +30,7 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class UpdateResponse extends DocWriteResponse {
 

@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
+import static org.opensearch.common.xcontent.XContentHelper.createParser;
 
 public final class XContentTestUtils {
     private XContentTestUtils() {

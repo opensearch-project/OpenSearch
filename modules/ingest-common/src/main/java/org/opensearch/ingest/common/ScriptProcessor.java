@@ -23,7 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

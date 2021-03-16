@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry;
@@ -54,7 +54,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Top level suggest result, containing the result for each suggestion.

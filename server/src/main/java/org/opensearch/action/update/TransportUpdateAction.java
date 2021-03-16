@@ -47,7 +47,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;

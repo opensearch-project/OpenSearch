@@ -30,8 +30,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 

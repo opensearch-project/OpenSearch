@@ -24,7 +24,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
