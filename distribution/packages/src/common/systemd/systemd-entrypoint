@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # This wrapper script allows SystemD to feed a file containing a passphrase into
-# the main Elasticsearch startup script
+# the main OpenSearch startup script
 
 if [ -n "$OPENSEARCH_KEYSTORE_PASSPHRASE_FILE" ] ; then
   exec /usr/share/opensearch/bin/opensearch "$@" < "$OPENSEARCH_KEYSTORE_PASSPHRASE_FILE"

@@ -40,7 +40,7 @@ if "%1" == "nojava" (
 )
 
 rem compariing to empty string makes this equivalent to bash -v check on env var
-rem and allows to effectively force use of the bundled jdk when launching ES
+rem and allows to effectively force use of the bundled jdk when launching OpenSearch
 rem by setting JAVA_HOME=
 if "%JAVA_HOME%" == "" (
   set JAVA="%OPENSEARCH_HOME%\jdk\bin\java.exe"

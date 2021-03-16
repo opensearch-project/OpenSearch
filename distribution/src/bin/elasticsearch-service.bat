@@ -45,7 +45,7 @@ echo Usage: opensearch-service.bat install^|remove^|start^|stop^|manager [SERVIC
 goto:eof
 
 :doStart
-"%EXECUTABLE%" //ES//%SERVICE_ID% %LOG_OPTS%
+"%EXECUTABLE%" //OPENSEARCH//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto started
 echo Failed starting '%SERVICE_ID%' service
 exit /B 1
@@ -66,7 +66,7 @@ goto:eof
 
 :doManagment
 set EXECUTABLE_MGR=%OPENSEARCH_HOME%\bin\opensearch-service-mgr
-"%EXECUTABLE_MGR%" //ES//%SERVICE_ID%
+"%EXECUTABLE_MGR%" //OPENSEARCH//%SERVICE_ID%
 if not errorlevel 1 goto managed
 echo Failed starting service manager for '%SERVICE_ID%'
 exit /B 1

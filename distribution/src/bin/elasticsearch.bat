@@ -60,7 +60,7 @@ SET KEYSTORE_PASSWORD=
 IF "%checkpassword%"=="Y" (
   CALL "%~dp0opensearch-keystore.bat" has-passwd --silent
   IF !ERRORLEVEL! EQU 0 (
-    SET /P KEYSTORE_PASSWORD=Elasticsearch keystore password:
+    SET /P KEYSTORE_PASSWORD=OpenSearch keystore password:
     IF !ERRORLEVEL! NEQ 0 (
       ECHO Failed to read keystore password on standard input
       EXIT /B !ERRORLEVEL!
@@ -73,7 +73,7 @@ if not defined OPENSEARCH_TMPDIR (
 )
 
 rem The JVM options parser produces the final JVM options to start
-rem Elasticsearch. It does this by incorporating JVM options in the following
+rem OpenSearch. It does this by incorporating JVM options in the following
 rem way:
 rem   - first, system JVM options are applied (these are hardcoded options in
 rem     the parser)

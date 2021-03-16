@@ -45,7 +45,7 @@ then
   fi
 fi
 
-# The JVM options parser produces the final JVM options to start Elasticsearch.
+# The JVM options parser produces the final JVM options to start OpenSearch.
 # It does this by incorporating JVM options in the following way:
 #   - first, system JVM options are applied (these are hardcoded options in the
 #     parser)
@@ -65,7 +65,7 @@ if [[ $DAEMONIZE = false ]]; then
     -Des.distribution.type="$OPENSEARCH_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$OPENSEARCH_BUNDLED_JDK" \
     -cp "$OPENSEARCH_CLASSPATH" \
-    org.opensearch.bootstrap.Elasticsearch \
+    org.opensearch.bootstrap.OpenSearch \
     "$@" <<<"$KEYSTORE_PASSWORD"
 else
   exec \
@@ -77,7 +77,7 @@ else
     -Des.distribution.type="$OPENSEARCH_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$OPENSEARCH_BUNDLED_JDK" \
     -cp "$OPENSEARCH_CLASSPATH" \
-    org.opensearch.bootstrap.Elasticsearch \
+    org.opensearch.bootstrap.OpenSearch \
     "$@" \
     <<<"$KEYSTORE_PASSWORD" &
   retval=$?
