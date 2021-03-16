@@ -19,7 +19,7 @@
 package org.opensearch.plugin.noop.action.search;
 
 import org.opensearch.action.ActionType;
-import org.elasticsearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponse;
 
 public class NoopSearchAction extends ActionType<SearchResponse> {
     public static final NoopSearchAction INSTANCE = new NoopSearchAction();

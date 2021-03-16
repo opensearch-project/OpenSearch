@@ -19,7 +19,7 @@
 
 package org.opensearch.index.reindex.remote;
 
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

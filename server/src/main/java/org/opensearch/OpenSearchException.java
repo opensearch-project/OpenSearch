@@ -19,6 +19,8 @@
 
 package org.opensearch;
 
+import org.opensearch.action.search.ReduceSearchPhaseException;
+import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.CheckedFunction;
@@ -748,8 +750,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.indices.IndexClosedException::new, 6, UNKNOWN_VERSION_ADDED),
         BIND_HTTP_EXCEPTION(org.opensearch.http.BindHttpException.class,
                 org.opensearch.http.BindHttpException::new, 7, UNKNOWN_VERSION_ADDED),
-        REDUCE_SEARCH_PHASE_EXCEPTION(org.elasticsearch.action.search.ReduceSearchPhaseException.class,
-                org.elasticsearch.action.search.ReduceSearchPhaseException::new, 8, UNKNOWN_VERSION_ADDED),
+        REDUCE_SEARCH_PHASE_EXCEPTION(org.opensearch.action.search.ReduceSearchPhaseException.class,
+                org.opensearch.action.search.ReduceSearchPhaseException::new, 8, UNKNOWN_VERSION_ADDED),
         NODE_CLOSED_EXCEPTION(org.opensearch.node.NodeClosedException.class,
                 org.opensearch.node.NodeClosedException::new, 9, UNKNOWN_VERSION_ADDED),
         SNAPSHOT_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.SnapshotFailedEngineException.class,
@@ -913,8 +915,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.index.snapshots.IndexShardSnapshotException::new, 98, UNKNOWN_VERSION_ADDED),
         INDEX_SHARD_NOT_STARTED_EXCEPTION(org.elasticsearch.index.shard.IndexShardNotStartedException.class,
                 org.elasticsearch.index.shard.IndexShardNotStartedException::new, 99, UNKNOWN_VERSION_ADDED),
-        SEARCH_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.action.search.SearchPhaseExecutionException.class,
-                org.elasticsearch.action.search.SearchPhaseExecutionException::new, 100, UNKNOWN_VERSION_ADDED),
+        SEARCH_PHASE_EXECUTION_EXCEPTION(org.opensearch.action.search.SearchPhaseExecutionException.class,
+                org.opensearch.action.search.SearchPhaseExecutionException::new, 100, UNKNOWN_VERSION_ADDED),
         ACTION_NOT_FOUND_TRANSPORT_EXCEPTION(org.opensearch.transport.ActionNotFoundTransportException.class,
                 org.opensearch.transport.ActionNotFoundTransportException::new, 101, UNKNOWN_VERSION_ADDED),
         TRANSPORT_SERIALIZATION_EXCEPTION(org.opensearch.transport.TransportSerializationException.class,

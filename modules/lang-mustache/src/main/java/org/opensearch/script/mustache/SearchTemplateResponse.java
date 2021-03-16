@@ -20,7 +20,7 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;

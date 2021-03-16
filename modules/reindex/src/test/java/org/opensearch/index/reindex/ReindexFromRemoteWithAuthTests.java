@@ -26,7 +26,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;

@@ -21,9 +21,9 @@ package org.opensearch.rest.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchContextId;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchContextId;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;

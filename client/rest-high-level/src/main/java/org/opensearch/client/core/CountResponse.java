@@ -19,7 +19,7 @@
 
 package org.opensearch.client.core;
 
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.rest.RestStatus;
@@ -187,7 +187,7 @@ public final class CountResponse {
         static ShardStats fromXContent(XContentParser parser) throws IOException {
             int successfulShards = -1;
             int totalShards = -1;
-            int skippedShards = 0; //BWC @see org.elasticsearch.action.search.SearchResponse
+            int skippedShards = 0; //BWC @see org.opensearch.action.search.SearchResponse
             List<ShardSearchFailure> failures = new ArrayList<>();
             XContentParser.Token token;
             String currentName = parser.currentName();

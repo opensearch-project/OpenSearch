@@ -21,8 +21,8 @@ package org.elasticsearch.test.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchType;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.client.Client;
 import org.opensearch.client.FilterClient;
 import org.opensearch.cluster.routing.Preference;

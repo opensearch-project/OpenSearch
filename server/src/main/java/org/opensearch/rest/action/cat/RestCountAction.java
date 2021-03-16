@@ -21,8 +21,8 @@ package org.opensearch.rest.action.cat;
 
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;

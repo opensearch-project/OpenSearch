@@ -22,7 +22,7 @@ package org.opensearch.script.mustache;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -177,10 +177,10 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
         //The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
         MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
-        org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
+        org.opensearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
         Item[] templateResponses = new Item[responses.length];
         int i = 0;
-        for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
+        for (org.opensearch.action.search.MultiSearchResponse.Item item : responses) {
             SearchTemplateResponse stResponse = null;
             if(item.getResponse() != null){
                 stResponse = new SearchTemplateResponse();
