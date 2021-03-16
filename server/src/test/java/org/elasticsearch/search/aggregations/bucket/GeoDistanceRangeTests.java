@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoDistance;
+import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;

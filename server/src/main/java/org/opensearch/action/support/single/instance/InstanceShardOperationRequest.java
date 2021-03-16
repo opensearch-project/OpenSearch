@@ -25,8 +25,8 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 

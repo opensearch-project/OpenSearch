@@ -19,7 +19,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;

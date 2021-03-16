@@ -20,9 +20,9 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.Version;
 
 import java.io.IOException;

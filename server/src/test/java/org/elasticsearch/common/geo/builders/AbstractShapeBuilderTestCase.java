@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.geo.GeoShapeType;
+import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.geo.parsers.ShapeParser;
+import org.opensearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

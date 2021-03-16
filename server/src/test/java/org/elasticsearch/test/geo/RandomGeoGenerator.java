@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.geo;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 
 import java.util.Random;
 

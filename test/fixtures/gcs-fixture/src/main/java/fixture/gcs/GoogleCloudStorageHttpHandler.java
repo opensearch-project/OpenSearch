@@ -30,7 +30,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
+import org.opensearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;

@@ -21,7 +21,7 @@ package org.elasticsearch.common;
 
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Channels;
+import org.opensearch.common.io.Channels;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;

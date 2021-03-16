@@ -33,7 +33,7 @@ import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;

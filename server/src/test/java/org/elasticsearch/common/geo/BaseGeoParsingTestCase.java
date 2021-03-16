@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.opensearch.common.geo.GeoJson;
+import org.opensearch.common.geo.GeometryParser;
+import org.opensearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.utils.GeographyValidator;
@@ -37,7 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
+import static org.opensearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
 
 /** Base class for all geo parsing tests */
 abstract class BaseGeoParsingTestCase extends ESTestCase {

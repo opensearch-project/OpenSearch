@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.elasticsearch.OpenSearchWrapperException;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 

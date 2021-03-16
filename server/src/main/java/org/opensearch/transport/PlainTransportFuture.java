@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.opensearch.OpenSearchException;
 import org.elasticsearch.OpenSearchTimeoutException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 
 import java.io.IOException;

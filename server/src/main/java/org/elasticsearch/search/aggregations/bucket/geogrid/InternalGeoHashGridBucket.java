@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 

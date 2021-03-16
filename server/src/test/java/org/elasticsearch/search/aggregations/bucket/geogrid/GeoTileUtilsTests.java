@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 

@@ -20,8 +20,8 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

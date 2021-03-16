@@ -28,7 +28,7 @@ import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.CloseableChannel;

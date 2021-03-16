@@ -24,7 +24,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;

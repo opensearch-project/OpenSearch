@@ -22,7 +22,7 @@ package org.opensearch.cluster.routing.allocation.command;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.routing.allocation.RerouteExplanation;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.opensearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 

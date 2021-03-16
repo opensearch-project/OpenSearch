@@ -22,7 +22,7 @@ package org.opensearch.action.admin.cluster.settings;
 import org.opensearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;

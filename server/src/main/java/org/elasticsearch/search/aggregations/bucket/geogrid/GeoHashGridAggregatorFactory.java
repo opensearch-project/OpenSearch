@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.geometry.utils.Geohash;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;

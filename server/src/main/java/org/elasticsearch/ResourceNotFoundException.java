@@ -18,7 +18,7 @@
  */
 package org.elasticsearch;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

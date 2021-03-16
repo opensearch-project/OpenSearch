@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.geo.builders.CircleBuilder;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.PolygonBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.common.geo.builders.CircleBuilder;
+import org.opensearch.common.geo.builders.CoordinatesBuilder;
+import org.opensearch.common.geo.builders.EnvelopeBuilder;
+import org.opensearch.common.geo.builders.LineStringBuilder;
+import org.opensearch.common.geo.builders.MultiLineStringBuilder;
+import org.opensearch.common.geo.builders.PointBuilder;
+import org.opensearch.common.geo.builders.PolygonBuilder;
+import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.geometry.LinearRing;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;

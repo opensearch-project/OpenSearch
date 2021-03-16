@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
