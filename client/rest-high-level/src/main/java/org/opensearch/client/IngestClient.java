@@ -22,12 +22,12 @@ package org.opensearch.client;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.RequestOptions;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.opensearch.action.ingest.DeletePipelineRequest;
+import org.opensearch.action.ingest.GetPipelineRequest;
+import org.opensearch.action.ingest.GetPipelineResponse;
+import org.opensearch.action.ingest.PutPipelineRequest;
+import org.opensearch.action.ingest.SimulatePipelineRequest;
+import org.opensearch.action.ingest.SimulatePipelineResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
 import java.io.IOException;
