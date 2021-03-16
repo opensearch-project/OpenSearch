@@ -22,7 +22,7 @@ package org.opensearch.action.delete;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * The response of the delete action.
  *
- * @see DeleteRequest
+ * @see org.opensearch.action.delete.DeleteRequest
  * @see org.opensearch.client.Client#delete(DeleteRequest)
  */
 public class DeleteResponse extends DocWriteResponse {

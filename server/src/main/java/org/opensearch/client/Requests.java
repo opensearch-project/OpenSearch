@@ -90,7 +90,7 @@ public class Requests {
      *
      * @param index The index name to index the request against
      * @return The index request
-     * @see org.opensearch.client.Client#index(IndexRequest)
+     * @see org.opensearch.client.Client#index(org.opensearch.action.index.IndexRequest)
      */
     public static IndexRequest indexRequest(String index) {
         return new IndexRequest(index);
@@ -102,7 +102,7 @@ public class Requests {
      *
      * @param index The index name to delete from
      * @return The delete request
-     * @see org.opensearch.client.Client#delete(DeleteRequest)
+     * @see org.opensearch.client.Client#delete(org.opensearch.action.delete.DeleteRequest)
      */
     public static DeleteRequest deleteRequest(String index) {
         return new DeleteRequest(index);
@@ -121,7 +121,7 @@ public class Requests {
      *
      * @param index The index to get the JSON source from
      * @return The get request
-     * @see org.opensearch.client.Client#get(GetRequest)
+     * @see org.opensearch.client.Client#get(org.opensearch.action.get.GetRequest)
      */
     public static GetRequest getRequest(String index) {
         return new GetRequest(index);
