@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.opensearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 public interface BucketMetricValue extends NumericMetricsAggregation.SingleValue {
 

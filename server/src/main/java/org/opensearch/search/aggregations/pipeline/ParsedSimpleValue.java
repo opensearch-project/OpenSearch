@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.pipeline;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.metrics.ParsedSingleValueNumericMetricsAggregation;
+import org.opensearch.search.aggregations.metrics.ParsedSingleValueNumericMetricsAggregation;
 
 import java.io.IOException;
 
