@@ -19,7 +19,7 @@ package org.opensearch.common.inject;
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.ErrorsException;
 import org.opensearch.common.inject.internal.FailableCache;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.InjectionPoint;
 
 /**
  * Constructor injectors by type.

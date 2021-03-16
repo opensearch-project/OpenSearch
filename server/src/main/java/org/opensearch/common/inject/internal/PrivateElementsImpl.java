@@ -20,9 +20,9 @@ import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.PrivateBinder;
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.ElementVisitor;
-import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.opensearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.ElementVisitor;
+import org.opensearch.common.inject.spi.PrivateElements;
 
 import java.util.ArrayList;
 import java.util.Collections;

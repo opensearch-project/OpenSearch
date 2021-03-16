@@ -19,10 +19,10 @@ package org.opensearch.common.inject.internal;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.ExposedBinding;
-import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.opensearch.common.inject.spi.BindingTargetVisitor;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.ExposedBinding;
+import org.opensearch.common.inject.spi.PrivateElements;
 
 import java.util.Set;
 

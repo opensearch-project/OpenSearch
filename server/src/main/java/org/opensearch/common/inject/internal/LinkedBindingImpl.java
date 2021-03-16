@@ -19,8 +19,8 @@ package org.opensearch.common.inject.internal;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.LinkedKeyBinding;
+import org.opensearch.common.inject.spi.BindingTargetVisitor;
+import org.opensearch.common.inject.spi.LinkedKeyBinding;
 
 public final class LinkedBindingImpl<T> extends BindingImpl<T> implements LinkedKeyBinding<T> {
 

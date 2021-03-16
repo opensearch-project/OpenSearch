@@ -20,8 +20,8 @@ import org.opensearch.common.inject.Scope;
 import org.opensearch.common.inject.Scopes;
 import org.opensearch.common.inject.Singleton;
 import org.opensearch.common.inject.Stage;
-import org.elasticsearch.common.inject.binder.ScopedBindingBuilder;
-import org.elasticsearch.common.inject.spi.BindingScopingVisitor;
+import org.opensearch.common.inject.binder.ScopedBindingBuilder;
+import org.opensearch.common.inject.spi.BindingScopingVisitor;
 
 import java.lang.annotation.Annotation;
 

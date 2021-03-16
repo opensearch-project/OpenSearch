@@ -25,11 +25,11 @@ import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.ProvisionException;
 import org.opensearch.common.inject.Scope;
 import org.opensearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.InjectionListener;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.InjectionListener;
+import org.opensearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.Message;
+import org.opensearch.common.inject.spi.TypeListenerBinding;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;

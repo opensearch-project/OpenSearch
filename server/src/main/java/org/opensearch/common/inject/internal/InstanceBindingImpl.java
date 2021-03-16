@@ -20,12 +20,12 @@ import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.HasDependencies;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.InstanceBinding;
-import org.elasticsearch.common.inject.util.Providers;
+import org.opensearch.common.inject.spi.BindingTargetVisitor;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.HasDependencies;
+import org.opensearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.InstanceBinding;
+import org.opensearch.common.inject.util.Providers;
 
 import java.util.HashSet;
 import java.util.Set;

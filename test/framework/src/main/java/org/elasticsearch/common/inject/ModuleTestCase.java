@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.Elements;
-import org.elasticsearch.common.inject.spi.InstanceBinding;
-import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
+import org.opensearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.Elements;
+import org.opensearch.common.inject.spi.InstanceBinding;
+import org.opensearch.common.inject.spi.ProviderInstanceBinding;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.inject.Module;
 

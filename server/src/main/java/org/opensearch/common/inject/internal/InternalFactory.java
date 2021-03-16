@@ -16,7 +16,7 @@
 
 package org.opensearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.Dependency;
 
 /**
  * Creates objects which will be injected.

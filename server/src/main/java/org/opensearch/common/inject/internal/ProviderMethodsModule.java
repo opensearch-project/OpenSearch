@@ -22,9 +22,9 @@ import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.Provides;
 import org.opensearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.util.Modules;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.Message;
+import org.opensearch.common.inject.util.Modules;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
