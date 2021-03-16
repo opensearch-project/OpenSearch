@@ -16,10 +16,10 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
-import org.elasticsearch.common.inject.binder.AnnotatedElementBuilder;
-import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.common.inject.spi.Message;
+import org.opensearch.common.inject.binder.AnnotatedBindingBuilder;
+import org.opensearch.common.inject.binder.AnnotatedElementBuilder;
+import org.opensearch.common.inject.binder.LinkedBindingBuilder;
+import org.opensearch.common.inject.spi.Message;
 
 
 /**

@@ -17,9 +17,9 @@
 package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.MembersInjectorLookup;
-import org.elasticsearch.common.inject.spi.ProviderLookup;
+import org.opensearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.MembersInjectorLookup;
+import org.opensearch.common.inject.spi.ProviderLookup;
 
 import java.util.ArrayList;
 import java.util.List;

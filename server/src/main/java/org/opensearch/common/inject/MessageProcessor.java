@@ -17,7 +17,7 @@
 package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.spi.Message;
+import org.opensearch.common.inject.spi.Message;
 
 /**
  * Handles {@link Binder#addError} commands.

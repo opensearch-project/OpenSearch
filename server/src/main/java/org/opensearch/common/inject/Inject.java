@@ -16,6 +16,8 @@
 
 package org.opensearch.common.inject;
 
+import org.opensearch.common.inject.binder.LinkedBindingBuilder;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
@@ -35,8 +37,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * constructor taking no parameters. The Injector then proceeds to perform
  * method and field injections.
  * <li>Pre-constructed instances passed to {@link Injector#injectMembers},
- * {@link org.elasticsearch.common.inject.binder.LinkedBindingBuilder#toInstance(Object)} and
- * {@link org.elasticsearch.common.inject.binder.LinkedBindingBuilder#toProvider(Provider)}.
+ * {@link LinkedBindingBuilder#toInstance(Object)} and
+ * {@link LinkedBindingBuilder#toProvider(Provider)}.
  * In this case all constructors are, of course, ignored.
  * <li>Static fields and methods of classes which any {@link Module} has
  * specifically requested static injection for, using

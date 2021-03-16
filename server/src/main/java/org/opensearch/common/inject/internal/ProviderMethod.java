@@ -21,8 +21,8 @@ import org.opensearch.common.inject.Exposed;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.PrivateBinder;
 import org.opensearch.common.inject.Provider;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.ProviderWithDependencies;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.ProviderWithDependencies;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;

@@ -19,8 +19,8 @@ package org.opensearch.common.inject.internal;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Scope;
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.InstanceBinding;
+import org.opensearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.InstanceBinding;
 
 import java.lang.annotation.Annotation;
 import java.util.List;

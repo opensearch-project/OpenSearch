@@ -30,12 +30,12 @@ import org.opensearch.common.inject.internal.MatcherAndConverter;
 import org.opensearch.common.inject.internal.Scoping;
 import org.opensearch.common.inject.internal.SourceProvider;
 import org.opensearch.common.inject.internal.ToStringBuilder;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.ConvertedConstantBinding;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.ProviderBinding;
-import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
-import org.elasticsearch.common.inject.util.Providers;
+import org.opensearch.common.inject.spi.BindingTargetVisitor;
+import org.opensearch.common.inject.spi.ConvertedConstantBinding;
+import org.opensearch.common.inject.spi.Dependency;
+import org.opensearch.common.inject.spi.ProviderBinding;
+import org.opensearch.common.inject.spi.ProviderKeyBinding;
+import org.opensearch.common.inject.util.Providers;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.GenericArrayType;

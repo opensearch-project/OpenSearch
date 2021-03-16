@@ -18,8 +18,8 @@ package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.spi.MembersInjectorLookup;
-import org.elasticsearch.common.inject.spi.ProviderLookup;
+import org.opensearch.common.inject.spi.MembersInjectorLookup;
+import org.opensearch.common.inject.spi.ProviderLookup;
 
 /**
  * Handles {@link Binder#getProvider} and {@link Binder#getMembersInjector(TypeLiteral)} commands.

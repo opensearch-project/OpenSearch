@@ -16,9 +16,10 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.spi.BindingScopingVisitor;
-import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.BindingScopingVisitor;
+import org.opensearch.common.inject.spi.BindingTargetVisitor;
+import org.opensearch.common.inject.spi.Element;
+import org.opensearch.common.inject.spi.Elements;
 
 /**
  * A mapping from a key (type and optional annotation) to the strategy for getting instances of the
@@ -68,7 +69,7 @@ public interface Binding<T> extends Element {
      * binding.
      *
      * @throws UnsupportedOperationException when invoked on a {@link Binding}
-     *                                       created via {@link org.elasticsearch.common.inject.spi.Elements#getElements}. This
+     *                                       created via {@link Elements#getElements}. This
      *                                       method is only supported on {@link Binding}s returned from an injector.
      */
     Provider<T> getProvider();

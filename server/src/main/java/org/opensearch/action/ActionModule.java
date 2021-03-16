@@ -249,7 +249,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.opensearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;

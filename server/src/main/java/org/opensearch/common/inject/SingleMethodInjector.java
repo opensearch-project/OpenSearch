@@ -20,7 +20,7 @@ import org.opensearch.common.inject.InjectorImpl.MethodInvoker;
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.ErrorsException;
 import org.opensearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.InjectionPoint;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

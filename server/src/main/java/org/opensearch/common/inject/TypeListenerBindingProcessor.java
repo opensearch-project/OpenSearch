@@ -17,7 +17,7 @@
 package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
+import org.opensearch.common.inject.spi.TypeListenerBinding;
 
 /**
  * Handles {@link Binder#bindListener} commands.

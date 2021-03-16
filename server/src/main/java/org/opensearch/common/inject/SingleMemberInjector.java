@@ -18,7 +18,7 @@ package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.opensearch.common.inject.spi.InjectionPoint;
 
 /**
  * Injects a field or method of a given object.
