@@ -16,9 +16,9 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Annotations;
-import org.elasticsearch.common.inject.internal.MoreTypes;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import org.opensearch.common.inject.internal.Annotations;
+import org.opensearch.common.inject.internal.MoreTypes;
+import org.opensearch.common.inject.internal.ToStringBuilder;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;

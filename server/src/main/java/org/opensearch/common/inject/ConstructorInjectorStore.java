@@ -16,9 +16,9 @@
 
 package org.opensearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.FailableCache;
+import org.opensearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.ErrorsException;
+import org.opensearch.common.inject.internal.FailableCache;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 /**

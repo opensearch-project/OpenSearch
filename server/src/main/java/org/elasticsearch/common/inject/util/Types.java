@@ -18,10 +18,10 @@
 package org.elasticsearch.common.inject.util;
 
 import org.opensearch.common.inject.Provider;
-import org.elasticsearch.common.inject.internal.MoreTypes;
-import org.elasticsearch.common.inject.internal.MoreTypes.GenericArrayTypeImpl;
-import org.elasticsearch.common.inject.internal.MoreTypes.ParameterizedTypeImpl;
-import org.elasticsearch.common.inject.internal.MoreTypes.WildcardTypeImpl;
+import org.opensearch.common.inject.internal.MoreTypes;
+import org.opensearch.common.inject.internal.MoreTypes.GenericArrayTypeImpl;
+import org.opensearch.common.inject.internal.MoreTypes.ParameterizedTypeImpl;
+import org.opensearch.common.inject.internal.MoreTypes.WildcardTypeImpl;
 
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;

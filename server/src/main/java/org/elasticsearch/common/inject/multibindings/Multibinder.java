@@ -26,7 +26,7 @@ import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.common.inject.internal.Errors;
+import org.opensearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.HasDependencies;
 import org.elasticsearch.common.inject.spi.Message;
