@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.Percentile;
+import org.opensearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.search.aggregations.metrics.InternalPercentilesTestCase.randomPercents;
+import static org.opensearch.search.aggregations.metrics.InternalPercentilesTestCase.randomPercents;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalPercentilesBucketTests extends InternalAggregationTestCase<InternalPercentilesBucket> {

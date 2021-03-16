@@ -22,8 +22,8 @@ package org.opensearch.search.aggregations.pipeline;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.metrics.ParsedPercentiles;
-import org.elasticsearch.search.aggregations.metrics.Percentiles;
+import org.opensearch.search.aggregations.metrics.ParsedPercentiles;
+import org.opensearch.search.aggregations.metrics.Percentiles;
 
 import java.io.IOException;
 import java.util.Map.Entry;
