@@ -19,7 +19,7 @@
 
 package org.opensearch.client;
 
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.opensearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;

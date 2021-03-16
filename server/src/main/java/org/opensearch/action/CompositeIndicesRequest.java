@@ -22,8 +22,8 @@ package org.opensearch.action;
 /**
  * Marker interface that needs to be implemented by all {@link org.opensearch.action.ActionRequest} subclasses that are composed of
  * multiple sub-requests which relate to one or more indices.  A composite request is executed by its own transport action class
- * (e.g. {@link org.elasticsearch.action.search.TransportMultiSearchAction}), which goes through all sub-requests and delegates their
- * execution to the appropriate transport action (e.g. {@link org.elasticsearch.action.search.TransportSearchAction}) for each single item.
+ * (e.g. {@link org.opensearch.action.search.TransportMultiSearchAction}), which goes through all sub-requests and delegates their
+ * execution to the appropriate transport action (e.g. {@link org.opensearch.action.search.TransportSearchAction}) for each single item.
  */
 public interface CompositeIndicesRequest {
 }

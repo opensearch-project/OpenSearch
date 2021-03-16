@@ -37,7 +37,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.action.search.MaxScoreCollector;
+import org.opensearch.action.search.MaxScoreCollector;
 import org.opensearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;

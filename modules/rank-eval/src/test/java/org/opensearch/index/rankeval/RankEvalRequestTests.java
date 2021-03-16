@@ -19,7 +19,7 @@
 
 package org.opensearch.index.rankeval;
 
-import org.elasticsearch.action.search.SearchType;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable.Reader;

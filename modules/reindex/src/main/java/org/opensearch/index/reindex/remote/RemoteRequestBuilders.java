@@ -23,7 +23,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.Request;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;

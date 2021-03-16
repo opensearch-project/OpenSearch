@@ -19,7 +19,7 @@
 
 package org.opensearch.search;
 
-import org.elasticsearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.search.RandomSearchRequestGenerator;
 import org.opensearch.common.ParsingException;
