@@ -36,6 +36,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
+
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
 public class RateLimitingFilter extends AbstractFilter {
 
@@ -65,7 +67,7 @@ public class RateLimitingFilter extends AbstractFilter {
         if (message instanceof ESLogMessage) {
             final ESLogMessage esLogMessage = (ESLogMessage) message;
 
-            String xOpaqueId = esLogMessage.getValueFor(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME);
+            String xOpaqueId = esLogMessage.getValueFor(X_OPAQUE_ID_FIELD_NAME);
             final String key = esLogMessage.getValueFor("key");
 
             return lruKeyCache.add(xOpaqueId + key) ? Result.ACCEPT : Result.DENY;

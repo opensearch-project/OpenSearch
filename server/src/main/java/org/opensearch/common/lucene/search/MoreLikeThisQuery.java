@@ -279,7 +279,7 @@ public class MoreLikeThisQuery extends Query {
      * Number of terms that must match the generated query expressed in the
      * common syntax for minimum should match.
      *
-     * @see    Queries#calculateMinShouldMatch(int, String)
+     * @see    org.opensearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
     public String getMinimumShouldMatch() {
         return minimumShouldMatch;
@@ -289,7 +289,7 @@ public class MoreLikeThisQuery extends Query {
      * Number of terms that must match the generated query expressed in the
      * common syntax for minimum should match. Defaults to {@code 30%}.
      *
-     * @see    Queries#calculateMinShouldMatch(int, String)
+     * @see    org.opensearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
     public void setMinimumShouldMatch(String minimumShouldMatch) {
         this.minimumShouldMatch = minimumShouldMatch;
@@ -361,7 +361,7 @@ public class MoreLikeThisQuery extends Query {
     public void setBoostTerms(boolean boostTerms) {
         this.boostTerms = boostTerms;
     }
-
+ 
     public float getBoostTermsFactor() {
         return boostTermsFactor;
     }
