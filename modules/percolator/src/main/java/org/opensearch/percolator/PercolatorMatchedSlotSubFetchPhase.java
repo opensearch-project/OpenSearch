@@ -33,7 +33,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.opensearch.Version;
 import org.opensearch.common.document.DocumentField;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhaseProcessor;

@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.Queries;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

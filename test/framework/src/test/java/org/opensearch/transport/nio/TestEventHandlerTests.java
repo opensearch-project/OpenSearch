@@ -22,7 +22,7 @@ package org.opensearch.transport.nio;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.logging.Loggers;
+import org.opensearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.nio.ServerChannelContext;
 import org.opensearch.nio.SocketChannelContext;

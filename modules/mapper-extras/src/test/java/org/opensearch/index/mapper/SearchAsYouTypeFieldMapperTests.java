@@ -38,7 +38,7 @@ import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;

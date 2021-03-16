@@ -32,7 +32,7 @@ import org.opensearch.common.geo.builders.MultiPolygonBuilder;
 import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.logging.Loggers;
+import org.opensearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.locationtech.jts.geom.Coordinate;

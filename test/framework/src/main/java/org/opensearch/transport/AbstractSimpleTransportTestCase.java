@@ -37,7 +37,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkUtils;

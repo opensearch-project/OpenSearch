@@ -24,7 +24,7 @@ import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.opensearch.index.query.QueryBuilders;

@@ -28,7 +28,7 @@ import org.opensearch.client.NodeSelector;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.HeaderWarning;
+import org.opensearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;

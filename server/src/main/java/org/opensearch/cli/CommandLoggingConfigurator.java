@@ -20,7 +20,7 @@
 package org.opensearch.cli;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.opensearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 
 /**

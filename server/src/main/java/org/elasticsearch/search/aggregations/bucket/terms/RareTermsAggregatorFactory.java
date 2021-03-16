@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;

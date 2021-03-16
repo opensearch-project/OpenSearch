@@ -30,6 +30,7 @@ import org.opensearch.Version;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.opensearch.common.lucene.search.Queries;
 
 public class QueriesTests extends ESTestCase {
 

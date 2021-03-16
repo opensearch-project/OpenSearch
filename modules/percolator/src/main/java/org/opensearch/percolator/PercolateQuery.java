@@ -38,7 +38,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedFunction;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.List;

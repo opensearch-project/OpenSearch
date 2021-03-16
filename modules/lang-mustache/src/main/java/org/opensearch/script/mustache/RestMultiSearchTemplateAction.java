@@ -20,7 +20,7 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;

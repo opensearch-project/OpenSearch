@@ -27,7 +27,7 @@ import org.elasticsearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;

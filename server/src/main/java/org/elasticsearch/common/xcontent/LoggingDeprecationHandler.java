@@ -20,7 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 
 import java.util.function.Supplier;
 

@@ -25,6 +25,7 @@ import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.message.SimpleMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.opensearch.common.logging.JsonThrowablePatternConverter;
 
 import java.io.BufferedReader;
 import java.io.IOException;

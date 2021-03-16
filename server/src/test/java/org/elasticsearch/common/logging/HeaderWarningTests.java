@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.hamcrest.core.IsSame;
+import org.opensearch.common.logging.HeaderWarning;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -34,7 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
+import static org.opensearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

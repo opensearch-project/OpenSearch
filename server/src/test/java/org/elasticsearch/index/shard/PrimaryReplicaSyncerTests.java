@@ -31,7 +31,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.uid.Versions;
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;

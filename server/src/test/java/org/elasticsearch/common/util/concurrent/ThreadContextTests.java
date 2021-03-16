@@ -19,7 +19,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.HeaderWarning;
+import org.opensearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 

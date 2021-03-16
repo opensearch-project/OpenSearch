@@ -41,7 +41,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.opensearch.Version;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 
 import java.util.ArrayList;

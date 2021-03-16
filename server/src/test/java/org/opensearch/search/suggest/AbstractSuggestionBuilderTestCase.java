@@ -54,7 +54,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
+import static org.opensearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;

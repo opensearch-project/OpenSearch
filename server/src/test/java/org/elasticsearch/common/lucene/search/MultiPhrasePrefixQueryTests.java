@@ -29,8 +29,9 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.elasticsearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 
 import static org.hamcrest.Matchers.equalTo;
 
