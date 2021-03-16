@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.geo.GeoDistance;
+import org.opensearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -36,7 +36,7 @@ public interface GeoDistanceAggregatorSupplier {
         String name,
         AggregatorFactories factories,
         GeoDistance distanceType,
-        org.elasticsearch.common.geo.GeoPoint origin,
+        org.opensearch.common.geo.GeoPoint origin,
         DistanceUnit units,
         ValuesSource valuesSource,
         DocValueFormat format,

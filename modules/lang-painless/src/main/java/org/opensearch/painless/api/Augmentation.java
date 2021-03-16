@@ -19,7 +19,7 @@
 
 package org.opensearch.painless.api;
 
-import org.elasticsearch.common.hash.MessageDigests;
+import org.opensearch.common.hash.MessageDigests;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

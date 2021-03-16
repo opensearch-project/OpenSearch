@@ -21,8 +21,8 @@ package org.opensearch.action.admin.indices.upgrade.post;
 
 
 import org.opensearch.action.support.broadcast.BroadcastShardRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;

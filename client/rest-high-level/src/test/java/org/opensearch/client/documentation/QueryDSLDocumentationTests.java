@@ -20,10 +20,10 @@
 package org.opensearch.client.documentation;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.MultiPointBuilder;
+import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.builders.CoordinatesBuilder;
+import org.opensearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;

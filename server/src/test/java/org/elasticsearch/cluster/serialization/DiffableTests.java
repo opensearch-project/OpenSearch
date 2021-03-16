@@ -25,9 +25,9 @@ import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.DiffableUtils.MapDiff;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 

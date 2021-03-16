@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;

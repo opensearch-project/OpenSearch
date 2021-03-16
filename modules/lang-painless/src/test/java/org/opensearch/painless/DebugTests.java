@@ -20,8 +20,8 @@
 package org.opensearch.painless;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
 import org.opensearch.painless.spi.Whitelist;

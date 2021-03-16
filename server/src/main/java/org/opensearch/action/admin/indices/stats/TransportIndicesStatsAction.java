@@ -20,8 +20,8 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -31,14 +31,14 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.seqno.RetentionLeaseStats;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.indices.IndicesService;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.seqno.RetentionLeaseStats;
+import org.opensearch.index.seqno.SeqNoStats;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardNotFoundException;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 

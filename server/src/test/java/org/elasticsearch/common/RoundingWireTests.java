@@ -21,7 +21,7 @@ package org.elasticsearch.common;
 
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.DateTimeUnit;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.opensearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 

@@ -20,8 +20,8 @@ package org.elasticsearch.search.aggregations;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;

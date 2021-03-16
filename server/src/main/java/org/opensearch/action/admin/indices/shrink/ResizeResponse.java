@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.shrink;
 
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 

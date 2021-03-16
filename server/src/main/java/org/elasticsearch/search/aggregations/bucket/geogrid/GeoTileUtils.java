@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ESSloppyMath;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,8 +31,8 @@ import org.opensearch.geometry.Rectangle;
 import java.io.IOException;
 import java.util.Locale;
 
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
+import static org.opensearch.common.geo.GeoUtils.normalizeLat;
+import static org.opensearch.common.geo.GeoUtils.normalizeLon;
 
 /**
  * Implements geotile key hashing, same as used by many map tile implementations.

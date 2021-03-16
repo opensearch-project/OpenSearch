@@ -22,8 +22,8 @@ package org.opensearch.action.support.broadcast;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.transport.TransportRequest;
 

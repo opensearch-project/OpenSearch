@@ -21,8 +21,8 @@ package org.opensearch.search.internal;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.Scroll;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;

@@ -22,8 +22,8 @@ package org.opensearch.action.admin.indices.dangling.find;
 import java.io.IOException;
 
 import org.opensearch.action.support.nodes.BaseNodeRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
 
 /**
  * Used when querying every node in the cluster for a specific dangling index.

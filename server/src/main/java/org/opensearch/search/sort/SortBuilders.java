@@ -19,7 +19,7 @@
 
 package org.opensearch.search.sort;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.script.Script;
 import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
 

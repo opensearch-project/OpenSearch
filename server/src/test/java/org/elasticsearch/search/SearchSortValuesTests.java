@@ -21,7 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

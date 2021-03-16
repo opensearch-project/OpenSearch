@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 
 import java.io.IOException;
 

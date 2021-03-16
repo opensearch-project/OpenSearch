@@ -21,7 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
 
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

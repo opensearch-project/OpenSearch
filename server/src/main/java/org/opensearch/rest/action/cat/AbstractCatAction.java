@@ -20,9 +20,9 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.UTF8StreamWriter;
-import org.elasticsearch.common.io.stream.BytesStream;
+import org.opensearch.common.io.Streams;
+import org.opensearch.common.io.UTF8StreamWriter;
+import org.opensearch.common.io.stream.BytesStream;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
