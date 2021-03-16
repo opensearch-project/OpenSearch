@@ -19,8 +19,8 @@
 package org.opensearch.join.query;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.explain.ExplainResponse;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;

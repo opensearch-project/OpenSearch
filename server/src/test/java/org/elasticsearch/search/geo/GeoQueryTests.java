@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.action.get.GetResponse;
+import org.opensearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.ShapeRelation;

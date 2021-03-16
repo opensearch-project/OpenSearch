@@ -31,7 +31,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;

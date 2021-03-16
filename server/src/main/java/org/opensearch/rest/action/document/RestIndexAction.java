@@ -21,7 +21,7 @@ package org.opensearch.rest.action.document;
 
 import org.elasticsearch.Version;
 import org.opensearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;

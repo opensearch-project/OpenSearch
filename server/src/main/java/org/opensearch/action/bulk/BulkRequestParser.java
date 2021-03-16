@@ -20,9 +20,9 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.action.DocWriteRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.update.UpdateRequest;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.bytes.BytesArray;

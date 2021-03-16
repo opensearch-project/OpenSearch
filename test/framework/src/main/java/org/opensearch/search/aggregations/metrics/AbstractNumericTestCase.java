@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;

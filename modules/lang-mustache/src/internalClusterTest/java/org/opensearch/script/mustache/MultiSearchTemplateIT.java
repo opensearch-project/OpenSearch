@@ -19,7 +19,7 @@
 
 package org.opensearch.script.mustache;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.opensearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;

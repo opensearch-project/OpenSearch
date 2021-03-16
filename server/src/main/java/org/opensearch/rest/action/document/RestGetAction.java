@@ -19,8 +19,8 @@
 
 package org.opensearch.rest.action.document;
 
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
+import org.opensearch.action.get.GetRequest;
+import org.opensearch.action.get.GetResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;

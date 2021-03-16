@@ -22,7 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.metadata.IndexMetadata;

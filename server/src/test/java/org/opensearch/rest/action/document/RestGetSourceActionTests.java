@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.document;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.get.GetResponse;
+import org.opensearch.action.get.GetResponse;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

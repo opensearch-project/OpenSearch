@@ -24,7 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
