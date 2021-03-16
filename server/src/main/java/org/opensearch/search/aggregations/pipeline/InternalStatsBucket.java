@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.pipeline;
 import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalStats;
+import org.opensearch.search.aggregations.metrics.InternalStats;
 
 import java.io.IOException;
 import java.util.List;

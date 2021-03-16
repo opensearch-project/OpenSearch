@@ -21,8 +21,8 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
+import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
+import org.opensearch.search.aggregations.metrics.InternalExtendedStatsTests;
 
 import java.util.List;
 import java.util.Map;
