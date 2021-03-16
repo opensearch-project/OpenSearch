@@ -16,23 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'opensearch.publish'
 
-dependencies {
-  api project(':libs:opensearch-core')
+package org.opensearch.nio;
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+import java.nio.ByteBuffer;
+import java.util.function.BiConsumer;
 
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-nio'
-  }
-}
+public class FlushReadyWrite extends FlushOperation implements WriteOperation {
 
+    private final SocketChannelContext channelContext;
+    private final ByteBuffer[] buffers;
 
-tasks.named('forbiddenApisMain').configure {
-  // nio does not depend on core, so only jdk signatures should be checked
-  // es-all is not checked as we connect and accept sockets
-  replaceSignatureFiles 'jdk-signatures'
+    public FlushReadyWrite(SocketChannelContext channelContext, ByteBuffer[] buffers, BiConsumer<Void, Exception> listener) {
+        super(buffers, listener);
+        this.channelContext = channelContext;
+        this.buffers = buffers;
+    }
+
+    @Override
+    public SocketChannelContext getChannel() {
+        return channelContext;
+    }
+
+    @Override
+    public ByteBuffer[] getObject() {
+        return buffers;
+    }
 }
