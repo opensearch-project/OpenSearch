@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
+import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.filter.FilterAggregator;
+import org.opensearch.search.aggregations.bucket.range.RangeAggregator;
 
 import java.util.function.IntFunction;
 

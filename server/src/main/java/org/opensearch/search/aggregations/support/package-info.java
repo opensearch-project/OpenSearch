@@ -32,7 +32,7 @@ package org.opensearch.search.aggregations.support;
  * output). A class hierarchy defines the type of values returned by the source.  The top level sub-classes define type-specific behavior,
  * such as {@link org.opensearch.search.aggregations.support.ValuesSource.Numeric#isFloatingPoint()}.  Second level subclasses are
  * then specialized based on where they read values from, e.g. script or field cases.  There are also adapter classes like
- * {@link org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource} which do run-time conversion from one type to another, often
+ * {@link org.opensearch.search.aggregations.bucket.geogrid.CellIdSource} which do run-time conversion from one type to another, often
  * dependent on a user specified parameter (precision in that case).
  * </p>
  *
