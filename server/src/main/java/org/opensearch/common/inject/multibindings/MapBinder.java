@@ -243,7 +243,7 @@ public abstract class MapBinder<K, V> {
 
         private RealMapBinder(Binder binder, TypeLiteral<V> valueType,
                               Key<Map<K, V>> mapKey, Key<Map<K, Provider<V>>> providerMapKey,
-                              Multibinder<Map.Entry<K, Provider<V>>> entrySetBinder) {
+                              Multibinder<Entry<K, Provider<V>>> entrySetBinder) {
             this.valueType = valueType;
             this.mapKey = mapKey;
             this.providerMapKey = providerMapKey;
