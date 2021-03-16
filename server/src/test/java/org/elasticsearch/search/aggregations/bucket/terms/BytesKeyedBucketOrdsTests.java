@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
@@ -181,7 +181,7 @@ public class BytesKeyedBucketOrdsTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return owningBucketOrd + "/" + value; 
+            return owningBucketOrd + "/" + value;
         }
 
         @Override
@@ -190,7 +190,7 @@ public class BytesKeyedBucketOrdsTests extends ESTestCase {
                 return false;
             }
             OwningBucketOrdAndValue other = (OwningBucketOrdAndValue) obj;
-            return owningBucketOrd == other.owningBucketOrd && value == other.value; 
+            return owningBucketOrd == other.owningBucketOrd && value == other.value;
         }
 
         @Override

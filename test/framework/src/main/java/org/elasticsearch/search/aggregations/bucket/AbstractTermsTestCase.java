@@ -20,12 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 public abstract class AbstractTermsTestCase extends ESIntegTestCase {

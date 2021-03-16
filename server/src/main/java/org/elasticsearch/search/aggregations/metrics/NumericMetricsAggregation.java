@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregation;
 
 public interface NumericMetricsAggregation extends Aggregation {
 

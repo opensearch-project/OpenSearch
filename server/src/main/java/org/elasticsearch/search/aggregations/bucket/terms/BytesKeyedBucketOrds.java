@@ -24,7 +24,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 
 /**
  * Maps {@link BytesRef} bucket keys to bucket ordinals.
@@ -87,7 +87,7 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
         void readValue(BytesRef dest);
 
         /**
-         * An {@linkplain BucketOrdsEnum} that is empty. 
+         * An {@linkplain BucketOrdsEnum} that is empty.
          */
         BucketOrdsEnum EMPTY = new BucketOrdsEnum() {
             @Override

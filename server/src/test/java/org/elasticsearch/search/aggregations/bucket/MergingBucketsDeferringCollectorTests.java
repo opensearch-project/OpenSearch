@@ -31,8 +31,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.CheckedBiConsumer;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.BucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;

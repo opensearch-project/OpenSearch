@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.BucketOrder;
 
 import java.util.ArrayList;
 import java.util.List;

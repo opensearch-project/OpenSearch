@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;

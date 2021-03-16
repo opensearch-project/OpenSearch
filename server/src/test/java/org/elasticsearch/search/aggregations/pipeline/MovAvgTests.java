@@ -27,7 +27,7 @@ import java.io.IOException;
 
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.HoltWintersModel.SeasonalityType;
 
@@ -115,7 +115,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         assertEquals(expected, newAgg);
         assertEquals(expected.hashCode(), newAgg.hashCode());
     }
-    
+
     /**
      * The validation should verify the parent aggregation is allowed.
      */

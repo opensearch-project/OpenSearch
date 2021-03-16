@@ -33,7 +33,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;

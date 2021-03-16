@@ -28,6 +28,10 @@ import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregatio
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;

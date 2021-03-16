@@ -46,7 +46,7 @@ import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.RangeType;
 import org.opensearch.script.AggregationScript;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;

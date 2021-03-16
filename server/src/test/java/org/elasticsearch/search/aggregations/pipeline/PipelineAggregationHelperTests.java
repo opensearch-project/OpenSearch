@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;

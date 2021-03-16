@@ -22,9 +22,9 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 

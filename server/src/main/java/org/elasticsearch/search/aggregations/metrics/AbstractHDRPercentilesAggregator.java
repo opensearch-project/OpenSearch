@@ -28,9 +28,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 

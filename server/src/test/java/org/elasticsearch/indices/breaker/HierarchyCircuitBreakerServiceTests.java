@@ -29,7 +29,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

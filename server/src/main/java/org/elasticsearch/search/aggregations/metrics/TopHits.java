@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregation;
 
 /**
  * Accumulation of the most relevant hits for a bucket this aggregation falls into.

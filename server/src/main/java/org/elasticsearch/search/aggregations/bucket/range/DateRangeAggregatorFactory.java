@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;

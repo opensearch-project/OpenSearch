@@ -20,8 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;

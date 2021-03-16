@@ -31,7 +31,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
@@ -34,7 +34,7 @@ public interface HistogramFactory {
      *  must return the double value of the key. */
     Number getKey(MultiBucketsAggregation.Bucket bucket);
 
-    /** Given a key returned by {@link #getKey}, compute the lowest key that is 
+    /** Given a key returned by {@link #getKey}, compute the lowest key that is
      *  greater than it. */
     Number nextKey(Number key);
 

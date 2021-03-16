@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
 import java.util.Collections;

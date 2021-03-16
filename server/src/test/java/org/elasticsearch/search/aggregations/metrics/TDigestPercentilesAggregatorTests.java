@@ -33,7 +33,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -46,7 +46,7 @@ import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.opensearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {

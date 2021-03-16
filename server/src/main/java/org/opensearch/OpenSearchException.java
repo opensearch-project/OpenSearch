@@ -891,15 +891,15 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         NODE_DISCONNECTED_EXCEPTION(org.opensearch.transport.NodeDisconnectedException.class,
                 org.opensearch.transport.NodeDisconnectedException::new, 84, UNKNOWN_VERSION_ADDED),
         // 85 used to be for AlreadyExpiredException
-        AGGREGATION_EXECUTION_EXCEPTION(org.elasticsearch.search.aggregations.AggregationExecutionException.class,
-                org.elasticsearch.search.aggregations.AggregationExecutionException::new, 86, UNKNOWN_VERSION_ADDED),
+        AGGREGATION_EXECUTION_EXCEPTION(org.opensearch.search.aggregations.AggregationExecutionException.class,
+                org.opensearch.search.aggregations.AggregationExecutionException::new, 86, UNKNOWN_VERSION_ADDED),
         // 87 used to be for MergeMappingException
         INVALID_INDEX_TEMPLATE_EXCEPTION(org.opensearch.indices.InvalidIndexTemplateException.class,
                 org.opensearch.indices.InvalidIndexTemplateException::new, 88, UNKNOWN_VERSION_ADDED),
         REFRESH_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.RefreshFailedEngineException.class,
                 org.elasticsearch.index.engine.RefreshFailedEngineException::new, 90, UNKNOWN_VERSION_ADDED),
-        AGGREGATION_INITIALIZATION_EXCEPTION(org.elasticsearch.search.aggregations.AggregationInitializationException.class,
-                org.elasticsearch.search.aggregations.AggregationInitializationException::new, 91, UNKNOWN_VERSION_ADDED),
+        AGGREGATION_INITIALIZATION_EXCEPTION(org.opensearch.search.aggregations.AggregationInitializationException.class,
+                org.opensearch.search.aggregations.AggregationInitializationException::new, 91, UNKNOWN_VERSION_ADDED),
         DELAY_RECOVERY_EXCEPTION(org.opensearch.indices.recovery.DelayRecoveryException.class,
                 org.opensearch.indices.recovery.DelayRecoveryException::new, 92, UNKNOWN_VERSION_ADDED),
         // 93 used to be for IndexWarmerMissingException
@@ -952,8 +952,8 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.elasticsearch.search.query.QueryPhaseExecutionException::new, 119, UNKNOWN_VERSION_ADDED),
         REPOSITORY_VERIFICATION_EXCEPTION(org.opensearch.repositories.RepositoryVerificationException.class,
                 org.opensearch.repositories.RepositoryVerificationException::new, 120, UNKNOWN_VERSION_ADDED),
-        INVALID_AGGREGATION_PATH_EXCEPTION(org.elasticsearch.search.aggregations.InvalidAggregationPathException.class,
-                org.elasticsearch.search.aggregations.InvalidAggregationPathException::new, 121, UNKNOWN_VERSION_ADDED),
+        INVALID_AGGREGATION_PATH_EXCEPTION(org.opensearch.search.aggregations.InvalidAggregationPathException.class,
+                org.opensearch.search.aggregations.InvalidAggregationPathException::new, 121, UNKNOWN_VERSION_ADDED),
         // 123 used to be IndexAlreadyExistsException and was renamed
         RESOURCE_ALREADY_EXISTS_EXCEPTION(ResourceAlreadyExistsException.class,
             ResourceAlreadyExistsException::new, 123, UNKNOWN_VERSION_ADDED),

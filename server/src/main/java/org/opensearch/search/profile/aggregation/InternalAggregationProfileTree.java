@@ -19,7 +19,7 @@
 
 package org.opensearch.search.profile.aggregation;
 
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractInternalProfileTree;
 
 public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationProfileBreakdown, Aggregator> {

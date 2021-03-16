@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;

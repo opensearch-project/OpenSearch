@@ -55,7 +55,7 @@ public interface ValuesSourceType {
 
     /**
      * Returns the type-specific sub class for a script data source.  {@link ValuesSource}s that do not support scripts should throw
-     * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}.  Note that this method is called when a script is
+     * {@link org.opensearch.search.aggregations.AggregationExecutionException}.  Note that this method is called when a script is
      * operating without an underlying field.  Scripts operating over fields are handled by the script argument to getField below.
      *
      * @param script - The script being wrapped
@@ -75,7 +75,7 @@ public interface ValuesSourceType {
 
     /**
      * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw
-     * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}
+     * {@link org.opensearch.search.aggregations.AggregationExecutionException}
      *
      * @param valuesSource - The original {@link ValuesSource}
      * @param rawMissing - The missing value we got from the parser, typically a string or number

@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregation;
 
 /**
  * Interface for {@link GeoCentroidAggregator}

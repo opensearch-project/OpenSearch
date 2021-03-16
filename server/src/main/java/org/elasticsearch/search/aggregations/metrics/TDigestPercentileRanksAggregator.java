@@ -19,8 +19,8 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 

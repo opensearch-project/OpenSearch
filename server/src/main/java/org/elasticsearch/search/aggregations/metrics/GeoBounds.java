@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregation;
 
 /**
  * An aggregation that computes a bounding box in which all documents of the current bucket are.

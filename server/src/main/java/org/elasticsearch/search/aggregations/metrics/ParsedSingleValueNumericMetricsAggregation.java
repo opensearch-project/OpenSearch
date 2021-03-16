@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.ParsedAggregation;
 
 public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedAggregation
         implements NumericMetricsAggregation.SingleValue {
