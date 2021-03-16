@@ -57,9 +57,9 @@ import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.MetricInspectionHelper;
-import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucket;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
+import org.opensearch.search.aggregations.pipeline.InternalBucketMetricValue;
+import org.opensearch.search.aggregations.pipeline.InternalPercentilesBucket;
+import org.opensearch.search.aggregations.pipeline.InternalSimpleValue;
 
 import java.util.stream.StreamSupport;
 

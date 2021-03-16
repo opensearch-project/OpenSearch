@@ -21,8 +21,8 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
-import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
+import org.opensearch.search.aggregations.pipeline.InternalStatsBucket;
+import org.opensearch.search.aggregations.pipeline.ParsedStatsBucket;
 
 import java.util.List;
 import java.util.Map;

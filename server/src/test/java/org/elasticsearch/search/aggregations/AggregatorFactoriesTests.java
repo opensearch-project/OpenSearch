@@ -40,10 +40,10 @@ import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.opensearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.opensearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 

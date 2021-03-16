@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
 
