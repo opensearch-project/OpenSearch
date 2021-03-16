@@ -172,7 +172,7 @@ tasks.register("verifyVersions") {
 
 boolean bwc_tests_enabled = false
 /* place a PR link here when committing bwc changes */
-final String bwc_tests_disabled_issue = "https://github.com/opendistro-for-elasticsearch/search/issues/105"
+final String bwc_tests_disabled_issue = "https://github.com/opensearch-project/OpenSearch/issues/105"
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
