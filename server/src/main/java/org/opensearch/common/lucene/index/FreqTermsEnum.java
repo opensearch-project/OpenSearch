@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.index;
+package org.opensearch.common.lucene.index;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
