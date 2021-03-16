@@ -150,7 +150,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         final String gradleJvmDetails = getJavaInstallation(gradleJvm.getJavaHome()).getImplementationName();
 
         LOGGER.quiet("=======================================");
-        LOGGER.quiet("Elasticsearch Build Hamster says Hello!");
+        LOGGER.quiet("OpenSearch Build Hamster says Hello!");
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
         LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
