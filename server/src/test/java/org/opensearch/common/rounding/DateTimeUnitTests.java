@@ -18,7 +18,7 @@
  */
 package org.opensearch.common.rounding;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.common.rounding.DateTimeUnit.DAY_OF_MONTH;
 import static org.opensearch.common.rounding.DateTimeUnit.HOUR_OF_DAY;
@@ -29,7 +29,7 @@ import static org.opensearch.common.rounding.DateTimeUnit.SECOND_OF_MINUTE;
 import static org.opensearch.common.rounding.DateTimeUnit.WEEK_OF_WEEKYEAR;
 import static org.opensearch.common.rounding.DateTimeUnit.YEAR_OF_CENTURY;
 
-public class DateTimeUnitTests extends ESTestCase {
+public class DateTimeUnitTests extends OpenSearchTestCase {
 
     /**
      * test that we don't accidentally change enum ids

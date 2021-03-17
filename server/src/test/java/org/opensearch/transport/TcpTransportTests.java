@@ -35,7 +35,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.TestThreadPool;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 /** Unit tests for {@link TcpTransport} */
-public class TcpTransportTests extends ESTestCase {
+public class TcpTransportTests extends OpenSearchTestCase {
 
     /** Test ipv4 host with a default port works */
     public void testParseV4DefaultPort() throws Exception {

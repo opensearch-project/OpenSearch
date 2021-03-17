@@ -22,7 +22,7 @@ package org.opensearch.common.io;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Unit tests for {@link org.opensearch.common.io.Streams}.
  */
-public class StreamsTests extends ESTestCase {
+public class StreamsTests extends OpenSearchTestCase {
 
     public void testCopyFromByteArray() throws IOException {
         byte[] content = "content".getBytes(StandardCharsets.UTF_8);

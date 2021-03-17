@@ -73,8 +73,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.opensearch.test.ESTestCase.buildNewFakeTransportAddress;
-import static org.opensearch.test.ESTestCase.randomIntBetween;
+import static org.opensearch.test.OpenSearchTestCase.buildNewFakeTransportAddress;
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;

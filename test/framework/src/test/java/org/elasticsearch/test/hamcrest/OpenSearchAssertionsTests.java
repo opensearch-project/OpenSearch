@@ -28,7 +28,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertBlocked
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 
-public class OpenSearchAssertionsTests extends ESTestCase {
+public class OpenSearchAssertionsTests extends OpenSearchTestCase {
 
     public void testAssertXContentEquivalent() throws IOException {
         try (XContentBuilder original = JsonXContent.contentBuilder()) {

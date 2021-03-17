@@ -21,14 +21,14 @@ package org.opensearch.common.logging;
 
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.SimpleMessage;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import static org.apache.logging.log4j.core.Filter.Result;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RateLimitingFilterTests extends ESTestCase {
+public class RateLimitingFilterTests extends OpenSearchTestCase {
 
     private RateLimitingFilter filter;
 

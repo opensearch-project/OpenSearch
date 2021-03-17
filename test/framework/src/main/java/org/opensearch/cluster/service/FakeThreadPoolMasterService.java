@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.apache.lucene.util.LuceneTestCase.random;
-import static org.opensearch.test.ESTestCase.randomInt;
+import static org.opensearch.test.OpenSearchTestCase.randomInt;
 
 public class FakeThreadPoolMasterService extends MasterService {
     private static final Logger logger = LogManager.getLogger(FakeThreadPoolMasterService.class);

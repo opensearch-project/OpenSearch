@@ -20,7 +20,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public final class TimedRunnableTests extends ESTestCase {
+public final class TimedRunnableTests extends OpenSearchTestCase {
 
     public void testTimedRunnableDelegatesToAbstractRunnable() {
         final boolean isForceExecution = randomBoolean();

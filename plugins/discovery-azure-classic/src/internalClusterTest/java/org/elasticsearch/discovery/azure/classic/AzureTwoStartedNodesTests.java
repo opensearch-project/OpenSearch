@@ -23,9 +23,9 @@ import org.opensearch.cloud.azure.classic.AbstractAzureComputeServiceTestCase;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService.Discovery;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService.Management;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST,
         numDataNodes = 0,
         transportClientRatio = 0.0,
         numClientNodes = 0)

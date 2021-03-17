@@ -27,7 +27,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoTileGridValuesSourceBuilderTests extends ESTestCase {
+public class GeoTileGridValuesSourceBuilderTests extends OpenSearchTestCase {
 
     public void testSetFormat() {
         CompositeValuesSourceBuilder<?> builder = new GeoTileGridValuesSourceBuilder("name");

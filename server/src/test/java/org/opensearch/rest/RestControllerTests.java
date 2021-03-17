@@ -40,7 +40,7 @@ import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.usage.UsageService;
@@ -71,7 +71,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RestControllerTests extends ESTestCase {
+public class RestControllerTests extends OpenSearchTestCase {
 
     private static final ByteSizeValue BREAKER_LIMIT = new ByteSizeValue(20);
     private CircuitBreaker inFlightRequestsBreaker;

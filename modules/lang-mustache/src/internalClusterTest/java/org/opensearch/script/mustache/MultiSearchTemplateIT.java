@@ -25,7 +25,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
-public class MultiSearchTemplateIT extends ESIntegTestCase {
+public class MultiSearchTemplateIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

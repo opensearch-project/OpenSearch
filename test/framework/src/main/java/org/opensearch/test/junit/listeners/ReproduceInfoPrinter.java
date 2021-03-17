@@ -25,9 +25,9 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESTestCase;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -47,7 +47,7 @@ import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    protected final Logger logger = LogManager.getLogger(ESTestCase.class);
+    protected final Logger logger = LogManager.getLogger(OpenSearchTestCase.class);
 
     @Override
     public void testStarted(Description description) throws Exception {
@@ -98,7 +98,7 @@ public class ReproduceInfoPrinter extends RunListener {
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
         // Client yaml suite tests are a special case as they allow for additional parameters
-        if (ESClientYamlSuiteTestCase.class.isAssignableFrom(failure.getDescription().getTestClass())) {
+        if (OpenSearchClientYamlSuiteTestCase.class.isAssignableFrom(failure.getDescription().getTestClass())) {
             gradleMessageBuilder.appendClientYamlSuiteProperties();
         }
 
@@ -161,7 +161,7 @@ public class ReproduceInfoPrinter extends RunListener {
             appendProperties("tests.es.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests
-                appendProperties(ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
+                appendProperties(OpenSearchIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
             appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
                              "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version", "build.snapshot");
@@ -171,12 +171,12 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("runtime.java", Integer.toString(JavaVersion.current().getVersion().get(0)));
-            appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
+            appendOpt(OpenSearchTestCase.FIPS_SYSPROP, System.getProperty(OpenSearchTestCase.FIPS_SYSPROP));
             return this;
         }
 
         public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {
-            return appendProperties(ESClientYamlSuiteTestCase.REST_TESTS_SUITE, ESClientYamlSuiteTestCase.REST_TESTS_BLACKLIST);
+            return appendProperties(OpenSearchClientYamlSuiteTestCase.REST_TESTS_SUITE, OpenSearchClientYamlSuiteTestCase.REST_TESTS_BLACKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

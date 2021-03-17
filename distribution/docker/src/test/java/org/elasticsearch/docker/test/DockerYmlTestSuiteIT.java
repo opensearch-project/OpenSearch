@@ -24,7 +24,7 @@ import org.opensearch.client.Request;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -34,7 +34,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class DockerYmlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     private static final String USER = "rest_user";
     private static final String PASS = "test-password";

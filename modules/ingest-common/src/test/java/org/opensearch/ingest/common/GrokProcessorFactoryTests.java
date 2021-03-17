@@ -21,7 +21,7 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.grok.MatcherWatchdog;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class GrokProcessorFactoryTests extends ESTestCase {
+public class GrokProcessorFactoryTests extends OpenSearchTestCase {
 
     public void testBuild() throws Exception {
         GrokProcessor.Factory factory = new GrokProcessor.Factory(Collections.emptyMap(), MatcherWatchdog.noop());

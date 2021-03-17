@@ -19,13 +19,13 @@
 
 package org.opensearch.common.hash;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
-public class MessageDigestsTests extends ESTestCase {
+public class MessageDigestsTests extends OpenSearchTestCase {
     private void assertHash(String expected, String test, MessageDigest messageDigest) {
         String actual = MessageDigests.toHexString(messageDigest.digest(test.getBytes(StandardCharsets.UTF_8)));
         assertEquals(expected, actual);

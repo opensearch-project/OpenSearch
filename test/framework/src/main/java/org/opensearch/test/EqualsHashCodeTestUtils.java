@@ -73,7 +73,7 @@ public class EqualsHashCodeTestUtils {
             String objectName = original.getClass().getSimpleName();
             assertFalse(objectName + " is equal to null", original.equals(null));
             // TODO not sure how useful the following test is
-            assertFalse(objectName + " is equal to incompatible type", original.equals(ESTestCase.randomFrom(someObjects)));
+            assertFalse(objectName + " is equal to incompatible type", original.equals(OpenSearchTestCase.randomFrom(someObjects)));
             assertTrue(objectName + " is not equal to self", original.equals(original));
             assertThat(objectName + " hashcode returns different values if called multiple times", original.hashCode(),
                     equalTo(original.hashCode()));

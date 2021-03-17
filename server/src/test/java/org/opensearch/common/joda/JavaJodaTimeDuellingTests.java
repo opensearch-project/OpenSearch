@@ -25,7 +25,7 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.time.FormatNames;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -43,7 +43,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class JavaJodaTimeDuellingTests extends ESTestCase {
+public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
     @Override
     protected boolean enableWarningsCheck() {
         return false;

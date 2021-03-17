@@ -28,7 +28,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.node.Node;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.opensearch.threadpool.ThreadPool;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class DisruptableMockTransportTests extends ESTestCase {
+public class DisruptableMockTransportTests extends OpenSearchTestCase {
 
     private DiscoveryNode node1;
     private DiscoveryNode node2;

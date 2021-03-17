@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * A test that keep a singleton node started for all tests that can be used to get
  * references to Guice injectors in unit tests.
  */
-public abstract class ESSingleNodeTestCase extends ESTestCase {
+public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     private static Node NODE = null;
 
@@ -203,7 +203,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             // TODO: use a consistent data path for custom paths
-            // This needs to tie into the ESIntegTestCase#indexSettings() method
+            // This needs to tie into the OpenSearchIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created

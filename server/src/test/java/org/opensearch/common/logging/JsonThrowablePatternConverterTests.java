@@ -25,7 +25,7 @@ import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.message.SimpleMessage;
 import org.elasticsearch.common.logging.JsonLogLine;
 import org.elasticsearch.common.logging.JsonLogsStream;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.BufferedReader;
@@ -34,7 +34,7 @@ import java.io.StringReader;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class JsonThrowablePatternConverterTests extends ESTestCase {
+public class JsonThrowablePatternConverterTests extends OpenSearchTestCase {
     private static final String LINE_SEPARATOR = System.lineSeparator();
     private JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);
 

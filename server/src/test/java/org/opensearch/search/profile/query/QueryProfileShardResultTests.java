@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileResultTests;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +35,7 @@ import java.util.List;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class QueryProfileShardResultTests extends ESTestCase {
+public class QueryProfileShardResultTests extends OpenSearchTestCase {
 
     public static QueryProfileShardResult createTestItem() {
         int size = randomIntBetween(0, 5);

@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ObjectMapperTests extends ESSingleNodeTestCase {
+public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
     public void testDifferentInnerObjectTokenFailure() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());

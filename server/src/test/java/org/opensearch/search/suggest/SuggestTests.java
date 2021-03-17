@@ -42,7 +42,7 @@ import org.opensearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.search.suggest.phrase.PhraseSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestion;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -59,7 +59,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SuggestTests extends ESTestCase {
+public class SuggestTests extends OpenSearchTestCase {
 
     private static final NamedXContentRegistry xContentRegistry;
     private static final List<NamedXContentRegistry.Entry> namedXContents;

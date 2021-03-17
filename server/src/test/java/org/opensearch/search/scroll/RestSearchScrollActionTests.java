@@ -28,7 +28,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -38,7 +38,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RestSearchScrollActionTests extends ESTestCase {
+public class RestSearchScrollActionTests extends OpenSearchTestCase {
 
     public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
         RestSearchScrollAction action = new RestSearchScrollAction();

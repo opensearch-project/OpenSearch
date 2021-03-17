@@ -35,7 +35,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class RetentionLeaseSyncActionTests extends ESTestCase {
+public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private CapturingTransport transport;

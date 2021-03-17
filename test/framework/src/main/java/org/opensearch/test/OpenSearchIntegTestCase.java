@@ -213,7 +213,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * {@link ESIntegTestCase} is an abstract base class to run integration
+ * {@link OpenSearchIntegTestCase} is an abstract base class to run integration
  * tests against a JVM private OpenSearch Cluster. The test class supports 2 different
  * cluster scopes.
  * <ul>
@@ -228,7 +228,7 @@ import static org.hamcrest.Matchers.startsWith;
  * should be used, here is an example:
  * <pre>
  *
- * {@literal @}NodeScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
+ * {@literal @}NodeScope(scope=Scope.TEST) public class SomeIT extends OpenSearchIntegTestCase {
  * public void testMethod() {}
  * }
  * </pre>
@@ -240,12 +240,12 @@ import static org.hamcrest.Matchers.startsWith;
  * that are created before the tests start.
  *  <pre>
  * {@literal @}NodeScope(scope=Scope.SUITE, numDataNodes=3)
- * public class SomeIT extends ESIntegTestCase {
+ * public class SomeIT extends OpenSearchIntegTestCase {
  * public void testMethod() {}
  * }
  * </pre>
  * <p>
- * Note, the {@link ESIntegTestCase} uses randomized settings on a cluster and index level. For instance
+ * Note, the {@link OpenSearchIntegTestCase} uses randomized settings on a cluster and index level. For instance
  * each test might use different directory implementation for each test or will return a random client to one of the
  * nodes in the cluster for each call to {@link #client()}. Test failures might only be reproducible if the correct
  * system properties are passed to the test execution environment.
@@ -260,7 +260,7 @@ import static org.hamcrest.Matchers.startsWith;
  * </ul>
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
-public abstract class ESIntegTestCase extends ESTestCase {
+public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     /**
      * Property that controls whether ThirdParty Integration tests are run (not the default).
@@ -278,7 +278,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
-    @TestGroup(enabled = false, sysProperty = ESIntegTestCase.SYSPROP_THIRDPARTY)
+    @TestGroup(enabled = false, sysProperty = OpenSearchIntegTestCase.SYSPROP_THIRDPARTY)
     public @interface ThirdParty {
     }
 
@@ -309,7 +309,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * system without asserting modules that to make sure they don't hide any bugs in
      * production.
      *
-     * @see ESIntegTestCase
+     * @see OpenSearchIntegTestCase
      */
     public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 
@@ -355,7 +355,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<>();
 
-    private static ESIntegTestCase INSTANCE = null; // see @SuiteScope
+    private static OpenSearchIntegTestCase INSTANCE = null; // see @SuiteScope
     private static Long SUITE_SEED = null;
 
     @BeforeClass
@@ -1652,7 +1652,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * The scope of a test cluster used together with
-     * {@link ESIntegTestCase.ClusterScope} annotations on {@link ESIntegTestCase} subclasses.
+     * {@link OpenSearchIntegTestCase.ClusterScope} annotations on {@link OpenSearchIntegTestCase} subclasses.
      */
     public enum Scope {
         /**
@@ -1666,15 +1666,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Defines a cluster scope for a {@link ESIntegTestCase} subclass.
-     * By default if no {@link ClusterScope} annotation is present {@link ESIntegTestCase.Scope#SUITE} is used
+     * Defines a cluster scope for a {@link OpenSearchIntegTestCase} subclass.
+     * By default if no {@link ClusterScope} annotation is present {@link OpenSearchIntegTestCase.Scope#SUITE} is used
      * together with randomly chosen settings like number of nodes etc.
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.TYPE})
     public @interface ClusterScope {
         /**
-         * Returns the scope. {@link ESIntegTestCase.Scope#SUITE} is default.
+         * Returns the scope. {@link OpenSearchIntegTestCase.Scope#SUITE} is default.
          */
         Scope scope() default Scope.SUITE;
 
@@ -1778,7 +1778,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private static <A extends Annotation> A getAnnotation(Class<?> clazz, Class<A> annotationClass) {
-        if (clazz == Object.class || clazz == ESIntegTestCase.class) {
+        if (clazz == Object.class || clazz == OpenSearchIntegTestCase.class) {
             return null;
         }
         A annotation = clazz.getAnnotation(annotationClass);
@@ -1972,28 +1972,28 @@ public abstract class ESIntegTestCase extends ESTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
                     .put(initialNodeSettings.build())
-                    .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
+                    .put(OpenSearchIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
 
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
-                return ESIntegTestCase.this.nodeConfigPath(nodeOrdinal);
+                return OpenSearchIntegTestCase.this.nodeConfigPath(nodeOrdinal);
             }
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
-                return ESIntegTestCase.this.nodePlugins();
+                return OpenSearchIntegTestCase.this.nodePlugins();
             }
 
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder().put(initialTransportClientSettings.build())
-                    .put(ESIntegTestCase.this.transportClientSettings()).build();
+                    .put(OpenSearchIntegTestCase.this.transportClientSettings()).build();
             }
 
             @Override
             public Collection<Class<? extends Plugin>> transportClientPlugins() {
-                Collection<Class<? extends Plugin>> plugins = ESIntegTestCase.this.transportClientPlugins();
+                Collection<Class<? extends Plugin>> plugins = OpenSearchIntegTestCase.this.transportClientPlugins();
                 if (plugins.contains(getTestTransportPlugin()) == false) {
                     plugins = new ArrayList<>(plugins);
                     plugins.add(getTestTransportPlugin());
@@ -2273,7 +2273,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {
             // note we need to do this this way to make sure this is reproducible
-            INSTANCE = (ESIntegTestCase) targetClass.getConstructor().newInstance();
+            INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor().newInstance();
             boolean success = false;
             try {
                 INSTANCE.printTestMessage("setup");

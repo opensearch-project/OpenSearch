@@ -88,7 +88,7 @@ import org.opensearch.join.query.HasParentQueryBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -123,7 +123,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
+public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     private String fieldName;
     private IndexService indexService;

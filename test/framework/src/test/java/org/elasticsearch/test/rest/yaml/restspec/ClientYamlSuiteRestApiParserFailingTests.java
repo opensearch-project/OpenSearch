@@ -21,7 +21,7 @@ package org.elasticsearch.test.rest.yaml.restspec;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApiParser;
 
 import static org.hamcrest.Matchers.containsString;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.containsString;
  * These tests are not part of {@link ClientYamlSuiteRestApiParserTests} because the tested failures don't allow to consume the whole yaml
  * stream
  */
-public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
+public class ClientYamlSuiteRestApiParserFailingTests extends OpenSearchTestCase {
 
     public void testDuplicateMethods() throws Exception {
        parseAndExpectParsingException("{\n" +

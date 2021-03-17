@@ -41,7 +41,7 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTask
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -68,7 +68,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class PersistentTasksNodeServiceTests extends ESTestCase {
+public class PersistentTasksNodeServiceTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
 

@@ -72,7 +72,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTrackerTests;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
@@ -148,7 +148,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.stub;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class TranslogTests extends ESTestCase {
+public class TranslogTests extends OpenSearchTestCase {
 
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 

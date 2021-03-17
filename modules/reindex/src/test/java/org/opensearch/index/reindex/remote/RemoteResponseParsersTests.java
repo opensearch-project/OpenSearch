@@ -25,14 +25,14 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.reindex.ScrollableHitSource;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class RemoteResponseParsersTests extends ESTestCase {
+public class RemoteResponseParsersTests extends OpenSearchTestCase {
 
     /**
      * Check that we can parse shard search failures without index information.

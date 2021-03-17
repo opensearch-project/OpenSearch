@@ -32,7 +32,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.test.StreamsUtils;
 
@@ -50,7 +50,7 @@ import static org.opensearch.test.NodeRoles.nonIngestNode;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoIpProcessorNonIngestNodeIT extends ESIntegTestCase {
+public class GeoIpProcessorNonIngestNodeIT extends OpenSearchIntegTestCase {
 
     public static class IngestGeoIpSettingsPlugin extends Plugin {
 

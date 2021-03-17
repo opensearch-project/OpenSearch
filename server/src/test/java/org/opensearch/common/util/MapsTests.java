@@ -19,7 +19,7 @@
 
 package org.opensearch.common.util;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -29,7 +29,7 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toMap;
 
-public class MapsTests extends ESTestCase {
+public class MapsTests extends OpenSearchTestCase {
 
     public void testDeepEquals() {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);

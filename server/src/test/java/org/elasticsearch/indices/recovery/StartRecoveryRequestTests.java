@@ -28,7 +28,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -39,7 +39,7 @@ import static java.util.Collections.emptySet;
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 
-public class StartRecoveryRequestTests extends ESTestCase {
+public class StartRecoveryRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         final Version targetNodeVersion = randomVersion(random());

@@ -31,7 +31,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.monitor.StatusInfo;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.opensearch.test.transport.CapturingTransport;
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LeaderCheckerTests extends ESTestCase {
+public class LeaderCheckerTests extends OpenSearchTestCase {
 
     public void testFollowerBehaviour() {
         final DiscoveryNode leader1 = new DiscoveryNode("leader-1", buildNewFakeTransportAddress(), Version.CURRENT);

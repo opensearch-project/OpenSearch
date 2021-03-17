@@ -21,7 +21,7 @@ package org.opensearch.search.suggest.completion;
 
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,7 +30,7 @@ import java.util.List;
 
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public class FuzzyOptionsTests extends ESTestCase {
+public class FuzzyOptionsTests extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_RUNS = 20;
 

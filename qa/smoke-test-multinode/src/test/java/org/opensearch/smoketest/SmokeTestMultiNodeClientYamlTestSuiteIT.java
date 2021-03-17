@@ -25,10 +25,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
-public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class SmokeTestMultiNodeClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     public SmokeTestMultiNodeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -36,7 +36,7 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
 

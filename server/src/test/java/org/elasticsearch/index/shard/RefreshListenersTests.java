@@ -58,7 +58,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.TestThreadPool;
@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 /**
  * Tests how {@linkplain RefreshListeners} interacts with {@linkplain InternalEngine}.
  */
-public class RefreshListenersTests extends ESTestCase {
+public class RefreshListenersTests extends OpenSearchTestCase {
     private RefreshListeners listeners;
     private Engine engine;
     private volatile int maxListeners;

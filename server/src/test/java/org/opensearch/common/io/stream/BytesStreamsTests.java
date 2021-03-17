@@ -30,7 +30,7 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Tests for {@link StreamOutput}.
  */
-public class BytesStreamsTests extends ESTestCase {
+public class BytesStreamsTests extends OpenSearchTestCase {
     public void testEmpty() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 

@@ -33,7 +33,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SynonymsAnalysisTests extends ESTestCase {
+public class SynonymsAnalysisTests extends OpenSearchTestCase {
     private IndexAnalyzers indexAnalyzers;
 
     public void testSynonymsAnalysis() throws IOException {

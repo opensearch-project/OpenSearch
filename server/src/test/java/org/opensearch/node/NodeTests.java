@@ -36,7 +36,7 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
-public class NodeTests extends ESTestCase {
+public class NodeTests extends OpenSearchTestCase {
 
     public static class CheckPlugin extends Plugin {
         public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();

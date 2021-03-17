@@ -19,11 +19,11 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ResizableBlockingQueueTests extends ESTestCase {
+public class ResizableBlockingQueueTests extends OpenSearchTestCase {
 
     public void testAdjustCapacity() throws Exception {
         ResizableBlockingQueue<Runnable> queue =

@@ -28,13 +28,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
+public class MultiplexerTokenFilterTests extends OpenSearchTokenStreamTestCase {
 
     public void testMultiplexingFilter() throws IOException {
         Settings settings = Settings.builder()

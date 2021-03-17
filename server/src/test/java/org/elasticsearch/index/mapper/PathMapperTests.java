@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 
@@ -28,7 +28,7 @@ import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PathMapperTests extends ESSingleNodeTestCase {
+public class PathMapperTests extends OpenSearchSingleNodeTestCase {
     public void testPathMapping() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/path/test-mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()

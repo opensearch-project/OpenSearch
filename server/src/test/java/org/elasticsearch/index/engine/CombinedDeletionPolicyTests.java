@@ -26,7 +26,7 @@ import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class CombinedDeletionPolicyTests extends ESTestCase {
+public class CombinedDeletionPolicyTests extends OpenSearchTestCase {
 
     public void testKeepCommitsAfterGlobalCheckpoint() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong();

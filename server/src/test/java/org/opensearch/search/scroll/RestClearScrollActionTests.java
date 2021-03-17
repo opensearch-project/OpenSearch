@@ -28,7 +28,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestClearScrollAction;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -38,7 +38,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class RestClearScrollActionTests extends ESTestCase {
+public class RestClearScrollActionTests extends OpenSearchTestCase {
 
     public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
         RestClearScrollAction action = new RestClearScrollAction();

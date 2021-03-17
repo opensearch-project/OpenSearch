@@ -41,7 +41,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class AnalysisRegistryTests extends ESTestCase {
+public class AnalysisRegistryTests extends OpenSearchTestCase {
     private AnalysisRegistry emptyRegistry;
     private AnalysisRegistry nonEmptyRegistry;
 

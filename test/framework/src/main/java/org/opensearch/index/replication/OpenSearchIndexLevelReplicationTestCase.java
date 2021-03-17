@@ -110,7 +110,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase {
+public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShardTestCase {
 
     protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
@@ -422,9 +422,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             boolean markAsRecovering) throws IOException {
             final IndexShardRoutingTable routingTable = routingTable(Function.identity());
             final Set<String> inSyncIds = activeIds();
-            ESIndexLevelReplicationTestCase.this.recoverUnstartedReplica(replica, primary, targetSupplier, markAsRecovering, inSyncIds,
+            OpenSearchIndexLevelReplicationTestCase.this.recoverUnstartedReplica(replica, primary, targetSupplier, markAsRecovering, inSyncIds,
                 routingTable);
-            ESIndexLevelReplicationTestCase.this.startReplicaAfterRecovery(replica, primary, inSyncIds, routingTable);
+            OpenSearchIndexLevelReplicationTestCase.this.startReplicaAfterRecovery(replica, primary, inSyncIds, routingTable);
             computeReplicationTargets();
         }
 

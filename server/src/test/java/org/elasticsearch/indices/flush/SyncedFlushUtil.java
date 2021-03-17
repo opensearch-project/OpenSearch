@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.opensearch.test.ESTestCase.assertBusy;
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 
 /** Utils for SyncedFlush */
 public class SyncedFlushUtil {

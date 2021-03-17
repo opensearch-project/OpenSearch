@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Full integration test of the template query plugin.
  */
-public class SearchTemplateIT extends ESSingleNodeTestCase {
+public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

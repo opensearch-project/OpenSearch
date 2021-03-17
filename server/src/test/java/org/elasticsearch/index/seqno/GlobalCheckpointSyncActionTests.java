@@ -31,7 +31,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -45,7 +45,7 @@ import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class GlobalCheckpointSyncActionTests extends ESTestCase {
+public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private CapturingTransport transport;

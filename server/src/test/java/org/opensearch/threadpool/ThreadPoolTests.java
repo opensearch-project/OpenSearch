@@ -23,7 +23,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.EsExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -32,7 +32,7 @@ import static org.opensearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTI
 import static org.opensearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ThreadPoolTests extends ESTestCase {
+public class ThreadPoolTests extends OpenSearchTestCase {
 
     public void testBoundedByBelowMin() {
         int min = randomIntBetween(0, 32);

@@ -30,10 +30,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 /** Simple tests for this filterreader */
-public class ESDirectoryReaderTests extends ESTestCase {
+public class OpenSearchDirectoryReaderTests extends OpenSearchTestCase {
 
     /** Test that core cache key (needed for NRT) is working */
     public void testCoreCacheKey() throws Exception {

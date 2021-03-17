@@ -42,7 +42,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -80,7 +80,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class PersistentTasksClusterServiceTests extends ESTestCase {
+public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
 
     /** Needed by {@link ClusterService} **/
     private static ThreadPool threadPool;

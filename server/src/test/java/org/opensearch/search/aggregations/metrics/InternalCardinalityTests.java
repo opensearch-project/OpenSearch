@@ -45,7 +45,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         p = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
     }
 
-    @After //we force @After to have it run before ESTestCase#after otherwise it fails
+    @After //we force @After to have it run before OpenSearchTestCase#after otherwise it fails
     @Override
     public void tearDown() throws Exception {
         super.tearDown();

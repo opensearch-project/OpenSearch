@@ -69,7 +69,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.ClusterServiceUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.threadpool.TestThreadPool;
@@ -125,7 +125,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class MetadataCreateIndexServiceTests extends ESTestCase {
+public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     private AliasValidator aliasValidator;
     private CreateIndexClusterStateUpdateRequest request;

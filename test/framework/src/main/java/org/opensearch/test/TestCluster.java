@@ -140,7 +140,7 @@ public abstract class TestCluster implements Closeable {
      * Deletes all data streams from the test cluster.
      */
     public void wipeAllDataStreams() {
-        // Feature flag may not be enabled in all gradle modules that use ESIntegTestCase
+        // Feature flag may not be enabled in all gradle modules that use OpenSearchIntegTestCase
         if (size() > 0) {
             AcknowledgedResponse response =
                 client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{"*"})).actionGet();

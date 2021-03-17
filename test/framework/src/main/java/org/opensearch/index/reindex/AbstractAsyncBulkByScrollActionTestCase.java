@@ -21,7 +21,7 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.tasks.TaskId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -32,7 +32,7 @@ import java.util.Collections;
 public abstract class AbstractAsyncBulkByScrollActionTestCase<
                 Request extends AbstractBulkByScrollRequest<Request>,
                 Response extends BulkByScrollResponse>
-        extends ESTestCase {
+        extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     protected BulkByScrollTask task;
 

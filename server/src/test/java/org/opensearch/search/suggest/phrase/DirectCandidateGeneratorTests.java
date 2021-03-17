@@ -41,7 +41,7 @@ import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class DirectCandidateGeneratorTests extends ESTestCase {
+public class DirectCandidateGeneratorTests extends OpenSearchTestCase {
     private static final int NUMBER_OF_RUNS = 20;
 
     /**

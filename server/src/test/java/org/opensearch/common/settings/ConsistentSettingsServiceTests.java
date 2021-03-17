@@ -24,7 +24,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.mock.orig.Mockito;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.mockito.Mockito.mock;
 import static org.hamcrest.Matchers.is;
 
-public class ConsistentSettingsServiceTests extends ESTestCase {
+public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
 
     private AtomicReference<ClusterState> clusterState = new AtomicReference<>();
     private ClusterService clusterService;

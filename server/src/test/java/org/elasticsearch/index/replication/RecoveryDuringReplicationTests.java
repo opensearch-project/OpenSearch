@@ -49,7 +49,7 @@ import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.opensearch.index.mapper.SourceToParse;
-import org.opensearch.index.replication.ESIndexLevelReplicationTestCase;
+import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -89,7 +89,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
-public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestCase {
+public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicationTestCase {
 
     public void testIndexingDuringFileRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(randomInt(1))) {

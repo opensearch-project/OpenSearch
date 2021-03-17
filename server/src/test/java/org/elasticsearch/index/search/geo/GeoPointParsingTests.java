@@ -26,7 +26,7 @@ import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ import static org.opensearch.geometry.utils.Geohash.stringEncode;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.is;
 
-public class GeoPointParsingTests  extends ESTestCase {
+public class GeoPointParsingTests  extends OpenSearchTestCase {
     private static final double TOLERANCE = 1E-5;
 
     public void testGeoPointReset() throws IOException {

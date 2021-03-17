@@ -44,7 +44,7 @@ import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
@@ -120,7 +120,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     //we use the streaming infra to create a copy of the builder provided as argument
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
-        return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new);
+        return OpenSearchTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new);
     }
 
     public void testParseIncludeExclude() throws IOException {

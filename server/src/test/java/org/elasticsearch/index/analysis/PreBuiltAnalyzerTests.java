@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
+public class PreBuiltAnalyzerTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

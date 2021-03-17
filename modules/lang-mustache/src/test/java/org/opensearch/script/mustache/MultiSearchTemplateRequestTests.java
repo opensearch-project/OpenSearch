@@ -26,7 +26,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.StreamsUtils;
 import org.opensearch.test.rest.FakeRestRequest;
 
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiSearchTemplateRequestTests extends ESTestCase {
+public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
 
     public void testParseRequest() throws Exception {
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/opensearch/script/mustache/simple-msearch-template.json");

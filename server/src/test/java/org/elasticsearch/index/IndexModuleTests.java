@@ -87,7 +87,7 @@ import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.test.ClusterServiceUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.engine.MockEngineFactory;
 import org.opensearch.threadpool.TestThreadPool;
@@ -112,7 +112,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class IndexModuleTests extends ESTestCase {
+public class IndexModuleTests extends OpenSearchTestCase {
     private Index index;
     private Settings settings;
     private IndexSettings indexSettings;

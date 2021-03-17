@@ -31,7 +31,7 @@ import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.usage.UsageService;
 import org.junit.After;
@@ -45,7 +45,7 @@ import java.util.function.BiFunction;
  * A common base class for Rest*ActionTests. Provides access to a {@link RestController}
  * that can be used to register individual REST actions, and test request handling.
  */
-public abstract class RestActionTestCase extends ESTestCase {
+public abstract class RestActionTestCase extends OpenSearchTestCase {
     private RestController controller;
     protected VerifyingClient verifyingClient;
 

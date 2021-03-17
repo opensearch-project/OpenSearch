@@ -25,7 +25,7 @@ import org.apache.lucene.analysis.util.CharTokenizer;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.Arrays;
 
-public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
+public class CharGroupTokenizerFactoryTests extends OpenSearchTokenStreamTestCase {
 
     public void testParseTokenChars() {
         final Index index = new Index("test", "_na_");

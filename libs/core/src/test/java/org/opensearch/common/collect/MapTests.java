@@ -19,11 +19,11 @@
 
 package org.opensearch.common.collect;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class MapTests extends ESTestCase {
+public class MapTests extends OpenSearchTestCase {
 
     private static final String[] numbers = {"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"};
 

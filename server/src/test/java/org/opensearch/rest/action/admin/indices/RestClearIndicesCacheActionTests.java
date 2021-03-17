@@ -21,14 +21,14 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RestClearIndicesCacheActionTests extends ESTestCase {
+public class RestClearIndicesCacheActionTests extends OpenSearchTestCase {
 
     public void testRequestCacheSet() throws Exception {
         final HashMap<String, String> params = new HashMap<>();

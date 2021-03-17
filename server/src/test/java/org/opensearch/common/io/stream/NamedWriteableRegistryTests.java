@@ -23,9 +23,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class NamedWriteableRegistryTests extends ESTestCase {
+public class NamedWriteableRegistryTests extends OpenSearchTestCase {
 
     private static class DummyNamedWriteable implements NamedWriteable {
         DummyNamedWriteable(StreamInput in) {}

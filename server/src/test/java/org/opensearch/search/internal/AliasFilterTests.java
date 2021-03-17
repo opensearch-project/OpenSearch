@@ -23,7 +23,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Arrays;
@@ -31,7 +31,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class AliasFilterTests extends ESTestCase {
+public class AliasFilterTests extends OpenSearchTestCase {
 
     public void testEqualsAndHashCode() {
         final QueryBuilder filter = QueryBuilders.termQuery("field", "value");

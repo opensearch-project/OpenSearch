@@ -70,7 +70,7 @@ import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.opensearch.search.suggest.Suggest;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -105,7 +105,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RestHighLevelClientTests extends ESTestCase {
+public class RestHighLevelClientTests extends OpenSearchTestCase {
 
     private static final String SUBMIT_TASK_PREFIX = "submit_";
     private static final String SUBMIT_TASK_SUFFIX = "_task";

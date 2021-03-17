@@ -27,7 +27,7 @@ import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResultTests;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfileShardResultTests;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class SearchProfileShardResultsTests  extends ESTestCase {
+public class SearchProfileShardResultsTests  extends OpenSearchTestCase {
 
     public static SearchProfileShardResults createTestItem() {
         int size = rarely() ? 0 : randomIntBetween(1, 2);

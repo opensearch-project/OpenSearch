@@ -57,7 +57,7 @@ import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -90,7 +90,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RemoteScrollableHitSourceTests extends ESTestCase {
+public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     private static final String FAKE_SCROLL_ID = "DnF1ZXJ5VGhlbkZldGNoBQAAAfakescroll";
     private int retries;
     private ThreadPool threadPool;

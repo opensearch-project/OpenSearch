@@ -20,7 +20,7 @@
 package org.opensearch.common.cache;
 
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.lang.management.ManagementFactory;
@@ -50,7 +50,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
-public class CacheTests extends ESTestCase {
+public class CacheTests extends OpenSearchTestCase {
     private int numberOfEntries;
 
     @Before

@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
@@ -39,7 +39,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class RestMainActionTests extends ESTestCase {
+public class RestMainActionTests extends OpenSearchTestCase {
 
     public void testHeadResponse() throws Exception {
         final String nodeName = "node1";

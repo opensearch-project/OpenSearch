@@ -32,7 +32,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
  * @deprecated prefer {@link FieldMapperTestCase2}
  */
 @Deprecated
-public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> extends ESSingleNodeTestCase {
+public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> extends OpenSearchSingleNodeTestCase {
 
     protected final Settings SETTINGS = Settings.builder()
         .put("index.version.created", Version.CURRENT)

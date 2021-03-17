@@ -21,7 +21,7 @@ package org.opensearch.common.util.concurrent;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressLoggerChecks;
 import org.opensearch.common.component.Lifecycle;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.InOrder;
 
 import java.util.concurrent.Callable;
@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests {@link AbstractLifecycleRunnable}.
  */
-public class AbstractLifecycleRunnableTests extends ESTestCase {
+public class AbstractLifecycleRunnableTests extends OpenSearchTestCase {
     private final Lifecycle lifecycle = mock(Lifecycle.class);
     private final Logger logger = mock(Logger.class);
 

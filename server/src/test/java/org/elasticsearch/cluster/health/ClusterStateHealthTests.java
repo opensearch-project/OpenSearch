@@ -51,7 +51,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -80,7 +80,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ClusterStateHealthTests extends ESTestCase {
+public class ClusterStateHealthTests extends OpenSearchTestCase {
     private final IndexNameExpressionResolver indexNameExpressionResolver =
         new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 

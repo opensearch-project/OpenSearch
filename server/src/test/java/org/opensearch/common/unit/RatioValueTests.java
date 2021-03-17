@@ -20,14 +20,14 @@
 package org.opensearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.is;
 
 /**
  * Tests for the {@link RatioValue} class
  */
-public class RatioValueTests extends ESTestCase {
+public class RatioValueTests extends OpenSearchTestCase {
     public void testParsing() {
         assertThat(RatioValue.parseRatioValue("100%").toString(), is("100.0%"));
         assertThat(RatioValue.parseRatioValue("0%").toString(), is("0.0%"));

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DiscoveryNodeRoleSettingTests extends ESTestCase {
+public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
 
     public void testIsDataNode() {
         runRoleTest(DiscoveryNode::isDataNode, DiscoveryNodeRole.DATA_ROLE);

@@ -17,7 +17,7 @@
 package org.opensearch.common.network;
 
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.net.InetAddress;
@@ -25,7 +25,7 @@ import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.Enumeration;
 
-public class InetAddressesTests extends ESTestCase {
+public class InetAddressesTests extends OpenSearchTestCase {
     public void testForStringBogusInput() {
         String[] bogusInputs = {
                 "",

@@ -44,7 +44,7 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4Plugin;
 import org.junit.After;
@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.hasSize;
  * Integration test for bulk retry behavior. Useful because retrying relies on the way that the
  * rest of OpenSearch throws exceptions and unit tests won't verify that.
  */
-public class RetryTests extends ESIntegTestCase {
+public class RetryTests extends OpenSearchIntegTestCase {
 
     private static final int DOC_COUNT = 20;
 

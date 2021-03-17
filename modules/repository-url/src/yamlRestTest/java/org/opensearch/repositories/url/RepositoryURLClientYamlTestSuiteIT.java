@@ -35,7 +35,7 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class RepositoryURLClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     public RepositoryURLClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -58,7 +58,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 
     /**

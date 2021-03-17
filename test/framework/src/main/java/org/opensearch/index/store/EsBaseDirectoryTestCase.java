@@ -42,7 +42,7 @@ import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 public abstract class EsBaseDirectoryTestCase extends BaseDirectoryTestCase {
     static {
         try {
-            Class.forName("org.opensearch.test.ESTestCase");
+            Class.forName("org.opensearch.test.OpenSearchTestCase");
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
         }

@@ -29,7 +29,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.index.IndexModule;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ScopedSettingsTests extends ESTestCase {
+public class ScopedSettingsTests extends OpenSearchTestCase {
 
     public void testResetSetting() {
         Setting<Integer> dynamicSetting = Setting.intSetting("some.dyn.setting", 1, Property.Dynamic, Property.NodeScope);

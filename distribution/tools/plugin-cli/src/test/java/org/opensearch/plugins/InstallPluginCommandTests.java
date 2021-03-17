@@ -56,7 +56,7 @@ import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.PosixPermissionsResetter;
 import org.junit.After;
 import org.junit.Before;
@@ -118,7 +118,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class InstallPluginCommandTests extends ESTestCase {
+public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     private InstallPluginCommand skipJarHellCommand;
     private InstallPluginCommand defaultCommand;
@@ -1341,7 +1341,7 @@ public class InstallPluginCommandTests extends ESTestCase {
          */
         final BiFunction<byte[], PGPSecretKey, String> signature = (b, p) -> {
             final byte[] bytes = Arrays.copyOf(b, b.length);
-            bytes[0] = randomValueOtherThan(b[0], ESTestCase::randomByte);
+            bytes[0] = randomValueOtherThan(b[0], OpenSearchTestCase::randomByte);
             return signature(bytes, p);
         };
         final IllegalStateException e = expectThrows(

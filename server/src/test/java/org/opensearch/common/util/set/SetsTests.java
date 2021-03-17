@@ -20,7 +20,7 @@
 package org.opensearch.common.util.set;
 
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
 import java.util.Iterator;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class SetsTests extends ESTestCase {
+public class SetsTests extends OpenSearchTestCase {
 
     public void testDifference() {
         final int endExclusive = randomIntBetween(0, 256);

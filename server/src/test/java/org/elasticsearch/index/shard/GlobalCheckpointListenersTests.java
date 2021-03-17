@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.junit.After;
 import org.mockito.ArgumentCaptor;
@@ -65,7 +65,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class GlobalCheckpointListenersTests extends ESTestCase {
+public class GlobalCheckpointListenersTests extends OpenSearchTestCase {
 
     @FunctionalInterface
     interface TestGlobalCheckpointListener extends GlobalCheckpointListeners.GlobalCheckpointListener {

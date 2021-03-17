@@ -20,7 +20,7 @@ package org.opensearch.index.mapper;
 
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SourceLookup;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /** Base test case for subclasses of MappedFieldType */
-public abstract class FieldTypeTestCase extends ESTestCase {
+public abstract class FieldTypeTestCase extends OpenSearchTestCase {
 
     public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true);
     public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false);

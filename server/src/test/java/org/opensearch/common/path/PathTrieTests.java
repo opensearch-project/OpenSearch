@@ -21,7 +21,7 @@ package org.opensearch.common.path;
 
 import org.opensearch.common.path.PathTrie.TrieMatchingMode;
 import org.opensearch.rest.RestUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -30,7 +30,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PathTrieTests extends ESTestCase {
+public class PathTrieTests extends OpenSearchTestCase {
 
     public static final PathTrie.Decoder NO_DECODER = new PathTrie.Decoder() {
         @Override

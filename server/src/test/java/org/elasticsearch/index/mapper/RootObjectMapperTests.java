@@ -27,7 +27,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +35,7 @@ import java.util.Arrays;
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
 
-public class RootObjectMapperTests extends ESSingleNodeTestCase {
+public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
     public void testNumericDetection() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);

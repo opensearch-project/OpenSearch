@@ -47,7 +47,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -62,7 +62,7 @@ import java.util.stream.IntStream;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ReindexDocumentationIT extends ESIntegTestCase {
+public class ReindexDocumentationIT extends OpenSearchIntegTestCase {
 
     // Semaphore used to allow & block indexing operations during the test
     private static final Semaphore ALLOWED_OPERATIONS = new Semaphore(0);

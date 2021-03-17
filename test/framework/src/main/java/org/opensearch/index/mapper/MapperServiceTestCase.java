@@ -50,7 +50,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -65,7 +65,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class MapperServiceTestCase extends ESTestCase {
+public abstract class MapperServiceTestCase extends OpenSearchTestCase {
 
     protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
 

@@ -29,7 +29,7 @@ import org.opensearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.search.suggest.phrase.PhraseSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestion;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,7 +44,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class SuggestionEntryTests extends ESTestCase {
+public class SuggestionEntryTests extends OpenSearchTestCase {
 
     private static final Map<Class<? extends Entry>, Function<XContentParser, ? extends Entry>> ENTRY_PARSERS = new HashMap<>();
     static {

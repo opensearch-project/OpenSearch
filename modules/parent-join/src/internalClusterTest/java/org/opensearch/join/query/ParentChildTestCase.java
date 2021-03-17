@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexModule;
 import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -37,8 +37,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
-public abstract class ParentChildTestCase extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
+public abstract class ParentChildTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean ignoreExternalCluster() {

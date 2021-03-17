@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.XContentTestUtils;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class XContentTestUtilsTests extends ESTestCase {
+public class XContentTestUtilsTests extends OpenSearchTestCase {
 
     public void testGetInsertPaths() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();

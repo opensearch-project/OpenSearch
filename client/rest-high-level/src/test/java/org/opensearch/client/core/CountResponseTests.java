@@ -28,13 +28,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
-public class CountResponseTests extends ESTestCase {
+public class CountResponseTests extends OpenSearchTestCase {
 
     // Not comparing XContent for equivalence as we cannot compare the ShardSearchFailure#cause, because it will be wrapped in an outer
     // ElasticSearchException. Best effort: try to check that the original message appears somewhere in the rendered xContent

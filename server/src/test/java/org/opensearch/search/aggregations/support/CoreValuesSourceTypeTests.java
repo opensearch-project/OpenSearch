@@ -19,11 +19,11 @@
 
 package org.opensearch.search.aggregations.support;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CoreValuesSourceTypeTests extends ESTestCase {
+public class CoreValuesSourceTypeTests extends OpenSearchTestCase {
 
     public void testFromString() {
         assertThat(CoreValuesSourceType.fromString("numeric"), equalTo(CoreValuesSourceType.NUMERIC));

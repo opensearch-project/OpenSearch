@@ -38,7 +38,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class InboundHandlerTests extends ESTestCase {
+public class InboundHandlerTests extends OpenSearchTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final Version version = Version.CURRENT;

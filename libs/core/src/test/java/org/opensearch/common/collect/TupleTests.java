@@ -19,11 +19,11 @@
 
 package org.opensearch.common.collect;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TupleTests extends ESTestCase {
+public class TupleTests extends OpenSearchTestCase {
 
     public void testTuple() {
         Tuple<Long, String> t1 = new Tuple<>(2L, "foo");

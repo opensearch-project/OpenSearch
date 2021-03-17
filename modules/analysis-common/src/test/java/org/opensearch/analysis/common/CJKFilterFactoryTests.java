@@ -25,17 +25,17 @@ import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.opensearch.test.ESTestCase;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
+public class CJKFilterFactoryTests extends OpenSearchTokenStreamTestCase {
     private static final String RESOURCE = "/org/opensearch/analysis/common/cjk_analysis.json";
 
-    private ESTestCase.TestAnalysis analysis;
+    private OpenSearchTestCase.TestAnalysis analysis;
 
     @Before
     public void setup() throws IOException {

@@ -28,8 +28,8 @@ import org.apache.lucene.util.Version;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.opensearch.test.ESTestCase;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 
-public class StopTokenFilterTests extends ESTokenStreamTestCase {
+public class StopTokenFilterTests extends OpenSearchTokenStreamTestCase {
     public void testPositionIncrementSetting() throws IOException {
         Builder builder = Settings.builder().put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.enable_position_increments", false);
@@ -64,7 +64,7 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
             // don't specify
         }
         builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(builder.build());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(builder.build());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
         Tokenizer tokenizer = new WhitespaceTokenizer();
@@ -79,7 +79,7 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
                 .put("index.analysis.filter.my_stop.remove_trailing", false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
         Tokenizer tokenizer = new WhitespaceTokenizer();

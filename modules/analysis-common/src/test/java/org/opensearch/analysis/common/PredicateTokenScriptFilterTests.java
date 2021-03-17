@@ -31,13 +31,13 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
+public class PredicateTokenScriptFilterTests extends OpenSearchTokenStreamTestCase {
 
     public void testSimpleFilter() throws IOException {
         Settings settings = Settings.builder()

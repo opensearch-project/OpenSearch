@@ -19,11 +19,11 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-public class TimerTests extends ESTestCase {
+public class TimerTests extends OpenSearchTestCase {
 
     public void testTimingInterval() {
         final AtomicLong nanoTimeCallCounter = new AtomicLong();

@@ -28,8 +28,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.opensearch.test.ESTestCase.TestAnalysis;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase.TestAnalysis;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Tests for the {@link KeywordMarkerTokenFilterFactory} class.
  */
-public class KeywordMarkerFilterFactoryTests extends ESTokenStreamTestCase {
+public class KeywordMarkerFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
     /**
      * Tests using a keyword set for the keyword marker filter.

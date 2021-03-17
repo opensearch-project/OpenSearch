@@ -25,7 +25,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
@@ -33,7 +33,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RestClusterHealthActionTests extends ESTestCase {
+public class RestClusterHealthActionTests extends OpenSearchTestCase {
 
     public void testFromRequest() {
         Map<String, String> params = new HashMap<>();

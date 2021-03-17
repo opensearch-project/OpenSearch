@@ -28,7 +28,7 @@ import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,7 +36,7 @@ import java.util.Map;
 
 import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
-public class GetTaskResponseTests extends ESTestCase {
+public class GetTaskResponseTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws IOException {
         xContentTester(

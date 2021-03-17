@@ -25,7 +25,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class LeafFieldsLookupTests extends ESTestCase {
+public class LeafFieldsLookupTests extends OpenSearchTestCase {
     private LeafFieldsLookup fieldsLookup;
 
     @Before

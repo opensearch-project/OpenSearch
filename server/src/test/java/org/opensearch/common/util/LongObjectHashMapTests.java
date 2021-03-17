@@ -24,9 +24,9 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class LongObjectHashMapTests extends ESTestCase {
+public class LongObjectHashMapTests extends OpenSearchTestCase {
 
     private BigArrays randomBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());

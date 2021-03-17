@@ -22,9 +22,9 @@ package org.opensearch.geometry;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.opensearch.geometry.utils.GeometryValidator;
 import org.opensearch.geometry.utils.WellKnownText;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class GeometryValidatorTests extends ESTestCase {
+public class GeometryValidatorTests extends OpenSearchTestCase {
 
     public static class NoopValidator implements GeometryValidator {
 

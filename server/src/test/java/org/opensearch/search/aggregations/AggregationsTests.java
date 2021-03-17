@@ -81,7 +81,7 @@ import org.opensearch.search.aggregations.pipeline.InternalBucketMetricValueTest
 import org.opensearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
 import org.opensearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
 import org.opensearch.search.aggregations.pipeline.InternalDerivativeTests;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 import org.opensearch.test.hamcrest.ElasticsearchAssertions;
@@ -104,7 +104,7 @@ import static org.opensearch.test.XContentTestUtils.insertRandomFields;
  * different aggregations and adds sub-aggregations where applicable.
  *
  */
-public class AggregationsTests extends ESTestCase {
+public class AggregationsTests extends OpenSearchTestCase {
     private static final List<InternalAggregationTestCase<?>> aggsTests = getAggsTests();
 
     private static List<InternalAggregationTestCase<?>> getAggsTests() {

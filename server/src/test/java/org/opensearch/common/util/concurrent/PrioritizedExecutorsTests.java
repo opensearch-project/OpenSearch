@@ -21,7 +21,7 @@ package org.opensearch.common.util.concurrent;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class PrioritizedExecutorsTests extends ESTestCase {
+public class PrioritizedExecutorsTests extends OpenSearchTestCase {
 
     private final ThreadContext holder = new ThreadContext(Settings.EMPTY);
 

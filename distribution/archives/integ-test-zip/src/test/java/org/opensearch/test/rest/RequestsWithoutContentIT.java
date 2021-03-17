@@ -26,7 +26,7 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class RequestsWithoutContentIT extends ESRestTestCase {
+public class RequestsWithoutContentIT extends OpenSearchRestTestCase {
 
     public void testIndexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () ->

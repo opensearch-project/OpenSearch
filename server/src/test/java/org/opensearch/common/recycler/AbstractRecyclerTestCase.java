@@ -20,13 +20,13 @@
 package org.opensearch.common.recycler;
 
 import org.opensearch.common.recycler.Recycler.V;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public abstract class AbstractRecyclerTestCase extends ESTestCase {
+public abstract class AbstractRecyclerTestCase extends OpenSearchTestCase {
 
     // marker states for data
     protected static final byte FRESH = 1;

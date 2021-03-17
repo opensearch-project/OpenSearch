@@ -20,7 +20,7 @@
 package org.opensearch.client.core;
 
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ import java.util.List;
 
 import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
-public class MultiTermVectorsResponseTests extends ESTestCase {
+public class MultiTermVectorsResponseTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws IOException {
         xContentTester(

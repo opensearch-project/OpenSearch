@@ -19,7 +19,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SizeBlockingQueueTests extends ESTestCase {
+public class SizeBlockingQueueTests extends OpenSearchTestCase {
 
     /*
      * Tests that the size of a queue remains at most the capacity while offers are made to a queue when at capacity. This test would have

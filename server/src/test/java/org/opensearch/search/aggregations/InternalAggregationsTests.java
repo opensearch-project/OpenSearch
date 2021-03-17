@@ -36,7 +36,7 @@ import org.opensearch.search.aggregations.pipeline.MaxBucketPipelineAggregationB
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
-public class InternalAggregationsTests extends ESTestCase {
+public class InternalAggregationsTests extends OpenSearchTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
         new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());

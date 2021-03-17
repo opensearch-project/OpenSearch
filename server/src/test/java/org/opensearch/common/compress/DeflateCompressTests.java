@@ -21,7 +21,7 @@ package org.opensearch.common.compress;
 
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.TestUtil;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -35,7 +35,7 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Test streaming compression (e.g. used for recovery)
  */
-public class DeflateCompressTests extends ESTestCase {
+public class DeflateCompressTests extends OpenSearchTestCase {
 
     private final Compressor compressor = new DeflateCompressor();
 

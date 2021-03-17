@@ -22,7 +22,7 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.http.HttpEntity;
 import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.opensearch.test.rest.yaml.ClientYamlTestResponse;
@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class ClientYamlTestExecutionContextTests extends ESTestCase {
+public class ClientYamlTestExecutionContextTests extends OpenSearchTestCase {
 
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.monitor.fs;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class DeviceStatsTests extends ESTestCase {
+public class DeviceStatsTests extends OpenSearchTestCase {
 
     public void testDeviceStats() {
         final int majorDeviceNumber = randomIntBetween(1, 1 << 8);

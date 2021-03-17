@@ -38,7 +38,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -54,7 +54,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FreqTermsEnumTests extends ESTestCase {
+public class FreqTermsEnumTests extends OpenSearchTestCase {
 
     private String[] terms;
     private IndexWriter iw;

@@ -23,7 +23,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -32,7 +32,7 @@ import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MergePolicySettingsTests extends ESTestCase {
+public class MergePolicySettingsTests extends OpenSearchTestCase {
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     public void testCompoundFileSettings() throws IOException {

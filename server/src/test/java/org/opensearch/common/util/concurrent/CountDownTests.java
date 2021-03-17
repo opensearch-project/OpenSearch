@@ -19,7 +19,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.concurrent.CountDownLatch;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 
-public class CountDownTests extends ESTestCase {
+public class CountDownTests extends OpenSearchTestCase {
     public void testConcurrent() throws InterruptedException {
         final AtomicInteger count = new AtomicInteger(0);
         final CountDown countDown = new CountDown(scaledRandomIntBetween(10, 1000));

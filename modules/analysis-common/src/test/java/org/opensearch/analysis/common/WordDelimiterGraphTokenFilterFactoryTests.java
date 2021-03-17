@@ -31,7 +31,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 
@@ -46,7 +46,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests
     }
 
     public void testMultiTerms() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .put("index.analysis.filter.my_word_delimiter.type", type)
@@ -74,7 +74,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests
      * Correct offset order when doing both parts and concatenation: PowerShot is a synonym of Power
      */
     public void testPartsAndCatenate() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .put("index.analysis.filter.my_word_delimiter.type", type)
@@ -96,7 +96,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests
     }
 
     public void testAdjustingOffsets() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", type)
@@ -130,7 +130,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests
                 .put("index.analysis.analyzer.my_analyzer.filter", "my_keyword, my_word_delimiter")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         String source = "PowerShot PowerHungry";
         int[] expectedStartOffsets = new int[]{0, 5, 10, 15};
         int[] expectedEndOffsets = new int[]{5, 9, 15, 21};

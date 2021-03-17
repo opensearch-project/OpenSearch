@@ -27,7 +27,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.http.HttpTransportSettings;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class Netty4BadRequestIT extends ESRestTestCase {
+public class Netty4BadRequestIT extends OpenSearchRestTestCase {
 
     public void testBadRequest() throws IOException {
         final Response response = client().performRequest(new Request("GET", "/_nodes/settings"));

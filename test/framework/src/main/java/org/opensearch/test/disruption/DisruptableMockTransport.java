@@ -48,7 +48,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.opensearch.test.ESTestCase.copyWriteable;
+import static org.opensearch.test.OpenSearchTestCase.copyWriteable;
 
 public abstract class DisruptableMockTransport extends MockTransport {
     private final DiscoveryNode localNode;

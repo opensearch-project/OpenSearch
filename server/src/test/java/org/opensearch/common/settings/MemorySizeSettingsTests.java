@@ -29,13 +29,13 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
-public class MemorySizeSettingsTests extends ESTestCase {
+public class MemorySizeSettingsTests extends OpenSearchTestCase {
 
     public void testPageCacheLimitHeapSetting() {
         assertMemorySizeSetting(PageCacheRecycler.LIMIT_HEAP_SETTING, "cache.recycler.page.limit.heap",

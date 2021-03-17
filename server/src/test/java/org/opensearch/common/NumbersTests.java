@@ -20,13 +20,13 @@
 package org.opensearch.common;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class NumbersTests extends ESTestCase {
+public class NumbersTests extends OpenSearchTestCase {
 
     @Timeout(millis = 10000)
     public void testToLong() {

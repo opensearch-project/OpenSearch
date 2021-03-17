@@ -20,12 +20,12 @@
 package org.opensearch.common.logging;
 
 import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 
 import static org.opensearch.common.logging.TestThreadInfoPatternConverter.threadInfo;
 
-public class TestThreadInfoPatternConverterTests extends ESTestCase {
+public class TestThreadInfoPatternConverterTests extends OpenSearchTestCase {
     private static String suiteInfo;
 
     @BeforeClass

@@ -25,7 +25,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import java.io.IOException;
 
 import static org.opensearch.index.RandomCreateIndexGenerator.randomAlias;
-import static org.opensearch.test.ESTestCase.randomIntBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
 
 public class RandomCreateIndexGenerator {
 

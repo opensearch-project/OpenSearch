@@ -43,7 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchParseException;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +62,7 @@ import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RankEvalResponseTests extends ESTestCase {
+public class RankEvalResponseTests extends OpenSearchTestCase {
 
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
             new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),

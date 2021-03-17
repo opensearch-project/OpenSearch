@@ -63,7 +63,7 @@ import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.hamcrest.RegexMatcher;
@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class IndicesServiceTests extends ESSingleNodeTestCase {
+public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
 
     public IndicesService getIndicesService() {
         return getInstanceFromNode(IndicesService.class);

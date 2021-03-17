@@ -24,12 +24,12 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
 
-public class BinarySearcherTests extends ESTestCase {
+public class BinarySearcherTests extends OpenSearchTestCase {
 
     private BigArrays randombigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());

@@ -103,7 +103,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 
-public abstract class AbstractBuilderTestCase extends ESTestCase {
+public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
 
     public static final String TEXT_FIELD_NAME = "mapped_string";
     public static final String TEXT_ALIAS_FIELD_NAME = "mapped_string_alias";

@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,7 +33,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.is;
 
-public abstract class ShardSizeTestCase extends ESIntegTestCase {
+public abstract class ShardSizeTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected int numberOfShards() {

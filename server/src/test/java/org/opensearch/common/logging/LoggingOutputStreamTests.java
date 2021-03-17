@@ -19,7 +19,7 @@
 
 package org.opensearch.common.logging;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class LoggingOutputStreamTests extends ESTestCase {
+public class LoggingOutputStreamTests extends OpenSearchTestCase {
 
     class TestLoggingOutputStream extends LoggingOutputStream {
         List<String> lines = new ArrayList<>();

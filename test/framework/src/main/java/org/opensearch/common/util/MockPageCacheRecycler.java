@@ -33,7 +33,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.opensearch.test.ESTestCase.waitUntil;
+import static org.opensearch.test.OpenSearchTestCase.waitUntil;
 
 public class MockPageCacheRecycler extends PageCacheRecycler {
 

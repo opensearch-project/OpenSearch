@@ -20,14 +20,14 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.Priority;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class PrioritizedRunnableTests extends ESTestCase {
+public class PrioritizedRunnableTests extends OpenSearchTestCase {
 
     // test unit conversion with a controlled clock
     public void testGetAgeInMillis() throws Exception {

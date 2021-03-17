@@ -60,7 +60,7 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.SnapshotState;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -107,7 +107,7 @@ import static org.hamcrest.Matchers.in;
 /**
  * Superclass for tests that interact with an external test cluster using OpenSearch's {@link RestClient}.
  */
-public abstract class ESRestTestCase extends ESTestCase {
+public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
@@ -346,7 +346,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
-     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete.
+     * {@link OpenSearchTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete.
      *
      * @param adminClient the admin client
      * @throws Exception if an exception is thrown while checking the outstanding tasks
@@ -357,7 +357,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
-     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
+     * {@link OpenSearchTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
      * to filter out outstanding tasks that are expected to be there.
      *
      * @param adminClient the admin client

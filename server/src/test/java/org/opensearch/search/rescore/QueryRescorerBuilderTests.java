@@ -48,7 +48,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.rescore.QueryRescorer.QueryRescoreContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -59,7 +59,7 @@ import static java.util.Collections.emptyList;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 
-public class QueryRescorerBuilderTests extends ESTestCase {
+public class QueryRescorerBuilderTests extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
@@ -291,7 +291,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     }
 
     private static RescorerBuilder<?> mutate(RescorerBuilder<?> original) throws IOException {
-        RescorerBuilder<?> mutation = ESTestCase.copyWriteable(original, namedWriteableRegistry, QueryRescorerBuilder::new);
+        RescorerBuilder<?> mutation = OpenSearchTestCase.copyWriteable(original, namedWriteableRegistry, QueryRescorerBuilder::new);
         if (randomBoolean()) {
             Integer windowSize = original.windowSize();
             if (windowSize != null) {

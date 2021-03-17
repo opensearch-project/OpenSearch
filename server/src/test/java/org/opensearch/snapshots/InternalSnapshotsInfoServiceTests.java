@@ -51,7 +51,7 @@ import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.test.ClusterServiceUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class InternalSnapshotsInfoServiceTests extends ESTestCase {
+public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
 
     private TestThreadPool threadPool;
     private ClusterService clusterService;
@@ -418,7 +418,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private ClusterState demoteMasterNode(final ClusterState currentState) {
-        final DiscoveryNode node = new DiscoveryNode("other", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+        final DiscoveryNode node = new DiscoveryNode("other", OpenSearchTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
             DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 

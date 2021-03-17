@@ -57,7 +57,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
@@ -89,7 +89,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
+public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestCase {
 
     private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 

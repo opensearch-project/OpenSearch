@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.action.cat.AbstractCatAction;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class BaseRestHandlerTests extends ESTestCase {
+public class BaseRestHandlerTests extends OpenSearchTestCase {
     private NodeClient mockClient;
     private ThreadPool threadPool;
 

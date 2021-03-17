@@ -33,7 +33,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ import java.util.List;
 /**
  * Integration test that runs against an HA-Enabled HDFS instance
  */
-public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
+public class HaHdfsFailoverTestSuiteIT extends OpenSearchRestTestCase {
 
     public void testHAFailoverWithRepository() throws Exception {
         RestClient client = client();

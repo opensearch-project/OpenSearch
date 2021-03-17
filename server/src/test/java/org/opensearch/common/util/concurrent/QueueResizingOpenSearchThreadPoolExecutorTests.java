@@ -21,7 +21,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.lessThan;
  * Tests for the automatic queue resizing of the {@code QueueResizingOpenSearchThreadPoolExecutorTests}
  * based on the time taken for each event.
  */
-public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
+public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTestCase {
 
     public void testExactWindowSizeAdjustment() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);

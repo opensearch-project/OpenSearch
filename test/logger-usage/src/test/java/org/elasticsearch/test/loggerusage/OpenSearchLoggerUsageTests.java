@@ -27,7 +27,7 @@ import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
 import org.opensearch.common.SuppressLoggerChecks;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ESLoggerUsageTests extends ESTestCase {
+public class OpenSearchLoggerUsageTests extends OpenSearchTestCase {
 
     public void testLoggerUsageChecks() throws IOException {
         for (Method method : getClass().getMethods()) {
@@ -246,7 +246,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkDeprecationLogger() {
-        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ESLoggerUsageTests.class);
+        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OpenSearchLoggerUsageTests.class);
         deprecationLogger.deprecate("key","message {}", 123);
     }
 

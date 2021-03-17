@@ -24,7 +24,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -32,7 +32,7 @@ import java.util.Collection;
 import static org.opensearch.index.reindex.ReindexTestCase.matcher;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
+public class ReindexSingleNodeTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(ReindexPlugin.class);

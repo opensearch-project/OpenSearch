@@ -28,7 +28,7 @@ import org.opensearch.index.query.Operator;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
+public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(CommonAnalysisPlugin.class);

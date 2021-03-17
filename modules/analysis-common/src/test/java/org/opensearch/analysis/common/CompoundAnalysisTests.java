@@ -34,7 +34,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.plugins.AnalysisPlugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CompoundAnalysisTests extends ESTestCase {
+public class CompoundAnalysisTests extends OpenSearchTestCase {
     public void testDefaultsCompoundAnalysis() throws Exception {
         Settings settings = getJsonSettings();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);

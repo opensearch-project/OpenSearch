@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Tests that wait for refresh is fired if the index is closed.
  */
-public class WaitForRefreshAndCloseIT extends ESRestTestCase {
+public class WaitForRefreshAndCloseIT extends OpenSearchRestTestCase {
     @Before
     public void setupIndex() throws IOException {
         Request request = new Request("PUT", "/test");

@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class NodeRestUsageIT extends ESRestTestCase {
+public class NodeRestUsageIT extends OpenSearchRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testWithRestUsage() throws IOException {

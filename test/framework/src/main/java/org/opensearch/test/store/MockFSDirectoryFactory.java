@@ -41,8 +41,8 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.plugins.IndexStorePlugin;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -65,7 +65,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
     @Override
     public Directory newDirectory(IndexSettings idxSettings, ShardPath path) throws IOException {
         Settings indexSettings = idxSettings.getSettings();
-        Random random = new Random(idxSettings.getValue(ESIntegTestCase.INDEX_TEST_SEED_SETTING));
+        Random random = new Random(idxSettings.getValue(OpenSearchIntegTestCase.INDEX_TEST_SEED_SETTING));
         return wrap(randomDirectoryService(random, idxSettings, path), random, indexSettings,
             path.getShardId());
     }
@@ -86,7 +86,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                     if (!status.clean) {
                         IOException failure = new IOException("failed to check index for shard " + shardId +
                             ";index files [" + Arrays.toString(dir.listAll()) + "] os [" + os.bytes().utf8ToString() + "]");
-                        ESTestCase.checkIndexFailures.add(failure);
+                        OpenSearchTestCase.checkIndexFailures.add(failure);
                         throw failure;
                     } else {
                         if (logger.isDebugEnabled()) {
@@ -95,7 +95,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                     }
                 } catch (LockObtainFailedException e) {
                     IllegalStateException failure = new IllegalStateException("IndexWriter is still open on shard " + shardId, e);
-                    ESTestCase.checkIndexFailures.add(failure);
+                    OpenSearchTestCase.checkIndexFailures.add(failure);
                     throw failure;
                 }
             } catch (Exception e) {
@@ -168,7 +168,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
 
         CloseableDirectory(BaseDirectoryWrapper dir) {
             this.dir = dir;
-            this.failureMarker = ESTestCase.getSuiteFailureMarker();
+            this.failureMarker = OpenSearchTestCase.getSuiteFailureMarker();
         }
 
         @Override

@@ -32,7 +32,7 @@ import org.opensearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.NodeConfigurationSource;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.not;
  * configuration given the same seed / input.
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
-public class InternalTestClusterTests extends ESTestCase {
+public class InternalTestClusterTests extends OpenSearchTestCase {
 
     private static Collection<Class<? extends Plugin>> mockPlugins() {
         return Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class);

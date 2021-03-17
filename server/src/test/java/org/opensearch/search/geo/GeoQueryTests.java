@@ -38,7 +38,7 @@ import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHits;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import org.locationtech.jts.geom.Coordinate;
 
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public abstract class GeoQueryTests extends ESSingleNodeTestCase {
+public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);

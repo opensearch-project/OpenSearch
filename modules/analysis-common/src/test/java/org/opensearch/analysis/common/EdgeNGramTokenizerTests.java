@@ -30,7 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 
@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Collections;
 
-public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
+public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
 
     private IndexAnalyzers buildAnalyzers(Version version, String tokenizer) throws IOException {
         Settings settings = Settings.builder()

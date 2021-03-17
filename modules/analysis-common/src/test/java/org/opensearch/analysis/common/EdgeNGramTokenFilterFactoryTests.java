@@ -25,16 +25,16 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.opensearch.test.ESTestCase;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-public class EdgeNGramTokenFilterFactoryTests extends ESTokenStreamTestCase {
+public class EdgeNGramTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
     public void testDefault() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_edge_ngram.type", "edge_ngram")
@@ -49,7 +49,7 @@ public class EdgeNGramTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testPreserveOriginal() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_edge_ngram.type", "edge_ngram")

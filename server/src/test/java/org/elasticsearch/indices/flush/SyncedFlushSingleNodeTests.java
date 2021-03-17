@@ -33,7 +33,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -41,7 +41,7 @@ import java.util.Map;
 
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
+public class SyncedFlushSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     public void testModificationPreventsFlushing() throws InterruptedException {
         createIndex("test");

@@ -23,11 +23,11 @@ package org.opensearch.transport;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
 
-public class RemoteConnectionStrategyTests extends ESTestCase {
+public class RemoteConnectionStrategyTests extends OpenSearchTestCase {
 
     public void testStrategyChangeMeansThatStrategyMustBeRebuilt() {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));

@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class IndexShardOperationPermitsTests extends ESTestCase {
+public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
 

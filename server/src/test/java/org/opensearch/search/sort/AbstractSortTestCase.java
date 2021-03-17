@@ -58,7 +58,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -73,7 +73,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
+public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
 

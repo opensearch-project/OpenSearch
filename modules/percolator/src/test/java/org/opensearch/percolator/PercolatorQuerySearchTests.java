@@ -41,7 +41,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.lookup.LeafDocLookup;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -61,7 +61,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCoun
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
+public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

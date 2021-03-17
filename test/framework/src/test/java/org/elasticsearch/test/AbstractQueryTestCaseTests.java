@@ -23,7 +23,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.set.Sets;
 import org.hamcrest.Matcher;
 import org.opensearch.test.AbstractQueryTestCase;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Various test for {@link AbstractQueryTestCase}
  */
-public class AbstractQueryTestCaseTests extends ESTestCase {
+public class AbstractQueryTestCaseTests extends OpenSearchTestCase {
 
     public void testAlterateQueries() throws IOException {
         List<Tuple<String, Boolean>> alterations = alterateQueries(singleton("{\"field\": \"value\"}"), null);

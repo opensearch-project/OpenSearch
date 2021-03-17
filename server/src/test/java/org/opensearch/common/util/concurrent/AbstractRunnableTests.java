@@ -18,7 +18,7 @@
  */
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import org.mockito.InOrder;
 
@@ -31,7 +31,7 @@ import static org.mockito.Mockito.verify;
 /**
  * Tests {@link AbstractRunnable}
  */
-public class AbstractRunnableTests extends ESTestCase {
+public class AbstractRunnableTests extends OpenSearchTestCase {
     public void testRunSuccess() throws Exception {
         Callable<?> runCallable = mock(Callable.class);
 

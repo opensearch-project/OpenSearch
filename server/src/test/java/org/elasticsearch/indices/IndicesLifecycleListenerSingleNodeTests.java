@@ -36,7 +36,7 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,7 +48,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SH
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCase {
+public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     public void testStartDeleteIndexEventCallback() throws Throwable {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);

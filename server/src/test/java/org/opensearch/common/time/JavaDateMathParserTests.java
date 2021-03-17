@@ -21,7 +21,7 @@ package org.opensearch.common.time;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.bootstrap.JavaVersion;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class JavaDateMathParserTests extends ESTestCase {
+public class JavaDateMathParserTests extends OpenSearchTestCase {
 
     private final DateFormatter formatter = DateFormatter.forPattern("date_optional_time||epoch_millis");
     private final DateMathParser parser = formatter.toDateMathParser();

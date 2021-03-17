@@ -20,7 +20,7 @@
 package org.opensearch.common.joda;
 
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 
-public class JodaTests extends ESTestCase {
+public class JodaTests extends OpenSearchTestCase {
 
     public void testBasicTTimePattern() {
         DateFormatter formatter1 = Joda.forPattern("basic_t_time");

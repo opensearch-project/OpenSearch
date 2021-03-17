@@ -32,7 +32,7 @@ import org.opensearch.geometry.Line;
 import org.opensearch.geometry.LinearRing;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -41,7 +41,7 @@ import java.util.Map;
 /**
  * Tests for {@link GeometryParser}
  */
-public class GeometryParserTests extends ESTestCase {
+public class GeometryParserTests extends OpenSearchTestCase {
 
     public void testGeoJsonParsing() throws Exception {
 

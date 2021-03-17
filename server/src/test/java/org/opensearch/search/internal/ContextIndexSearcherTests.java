@@ -68,7 +68,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.aggregations.LeafBucketCollector;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -84,7 +84,7 @@ import static org.opensearch.search.internal.ExitableDirectoryReader.ExitableTer
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ContextIndexSearcherTests extends ESTestCase {
+public class ContextIndexSearcherTests extends OpenSearchTestCase {
     public void testIntersectScorerAndRoleBits() throws Exception {
         final Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(

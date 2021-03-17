@@ -32,7 +32,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import org.junit.Before;
 
@@ -50,7 +50,7 @@ import static org.elasticsearch.cluster.metadata.MetadataTests.assertLeafs;
 import static org.elasticsearch.cluster.metadata.MetadataTests.assertMultiField;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
+public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

@@ -28,7 +28,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 
@@ -37,7 +37,7 @@ import java.io.IOException;
 import static org.mockito.Mockito.mock;
 
 @TestLogging(value = "org.opensearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
-public class TransportLoggerTests extends ESTestCase {
+public class TransportLoggerTests extends OpenSearchTestCase {
 
     private MockLogAppender appender;
 

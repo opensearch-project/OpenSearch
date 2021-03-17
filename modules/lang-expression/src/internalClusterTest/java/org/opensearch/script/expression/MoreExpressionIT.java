@@ -40,7 +40,7 @@ import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.pipeline.SimpleValue;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Collection;
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 // TODO: please convert to unit tests!
-public class MoreExpressionIT extends ESIntegTestCase {
+public class MoreExpressionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

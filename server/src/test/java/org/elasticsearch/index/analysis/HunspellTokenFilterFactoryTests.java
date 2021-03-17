@@ -20,7 +20,7 @@ package org.elasticsearch.index.analysis;
 
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class HunspellTokenFilterFactoryTests extends ESTestCase {
+public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
     public void testDedup() throws IOException {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

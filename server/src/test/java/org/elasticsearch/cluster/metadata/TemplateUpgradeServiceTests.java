@@ -42,7 +42,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -79,7 +79,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
-public class TemplateUpgradeServiceTests extends ESTestCase {
+public class TemplateUpgradeServiceTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;

@@ -31,7 +31,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.node.Node;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.transport.TransportService;
 import org.opensearch.cluster.coordination.PublicationTransportHandler;
@@ -42,7 +42,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class PublicationTransportHandlerTests extends ESTestCase {
+public class PublicationTransportHandlerTests extends OpenSearchTestCase {
 
     public void testDiffSerializationFailure() {
         DeterministicTaskQueue deterministicTaskQueue =

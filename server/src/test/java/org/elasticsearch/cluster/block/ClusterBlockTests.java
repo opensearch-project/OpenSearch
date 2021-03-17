@@ -29,7 +29,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ClusterBlockTests extends ESTestCase {
+public class ClusterBlockTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
@@ -167,7 +167,7 @@ public class ClusterBlockTests extends ESTestCase {
 
         assertThat(builder.build().indices().get("index").size(), equalTo(clusterBlocks.length));
         assertThat(builder.build().getIndexBlockWithId("index", blockId), is(oneOf(clusterBlocks)));
-        assertThat(builder.build().getIndexBlockWithId("index", randomValueOtherThan(blockId, ESTestCase::randomInt)), nullValue());
+        assertThat(builder.build().getIndexBlockWithId("index", randomValueOtherThan(blockId, OpenSearchTestCase::randomInt)), nullValue());
     }
 
     private ClusterBlock randomClusterBlock() {

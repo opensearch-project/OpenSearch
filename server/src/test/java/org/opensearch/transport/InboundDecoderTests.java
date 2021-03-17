@@ -26,7 +26,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.hasItems;
 
-public class InboundDecoderTests extends ESTestCase {
+public class InboundDecoderTests extends OpenSearchTestCase {
 
     private ThreadContext threadContext;
 

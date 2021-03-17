@@ -35,11 +35,11 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class ListPluginsCommandTests extends ESTestCase {
+public class ListPluginsCommandTests extends OpenSearchTestCase {
 
     private Path home;
     private Environment env;

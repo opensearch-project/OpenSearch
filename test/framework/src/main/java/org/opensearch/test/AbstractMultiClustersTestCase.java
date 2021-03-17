@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
-public abstract class AbstractMultiClustersTestCase extends ESTestCase {
+public abstract class AbstractMultiClustersTestCase extends OpenSearchTestCase {
     public static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private static volatile ClusterGroup clusterGroup;

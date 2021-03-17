@@ -19,9 +19,9 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class RemoteClusterAwareTests extends ESTestCase {
+public class RemoteClusterAwareTests extends OpenSearchTestCase {
 
     public void testBuildRemoteIndexName() {
         {

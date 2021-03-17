@@ -20,9 +20,9 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.index.TieredMergePolicy;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class EsTieredMergePolicyTests extends ESTestCase {
+public class OpenSearchTieredMergePolicyTests extends OpenSearchTestCase {
 
     public void testDefaults() {
         EsTieredMergePolicy policy = new EsTieredMergePolicy();

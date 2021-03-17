@@ -30,7 +30,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
 
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.mock;
 /**
  * Tests for {@link RestBulkAction}.
  */
-public class RestBulkActionTests extends ESTestCase {
+public class RestBulkActionTests extends OpenSearchTestCase {
 
     public void testBulkPipelineUpsert() throws Exception {
         SetOnce<Boolean> bulkCalled = new SetOnce<>();

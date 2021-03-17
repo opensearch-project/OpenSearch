@@ -27,7 +27,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.rest.FakeRestRequest;
 
@@ -38,7 +38,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SettingsFilterTests extends ESTestCase {
+public class SettingsFilterTests extends OpenSearchTestCase {
     public void testAddingAndRemovingFilters() {
         HashSet<String> hashSet = new HashSet<>(Arrays.asList("foo", "bar", "baz"));
         SettingsFilter settingsFilter = new SettingsFilter(hashSet);

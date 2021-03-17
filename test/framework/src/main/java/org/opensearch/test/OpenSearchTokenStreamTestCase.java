@@ -41,11 +41,11 @@ import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
  * Basic test case for token streams. the assertion methods in this class will
  * run basic checks to enforce correct behavior of the token streams.
  */
-public abstract class ESTokenStreamTestCase extends BaseTokenStreamTestCase {
+public abstract class OpenSearchTokenStreamTestCase extends BaseTokenStreamTestCase {
 
     static {
         try {
-            Class.forName("org.opensearch.test.ESTestCase");
+            Class.forName("org.opensearch.test.OpenSearchTestCase");
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
         }

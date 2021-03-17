@@ -38,7 +38,7 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -55,7 +55,7 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /** Unit test(s) for IndexService */
-public class IndexServiceTests extends ESSingleNodeTestCase {
+public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

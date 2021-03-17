@@ -37,7 +37,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.opensearch.test.rest.yaml.section.ClientYamlTestSection;
@@ -67,7 +67,7 @@ import java.util.Set;
  * The suite timeout is extended to account for projects with a large number of tests.
  */
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
-public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
+public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTestCase {
 
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests
@@ -110,7 +110,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private final ClientYamlTestCandidate testCandidate;
 
-    protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
+    protected OpenSearchClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
     }
 
@@ -238,7 +238,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
-        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
+        Path root = PathUtils.get(OpenSearchClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
         for (String strPath : paths) {
             Path path = root.resolve(strPath);
             if (Files.isDirectory(path)) {

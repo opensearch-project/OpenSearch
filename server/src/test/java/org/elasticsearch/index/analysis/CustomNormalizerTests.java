@@ -26,8 +26,8 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.opensearch.test.ESTestCase;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import java.util.function.Function;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 
-public class CustomNormalizerTests extends ESTokenStreamTestCase {
+public class CustomNormalizerTests extends OpenSearchTokenStreamTestCase {
     private static final AnalysisPlugin MOCK_ANALYSIS_PLUGIN = new MockAnalysisPlugin();
 
     public void testBasics() throws IOException {
@@ -47,7 +47,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                 .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);
         assertNull(analysis.indexAnalyzers.get("my_normalizer"));
         NamedAnalyzer normalizer = analysis.indexAnalyzers.getNormalizer("my_normalizer");
         assertNotNull(normalizer);
@@ -89,7 +89,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                 .putList("index.analysis.normalizer.my_normalizer.char_filter", "my_mapping")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);
         assertNull(analysis.indexAnalyzers.get("my_normalizer"));
         NamedAnalyzer normalizer = analysis.indexAnalyzers.getNormalizer("my_normalizer");
         assertNotNull(normalizer);

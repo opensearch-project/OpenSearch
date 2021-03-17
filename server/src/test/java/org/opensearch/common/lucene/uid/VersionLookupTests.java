@@ -35,12 +35,12 @@ import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 /**
  * test per-segment lookup of version-related data structures
  */
-public class VersionLookupTests extends ESTestCase {
+public class VersionLookupTests extends OpenSearchTestCase {
 
     /**
      * test version lookup actually works

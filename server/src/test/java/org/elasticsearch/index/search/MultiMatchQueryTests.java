@@ -45,7 +45,7 @@ import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.MultiMatchQuery.FieldAndBoost;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.MockKeywordPlugin;
 import org.junit.Before;
 
@@ -61,7 +61,7 @@ import java.util.Map;
 import static org.opensearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiMatchQueryTests extends ESSingleNodeTestCase {
+public class MultiMatchQueryTests extends OpenSearchSingleNodeTestCase {
 
     private IndexService indexService;
 

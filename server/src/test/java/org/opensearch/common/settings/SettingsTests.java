@@ -33,7 +33,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.ByteArrayInputStream;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SettingsTests extends ESTestCase {
+public class SettingsTests extends OpenSearchTestCase {
 
     public void testReplacePropertiesPlaceholderSystemProperty() {
         String value = System.getProperty("java.home");

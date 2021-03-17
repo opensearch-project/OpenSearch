@@ -40,7 +40,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-public class PercolatorQuerySearchIT extends ESIntegTestCase {
+public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean addMockGeoShapeFieldMapper() {

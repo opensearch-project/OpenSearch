@@ -32,7 +32,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ import java.util.Objects;
 
 import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
-public class GetIndexResponseTests extends ESTestCase {
+public class GetIndexResponseTests extends OpenSearchTestCase {
 
     // Because the client-side class does not have a toXContent method, we test xContent serialization by creating
     // a random client object, converting it to a server object then serializing it to xContent, and finally

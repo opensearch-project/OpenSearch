@@ -21,7 +21,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.Locale;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Tests for EsExecutors and its components like EsAbortPolicy.
  */
-public class OpenSearchExecutorsTests extends ESTestCase {
+public class OpenSearchExecutorsTests extends OpenSearchTestCase {
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private TimeUnit randomTimeUnit() {

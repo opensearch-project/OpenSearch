@@ -30,7 +30,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.util.Arrays;
@@ -45,7 +45,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class IndexSettingsTests extends ESTestCase {
+public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testRunListener() {
         Version version = VersionUtils.getPreviousVersion();

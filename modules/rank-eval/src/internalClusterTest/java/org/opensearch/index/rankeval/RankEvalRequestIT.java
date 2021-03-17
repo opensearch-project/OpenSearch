@@ -31,7 +31,7 @@ import org.opensearch.index.rankeval.PrecisionAtK.Detail;
 import org.elasticsearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ import static org.opensearch.index.rankeval.EvaluationMetric.filterUnratedDocume
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RankEvalRequestIT extends ESIntegTestCase {
+public class RankEvalRequestIT extends OpenSearchIntegTestCase {
 
     private static final String TEST_INDEX = "test";
     private static final String INDEX_ALIAS = "alias0";

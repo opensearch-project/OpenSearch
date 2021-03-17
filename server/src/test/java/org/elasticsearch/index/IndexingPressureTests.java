@@ -23,9 +23,9 @@ import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.index.stats.IndexingPressureStats;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class IndexingPressureTests extends ESTestCase {
+public class IndexingPressureTests extends OpenSearchTestCase {
 
     private final Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB").build();
 

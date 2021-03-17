@@ -37,7 +37,7 @@ import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.ArrayList;
@@ -48,8 +48,8 @@ import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public abstract class AbstractGeoTestCase extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
 
     protected static final String SINGLE_VALUED_FIELD_NAME = "geo_value";
     protected static final String MULTI_VALUED_FIELD_NAME = "geo_values";

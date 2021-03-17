@@ -77,7 +77,7 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -124,7 +124,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class AsyncBulkByScrollActionTests extends ESTestCase {
+public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
     private MyMockClient client;
     private DummyAbstractBulkByScrollRequest testRequest;
     private SearchRequest firstSearchRequest;

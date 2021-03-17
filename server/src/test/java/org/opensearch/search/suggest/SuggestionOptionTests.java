@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.opensearch.search.suggest.phrase.PhraseSuggestion;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -35,7 +35,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class SuggestionOptionTests extends ESTestCase {
+public class SuggestionOptionTests extends OpenSearchTestCase {
 
     public static Option createTestItem() {
         Text text = new Text(randomAlphaOfLengthBetween(5, 15));

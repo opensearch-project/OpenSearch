@@ -58,7 +58,7 @@ import static com.carrotsearch.randomizedtesting.generators.RandomStrings.random
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomUnicodeOfLengthBetween;
 import static java.util.Collections.singleton;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
-import static org.opensearch.test.ESTestCase.randomFrom;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 
 public final class RandomObjects {
 

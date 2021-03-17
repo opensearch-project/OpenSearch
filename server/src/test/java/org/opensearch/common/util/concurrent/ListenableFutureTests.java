@@ -22,7 +22,7 @@ package org.opensearch.common.util.concurrent;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
 import java.util.concurrent.BrokenBarrierException;
@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.is;
 
-public class ListenableFutureTests extends ESTestCase {
+public class ListenableFutureTests extends OpenSearchTestCase {
 
     private ExecutorService executorService;
     private ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

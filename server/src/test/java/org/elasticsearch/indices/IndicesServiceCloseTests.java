@@ -39,7 +39,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
@@ -58,7 +58,7 @@ import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class IndicesServiceCloseTests extends ESTestCase {
+public class IndicesServiceCloseTests extends OpenSearchTestCase {
 
     private Node startNode() throws NodeValidationException {
         final Path tempDir = createTempDir();

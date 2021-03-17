@@ -24,7 +24,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.TransportResponse;
@@ -32,7 +32,7 @@ import org.opensearch.transport.TransportResponse.Empty;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RestBuilderListenerTests extends ESTestCase {
+public class RestBuilderListenerTests extends OpenSearchTestCase {
 
     public void testXContentBuilderClosedInBuildResponse() throws Exception {
         AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();

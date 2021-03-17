@@ -33,7 +33,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class SettingTests extends ESTestCase {
+public class SettingTests extends OpenSearchTestCase {
 
     public void testGet() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);

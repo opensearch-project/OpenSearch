@@ -26,7 +26,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.io.Streams;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*") // we do our own mocking
-public class FsBlobContainerTests extends ESTestCase {
+public class FsBlobContainerTests extends OpenSearchTestCase {
 
     final AtomicLong totalBytesRead = new AtomicLong(0);
     FileSystem fileSystem = null;
@@ -61,7 +61,7 @@ public class FsBlobContainerTests extends ESTestCase {
     public void setupMockFileSystems() {
         FileSystemProvider fileSystemProvider = new MockFileSystemProvider(PathUtils.getDefaultFileSystem(), totalBytesRead::addAndGet);
         fileSystem = fileSystemProvider.getFileSystem(null);
-        PathUtilsForTesting.installMock(fileSystem); // restored by restoreFileSystem in ESTestCase
+        PathUtilsForTesting.installMock(fileSystem); // restored by restoreFileSystem in OpenSearchTestCase
     }
 
     @After

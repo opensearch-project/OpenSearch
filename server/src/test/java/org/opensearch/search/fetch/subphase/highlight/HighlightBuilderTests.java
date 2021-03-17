@@ -53,7 +53,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryS
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -74,7 +74,7 @@ import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class HighlightBuilderTests extends ESTestCase {
+public class HighlightBuilderTests extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
@@ -739,7 +739,7 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     private static HighlightBuilder serializedCopy(HighlightBuilder original) throws IOException {
-        return ESTestCase.copyWriteable(original, namedWriteableRegistry, HighlightBuilder::new);
+        return OpenSearchTestCase.copyWriteable(original, namedWriteableRegistry, HighlightBuilder::new);
     }
 
     @Override

@@ -31,7 +31,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RemoteClusterServiceTests extends ESTestCase {
+public class RemoteClusterServiceTests extends OpenSearchTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 

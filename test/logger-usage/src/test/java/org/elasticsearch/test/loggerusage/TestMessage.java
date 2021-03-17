@@ -24,7 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 /**
  * This class is for testing that <code>ESLoggerUsageChecker</code> can find incorrect usages of LogMessages
  * which are subclasses of <code>ParametrizedMessage</code>
- * @see ESLoggerUsageTests
+ * @see OpenSearchLoggerUsageTests
  */
 class TestMessage extends ParameterizedMessage {
     TestMessage(String messagePattern, String xOpaqueId, Object... args) {

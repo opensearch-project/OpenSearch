@@ -48,7 +48,7 @@ import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.opensearch.index.mapper.SourceToParse;
-import org.opensearch.index.replication.ESIndexLevelReplicationTestCase;
+import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-public class RecoveryTests extends ESIndexLevelReplicationTestCase {
+public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
 
     public void testTranslogHistoryTransferred() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {

@@ -20,7 +20,7 @@ package org.opensearch.common.util;
 
 import org.opensearch.common.util.CancellableThreads.IOInterruptible;
 import org.opensearch.common.util.CancellableThreads.Interruptible;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.opensearch.common.util.CancellableThreads.ExecutionCancelledException;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CancellableThreadsTests extends ESTestCase {
+public class CancellableThreadsTests extends OpenSearchTestCase {
     public static class CustomException extends RuntimeException {
         public CustomException(String msg) {
             super(msg);

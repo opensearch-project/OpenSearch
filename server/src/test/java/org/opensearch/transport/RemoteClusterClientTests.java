@@ -26,7 +26,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -40,7 +40,7 @@ import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.opensearch.transport.RemoteClusterConnectionTests.startTransport;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteClusterClientTests extends ESTestCase {
+public class RemoteClusterClientTests extends OpenSearchTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Override

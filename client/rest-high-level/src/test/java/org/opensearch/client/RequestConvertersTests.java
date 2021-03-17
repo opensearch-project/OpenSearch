@@ -103,7 +103,7 @@ import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.opensearch.tasks.TaskId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 import org.hamcrest.Matchers;
 
@@ -135,7 +135,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RequestConvertersTests extends ESTestCase {
+public class RequestConvertersTests extends OpenSearchTestCase {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RequestConvertersTests.class);
 

@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 
-public abstract class AbstractXContentTestCase<T extends ToXContent> extends ESTestCase {
+public abstract class AbstractXContentTestCase<T extends ToXContent> extends OpenSearchTestCase {
     protected static final int NUMBER_OF_TEST_RUNS = 20;
 
     public static <T> XContentTester<T> xContentTester(

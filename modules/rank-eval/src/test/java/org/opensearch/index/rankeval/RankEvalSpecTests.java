@@ -35,7 +35,7 @@ import org.opensearch.index.rankeval.RankEvalSpec.ScriptWithId;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +53,7 @@ import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.containsString;
 
-public class RankEvalSpecTests extends ESTestCase {
+public class RankEvalSpecTests extends OpenSearchTestCase {
 
     @SuppressWarnings("resource")
     @Override
@@ -154,7 +154,7 @@ public class RankEvalSpecTests extends ESTestCase {
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(EvaluationMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));
-        return ESTestCase.copyWriteable(original, new NamedWriteableRegistry(namedWriteables), RankEvalSpec::new);
+        return OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(namedWriteables), RankEvalSpec::new);
     }
 
     public void testEqualsAndHash() throws IOException {

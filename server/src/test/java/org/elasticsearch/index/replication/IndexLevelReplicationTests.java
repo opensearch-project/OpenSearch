@@ -53,7 +53,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.opensearch.index.replication.ESIndexLevelReplicationTestCase;
+import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
@@ -82,7 +82,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase {
+public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationTestCase {
 
     public void testSimpleReplication() throws Exception {
         try (ReplicationGroup shards = createGroup(randomInt(2))) {

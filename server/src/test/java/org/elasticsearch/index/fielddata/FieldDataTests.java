@@ -23,11 +23,11 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.NumericUtils;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class FieldDataTests extends ESTestCase {
+public class FieldDataTests extends OpenSearchTestCase {
 
     private static class DummyValues extends AbstractNumericDocValues {
 

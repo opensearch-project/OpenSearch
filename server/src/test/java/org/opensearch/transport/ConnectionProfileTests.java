@@ -21,7 +21,7 @@ package org.opensearch.transport;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ import static org.opensearch.test.NodeRoles.nonMasterNode;
 import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ConnectionProfileTests extends ESTestCase {
+public class ConnectionProfileTests extends OpenSearchTestCase {
 
     public void testBuildConnectionProfile() {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();

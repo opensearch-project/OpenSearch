@@ -29,7 +29,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-public class BytesRefHashTests extends ESTestCase {
+public class BytesRefHashTests extends OpenSearchTestCase {
 
     BytesRefHash hash;
 

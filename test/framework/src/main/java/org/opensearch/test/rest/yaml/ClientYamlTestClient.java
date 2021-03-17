@@ -53,7 +53,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Used by {@link ESClientYamlSuiteTestCase} to execute REST requests according to the tests written in yaml suite files. Wraps a
+ * Used by {@link OpenSearchClientYamlSuiteTestCase} to execute REST requests according to the tests written in yaml suite files. Wraps a
  * {@link RestClient} instance used to send the REST requests. Holds the {@link ClientYamlSuiteRestSpec} used to translate api calls into
  * REST calls.
  */

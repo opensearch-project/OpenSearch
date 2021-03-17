@@ -25,7 +25,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.node.Node;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.threadpool.Scheduler.ReschedulingRunnable;
@@ -50,7 +50,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 /**
  * Unit tests for the scheduling of tasks with a fixed delay
  */
-public class ScheduleWithFixedDelayTests extends ESTestCase {
+public class ScheduleWithFixedDelayTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
 

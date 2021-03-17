@@ -25,10 +25,10 @@ import static org.hamcrest.Matchers.equalTo;
 import java.io.IOException;
 
 import org.opensearch.Version;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
-public class DelayableWriteableTests extends ESTestCase {
+public class DelayableWriteableTests extends OpenSearchTestCase {
     // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.
     private static class Example implements NamedWriteable {
         private final String s;

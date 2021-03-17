@@ -23,7 +23,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
 
@@ -36,7 +36,7 @@ import static org.opensearch.search.aggregations.support.AggregationUsageService
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class UsageServiceTests extends ESTestCase {
+public class UsageServiceTests extends OpenSearchTestCase {
 
     /**
      * Test that we can not add a null reference to a {@link org.opensearch.rest.RestHandler} to the {@link UsageService}.

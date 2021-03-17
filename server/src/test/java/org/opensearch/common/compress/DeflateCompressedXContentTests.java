@@ -22,7 +22,7 @@ package org.opensearch.common.compress;
 import org.apache.lucene.util.TestUtil;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.Random;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class DeflateCompressedXContentTests extends ESTestCase {
+public class DeflateCompressedXContentTests extends OpenSearchTestCase {
 
     private final Compressor compressor = new DeflateCompressor();
 

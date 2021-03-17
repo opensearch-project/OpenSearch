@@ -86,7 +86,7 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.suggest.SuggestBuilder;
-import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -117,7 +117,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 
-public class SearchServiceTests extends ESSingleNodeTestCase {
+public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected boolean resetNodeAfterTest() {

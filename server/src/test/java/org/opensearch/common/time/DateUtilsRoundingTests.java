@@ -19,14 +19,14 @@
 
 package org.opensearch.common.time;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateUtilsRoundingTests extends ESTestCase {
+public class DateUtilsRoundingTests extends OpenSearchTestCase {
 
     public void testDateUtilsRounding() {
         for (int year = -1000; year < 3000; year++) {

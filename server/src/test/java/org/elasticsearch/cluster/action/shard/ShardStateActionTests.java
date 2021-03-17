@@ -44,7 +44,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ShardStateActionTests extends ESTestCase {
+public class ShardStateActionTests extends OpenSearchTestCase {
     private static ThreadPool THREAD_POOL;
 
     private TestShardStateAction shardStateAction;

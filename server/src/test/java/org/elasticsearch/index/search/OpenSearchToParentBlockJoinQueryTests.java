@@ -26,11 +26,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class ESToParentBlockJoinQueryTests extends ESTestCase {
+public class OpenSearchToParentBlockJoinQueryTests extends OpenSearchTestCase {
 
     public void testEquals() {
         Query q1 = new OpenSearchToParentBlockJoinQuery(

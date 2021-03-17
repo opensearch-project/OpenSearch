@@ -19,7 +19,7 @@
 
 package org.opensearch.common.settings;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class SecureStringTests extends ESTestCase {
+public class SecureStringTests extends OpenSearchTestCase {
 
     public void testCloseableCharsDoesNotModifySecureString() {
         final char[] password = randomAlphaOfLengthBetween(1, 32).toCharArray();

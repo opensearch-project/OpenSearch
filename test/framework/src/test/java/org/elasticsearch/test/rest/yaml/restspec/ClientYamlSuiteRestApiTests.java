@@ -21,7 +21,7 @@ package org.elasticsearch.test.rest.yaml.restspec;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApiParser;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-public class ClientYamlSuiteRestApiTests extends ESTestCase {
+public class ClientYamlSuiteRestApiTests extends OpenSearchTestCase {
 
     public void testParseCommonSpec() throws IOException {
         XContentParser parser = createParser(YamlXContent.yamlXContent, COMMON_SPEC);

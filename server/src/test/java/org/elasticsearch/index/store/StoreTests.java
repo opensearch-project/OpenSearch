@@ -69,7 +69,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
@@ -103,7 +103,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StoreTests extends ESTestCase {
+public class StoreTests extends OpenSearchTestCase {
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build());

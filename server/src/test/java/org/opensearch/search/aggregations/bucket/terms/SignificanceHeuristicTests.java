@@ -44,7 +44,7 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformati
 import org.opensearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class SignificanceHeuristicTests extends ESTestCase {
+public class SignificanceHeuristicTests extends OpenSearchTestCase {
 
     // test that stream output can actually be read - does not replace bwc test
     public void testStreamResponse() throws Exception {
