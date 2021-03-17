@@ -89,10 +89,10 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.opensearch.common.util.iterable.Iterables;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
 import java.math.BigInteger;

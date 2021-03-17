@@ -41,7 +41,7 @@ import org.opensearch.action.search.MaxScoreCollector;
 import org.opensearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.opensearch.common.util.LongObjectPagedHashMap;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator;

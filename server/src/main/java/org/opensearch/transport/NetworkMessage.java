@@ -20,7 +20,7 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 
 /**
  * Represents a transport message sent over the network. Subclasses implement serialization and

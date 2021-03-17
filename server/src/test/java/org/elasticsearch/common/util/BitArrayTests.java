@@ -26,6 +26,8 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BitArray;
 
 import java.util.ArrayList;
 import java.util.Collections;

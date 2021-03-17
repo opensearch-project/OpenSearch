@@ -24,7 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.util.BigArrays;
+import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;

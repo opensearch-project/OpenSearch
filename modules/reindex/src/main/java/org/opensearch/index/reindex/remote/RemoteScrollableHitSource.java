@@ -39,14 +39,14 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.reindex.RejectAwareActionListener;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.opensearch.index.reindex.RejectAwareActionListener;
+import org.opensearch.index.reindex.ScrollableHitSource;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 

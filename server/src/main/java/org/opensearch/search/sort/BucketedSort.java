@@ -24,12 +24,12 @@ import org.apache.lucene.search.Scorable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.ScorerAware;
-import org.elasticsearch.common.util.BigArray;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.FloatArray;
-import org.elasticsearch.common.util.LongArray;
+import org.opensearch.common.util.BigArray;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BitArray;
+import org.opensearch.common.util.DoubleArray;
+import org.opensearch.common.util.FloatArray;
+import org.opensearch.common.util.LongArray;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;

@@ -19,7 +19,7 @@
 
 package org.opensearch.action.search;
 
-import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.search.SearchPhaseResult;
 
 import java.util.stream.Stream;

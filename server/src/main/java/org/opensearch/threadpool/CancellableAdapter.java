@@ -19,7 +19,7 @@
 
 package org.opensearch.threadpool;
 
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.opensearch.common.util.concurrent.FutureUtils;
 
 import java.util.concurrent.Future;
 

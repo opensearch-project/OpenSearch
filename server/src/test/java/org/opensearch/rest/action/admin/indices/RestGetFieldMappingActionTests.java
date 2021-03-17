@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestChannel;

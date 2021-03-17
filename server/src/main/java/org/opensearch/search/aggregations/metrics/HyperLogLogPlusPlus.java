@@ -23,11 +23,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.IntArray;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BitArray;
+import org.opensearch.common.util.ByteArray;
+import org.opensearch.common.util.ByteUtils;
+import org.opensearch.common.util.IntArray;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

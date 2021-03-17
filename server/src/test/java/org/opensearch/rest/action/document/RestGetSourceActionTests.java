@@ -23,7 +23,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;

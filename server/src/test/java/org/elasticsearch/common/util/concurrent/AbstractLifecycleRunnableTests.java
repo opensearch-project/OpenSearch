@@ -23,6 +23,7 @@ import org.opensearch.common.SuppressLoggerChecks;
 import org.opensearch.common.component.Lifecycle;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.InOrder;
+import org.opensearch.common.util.concurrent.AbstractLifecycleRunnable;
 
 import java.util.concurrent.Callable;
 

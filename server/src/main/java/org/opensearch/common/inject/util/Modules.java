@@ -40,7 +40,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.common.util.set.Sets.newHashSet;
 
 /**
  * Static utility methods for creating and working with instances of {@link Module}.

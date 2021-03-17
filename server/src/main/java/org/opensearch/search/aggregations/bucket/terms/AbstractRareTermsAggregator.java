@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
+import org.opensearch.common.util.SetBackedScalingCuckooFilter;
 import org.opensearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;

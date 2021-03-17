@@ -20,7 +20,7 @@
 package org.opensearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.util.Countable;
+import org.opensearch.common.util.Countable;
 
 import java.util.Iterator;
 import java.util.List;

@@ -22,6 +22,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.opensearch.common.util.concurrent.KeyedLock;
 
 import java.util.Arrays;
 import java.util.Collections;
