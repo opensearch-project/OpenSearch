@@ -19,7 +19,7 @@
 
 package org.opensearch.common.compress;
 
-import org.elasticsearch.Assertions;
+import org.opensearch.Assertions;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;

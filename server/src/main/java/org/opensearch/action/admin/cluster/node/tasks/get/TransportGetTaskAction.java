@@ -20,8 +20,8 @@
 package org.opensearch.action.admin.cluster.node.tasks.get;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.get.GetRequest;

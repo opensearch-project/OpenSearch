@@ -19,7 +19,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 
 /**
  * A class used to wrap a {@code Runnable} that allows capturing the time of the task since creation

@@ -20,7 +20,7 @@
 package org.opensearch.action.support.replication;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DefaultShardOperationFailedException;

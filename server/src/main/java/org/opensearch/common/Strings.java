@@ -21,7 +21,7 @@ package org.opensearch.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;

@@ -18,7 +18,7 @@
  */
 package org.opensearch.script;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;

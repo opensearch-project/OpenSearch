@@ -19,7 +19,7 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;

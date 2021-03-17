@@ -21,7 +21,7 @@ package org.opensearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Assertions;
+import org.opensearch.Assertions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.ElectionStrategy;

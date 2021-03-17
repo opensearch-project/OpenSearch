@@ -18,7 +18,7 @@
  */
 package org.opensearch.script.mustache;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.search.SearchRequest;

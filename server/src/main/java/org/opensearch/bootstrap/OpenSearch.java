@@ -23,7 +23,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
-import org.elasticsearch.Build;
+import org.opensearch.Build;
 import org.opensearch.cli.EnvironmentAwareCommand;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;

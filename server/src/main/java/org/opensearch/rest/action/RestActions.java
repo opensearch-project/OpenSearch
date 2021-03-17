@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;

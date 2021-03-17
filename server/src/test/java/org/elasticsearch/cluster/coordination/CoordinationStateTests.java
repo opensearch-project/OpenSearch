@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Assertions;
+import org.opensearch.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;

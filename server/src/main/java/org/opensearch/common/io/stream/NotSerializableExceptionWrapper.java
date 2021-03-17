@@ -20,7 +20,7 @@
 package org.opensearch.common.io.stream;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

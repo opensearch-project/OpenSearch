@@ -43,7 +43,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.get.GetRequest;

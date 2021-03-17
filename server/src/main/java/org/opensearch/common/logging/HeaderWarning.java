@@ -19,7 +19,7 @@
 
 package org.opensearch.common.logging;
 
-import org.elasticsearch.Build;
+import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.Task;
