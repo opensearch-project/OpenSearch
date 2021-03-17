@@ -42,7 +42,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -346,18 +346,18 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().componentTemplates().get("foo"));
 
         ComposableIndexTemplate firstGlobalIndexTemplate =
-                new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"), template,
-                        org.elasticsearch.common.collect.List.of("foo"), 1L, null, null, null);
+                new ComposableIndexTemplate(org.opensearch.common.collect.List.of("*"), template,
+                        org.opensearch.common.collect.List.of("foo"), 1L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate1", firstGlobalIndexTemplate);
 
         ComposableIndexTemplate secondGlobalIndexTemplate =
-                new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"), template,
-                        org.elasticsearch.common.collect.List.of("foo"), 2L, null, null, null);
+                new ComposableIndexTemplate(org.opensearch.common.collect.List.of("*"), template,
+                        org.opensearch.common.collect.List.of("foo"), 2L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate2", secondGlobalIndexTemplate);
 
         ComposableIndexTemplate fooPatternIndexTemplate =
-                new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("foo-*"), template,
-                        org.elasticsearch.common.collect.List.of("foo"), 3L, null, null, null);
+                new ComposableIndexTemplate(org.opensearch.common.collect.List.of("foo-*"), template,
+                        org.opensearch.common.collect.List.of("foo"), 3L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "foopatternindextemplate", fooPatternIndexTemplate);
 
         // update the component template to set the index.hidden setting
@@ -483,8 +483,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         waitToCreateComponentTemplate.await(10, TimeUnit.SECONDS);
 
-        ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"),
-            null, org.elasticsearch.common.collect.List.of("ct-with-index-hidden-setting"), null, null, null, null);
+        ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(org.opensearch.common.collect.List.of("*"),
+            null, org.opensearch.common.collect.List.of("ct-with-index-hidden-setting"), null, null, null, null);
 
         expectThrows(InvalidIndexTemplateException.class, () ->
             metadataIndexTemplateService.putIndexTemplateV2("testing", true, "template-referencing-ct-with-hidden-index-setting",
@@ -695,10 +695,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         Template templateWithHiddenSetting = new Template(builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
         try {
             // add an invalid global template that specifies the `index.hidden` setting
-            ComposableIndexTemplate invalidGlobalTemplate = new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"),
-                templateWithHiddenSetting, org.elasticsearch.common.collect.List.of("ct"), 5L, 1L, null, null);
+            ComposableIndexTemplate invalidGlobalTemplate = new ComposableIndexTemplate(org.opensearch.common.collect.List.of("*"),
+                templateWithHiddenSetting, org.opensearch.common.collect.List.of("ct"), 5L, 1L, null, null);
             Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(ComposableIndexTemplateMetadata.TYPE,
-                    new ComposableIndexTemplateMetadata(org.elasticsearch.common.collect.Map.of("invalid_global_template",
+                    new ComposableIndexTemplateMetadata(org.opensearch.common.collect.Map.of("invalid_global_template",
                                     invalidGlobalTemplate))).build();
 
             MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", false);
@@ -852,7 +852,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = service.addComponentTemplate(state, true, "ct1", ct1);
 
         {
-            ComposableIndexTemplate it = new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("logs*"),
+            ComposableIndexTemplate it = new ComposableIndexTemplate(org.opensearch.common.collect.List.of("logs*"),
                 new Template(null,
                     new CompressedXContent("{\n" +
                         "    \"properties\": {\n" +
@@ -861,7 +861,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                         "      }\n" +
                         "    }\n" +
                         "  }"), null),
-                org.elasticsearch.common.collect.List.of("ct1"), 0L, 1L, null,
+                org.opensearch.common.collect.List.of("ct1"), 0L, 1L, null,
                 new ComposableIndexTemplate.DataStreamTemplate());
             state = service.addIndexTemplateV2(state, true, "logs-data-stream-template", it);
 
@@ -874,7 +874,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .map(m -> {
                     try {
                         return MapperService.parseMapping(
-                            new NamedXContentRegistry(org.elasticsearch.common.collect.List.of()), m.string());
+                            new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());
@@ -883,29 +883,29 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 })
                 .collect(Collectors.toList());
 
-            Map<String, Object> firstParsedMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
-                        org.elasticsearch.common.collect.Map.of("type", "date"))));
+            Map<String, Object> firstParsedMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                        org.opensearch.common.collect.Map.of("type", "date"))));
             assertThat(parsedMappings.get(0), equalTo(firstParsedMapping));
 
-            Map<String, Object> secondMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of("field1",
-                        org.elasticsearch.common.collect.Map.of("type", "keyword"))));
+            Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of("field1",
+                        org.opensearch.common.collect.Map.of("type", "keyword"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
 
 
-            Map<String, Object> thirdMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of("field2",
-                        org.elasticsearch.common.collect.Map.of("type", "integer"))));
+            Map<String, Object> thirdMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of("field2",
+                        org.opensearch.common.collect.Map.of("type", "integer"))));
             assertThat(parsedMappings.get(2), equalTo(thirdMapping));
         }
 
         {
             // indices matched by templates without the data stream field defined don't get the default @timestamp mapping
-            ComposableIndexTemplate it = new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("timeseries*"),
+            ComposableIndexTemplate it = new ComposableIndexTemplate(org.opensearch.common.collect.List.of("timeseries*"),
                 new Template(null,
                     new CompressedXContent("{\n" +
                         "    \"properties\": {\n" +
@@ -914,7 +914,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                         "      }\n" +
                         "    }\n" +
                         "  }"), null),
-                org.elasticsearch.common.collect.List.of("ct1"), 0L, 1L, null, null);
+                org.opensearch.common.collect.List.of("ct1"), 0L, 1L, null, null);
             state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template", "timeseries");
@@ -925,7 +925,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .map(m -> {
                     try {
                         return MapperService.parseMapping(
-                            new NamedXContentRegistry(org.elasticsearch.common.collect.List.of()), m.string());
+                            new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());
@@ -934,17 +934,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 })
                 .collect(Collectors.toList());
 
-            Map<String, Object> firstMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of("field1",
-                        org.elasticsearch.common.collect.Map.of("type", "keyword"))));
+            Map<String, Object> firstMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of("field1",
+                        org.opensearch.common.collect.Map.of("type", "keyword"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
 
-            Map<String, Object> secondMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of("field2",
-                        org.elasticsearch.common.collect.Map.of("type", "integer"))));
+            Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of("field2",
+                        org.opensearch.common.collect.Map.of("type", "integer"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
 
             // a default @timestamp mapping will not be added if the matching template doesn't have the data stream field configured, even
@@ -958,7 +958,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .map(m -> {
                     try {
                         return MapperService.parseMapping(
-                            new NamedXContentRegistry(org.elasticsearch.common.collect.List.of()), m.string());
+                            new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());
@@ -967,17 +967,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 })
                 .collect(Collectors.toList());
 
-            firstMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of("field1",
-                        org.elasticsearch.common.collect.Map.of("type", "keyword"))));
+            firstMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of("field1",
+                        org.opensearch.common.collect.Map.of("type", "keyword"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
 
-            secondMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of("field2",
-                        org.elasticsearch.common.collect.Map.of("type", "integer"))));
+            secondMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of("field2",
+                        org.opensearch.common.collect.Map.of("type", "integer"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
     }
@@ -998,8 +998,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     "    }"), null), null, null);
 
             state = service.addComponentTemplate(state, true, "ct1", ct1);
-            ComposableIndexTemplate it = new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("logs*"), null,
-                org.elasticsearch.common.collect.List.of("ct1"), 0L, 1L, null,
+            ComposableIndexTemplate it = new ComposableIndexTemplate(org.opensearch.common.collect.List.of("logs*"), null,
+                org.opensearch.common.collect.List.of("ct1"), 0L, 1L, null,
                 new ComposableIndexTemplate.DataStreamTemplate());
             state = service.addIndexTemplateV2(state, true, "logs-template", it);
 
@@ -1012,7 +1012,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .map(m -> {
                     try {
                         return MapperService.parseMapping(
-                            new NamedXContentRegistry(org.elasticsearch.common.collect.List.of()), m.string());
+                            new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());
@@ -1021,16 +1021,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 })
                 .collect(Collectors.toList());
 
-            Map<String, Object> firstMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
-                        org.elasticsearch.common.collect.Map.of("type", "date"))));
+            Map<String, Object> firstMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                        org.opensearch.common.collect.Map.of("type", "date"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
-            Map<String, Object> secondMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
-                        org.elasticsearch.common.collect.Map.of("type", "date_nanos"))));
+            Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                        org.opensearch.common.collect.Map.of("type", "date_nanos"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
 
@@ -1044,7 +1044,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "      }\n" +
                 "    }"), null);
             ComposableIndexTemplate it = new ComposableIndexTemplate(
-                org.elasticsearch.common.collect.List.of("timeseries*"), template, null, 0L, 1L, null,
+                org.opensearch.common.collect.List.of("timeseries*"), template, null, 0L, 1L, null,
                 new ComposableIndexTemplate.DataStreamTemplate());
             state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
 
@@ -1057,7 +1057,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .map(m -> {
                     try {
                         return MapperService.parseMapping(
-                            new NamedXContentRegistry(org.elasticsearch.common.collect.List.of()), m.string());
+                            new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());
@@ -1065,16 +1065,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     }
                 })
                 .collect(Collectors.toList());
-            Map<String, Object> firstMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
-                        org.elasticsearch.common.collect.Map.of("type", "date"))));
+            Map<String, Object> firstMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                        org.opensearch.common.collect.Map.of("type", "date"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
-            Map<String, Object> secondMapping = org.elasticsearch.common.collect.Map.of("_doc",
-                org.elasticsearch.common.collect.Map.of("properties",
-                    org.elasticsearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
-                        org.elasticsearch.common.collect.Map.of("type", "date_nanos"))));
+            Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of("_doc",
+                org.opensearch.common.collect.Map.of("properties",
+                    org.opensearch.common.collect.Map.of(DEFAULT_TIMESTAMP_FIELD,
+                        org.opensearch.common.collect.Map.of("type", "date_nanos"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
     }

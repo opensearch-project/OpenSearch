@@ -20,7 +20,7 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.client.TimedRequest;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 
 /**

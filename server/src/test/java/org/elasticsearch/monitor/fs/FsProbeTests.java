@@ -20,7 +20,7 @@
 package org.elasticsearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.test.ESTestCase;

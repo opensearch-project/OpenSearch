@@ -19,14 +19,12 @@
 
 package org.opensearch;
 
-import org.opensearch.action.search.ReduceSearchPhaseException;
-import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;

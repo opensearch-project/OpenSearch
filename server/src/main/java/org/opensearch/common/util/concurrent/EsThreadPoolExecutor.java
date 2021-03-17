@@ -19,7 +19,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;

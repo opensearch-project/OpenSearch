@@ -20,8 +20,8 @@
 package org.elasticsearch.test;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;

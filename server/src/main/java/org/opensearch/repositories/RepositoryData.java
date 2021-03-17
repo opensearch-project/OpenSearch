@@ -22,7 +22,7 @@ package org.opensearch.repositories;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.opensearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

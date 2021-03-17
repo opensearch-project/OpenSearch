@@ -20,7 +20,7 @@ package org.opensearch.client;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;

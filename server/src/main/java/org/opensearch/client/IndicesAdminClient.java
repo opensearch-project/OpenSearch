@@ -121,7 +121,7 @@ import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequestBu
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 /**
  * Administrative actions/operations against indices.

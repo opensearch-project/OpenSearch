@@ -21,7 +21,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

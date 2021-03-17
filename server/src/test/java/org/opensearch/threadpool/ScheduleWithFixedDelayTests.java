@@ -21,7 +21,7 @@ package org.opensearch.threadpool;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.node.Node;

@@ -30,7 +30,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;

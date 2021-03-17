@@ -20,8 +20,8 @@
 package org.opensearch.env;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
 
 import java.io.IOException;
 import java.nio.file.FileStore;

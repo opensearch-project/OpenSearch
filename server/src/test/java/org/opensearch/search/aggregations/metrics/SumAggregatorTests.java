@@ -37,7 +37,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.TriConsumer;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -414,7 +414,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected ScriptService getMockScriptService() {
-        final Map<String, Function<Map<String, Object>, Object>> scripts = org.elasticsearch.common.collect.Map.of(
+        final Map<String, Function<Map<String, Object>, Object>> scripts = org.opensearch.common.collect.Map.of(
             VALUE_SCRIPT_NAME, vars -> ((Number) vars.get("_value")).doubleValue() + 1,
             FIELD_SCRIPT_NAME, vars -> {
                 final String fieldName = (String) vars.get("field");

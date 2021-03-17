@@ -21,7 +21,7 @@ package org.elasticsearch.common.xcontent.support;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -189,9 +189,9 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertNull(XContentMapValues.extractValue("object1.missing", map, "NULL"));
 
         assertEquals("NULL", XContentMapValues.extractValue("other_field", map, "NULL"));
-        assertEquals(org.elasticsearch.common.collect.List.of("value1", "NULL", "value2"),
+        assertEquals(org.opensearch.common.collect.List.of("value1", "NULL", "value2"),
             XContentMapValues.extractValue("array", map, "NULL"));
-        assertEquals(org.elasticsearch.common.collect.List.of("NULL", "value"),
+        assertEquals(org.opensearch.common.collect.List.of("NULL", "value"),
             XContentMapValues.extractValue("object_array.field", map, "NULL"));
         assertEquals("NULL", XContentMapValues.extractValue("object1.object2.field", map, "NULL"));
     }

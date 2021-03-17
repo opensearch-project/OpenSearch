@@ -20,7 +20,7 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
-import org.elasticsearch.common.Glob;
+import org.opensearch.common.Glob;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -18,9 +18,9 @@
  */
 package org.opensearch.client;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A base request for any requests that supply timeouts.

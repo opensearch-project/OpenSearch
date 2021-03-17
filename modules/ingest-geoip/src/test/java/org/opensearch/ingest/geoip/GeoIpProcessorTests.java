@@ -21,7 +21,7 @@ package org.opensearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
 import org.opensearch.common.CheckedSupplier;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.io.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;

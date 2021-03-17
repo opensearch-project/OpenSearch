@@ -20,8 +20,7 @@
 package org.opensearch.search;
 
 import org.opensearch.action.search.SearchRequest;
-import org.elasticsearch.common.CheckedFunction;
-import org.opensearch.search.RandomSearchRequestGenerator;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;

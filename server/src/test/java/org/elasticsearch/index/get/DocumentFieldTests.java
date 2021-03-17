@@ -21,8 +21,8 @@ package org.elasticsearch.index.get;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Map;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Map;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;

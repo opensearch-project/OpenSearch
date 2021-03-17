@@ -21,7 +21,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.MasterService;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 

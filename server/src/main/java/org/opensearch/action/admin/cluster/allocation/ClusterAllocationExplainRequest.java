@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.allocation;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

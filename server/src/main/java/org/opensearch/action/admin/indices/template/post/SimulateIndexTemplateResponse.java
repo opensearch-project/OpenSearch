@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.template.post;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.Template;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

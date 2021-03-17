@@ -21,13 +21,12 @@ package org.opensearch.search.internal;
 
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.dfs.AggregatedDfs;
-import org.opensearch.search.SearchService;
 import org.opensearch.transport.TransportRequest;
 
 import java.util.HashMap;
@@ -40,7 +39,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Holds a reference to a point in time {@link Engine.Searcher} that will be used to construct {@link SearchContext}.
- * This class also implements {@link org.elasticsearch.common.util.concurrent.RefCounted} since in some situations like
+ * This class also implements {@link org.opensearch.common.util.concurrent.RefCounted} since in some situations like
  * in {@link org.opensearch.search.SearchService} a SearchContext can be closed concurrently due to independent events
  * ie. when an index gets removed. To prevent accessing closed IndexReader / IndexSearcher instances the SearchContext
  * can be guarded by a reference count and fail if it's been closed by an external event.

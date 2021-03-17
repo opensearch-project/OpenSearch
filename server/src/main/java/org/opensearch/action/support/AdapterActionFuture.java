@@ -22,7 +22,7 @@ package org.opensearch.action.support;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;

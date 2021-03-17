@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.upgrade.post;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 
 import java.util.Map;
 

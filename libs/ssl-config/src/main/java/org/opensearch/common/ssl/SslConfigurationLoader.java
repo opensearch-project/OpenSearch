@@ -19,7 +19,7 @@
 
 package org.opensearch.common.ssl;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.opensearch.bootstrap.JavaVersion;
 
 import javax.crypto.Cipher;
 import javax.net.ssl.KeyManagerFactory;

@@ -19,7 +19,7 @@
 
 package org.opensearch.nio;
 
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.opensearch.common.concurrent.CompletableContext;
 
 import java.io.IOException;
 import java.net.BindException;

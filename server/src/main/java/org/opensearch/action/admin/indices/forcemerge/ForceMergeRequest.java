@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

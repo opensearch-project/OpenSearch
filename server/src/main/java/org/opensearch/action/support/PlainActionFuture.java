@@ -19,7 +19,7 @@
 
 package org.opensearch.action.support;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedConsumer;
 
 public class PlainActionFuture<T> extends AdapterActionFuture<T, T> {
 
