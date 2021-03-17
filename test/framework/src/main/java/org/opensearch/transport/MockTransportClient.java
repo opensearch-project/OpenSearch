@@ -22,7 +22,7 @@ import org.opensearch.client.transport.TransportClient;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.util.ArrayList;

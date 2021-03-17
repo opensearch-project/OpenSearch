@@ -20,6 +20,6 @@
 /**
  * Fetch sub phase that extracts significant portions of string fields, marking the matches. Pluggable by implementing
  * {@link org.opensearch.search.fetch.subphase.highlight.Highlighter} and
- * {@link org.elasticsearch.plugins.SearchPlugin#getHighlighters()}.
+ * {@link org.opensearch.plugins.SearchPlugin#getHighlighters()}.
  */
 package org.opensearch.search.fetch.subphase.highlight;

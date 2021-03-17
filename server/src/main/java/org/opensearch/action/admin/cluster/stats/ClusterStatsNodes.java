@@ -39,7 +39,7 @@ import org.opensearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
-import org.elasticsearch.plugins.PluginInfo;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.transport.TransportInfo;
 
 import java.io.IOException;

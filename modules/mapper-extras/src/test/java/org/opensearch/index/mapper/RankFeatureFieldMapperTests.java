@@ -28,7 +28,7 @@ import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.util.Arrays;
