@@ -129,7 +129,7 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.opensearch.client.RequestConverters.enforceSameContentType;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
+import static org.opensearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;

@@ -42,7 +42,7 @@ import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilters;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;

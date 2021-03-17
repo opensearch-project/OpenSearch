@@ -24,10 +24,10 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.script.BucketAggregationScript;
 import org.opensearch.script.Script;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;

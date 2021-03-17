@@ -32,7 +32,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.AggregatorTestCase;
 
 import java.net.InetAddress;
 import java.util.Arrays;

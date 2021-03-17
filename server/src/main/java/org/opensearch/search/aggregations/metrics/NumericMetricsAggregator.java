@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.common.util.Comparators;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 

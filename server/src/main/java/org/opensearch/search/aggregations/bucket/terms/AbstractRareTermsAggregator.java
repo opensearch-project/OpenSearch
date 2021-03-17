@@ -21,9 +21,9 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;

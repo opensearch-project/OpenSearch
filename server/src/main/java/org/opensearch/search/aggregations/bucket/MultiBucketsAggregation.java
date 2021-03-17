@@ -20,9 +20,9 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.HasAggregations;
+import org.opensearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregations;
+import org.opensearch.search.aggregations.HasAggregations;
 
 import java.util.List;
 

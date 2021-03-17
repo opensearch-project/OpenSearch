@@ -20,8 +20,8 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.opensearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.bucket.range.InternalRange.Factory;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;

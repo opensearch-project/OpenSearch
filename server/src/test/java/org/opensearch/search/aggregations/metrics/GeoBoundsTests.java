@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 
 public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregationBuilder> {
 

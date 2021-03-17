@@ -23,7 +23,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;

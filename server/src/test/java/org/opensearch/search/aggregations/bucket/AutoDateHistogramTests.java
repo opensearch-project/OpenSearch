@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 
 public class AutoDateHistogramTests extends BaseAggregationTestCase<AutoDateHistogramAggregationBuilder> {

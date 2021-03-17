@@ -33,9 +33,9 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.MultiBucketCollector;
+import org.opensearch.search.aggregations.BucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
 
 import java.io.IOException;

@@ -28,11 +28,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.aggregations.AbstractAggregationBuilder;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregationInitializationException;
+import org.opensearch.search.aggregations.AggregatorFactories.Builder;
+import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 

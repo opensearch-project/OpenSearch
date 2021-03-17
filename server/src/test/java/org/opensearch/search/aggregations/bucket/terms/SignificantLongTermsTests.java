@@ -20,8 +20,8 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.util.ArrayList;

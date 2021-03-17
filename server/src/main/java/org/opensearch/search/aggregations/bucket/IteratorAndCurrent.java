@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 
 import java.util.Iterator;
 

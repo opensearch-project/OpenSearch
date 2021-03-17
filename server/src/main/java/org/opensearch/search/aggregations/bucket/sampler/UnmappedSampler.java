@@ -20,9 +20,9 @@ package org.opensearch.search.aggregations.bucket.sampler;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 import java.util.List;

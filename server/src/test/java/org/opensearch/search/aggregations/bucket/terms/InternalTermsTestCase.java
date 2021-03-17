@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.junit.Before;
 

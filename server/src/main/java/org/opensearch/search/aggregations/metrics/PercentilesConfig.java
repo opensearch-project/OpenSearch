@@ -25,7 +25,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 

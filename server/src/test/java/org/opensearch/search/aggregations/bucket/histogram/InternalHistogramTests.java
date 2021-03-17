@@ -21,9 +21,9 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.TestUtil;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 

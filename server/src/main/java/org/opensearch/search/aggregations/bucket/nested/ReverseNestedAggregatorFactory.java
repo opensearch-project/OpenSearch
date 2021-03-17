@@ -21,12 +21,12 @@ package org.opensearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;

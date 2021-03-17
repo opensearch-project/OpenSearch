@@ -20,10 +20,10 @@ package org.opensearch.join.aggregations;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;

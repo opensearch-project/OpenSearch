@@ -25,7 +25,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.opensearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.suggest.Suggest;
 

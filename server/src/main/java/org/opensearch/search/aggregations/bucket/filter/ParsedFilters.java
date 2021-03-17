@@ -23,9 +23,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregations;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;

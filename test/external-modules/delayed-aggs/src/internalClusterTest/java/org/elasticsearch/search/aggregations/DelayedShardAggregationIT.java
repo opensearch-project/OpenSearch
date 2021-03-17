@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations;
+package org.opensearch.search.aggregations;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
+import org.opensearch.search.aggregations.metrics.InternalMax;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;

@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;

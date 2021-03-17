@@ -95,7 +95,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.search.suggest.phrase.CandidateGenerator#isKnownWord(org.apache.lucene.util.BytesRef)
+     * @see org.opensearch.search.suggest.phrase.CandidateGenerator#isKnownWord(org.apache.lucene.util.BytesRef)
      */
     @Override
     public boolean isKnownWord(BytesRef term) throws IOException {
@@ -103,7 +103,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.search.suggest.phrase.CandidateGenerator#frequency(org.apache.lucene.util.BytesRef)
+     * @see org.opensearch.search.suggest.phrase.CandidateGenerator#frequency(org.apache.lucene.util.BytesRef)
      */
     @Override
     public TermStats termStats(BytesRef term) throws IOException {
