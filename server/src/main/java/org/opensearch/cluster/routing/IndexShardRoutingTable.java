@@ -29,7 +29,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.ResponseCollectorService;
+import org.opensearch.node.ResponseCollectorService;
 
 import java.io.IOException;
 import java.util.ArrayList;

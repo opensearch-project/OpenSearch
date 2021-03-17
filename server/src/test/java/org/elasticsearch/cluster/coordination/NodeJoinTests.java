@@ -41,7 +41,7 @@ import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;

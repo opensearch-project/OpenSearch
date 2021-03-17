@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 
 import java.util.List;
 import java.util.Optional;

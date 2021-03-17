@@ -50,7 +50,7 @@ import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTST
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;

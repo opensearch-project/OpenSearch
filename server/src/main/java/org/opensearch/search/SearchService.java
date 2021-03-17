@@ -72,7 +72,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
-import org.elasticsearch.node.ResponseCollectorService;
+import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.FieldScript;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.AggregationInitializationException;

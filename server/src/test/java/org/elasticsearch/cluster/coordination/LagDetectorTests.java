@@ -31,7 +31,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.opensearch.cluster.coordination.LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;

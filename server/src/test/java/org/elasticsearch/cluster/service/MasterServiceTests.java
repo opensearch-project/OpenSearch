@@ -47,7 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;

@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.ResponseCollectorService;
+import org.opensearch.node.ResponseCollectorService;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -24,7 +24,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.node.NodeRoleSettings;
+import org.opensearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

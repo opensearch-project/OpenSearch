@@ -27,7 +27,7 @@ import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.node.ReportingService;
+import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.HashMap;

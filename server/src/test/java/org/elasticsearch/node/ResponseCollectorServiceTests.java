@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.node;
+package org.opensearch.node;
 
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;

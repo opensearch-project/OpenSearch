@@ -131,7 +131,7 @@ import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestMetadata;
 import org.opensearch.monitor.os.OsInfo;
-import org.elasticsearch.node.NodeMocksPlugin;
+import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;

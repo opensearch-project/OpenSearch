@@ -55,7 +55,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 
