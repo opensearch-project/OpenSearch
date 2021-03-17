@@ -24,8 +24,8 @@ import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;

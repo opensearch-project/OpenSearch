@@ -19,8 +19,8 @@
 package org.opensearch.client;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.client.NodesResponseHeader;
 
 import java.io.IOException;

@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.pipeline;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.ToXContentFragment;
 
 import java.io.IOException;
 import java.text.ParseException;

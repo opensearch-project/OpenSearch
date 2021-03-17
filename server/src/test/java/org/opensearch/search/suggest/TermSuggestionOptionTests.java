@@ -21,9 +21,9 @@ package org.opensearch.search.suggest;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.suggest.term.TermSuggestion.Entry.Option;
 import org.elasticsearch.test.ESTestCase;
 

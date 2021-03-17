@@ -23,10 +23,10 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ import static org.opensearch.common.geo.GeoBoundingBox.BOUNDS_FIELD;
 import static org.opensearch.common.geo.GeoBoundingBox.LAT_FIELD;
 import static org.opensearch.common.geo.GeoBoundingBox.LON_FIELD;
 import static org.opensearch.common.geo.GeoBoundingBox.TOP_LEFT_FIELD;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
 

@@ -19,7 +19,7 @@
 
 package org.opensearch.client.core;
 
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 
 import java.util.Objects;
 

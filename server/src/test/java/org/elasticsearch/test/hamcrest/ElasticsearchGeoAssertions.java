@@ -23,7 +23,7 @@ import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.Line;
 import org.opensearch.geometry.MultiLine;
 import org.hamcrest.Matcher;

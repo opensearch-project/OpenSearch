@@ -26,8 +26,8 @@ import org.opensearch.action.bulk.BulkItemResponse.Failure;
 import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 import org.elasticsearch.test.AbstractXContentTestCase;
 

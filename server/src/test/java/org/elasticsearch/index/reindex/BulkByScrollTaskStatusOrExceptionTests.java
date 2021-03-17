@@ -21,8 +21,8 @@ package org.elasticsearch.index.reindex;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollTask.StatusOrException;
 

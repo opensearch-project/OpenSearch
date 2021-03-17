@@ -20,7 +20,7 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.index.rankeval.RatedDocument.DocumentKey;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;

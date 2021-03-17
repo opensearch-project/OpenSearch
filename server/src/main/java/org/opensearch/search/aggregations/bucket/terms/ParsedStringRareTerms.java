@@ -23,9 +23,9 @@ import java.io.IOException;
 import java.nio.CharBuffer;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 
 public class ParsedStringRareTerms extends ParsedRareTerms {
     @Override

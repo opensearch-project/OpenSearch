@@ -19,9 +19,9 @@
 
 package org.opensearch.join.spi;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.ContextParser;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
 import org.opensearch.join.aggregations.ParentAggregationBuilder;
 import org.opensearch.join.aggregations.ParsedChildren;

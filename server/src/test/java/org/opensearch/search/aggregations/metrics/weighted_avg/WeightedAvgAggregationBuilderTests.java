@@ -21,8 +21,8 @@ package org.opensearch.search.aggregations.metrics.weighted_avg;
 
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;

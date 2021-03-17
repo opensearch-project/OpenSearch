@@ -22,8 +22,8 @@ package org.opensearch.common.xcontent.support;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContent;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

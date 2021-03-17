@@ -20,7 +20,7 @@
 package org.opensearch.rest.action;
 
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;

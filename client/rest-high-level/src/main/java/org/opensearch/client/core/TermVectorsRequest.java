@@ -22,8 +22,8 @@ package org.opensearch.client.core;
 import org.opensearch.client.Validatable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -22,11 +22,11 @@ package org.opensearch.action.admin.indices.template.post;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;

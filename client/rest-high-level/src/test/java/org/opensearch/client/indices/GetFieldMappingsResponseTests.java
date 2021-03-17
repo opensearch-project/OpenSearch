@@ -21,7 +21,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.client.indices.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

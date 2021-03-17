@@ -19,7 +19,7 @@
 
 package org.opensearch.search.suggest.phrase;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 

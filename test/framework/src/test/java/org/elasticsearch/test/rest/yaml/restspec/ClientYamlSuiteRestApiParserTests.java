@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.AbstractClientYamlTestFragmentParserTestCase;
 
 import java.util.Iterator;

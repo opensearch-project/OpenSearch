@@ -22,7 +22,7 @@ package org.opensearch.rest.action.document;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
