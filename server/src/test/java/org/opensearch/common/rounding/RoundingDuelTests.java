@@ -22,11 +22,9 @@ package org.opensearch.common.rounding;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 import org.joda.time.DateTimeZone;
-import org.opensearch.common.rounding.DateTimeUnit;
-import org.opensearch.common.rounding.Rounding;
 
 import java.time.ZoneOffset;
 

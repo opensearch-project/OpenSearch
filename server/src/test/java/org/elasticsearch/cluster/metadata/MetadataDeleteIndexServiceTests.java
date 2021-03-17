@@ -40,8 +40,8 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInProgressException;
 import org.opensearch.snapshots.SnapshotInfoTests;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
 

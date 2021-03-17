@@ -35,7 +35,7 @@ import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;

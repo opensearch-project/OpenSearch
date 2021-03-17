@@ -50,7 +50,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.opensearch.search.suggest.completion.context.CategoryContextMapping;
 import org.opensearch.search.suggest.completion.context.ContextBuilder;
 import org.opensearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.util.List;
 import java.util.Set;

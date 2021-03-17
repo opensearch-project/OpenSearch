@@ -34,7 +34,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.ElectionStrategy;
 

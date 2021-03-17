@@ -19,9 +19,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.util.concurrent.ResizableBlockingQueue;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 

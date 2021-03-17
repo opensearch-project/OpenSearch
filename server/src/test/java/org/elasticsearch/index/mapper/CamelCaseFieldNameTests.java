@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.opensearch.index.mapper.MapperServiceTestCase;
+
 public class CamelCaseFieldNameTests extends MapperServiceTestCase {
 
     public void testCamelCaseFieldNameStaysAsIs() throws Exception {

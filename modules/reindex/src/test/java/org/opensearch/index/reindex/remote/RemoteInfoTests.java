@@ -21,7 +21,7 @@ package org.opensearch.index.reindex.remote;
 
 import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
 

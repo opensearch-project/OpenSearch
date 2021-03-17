@@ -20,7 +20,7 @@
 package org.opensearch.client.core;
 
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
 public class TermVectorsResponseTests extends ESTestCase {
 

@@ -36,8 +36,8 @@ import org.opensearch.search.aggregations.pipeline.MaxBucketPipelineAggregationB
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

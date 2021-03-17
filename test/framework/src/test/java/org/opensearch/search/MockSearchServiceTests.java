@@ -20,7 +20,7 @@
 package org.opensearch.search;
 
 import org.opensearch.search.internal.ReaderContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;
 

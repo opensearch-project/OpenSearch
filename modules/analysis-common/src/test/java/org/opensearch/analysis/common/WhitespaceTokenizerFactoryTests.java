@@ -27,8 +27,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.Reader;

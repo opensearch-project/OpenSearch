@@ -29,7 +29,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 // TODO: This whole set of tests needs to be rethought.
 public class ValuesSourceConfigTests extends ESSingleNodeTestCase {

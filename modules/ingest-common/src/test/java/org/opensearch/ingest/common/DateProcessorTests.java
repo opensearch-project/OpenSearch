@@ -23,7 +23,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.script.TemplateScript;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;

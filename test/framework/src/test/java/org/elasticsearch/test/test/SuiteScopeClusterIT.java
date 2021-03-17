@@ -20,8 +20,8 @@ package org.elasticsearch.test.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.opensearch.common.SuppressForbidden;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestCluster;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.TestCluster;
 import org.junit.Test;
 
 import java.io.IOException;

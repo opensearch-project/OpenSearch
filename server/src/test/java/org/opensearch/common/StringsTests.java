@@ -22,8 +22,7 @@ package org.opensearch.common;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.Strings;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Collections;
 

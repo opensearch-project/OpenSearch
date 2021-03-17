@@ -34,7 +34,7 @@ import org.apache.lucene.util.TestUtil;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.HashSet;

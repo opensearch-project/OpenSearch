@@ -45,7 +45,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.mock.orig.Mockito;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

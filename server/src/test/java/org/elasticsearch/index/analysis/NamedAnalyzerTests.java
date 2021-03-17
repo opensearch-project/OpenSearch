@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class NamedAnalyzerTests extends ESTestCase {
 

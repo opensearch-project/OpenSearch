@@ -20,7 +20,7 @@
 package org.opensearch.common.hashing;
 
 import org.opensearch.common.hash.MurmurHash3;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;

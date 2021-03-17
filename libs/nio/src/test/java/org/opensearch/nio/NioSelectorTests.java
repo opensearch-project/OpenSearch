@@ -22,7 +22,7 @@ package org.opensearch.nio;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

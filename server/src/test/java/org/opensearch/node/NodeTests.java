@@ -36,9 +36,9 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockHttpTransport;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.MockHttpTransport;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -53,8 +53,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.NodeRoles.dataNode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.NodeRoles.dataNode;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

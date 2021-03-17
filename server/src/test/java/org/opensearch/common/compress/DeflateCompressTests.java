@@ -21,9 +21,7 @@ package org.opensearch.common.compress;
 
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.compress.Compressor;
-import org.opensearch.common.compress.DeflateCompressor;
+import org.opensearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

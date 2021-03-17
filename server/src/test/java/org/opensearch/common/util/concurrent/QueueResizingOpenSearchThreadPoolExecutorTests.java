@@ -21,15 +21,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.util.concurrent.EsAbortPolicy;
-import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
-import org.opensearch.common.util.concurrent.ResizableBlockingQueue;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.util.concurrent.TimedRunnable;
-import org.opensearch.common.util.concurrent.WrappedRunnable;
+import org.opensearch.test.ESTestCase;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;

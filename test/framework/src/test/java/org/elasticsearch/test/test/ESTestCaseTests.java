@@ -26,8 +26,8 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.RandomObjects;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.ArrayList;

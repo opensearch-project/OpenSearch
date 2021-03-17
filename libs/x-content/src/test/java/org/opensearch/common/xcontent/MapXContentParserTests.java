@@ -22,7 +22,7 @@ package org.opensearch.common.xcontent;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.support.MapXContentParser;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.EnumSet;

@@ -22,8 +22,10 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.http.HttpEntity;
 import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.opensearch.test.rest.yaml.ClientYamlTestResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,7 +42,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             new ClientYamlTestExecutionContext(null, randomBoolean()) {
                 @Override
                 ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                        HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
+                                                       HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
                     headersRef.set(headers);
                     return null;
                 }

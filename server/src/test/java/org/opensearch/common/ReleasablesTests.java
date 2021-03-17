@@ -20,7 +20,7 @@ package org.opensearch.common;
 
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;
 

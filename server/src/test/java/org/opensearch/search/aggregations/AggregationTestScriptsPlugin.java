@@ -23,7 +23,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;

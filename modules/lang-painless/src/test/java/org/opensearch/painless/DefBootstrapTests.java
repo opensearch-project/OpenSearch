@@ -23,7 +23,7 @@ import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.painless.symbol.FunctionTable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;

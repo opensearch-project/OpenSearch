@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.List;

@@ -33,7 +33,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;

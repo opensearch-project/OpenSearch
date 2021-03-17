@@ -20,7 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.opensearch.common.collect.Set;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.index.mapper.MockFieldMapper;
 
 import java.util.Arrays;
 import java.util.Collection;

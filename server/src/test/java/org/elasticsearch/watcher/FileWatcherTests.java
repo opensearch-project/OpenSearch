@@ -20,7 +20,7 @@ package org.elasticsearch.watcher;
 
 import org.opensearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.BufferedWriter;
 import java.io.IOException;

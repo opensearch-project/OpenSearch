@@ -56,8 +56,8 @@ import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PosixPermissionsResetter;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.PosixPermissionsResetter;
 import org.junit.After;
 import org.junit.Before;
 
@@ -107,7 +107,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;

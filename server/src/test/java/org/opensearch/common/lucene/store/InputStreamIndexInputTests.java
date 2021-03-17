@@ -24,8 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.lucene.store.InputStreamIndexInput;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

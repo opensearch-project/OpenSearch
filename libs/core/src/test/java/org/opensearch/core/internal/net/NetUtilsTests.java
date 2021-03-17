@@ -22,7 +22,7 @@ package org.opensearch.core.internal.net;
 import org.apache.lucene.util.Constants;
 import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class NetUtilsTests extends ESTestCase {
 

@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;

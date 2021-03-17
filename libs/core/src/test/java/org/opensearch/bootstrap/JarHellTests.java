@@ -21,7 +21,7 @@ package org.opensearch.bootstrap;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.PathUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.URL;

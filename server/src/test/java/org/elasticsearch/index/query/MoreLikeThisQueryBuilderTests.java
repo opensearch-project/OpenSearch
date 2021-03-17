@@ -45,7 +45,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
 import java.io.IOException;

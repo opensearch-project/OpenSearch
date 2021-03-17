@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;

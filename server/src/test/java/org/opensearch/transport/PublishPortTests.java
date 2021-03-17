@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;

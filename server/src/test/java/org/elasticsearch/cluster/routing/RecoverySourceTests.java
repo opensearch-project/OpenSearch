@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.routing.RecoverySource;
 
 import java.io.IOException;

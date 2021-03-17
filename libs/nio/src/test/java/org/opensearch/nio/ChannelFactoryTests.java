@@ -20,7 +20,7 @@
 package org.opensearch.nio;
 
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 

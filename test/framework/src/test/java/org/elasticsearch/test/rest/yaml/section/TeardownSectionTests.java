@@ -21,6 +21,8 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.opensearch.Version;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.test.rest.yaml.section.DoSection;
+import org.opensearch.test.rest.yaml.section.TeardownSection;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

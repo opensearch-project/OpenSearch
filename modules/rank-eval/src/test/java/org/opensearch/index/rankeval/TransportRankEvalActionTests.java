@@ -31,7 +31,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;

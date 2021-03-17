@@ -19,9 +19,8 @@
 
 package org.opensearch.common.time;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
-import org.opensearch.common.time.DateUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;

@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;

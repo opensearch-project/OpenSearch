@@ -24,7 +24,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.TemplateScript;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.net.URLEncoder;

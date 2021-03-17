@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.HashMap;

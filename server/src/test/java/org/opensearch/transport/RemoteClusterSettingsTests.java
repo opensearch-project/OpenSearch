@@ -25,14 +25,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.node.NodeRoleSettings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
-import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
 import static org.opensearch.transport.RemoteClusterService.ENABLE_REMOTE_CLUSTERS;
 import static org.opensearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.opensearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;

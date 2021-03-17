@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.test.rest;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.ESRestTestCase;
 
 import java.util.regex.Matcher;
 

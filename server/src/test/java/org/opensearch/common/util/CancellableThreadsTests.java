@@ -18,10 +18,9 @@
  */
 package org.opensearch.common.util;
 
-import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.CancellableThreads.IOInterruptible;
 import org.opensearch.common.util.CancellableThreads.Interruptible;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

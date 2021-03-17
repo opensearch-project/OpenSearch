@@ -35,7 +35,7 @@ import org.opensearch.http.HttpPipelinedRequest;
 import org.opensearch.http.HttpPipelinedResponse;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.After;
 
 import java.nio.channels.ClosedChannelException;

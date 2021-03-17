@@ -26,7 +26,7 @@ import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;

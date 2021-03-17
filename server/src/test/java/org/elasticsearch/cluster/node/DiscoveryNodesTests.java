@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;

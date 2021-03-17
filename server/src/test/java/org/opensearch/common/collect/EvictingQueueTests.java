@@ -17,8 +17,7 @@
 package org.opensearch.common.collect;
 
 import org.opensearch.common.util.CollectionUtils;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.collect.EvictingQueue;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.NoSuchElementException;

@@ -38,7 +38,7 @@ import org.opensearch.script.ScoreScript;
 import org.opensearch.script.Script;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 

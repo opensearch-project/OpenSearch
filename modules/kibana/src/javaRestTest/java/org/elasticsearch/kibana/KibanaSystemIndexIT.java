@@ -26,7 +26,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

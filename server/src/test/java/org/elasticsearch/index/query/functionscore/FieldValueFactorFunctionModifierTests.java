@@ -22,7 +22,7 @@ package org.elasticsearch.index.query.functionscore;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 

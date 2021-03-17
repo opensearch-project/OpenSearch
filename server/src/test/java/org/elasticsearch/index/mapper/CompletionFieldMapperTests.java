@@ -47,6 +47,7 @@ import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.CombinableMatcher;
+import org.opensearch.index.mapper.MapperTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

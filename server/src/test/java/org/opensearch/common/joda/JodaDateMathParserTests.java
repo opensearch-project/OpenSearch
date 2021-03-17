@@ -20,11 +20,9 @@
 package org.opensearch.common.joda;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.joda.Joda;
-import org.opensearch.common.joda.JodaDateMathParser;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
 import java.time.Instant;

@@ -25,7 +25,7 @@ import org.opensearch.common.io.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -44,8 +44,8 @@ import org.opensearch.search.aggregations.pipeline.AbstractPipelineAggregationBu
 import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -21,7 +21,7 @@ package org.opensearch.dissect;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.mockito.internal.util.collections.Sets;

@@ -24,13 +24,13 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 
 import static org.opensearch.index.reindex.ReindexTestCase.matcher;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
     @Override

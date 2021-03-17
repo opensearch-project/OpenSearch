@@ -20,11 +20,10 @@
 package org.opensearch.common;
 
 import org.opensearch.bootstrap.JavaVersion;
-import org.opensearch.common.LocalTimeOffset;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
 import org.opensearch.common.time.DateFormatter;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;

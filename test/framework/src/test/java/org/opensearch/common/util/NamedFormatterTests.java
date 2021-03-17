@@ -19,10 +19,9 @@
 
 package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
-import org.opensearch.common.util.NamedFormatter;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -23,10 +23,10 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 public abstract class AbstractTermsTestCase extends ESIntegTestCase {
 

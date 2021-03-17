@@ -23,8 +23,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 

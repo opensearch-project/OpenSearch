@@ -43,8 +43,8 @@ import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.nio.file.Path;
 import java.util.Arrays;

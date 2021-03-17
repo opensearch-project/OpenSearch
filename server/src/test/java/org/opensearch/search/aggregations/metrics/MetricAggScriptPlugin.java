@@ -28,7 +28,7 @@ import java.util.function.Function;
 
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.search.lookup.LeafDocLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 /**
  * Provides a number of dummy scripts for tests.

@@ -19,9 +19,8 @@
 
 package org.opensearch.common.network;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.OptionalMatchers;
-import org.opensearch.common.network.NetworkUtils;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.hamcrest.OptionalMatchers;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;

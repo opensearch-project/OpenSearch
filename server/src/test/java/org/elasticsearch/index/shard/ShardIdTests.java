@@ -21,7 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class ShardIdTests extends ESTestCase {
 

@@ -19,8 +19,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.concurrent.SizeBlockingQueue;
+import org.opensearch.test.ESTestCase;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;

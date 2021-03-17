@@ -19,8 +19,7 @@
 
 package org.opensearch.common.settings;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.settings.SecureString;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 

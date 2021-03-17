@@ -40,9 +40,9 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.NotEqualMessageBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;

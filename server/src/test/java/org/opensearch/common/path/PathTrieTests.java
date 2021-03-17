@@ -19,10 +19,9 @@
 
 package org.opensearch.common.path;
 
-import org.opensearch.common.path.PathTrie;
 import org.opensearch.common.path.PathTrie.TrieMatchingMode;
 import org.opensearch.rest.RestUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Iterator;

@@ -29,7 +29,7 @@ import java.util.Map;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.opensearch.ingest.common.ConvertProcessor.Type;

@@ -19,8 +19,7 @@
 
 package org.opensearch.common.util.iterable;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.iterable.Iterables;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

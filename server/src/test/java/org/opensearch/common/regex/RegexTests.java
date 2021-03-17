@@ -18,8 +18,7 @@
  */
 package org.opensearch.common.regex;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.regex.Regex;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Locale;
 import java.util.Random;

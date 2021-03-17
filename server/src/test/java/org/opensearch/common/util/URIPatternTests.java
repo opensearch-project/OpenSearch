@@ -18,8 +18,7 @@
  */
 package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.URIPattern;
+import org.opensearch.test.ESTestCase;
 
 import java.net.URI;
 

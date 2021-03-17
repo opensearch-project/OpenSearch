@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 public class LegacyTypeFieldMapperTests extends ESSingleNodeTestCase {
 

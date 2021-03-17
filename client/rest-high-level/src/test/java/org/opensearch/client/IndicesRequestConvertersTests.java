@@ -66,7 +66,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -82,9 +82,9 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.opensearch.client.indices.RandomCreateIndexGenerator.randomAliases;
 import static org.opensearch.client.indices.RandomCreateIndexGenerator.randomMapping;
-import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAlias;
-import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
-import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.opensearch.index.RandomCreateIndexGenerator.randomAlias;
+import static org.opensearch.index.RandomCreateIndexGenerator.randomIndexSettings;
+import static org.opensearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
 import static org.opensearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -174,7 +174,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
     public void testCreateIndexWithTypes() throws IOException {
         org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
-            org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
+            org.opensearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
@@ -926,7 +926,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         }
         if (ESTestCase.randomBoolean()) {
             rolloverRequest.getCreateIndexRequest().settings(
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings());
+                org.opensearch.index.RandomCreateIndexGenerator.randomIndexSettings());
         }
         RequestConvertersTests.setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards, expectedParams);
 
@@ -962,14 +962,14 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         if (ESTestCase.randomBoolean()) {
             String type = ESTestCase.randomAlphaOfLengthBetween(3, 10);
             rolloverRequest.getCreateIndexRequest().mapping(type,
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomMapping(type));
+                org.opensearch.index.RandomCreateIndexGenerator.randomMapping(type));
         }
         if (ESTestCase.randomBoolean()) {
-            org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
+            org.opensearch.index.RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
         }
         if (ESTestCase.randomBoolean()) {
             rolloverRequest.getCreateIndexRequest().settings(
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings());
+                org.opensearch.index.RandomCreateIndexGenerator.randomIndexSettings());
         }
         RequestConvertersTests.setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards, expectedParams);
 

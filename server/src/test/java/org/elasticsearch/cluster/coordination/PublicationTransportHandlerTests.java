@@ -31,8 +31,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.node.Node;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.CapturingTransport;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.transport.TransportService;
 import org.opensearch.cluster.coordination.PublicationTransportHandler;
 

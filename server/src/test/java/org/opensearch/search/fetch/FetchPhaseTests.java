@@ -19,7 +19,7 @@
 
 package org.opensearch.search.fetch;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class FetchPhaseTests extends ESTestCase {
     public void testSequentialDocs() {

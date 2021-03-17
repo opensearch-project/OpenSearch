@@ -28,8 +28,8 @@ import org.elasticsearch.ingest.IngestStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.MockScriptPlugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;

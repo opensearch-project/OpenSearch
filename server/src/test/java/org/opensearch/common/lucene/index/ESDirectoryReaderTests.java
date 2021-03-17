@@ -30,8 +30,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.test.ESTestCase;
 
 /** Simple tests for this filterreader */
 public class ESDirectoryReaderTests extends ESTestCase {

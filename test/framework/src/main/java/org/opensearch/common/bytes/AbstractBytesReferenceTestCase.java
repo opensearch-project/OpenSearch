@@ -30,9 +30,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ByteArray;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.test.ESTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;

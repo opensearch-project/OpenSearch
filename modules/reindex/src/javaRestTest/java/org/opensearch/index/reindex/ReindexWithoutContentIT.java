@@ -21,7 +21,7 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.ResponseException;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 

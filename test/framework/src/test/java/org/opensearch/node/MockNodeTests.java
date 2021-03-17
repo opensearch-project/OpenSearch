@@ -26,8 +26,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockHttpTransport;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.MockHttpTransport;
 
 import java.io.IOException;
 import java.util.ArrayList;

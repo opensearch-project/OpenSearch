@@ -19,7 +19,7 @@
 
 package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.opensearch.common.util.OpenSearchSloppyMath.atan;
 import static org.opensearch.common.util.OpenSearchSloppyMath.sinh;

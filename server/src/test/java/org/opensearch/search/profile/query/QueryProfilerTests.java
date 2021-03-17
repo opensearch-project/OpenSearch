@@ -47,7 +47,7 @@ import org.apache.lucene.util.TestUtil;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.ProfileResult;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;

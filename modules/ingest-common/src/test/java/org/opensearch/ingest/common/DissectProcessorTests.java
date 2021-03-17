@@ -24,7 +24,7 @@ import org.opensearch.dissect.DissectException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 
 import java.util.Collections;

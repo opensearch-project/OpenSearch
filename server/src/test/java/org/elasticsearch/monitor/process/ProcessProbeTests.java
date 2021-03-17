@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.process;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.elasticsearch.monitor.jvm.JvmInfo.jvmInfo;
 import static org.hamcrest.Matchers.allOf;

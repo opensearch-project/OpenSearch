@@ -22,7 +22,7 @@ package org.elasticsearch.index;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;

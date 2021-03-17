@@ -21,8 +21,8 @@ package org.opensearch.snapshots;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.UUIDs;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 

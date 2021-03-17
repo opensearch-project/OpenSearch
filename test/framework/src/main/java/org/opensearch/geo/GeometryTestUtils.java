@@ -32,7 +32,7 @@ import org.opensearch.geometry.MultiPolygon;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
+import static org.opensearch.test.ESTestCase.randomValueOtherThanMany;
 
 public class GeometryTestUtils {
 

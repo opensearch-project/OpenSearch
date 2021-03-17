@@ -19,7 +19,7 @@
 
 package org.opensearch.cli;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 
 /**

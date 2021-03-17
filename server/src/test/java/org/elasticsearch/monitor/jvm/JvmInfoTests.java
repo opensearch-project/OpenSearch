@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.bootstrap.JavaVersion;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class JvmInfoTests extends ESTestCase {
 

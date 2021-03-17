@@ -31,7 +31,7 @@ import org.opensearch.client.cluster.RemoteInfoRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.util.CollectionUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 

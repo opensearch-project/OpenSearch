@@ -19,8 +19,7 @@
 
 package org.opensearch.common.time;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.time.DateUtilsRounding;
+import org.opensearch.test.ESTestCase;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;

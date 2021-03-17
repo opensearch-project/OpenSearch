@@ -19,8 +19,8 @@
 package org.elasticsearch.test.rest.yaml;
 
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.BlacklistedPathPatternMatcher;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.yaml.BlacklistedPathPatternMatcher;
 
 public class BlacklistedPathPatternMatcherTests extends ESTestCase {
 

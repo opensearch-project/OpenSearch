@@ -20,7 +20,7 @@
 package org.opensearch.common.logging;
 
 import org.opensearch.common.SuppressForbidden;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.ESRestTestCase;
 
 import java.io.BufferedReader;
 import java.io.IOException;

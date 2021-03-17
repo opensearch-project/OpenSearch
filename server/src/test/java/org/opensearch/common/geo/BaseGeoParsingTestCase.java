@@ -18,14 +18,12 @@
  */
 package org.opensearch.common.geo;
 
-import org.opensearch.common.geo.GeoJson;
-import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;

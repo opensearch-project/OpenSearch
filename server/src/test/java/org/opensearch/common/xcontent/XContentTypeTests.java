@@ -19,7 +19,7 @@
 package org.opensearch.common.xcontent;
 
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Locale;
 

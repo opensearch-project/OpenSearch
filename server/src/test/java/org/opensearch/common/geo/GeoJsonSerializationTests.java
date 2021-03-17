@@ -32,8 +32,8 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.utils.GeographyValidator;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Map;

@@ -26,7 +26,7 @@ import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.painless.spi.WhitelistLoader;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;

@@ -21,7 +21,7 @@ package org.opensearch.ingest.common;
 import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.TestTemplateService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;

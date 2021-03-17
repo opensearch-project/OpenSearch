@@ -19,9 +19,8 @@
 
 package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.opensearch.common.util.LocaleUtils;
 
 import java.util.Locale;
 

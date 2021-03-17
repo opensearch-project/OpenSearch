@@ -20,8 +20,7 @@
 package org.opensearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.unit.RatioValue;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 

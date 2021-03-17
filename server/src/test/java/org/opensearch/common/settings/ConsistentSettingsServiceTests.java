@@ -24,14 +24,9 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.mock.orig.Mockito;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
-import org.opensearch.common.settings.ConsistentSettingsService;
-import org.opensearch.common.settings.MockSecureSettings;
-import org.opensearch.common.settings.SecureSetting;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
 
 import java.util.Arrays;
 import java.util.Locale;

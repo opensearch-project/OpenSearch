@@ -51,7 +51,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.opensearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,11 +65,11 @@ import java.util.Set;
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
-import static org.elasticsearch.test.VersionUtils.allReleasedVersions;
-import static org.elasticsearch.test.VersionUtils.compatibleFutureVersion;
-import static org.elasticsearch.test.VersionUtils.getFirstVersion;
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.opensearch.test.VersionUtils.allReleasedVersions;
+import static org.opensearch.test.VersionUtils.compatibleFutureVersion;
+import static org.opensearch.test.VersionUtils.getFirstVersion;
+import static org.opensearch.test.VersionUtils.getPreviousVersion;
+import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;

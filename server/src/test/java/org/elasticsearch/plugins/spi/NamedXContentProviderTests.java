@@ -26,7 +26,7 @@ import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.term.TermSuggestion;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;

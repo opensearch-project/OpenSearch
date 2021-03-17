@@ -26,9 +26,9 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.StreamsUtils;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.StreamsUtils;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

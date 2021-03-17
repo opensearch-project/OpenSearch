@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

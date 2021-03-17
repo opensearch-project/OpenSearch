@@ -19,8 +19,7 @@
 
 package org.opensearch.common.collect;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.collect.CopyOnWriteHashMap;
+import org.opensearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -23,7 +23,8 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;

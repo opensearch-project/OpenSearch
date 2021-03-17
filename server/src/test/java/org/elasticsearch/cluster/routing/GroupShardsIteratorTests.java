@@ -24,7 +24,7 @@ import org.elasticsearch.action.OriginalIndicesTests;
 import org.opensearch.action.search.SearchShardIterator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.PlainShardIterator;
 import org.opensearch.cluster.routing.ShardIterator;

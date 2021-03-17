@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.opensearch.action.search.SearchResponse;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {
     public void testWhenParsedQueryIsNullNoNullPointerExceptionIsThrown() {

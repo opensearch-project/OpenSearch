@@ -21,7 +21,7 @@ package org.opensearch.transport;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -31,9 +31,9 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 
-import static org.elasticsearch.test.NodeRoles.nonDataNode;
-import static org.elasticsearch.test.NodeRoles.nonMasterNode;
-import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.opensearch.test.NodeRoles.nonDataNode;
+import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ConnectionProfileTests extends ESTestCase {

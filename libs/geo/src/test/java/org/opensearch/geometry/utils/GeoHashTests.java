@@ -20,7 +20,7 @@ package org.opensearch.geometry.utils;
 
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 /**
  * Tests for {@link Geohash}

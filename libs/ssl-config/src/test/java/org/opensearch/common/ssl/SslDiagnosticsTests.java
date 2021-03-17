@@ -20,7 +20,7 @@
 package org.opensearch.common.ssl;
 
 import org.opensearch.common.Nullable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 

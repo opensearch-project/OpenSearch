@@ -18,8 +18,7 @@
  */
 package org.opensearch.common.rounding;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.rounding.DateTimeUnit;
+import org.opensearch.test.ESTestCase;
 
 import static org.opensearch.common.rounding.DateTimeUnit.DAY_OF_MONTH;
 import static org.opensearch.common.rounding.DateTimeUnit.HOUR_OF_DAY;

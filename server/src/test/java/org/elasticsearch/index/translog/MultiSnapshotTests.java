@@ -22,7 +22,7 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.opensearch.common.Randomness;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.stream.Collectors;

@@ -37,7 +37,7 @@ import org.opensearch.search.collapse.CollapseBuilderTests;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.opensearch.search.rescore.QueryRescorerBuilderTests;
 import org.opensearch.search.suggest.SuggestBuilderTests;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -88,8 +88,8 @@ import org.opensearch.join.query.HasParentQueryBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;

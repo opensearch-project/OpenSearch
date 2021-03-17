@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

@@ -19,7 +19,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.file.Path;
 

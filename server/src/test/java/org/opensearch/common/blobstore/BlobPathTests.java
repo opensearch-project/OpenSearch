@@ -19,8 +19,7 @@
 
 package org.opensearch.common.blobstore;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 

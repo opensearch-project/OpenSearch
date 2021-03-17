@@ -21,7 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.RamUsageTester;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class VersionValueTests extends ESTestCase {
 

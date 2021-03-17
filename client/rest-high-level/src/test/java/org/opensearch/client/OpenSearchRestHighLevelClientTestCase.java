@@ -47,7 +47,7 @@ import org.opensearch.ingest.Pipeline;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchModule;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 

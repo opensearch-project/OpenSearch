@@ -23,7 +23,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

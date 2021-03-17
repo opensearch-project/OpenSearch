@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.hasSize;
 
 import java.io.IOException;
@@ -47,8 +47,8 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder.ValidationContext;
 import org.opensearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
-import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.test.ESTestCase;
 
 public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelineAggregationBuilder<AF>> extends ESTestCase {
 

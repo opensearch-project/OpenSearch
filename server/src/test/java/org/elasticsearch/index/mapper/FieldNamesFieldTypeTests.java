@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Collections;
 

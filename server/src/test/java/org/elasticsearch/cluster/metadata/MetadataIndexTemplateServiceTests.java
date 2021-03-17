@@ -67,7 +67,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 import org.opensearch.cluster.metadata.Template;
 
 import java.io.IOException;

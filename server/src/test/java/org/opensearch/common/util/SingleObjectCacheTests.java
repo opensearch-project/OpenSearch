@@ -20,8 +20,7 @@
 package org.opensearch.common.util;
 
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.SingleObjectCache;
+import org.opensearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;

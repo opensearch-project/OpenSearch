@@ -21,8 +21,8 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.HashMap;

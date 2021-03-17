@@ -21,9 +21,8 @@ package org.opensearch.common.io;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

@@ -21,7 +21,7 @@ package org.opensearch.common.hppc;
 import com.carrotsearch.hppc.ObjectHashSet;
 import org.opensearch.Assertions;
 import org.opensearch.common.collect.HppcMaps;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;

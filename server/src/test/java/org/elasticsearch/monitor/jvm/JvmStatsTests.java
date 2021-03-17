@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

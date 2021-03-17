@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.ToXContent.Params;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,7 +36,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 import static org.opensearch.client.indices.GetMappingsResponse.MAPPINGS;
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
 public class GetMappingsResponseTests extends ESTestCase {
 

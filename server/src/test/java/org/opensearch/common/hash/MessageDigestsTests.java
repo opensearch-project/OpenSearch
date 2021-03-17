@@ -19,8 +19,7 @@
 
 package org.opensearch.common.hash;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.test.ESTestCase;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

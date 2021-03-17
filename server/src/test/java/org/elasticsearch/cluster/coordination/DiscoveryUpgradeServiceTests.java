@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.coordination.DiscoveryUpgradeService;
 
 import static org.hamcrest.Matchers.containsString;

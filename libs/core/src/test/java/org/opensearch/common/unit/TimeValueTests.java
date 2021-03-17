@@ -19,7 +19,7 @@
 
 package org.opensearch.common.unit;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.concurrent.TimeUnit;
 

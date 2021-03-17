@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.shards;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Assert;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;

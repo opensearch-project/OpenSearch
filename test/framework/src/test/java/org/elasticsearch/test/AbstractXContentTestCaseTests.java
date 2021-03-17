@@ -26,6 +26,8 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Map;
 

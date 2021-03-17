@@ -27,8 +27,8 @@ import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,7 +36,7 @@ import java.util.Collections;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.opensearch.test.ESIntegTestCase.Scope.SUITE;
 
 /**
  * Base test case for integration tests against the reindex plugin.

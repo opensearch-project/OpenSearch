@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public final class SharedGroupFactoryTests extends ESTestCase {
 

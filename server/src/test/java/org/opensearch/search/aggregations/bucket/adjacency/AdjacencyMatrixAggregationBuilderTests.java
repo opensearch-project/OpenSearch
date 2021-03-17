@@ -29,8 +29,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.TestSearchContext;
 
 import java.util.Collections;
 import java.util.HashMap;

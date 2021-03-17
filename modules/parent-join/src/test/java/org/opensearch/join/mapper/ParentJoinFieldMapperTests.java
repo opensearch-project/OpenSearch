@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.Collections;

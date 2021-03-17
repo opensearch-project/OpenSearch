@@ -19,9 +19,10 @@
 
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
-import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.disruption.NetworkDisruption.Bridge;
+import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
 
 import java.util.HashSet;
 import java.util.Set;

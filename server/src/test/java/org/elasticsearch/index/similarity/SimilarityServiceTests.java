@@ -27,8 +27,8 @@ import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.util.Collections;

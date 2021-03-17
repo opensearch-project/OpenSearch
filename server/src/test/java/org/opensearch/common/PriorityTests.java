@@ -19,8 +19,7 @@
 package org.opensearch.common;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.Priority;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

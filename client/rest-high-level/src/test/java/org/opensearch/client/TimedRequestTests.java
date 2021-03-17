@@ -20,7 +20,7 @@
 package org.opensearch.client;
 
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class TimedRequestTests extends ESTestCase {
 

@@ -25,7 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.channels.Channels;

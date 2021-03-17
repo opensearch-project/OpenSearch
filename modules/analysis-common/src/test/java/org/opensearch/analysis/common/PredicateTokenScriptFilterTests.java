@@ -31,8 +31,8 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Collections;

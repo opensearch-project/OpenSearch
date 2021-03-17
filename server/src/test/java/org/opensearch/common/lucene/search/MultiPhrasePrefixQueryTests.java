@@ -30,8 +30,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.opensearch.common.lucene.Lucene;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 

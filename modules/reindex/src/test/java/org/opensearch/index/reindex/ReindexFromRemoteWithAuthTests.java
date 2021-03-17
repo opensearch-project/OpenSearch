@@ -53,7 +53,7 @@ import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4Plugin;
 import org.elasticsearch.watcher.ResourceWatcherService;

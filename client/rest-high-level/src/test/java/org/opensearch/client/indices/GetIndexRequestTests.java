@@ -21,7 +21,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.indices.GetIndexRequest.Feature;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class GetIndexRequestTests extends ESTestCase {
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.index;
 
 import org.opensearch.common.lucene.uid.Versions;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 

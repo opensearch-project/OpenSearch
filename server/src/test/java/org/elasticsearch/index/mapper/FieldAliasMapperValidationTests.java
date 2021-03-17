@@ -23,7 +23,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.index.mapper.MockFieldMapper;
 
 import java.util.Arrays;
 import java.util.Collections;

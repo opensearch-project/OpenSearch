@@ -22,7 +22,7 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.analysis.HunspellService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.file.Path;
 

@@ -19,8 +19,7 @@
 
 package org.opensearch.common.logging;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.logging.PrefixLogger;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 

@@ -31,7 +31,7 @@ import org.elasticsearch.client.Request;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;

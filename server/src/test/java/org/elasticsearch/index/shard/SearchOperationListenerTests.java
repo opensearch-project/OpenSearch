@@ -20,8 +20,8 @@ package org.elasticsearch.index.shard;
 
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.TestSearchContext;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequest.Empty;
 

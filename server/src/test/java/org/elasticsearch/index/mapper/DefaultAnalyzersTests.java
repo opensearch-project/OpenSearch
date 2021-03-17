@@ -25,6 +25,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

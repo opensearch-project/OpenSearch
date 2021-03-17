@@ -22,8 +22,7 @@ package org.opensearch.common.settings;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.settings.PropertyPlaceholder;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 

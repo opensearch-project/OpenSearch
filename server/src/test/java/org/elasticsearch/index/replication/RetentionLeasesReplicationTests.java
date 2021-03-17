@@ -27,13 +27,14 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseSyncAction;
-import org.elasticsearch.index.seqno.RetentionLeaseUtils;
+import org.opensearch.index.seqno.RetentionLeaseUtils;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -28,6 +28,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.opensearch.index.mapper.AbstractNumericFieldMapperTestCase;
 
 import java.io.IOException;
 import java.math.BigInteger;

@@ -25,7 +25,7 @@ import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.TestProcessor;
 import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.script.TemplateScript;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

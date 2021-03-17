@@ -23,8 +23,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

@@ -21,11 +21,11 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.util.Collection;
 
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
 
 /**
  * Rudimentary tests that the templates used by Logstash and Beats

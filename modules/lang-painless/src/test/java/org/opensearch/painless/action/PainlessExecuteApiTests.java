@@ -31,7 +31,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;

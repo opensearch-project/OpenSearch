@@ -31,7 +31,7 @@ import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.util.Collections;
 

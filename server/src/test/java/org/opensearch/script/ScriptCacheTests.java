@@ -21,7 +21,7 @@ package org.opensearch.script;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class ScriptCacheTests extends ESTestCase {
     // even though circuit breaking is allowed to be configured per minute, we actually weigh this over five minutes

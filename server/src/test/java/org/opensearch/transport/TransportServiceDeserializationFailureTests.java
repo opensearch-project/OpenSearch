@@ -29,8 +29,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransport;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;

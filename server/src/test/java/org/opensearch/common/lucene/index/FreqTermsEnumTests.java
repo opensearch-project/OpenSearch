@@ -36,10 +36,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.common.lucene.index.FreqTermsEnum;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.BigArrays;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 

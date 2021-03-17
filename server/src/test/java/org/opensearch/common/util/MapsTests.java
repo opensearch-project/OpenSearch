@@ -19,8 +19,7 @@
 
 package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.Maps;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;

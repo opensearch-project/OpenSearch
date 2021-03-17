@@ -19,7 +19,6 @@
 
 package org.opensearch.test.rest;
 
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.Request;
 

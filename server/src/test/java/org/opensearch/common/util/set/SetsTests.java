@@ -20,8 +20,7 @@
 package org.opensearch.common.util.set;
 
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.set.Sets;
+import org.opensearch.test.ESTestCase;
 
 import java.util.HashSet;
 import java.util.Iterator;

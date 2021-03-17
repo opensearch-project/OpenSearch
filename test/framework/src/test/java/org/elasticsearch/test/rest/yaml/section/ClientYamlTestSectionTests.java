@@ -23,6 +23,16 @@ import org.opensearch.Version;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.test.rest.yaml.section.ClientYamlTestSection;
+import org.opensearch.test.rest.yaml.section.DoSection;
+import org.opensearch.test.rest.yaml.section.GreaterThanAssertion;
+import org.opensearch.test.rest.yaml.section.IsFalseAssertion;
+import org.opensearch.test.rest.yaml.section.IsTrueAssertion;
+import org.opensearch.test.rest.yaml.section.LengthAssertion;
+import org.opensearch.test.rest.yaml.section.LessThanAssertion;
+import org.opensearch.test.rest.yaml.section.MatchAssertion;
+import org.opensearch.test.rest.yaml.section.SetSection;
+import org.opensearch.test.rest.yaml.section.SkipSection;
 
 import java.io.IOException;
 import java.util.Map;

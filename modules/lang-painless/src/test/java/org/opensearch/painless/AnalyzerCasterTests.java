@@ -20,7 +20,7 @@
 package org.opensearch.painless;
 
 import org.opensearch.painless.lookup.PainlessCast;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class AnalyzerCasterTests extends ESTestCase {
 

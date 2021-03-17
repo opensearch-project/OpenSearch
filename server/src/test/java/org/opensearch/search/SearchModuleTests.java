@@ -73,7 +73,7 @@ import org.opensearch.search.suggest.SuggestionSearchContext;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.opensearch.search.suggest.term.TermSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

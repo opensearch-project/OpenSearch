@@ -24,7 +24,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.ObjectParserTests.NamedObject;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.ByteArrayOutputStream;

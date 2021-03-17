@@ -30,7 +30,7 @@ import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.RandomScoreFunction;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.mockito.Mockito;
 
 import java.util.Arrays;

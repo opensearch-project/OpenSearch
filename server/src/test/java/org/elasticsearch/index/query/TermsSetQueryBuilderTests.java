@@ -48,9 +48,9 @@ import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
+import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

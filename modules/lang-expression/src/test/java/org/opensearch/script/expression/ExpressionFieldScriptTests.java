@@ -27,7 +27,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.opensearch.script.FieldScript;
 import org.opensearch.script.ScriptException;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.text.ParseException;

@@ -43,7 +43,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.opensearch.script.SimilarityScript;
 import org.opensearch.script.SimilarityWeightScript;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

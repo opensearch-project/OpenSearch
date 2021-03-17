@@ -20,7 +20,7 @@
 package org.elasticsearch.indices;
 
 import org.opensearch.common.xcontent.ToXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Collections;
 

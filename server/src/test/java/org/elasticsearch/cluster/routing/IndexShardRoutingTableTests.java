@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 
 import java.util.ArrayList;

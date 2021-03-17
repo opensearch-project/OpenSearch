@@ -20,8 +20,7 @@
 package org.opensearch.common;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.Numbers;
+import org.opensearch.test.ESTestCase;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;

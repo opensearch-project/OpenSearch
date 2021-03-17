@@ -20,7 +20,7 @@
 package org.opensearch.grok;
 
 import org.opensearch.grok.GrokCaptureConfig.NativeExtracterMap;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;

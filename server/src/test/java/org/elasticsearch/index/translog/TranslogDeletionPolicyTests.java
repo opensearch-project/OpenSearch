@@ -28,7 +28,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.mockito.Mockito;
 
 import java.io.IOException;

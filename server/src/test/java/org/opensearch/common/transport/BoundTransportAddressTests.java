@@ -21,9 +21,7 @@ package org.opensearch.common.transport;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.test.ESTestCase;
 
 import java.net.InetAddress;
 import java.util.ArrayList;

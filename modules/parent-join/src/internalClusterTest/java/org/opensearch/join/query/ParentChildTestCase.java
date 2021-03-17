@@ -27,8 +27,8 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexModule;
 import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;

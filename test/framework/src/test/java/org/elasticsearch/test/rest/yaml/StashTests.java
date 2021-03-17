@@ -19,7 +19,8 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.yaml.Stash;
 
 import java.io.IOException;
 import java.util.Arrays;

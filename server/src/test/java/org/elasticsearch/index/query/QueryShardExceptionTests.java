@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 

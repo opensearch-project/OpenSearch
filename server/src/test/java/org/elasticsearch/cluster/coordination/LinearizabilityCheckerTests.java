@@ -23,7 +23,7 @@ import org.opensearch.cluster.coordination.LinearizabilityChecker.History;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.KeyedSpec;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Optional;
 

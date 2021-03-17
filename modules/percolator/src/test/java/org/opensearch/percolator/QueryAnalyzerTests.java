@@ -64,7 +64,7 @@ import org.opensearch.common.network.InetAddresses;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.opensearch.percolator.QueryAnalyzer.QueryExtraction;
 import org.opensearch.percolator.QueryAnalyzer.Result;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

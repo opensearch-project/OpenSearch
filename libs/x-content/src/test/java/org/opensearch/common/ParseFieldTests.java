@@ -19,7 +19,7 @@
 package org.opensearch.common;
 
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;

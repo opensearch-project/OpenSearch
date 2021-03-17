@@ -20,8 +20,7 @@
 package org.opensearch.common.network;
 
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.network.Cidrs;
+import org.opensearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -21,8 +21,7 @@ package org.opensearch.common.geo;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.geo.SpatialStrategy;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

@@ -19,7 +19,7 @@
 
 package org.opensearch.search.sort;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Locale;
 

@@ -26,8 +26,9 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 
 import java.io.IOException;
 import java.io.Reader;

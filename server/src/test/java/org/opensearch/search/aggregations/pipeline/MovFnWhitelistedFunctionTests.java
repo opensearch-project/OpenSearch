@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.collect.EvictingQueue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 

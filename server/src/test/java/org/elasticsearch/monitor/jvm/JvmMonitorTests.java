@@ -20,7 +20,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;

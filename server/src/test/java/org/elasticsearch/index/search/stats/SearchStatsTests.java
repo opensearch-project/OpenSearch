@@ -20,7 +20,7 @@
 package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;

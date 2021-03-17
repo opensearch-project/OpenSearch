@@ -21,7 +21,7 @@ package org.opensearch.ingest.useragent;
 
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;

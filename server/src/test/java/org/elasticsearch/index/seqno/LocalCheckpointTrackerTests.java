@@ -22,7 +22,7 @@ package org.elasticsearch.index.seqno;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;

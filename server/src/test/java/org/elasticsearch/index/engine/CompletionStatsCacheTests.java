@@ -32,7 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.concurrent.BrokenBarrierException;

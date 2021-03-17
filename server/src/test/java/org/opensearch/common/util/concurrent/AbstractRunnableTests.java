@@ -18,10 +18,9 @@
  */
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import org.mockito.InOrder;
-import org.opensearch.common.util.concurrent.AbstractRunnable;
 
 import java.util.concurrent.Callable;
 

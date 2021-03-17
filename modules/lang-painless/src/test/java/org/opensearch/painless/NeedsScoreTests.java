@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.script.NumberSortScript;
 import org.opensearch.script.ScriptContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;

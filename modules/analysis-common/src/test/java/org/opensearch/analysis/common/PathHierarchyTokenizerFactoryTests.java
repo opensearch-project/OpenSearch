@@ -24,8 +24,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.analysis.Tokenizer;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.StringReader;

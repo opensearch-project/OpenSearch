@@ -21,12 +21,7 @@ package org.opensearch.common.util.concurrent;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.common.util.concurrent.PrioritizedCallable;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
-import org.opensearch.common.util.concurrent.PrioritizedRunnable;
-import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 

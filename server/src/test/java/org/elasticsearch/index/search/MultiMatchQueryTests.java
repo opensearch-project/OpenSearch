@@ -40,13 +40,13 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
+import org.opensearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.MultiMatchQuery.FieldAndBoost;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.MockKeywordPlugin;
+import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.MockKeywordPlugin;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

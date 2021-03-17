@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.opensearch.test.AbstractNamedWriteableTestCase;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.DataStreamMetadata;
 

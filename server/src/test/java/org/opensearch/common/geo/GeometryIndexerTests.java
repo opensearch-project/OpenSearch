@@ -47,7 +47,7 @@ import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 public class GeometryIndexerTests extends ESTestCase {

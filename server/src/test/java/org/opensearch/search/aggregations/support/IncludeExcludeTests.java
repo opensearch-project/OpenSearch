@@ -33,7 +33,7 @@ import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -47,7 +47,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -59,7 +59,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDocumentationIT extends ESIntegTestCase {

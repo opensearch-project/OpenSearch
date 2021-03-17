@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.TermsSetQueryScript;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyObject;

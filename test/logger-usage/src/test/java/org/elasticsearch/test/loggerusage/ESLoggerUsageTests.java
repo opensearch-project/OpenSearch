@@ -27,7 +27,7 @@ import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
 import org.opensearch.common.SuppressLoggerChecks;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
 
 import java.io.IOException;

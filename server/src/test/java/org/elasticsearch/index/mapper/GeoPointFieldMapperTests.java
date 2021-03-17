@@ -24,6 +24,7 @@ import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.hamcrest.CoreMatchers;
+import org.opensearch.index.mapper.FieldMapperTestCase2;
 
 import java.io.IOException;
 import java.util.Set;

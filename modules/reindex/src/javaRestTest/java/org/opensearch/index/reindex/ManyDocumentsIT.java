@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.client.Request;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;

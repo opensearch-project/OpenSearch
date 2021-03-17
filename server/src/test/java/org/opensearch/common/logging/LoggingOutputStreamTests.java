@@ -19,9 +19,8 @@
 
 package org.opensearch.common.logging;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Before;
-import org.opensearch.common.logging.LoggingOutputStream;
 
 import java.io.IOException;
 import java.io.PrintStream;

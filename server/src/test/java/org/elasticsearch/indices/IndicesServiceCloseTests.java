@@ -39,11 +39,11 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.MockHttpTransport;
+import org.opensearch.test.hamcrest.ElasticsearchAssertions;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.nio.file.Path;
@@ -55,8 +55,8 @@ import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIA
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
-import static org.elasticsearch.test.NodeRoles.dataNode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.NodeRoles.dataNode;
+import static org.opensearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class IndicesServiceCloseTests extends ESTestCase {
 

@@ -20,8 +20,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.test.ESSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CountDownLatch;

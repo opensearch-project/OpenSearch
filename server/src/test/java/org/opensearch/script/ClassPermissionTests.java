@@ -19,7 +19,7 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.security.AllPermission;
 import java.security.PermissionCollection;

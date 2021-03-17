@@ -23,7 +23,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.opensearch.geometry.utils.WellKnownText;
-import org.elasticsearch.test.AbstractWireTestCase;
+import org.opensearch.test.AbstractWireTestCase;
 
 import java.io.IOException;
 import java.text.ParseException;

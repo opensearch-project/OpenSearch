@@ -22,7 +22,7 @@ import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.io.PathUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;

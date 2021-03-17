@@ -27,7 +27,7 @@ import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.ESIntegTestCase;
 import org.opensearch.transport.Netty4Plugin;
 import org.opensearch.transport.TransportInfo;
 

@@ -22,8 +22,8 @@ package org.opensearch.systemd;
 import org.opensearch.Build;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.OptionalMatchers;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.hamcrest.OptionalMatchers;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 

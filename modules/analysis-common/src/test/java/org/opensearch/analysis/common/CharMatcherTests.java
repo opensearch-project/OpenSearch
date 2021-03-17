@@ -19,7 +19,7 @@
 
 package org.opensearch.analysis.common;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class CharMatcherTests extends ESTestCase {
 

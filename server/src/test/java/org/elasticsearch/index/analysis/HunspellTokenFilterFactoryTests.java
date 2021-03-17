@@ -20,7 +20,8 @@ package org.elasticsearch.index.analysis;
 
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 
 import java.io.IOException;
 

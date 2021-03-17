@@ -38,8 +38,8 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.FieldMaskingReader;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.FieldMaskingReader;
 
 import static org.hamcrest.Matchers.equalTo;
 

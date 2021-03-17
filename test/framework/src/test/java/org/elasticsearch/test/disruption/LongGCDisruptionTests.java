@@ -19,7 +19,8 @@
 package org.elasticsearch.test.disruption;
 
 import org.opensearch.common.Nullable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.disruption.LongGCDisruption;
 
 import java.lang.management.ThreadInfo;
 import java.util.ArrayList;

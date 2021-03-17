@@ -24,7 +24,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.DiskUsage;
 

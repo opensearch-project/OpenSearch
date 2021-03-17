@@ -31,7 +31,7 @@ import org.opensearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.opensearch.search.aggregations.support.values.ScriptLongValues;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

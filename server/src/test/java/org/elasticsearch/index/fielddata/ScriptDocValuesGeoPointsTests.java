@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata;
 import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

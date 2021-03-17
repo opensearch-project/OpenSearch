@@ -37,7 +37,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.time.Instant;

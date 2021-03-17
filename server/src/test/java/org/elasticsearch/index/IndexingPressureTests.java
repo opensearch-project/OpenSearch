@@ -23,7 +23,7 @@ import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.index.stats.IndexingPressureStats;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 public class IndexingPressureTests extends ESTestCase {
 

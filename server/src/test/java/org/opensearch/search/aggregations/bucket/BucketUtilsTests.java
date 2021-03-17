@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 

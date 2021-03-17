@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.test.test;
 
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestCluster;
+import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.TestCluster;
 
 import java.io.IOException;
 

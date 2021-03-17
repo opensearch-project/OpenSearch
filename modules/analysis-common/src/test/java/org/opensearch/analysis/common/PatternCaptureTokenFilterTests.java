@@ -26,10 +26,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
-import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
+import static org.opensearch.test.ESTestCase.createTestAnalysis;
 import static org.hamcrest.Matchers.containsString;
 
 public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {

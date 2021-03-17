@@ -20,7 +20,7 @@
 package org.opensearch.painless.api;
 
 import org.opensearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.regex.Pattern;
 

@@ -27,7 +27,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.ESSingleNodeTestCase;
+import org.opensearch.index.seqno.RetentionLeaseUtils;
 
 import java.util.HashMap;
 import java.util.Map;

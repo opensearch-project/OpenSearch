@@ -26,7 +26,7 @@ import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 

@@ -19,7 +19,7 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;

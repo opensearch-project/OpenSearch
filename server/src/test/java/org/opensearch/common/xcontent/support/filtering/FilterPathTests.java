@@ -21,7 +21,7 @@ package org.opensearch.common.xcontent.support.filtering;
 
 import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import java.util.Set;
 

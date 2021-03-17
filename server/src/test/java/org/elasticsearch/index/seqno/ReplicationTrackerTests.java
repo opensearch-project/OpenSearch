@@ -34,7 +34,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.ArrayList;

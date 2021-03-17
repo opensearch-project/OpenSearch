@@ -23,8 +23,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.opensearch.test.ESTestCase;
 
 import java.io.IOException;
 

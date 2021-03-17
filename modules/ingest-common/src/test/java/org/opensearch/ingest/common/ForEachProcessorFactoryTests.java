@@ -23,7 +23,7 @@ import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.TestProcessor;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Collections;

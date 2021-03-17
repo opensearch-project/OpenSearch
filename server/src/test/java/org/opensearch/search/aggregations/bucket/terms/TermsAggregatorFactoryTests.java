@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;

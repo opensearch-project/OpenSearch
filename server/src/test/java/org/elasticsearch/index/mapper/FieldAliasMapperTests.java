@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import java.io.IOException;
 

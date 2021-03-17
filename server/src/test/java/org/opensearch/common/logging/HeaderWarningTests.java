@@ -21,10 +21,9 @@ package org.opensearch.common.logging;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.hamcrest.RegexMatcher;
 import org.hamcrest.core.IsSame;
-import org.opensearch.common.logging.HeaderWarning;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -36,7 +35,7 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.opensearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;

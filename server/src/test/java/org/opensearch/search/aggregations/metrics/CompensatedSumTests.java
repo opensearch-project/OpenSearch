@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.Assert;
 
 public class CompensatedSumTests extends ESTestCase {

@@ -21,7 +21,7 @@ package org.opensearch.ingest.useragent;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Strings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.io.BufferedReader;

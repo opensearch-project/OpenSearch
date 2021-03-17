@@ -21,8 +21,8 @@ package org.elasticsearch.test.rest;
 
 import org.opensearch.Version;
 import org.opensearch.client.WarningsHandler;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.ESRestTestCase.VersionSensitiveWarningsHandler;
+import org.opensearch.test.ESTestCase;
+import org.opensearch.test.rest.ESRestTestCase.VersionSensitiveWarningsHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
