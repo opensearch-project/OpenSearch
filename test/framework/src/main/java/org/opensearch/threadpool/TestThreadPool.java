@@ -20,7 +20,7 @@
 package org.opensearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.Node;
 
 import java.util.concurrent.CountDownLatch;

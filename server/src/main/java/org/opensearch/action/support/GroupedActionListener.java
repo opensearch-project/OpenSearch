@@ -19,8 +19,8 @@
 package org.opensearch.action.support;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.CountDown;
 
 import java.util.Collection;
 import java.util.Collections;

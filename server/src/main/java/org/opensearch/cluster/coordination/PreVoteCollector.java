@@ -44,7 +44,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public class PreVoteCollector {
 

@@ -22,7 +22,8 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.set.Sets;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;

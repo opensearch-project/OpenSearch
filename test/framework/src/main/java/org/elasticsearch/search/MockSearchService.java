@@ -20,7 +20,7 @@
 package org.elasticsearch.search;
 
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.BigArrays;
+import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.MockNode;

@@ -29,7 +29,7 @@ import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

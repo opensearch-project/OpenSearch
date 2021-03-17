@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.threadpool.TestThreadPool;

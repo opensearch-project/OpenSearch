@@ -32,7 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.discovery.Discovery;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.transport.TransportException;

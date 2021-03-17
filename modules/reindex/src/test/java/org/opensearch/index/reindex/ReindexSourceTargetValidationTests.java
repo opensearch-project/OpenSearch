@@ -35,9 +35,8 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.opensearch.index.reindex.RemoteInfo;
 import org.opensearch.indices.SystemIndices;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;

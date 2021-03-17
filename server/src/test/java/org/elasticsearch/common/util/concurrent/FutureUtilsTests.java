@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.concurrent.FutureUtils;
 
 import java.util.concurrent.Future;
 

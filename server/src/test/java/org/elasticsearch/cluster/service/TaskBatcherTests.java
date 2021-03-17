@@ -26,7 +26,7 @@ import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.junit.Before;
 import org.opensearch.cluster.service.TaskBatcher;
 

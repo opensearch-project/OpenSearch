@@ -22,6 +22,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 
 import java.util.ArrayList;
 import java.util.List;

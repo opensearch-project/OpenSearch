@@ -23,7 +23,7 @@ import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 

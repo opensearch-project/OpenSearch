@@ -18,7 +18,7 @@
  */
 package org.opensearch.cluster.routing;
 
-import org.elasticsearch.common.util.PlainIterator;
+import org.opensearch.common.util.PlainIterator;
 
 import java.util.List;
 

@@ -32,7 +32,7 @@ import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;

@@ -24,7 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.io.stream.BytesStream;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.ByteArray;
+import org.opensearch.common.util.ByteArray;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

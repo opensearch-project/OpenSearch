@@ -22,7 +22,7 @@ package org.opensearch.common.time;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.LazyInitializable;
+import org.opensearch.common.util.LazyInitializable;
 
 import java.time.DayOfWeek;
 import java.time.Instant;

@@ -20,7 +20,7 @@
 package org.elasticsearch.test.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportRequest;
 

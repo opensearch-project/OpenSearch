@@ -24,8 +24,8 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStream;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.ByteArray;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 

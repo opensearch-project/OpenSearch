@@ -23,9 +23,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.opensearch.common.util.concurrent.BaseFuture;
+import org.opensearch.common.util.concurrent.FutureUtils;
+import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 
 import java.util.concurrent.TimeUnit;
 

@@ -21,7 +21,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.TimedRequest;
-import org.elasticsearch.common.util.ArrayUtils;
+import org.opensearch.common.util.ArrayUtils;
 
 /**
  * A request to retrieve information about an index.

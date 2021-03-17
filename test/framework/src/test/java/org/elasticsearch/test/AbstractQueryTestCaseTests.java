@@ -20,7 +20,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

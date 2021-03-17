@@ -28,7 +28,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 

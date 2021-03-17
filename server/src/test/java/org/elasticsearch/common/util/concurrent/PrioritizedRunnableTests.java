@@ -21,6 +21,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.opensearch.common.Priority;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.concurrent.PrioritizedRunnable;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;

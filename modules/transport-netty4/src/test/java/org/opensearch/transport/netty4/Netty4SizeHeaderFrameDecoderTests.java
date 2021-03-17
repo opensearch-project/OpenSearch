@@ -25,7 +25,7 @@ import org.opensearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;

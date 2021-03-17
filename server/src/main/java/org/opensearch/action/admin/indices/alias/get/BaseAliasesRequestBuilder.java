@@ -24,7 +24,7 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.util.ArrayUtils;
+import org.opensearch.common.util.ArrayUtils;
 
 public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse,
                                                 Builder extends BaseAliasesRequestBuilder<Response, Builder>>

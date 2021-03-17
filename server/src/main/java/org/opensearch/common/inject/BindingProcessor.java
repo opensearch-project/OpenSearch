@@ -47,7 +47,7 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.common.util.set.Sets.newHashSet;
 
 /**
  * Handles {@link Binder#bind} and {@link Binder#bindConstant} elements.

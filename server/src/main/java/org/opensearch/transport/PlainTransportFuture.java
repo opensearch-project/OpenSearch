@@ -22,7 +22,7 @@ package org.opensearch.transport;
 import org.opensearch.OpenSearchException;
 import org.elasticsearch.OpenSearchTimeoutException;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.opensearch.common.util.concurrent.BaseFuture;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;

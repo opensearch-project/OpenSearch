@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.util.BigArrays;
+import org.opensearch.common.util.BigArrays;
 
 import java.io.IOException;
 import java.util.HashMap;

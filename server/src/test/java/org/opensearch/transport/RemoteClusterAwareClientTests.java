@@ -27,7 +27,7 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;

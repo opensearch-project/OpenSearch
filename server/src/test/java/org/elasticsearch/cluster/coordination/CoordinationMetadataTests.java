@@ -23,7 +23,7 @@ import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExcl
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

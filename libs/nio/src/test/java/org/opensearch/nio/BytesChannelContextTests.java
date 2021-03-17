@@ -20,7 +20,7 @@
 package org.opensearch.nio;
 
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
