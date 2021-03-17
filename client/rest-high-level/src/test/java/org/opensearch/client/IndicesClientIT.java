@@ -107,7 +107,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -2138,8 +2138,8 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
-        Template template = new Template(settings, mappings, org.elasticsearch.common.collect.Map.of("alias", alias));
-        List<String> pattern = org.elasticsearch.common.collect.List.of("pattern");
+        Template template = new Template(settings, mappings, org.opensearch.common.collect.Map.of("alias", alias));
+        List<String> pattern = org.opensearch.common.collect.List.of("pattern");
         ComposableIndexTemplate indexTemplate =
             new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
@@ -2152,7 +2152,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest("pattern");
         AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
         ComposableIndexTemplate simulationTemplate = new ComposableIndexTemplate(pattern, new Template(null, null,
-            org.elasticsearch.common.collect.Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L,
+            org.opensearch.common.collect.Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L,
             new HashMap<>(), null);
         PutComposableIndexTemplateRequest newIndexTemplateReq =
             new PutComposableIndexTemplateRequest().name("used-for-simulation").create(true).indexTemplate(indexTemplate);

@@ -27,7 +27,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 

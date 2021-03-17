@@ -22,7 +22,7 @@ package org.opensearch.action.bulk;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.action.DocWriteRequest;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

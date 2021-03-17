@@ -19,7 +19,7 @@
 
 package org.opensearch.plugins;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.cli.Command;
 import org.opensearch.cli.LoggingAwareMultiCommand;
 import org.opensearch.cli.Terminal;

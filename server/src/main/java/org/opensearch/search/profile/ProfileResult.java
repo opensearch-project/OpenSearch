@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -70,8 +70,8 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.type = type;
         this.description = description;
         this.breakdown = Objects.requireNonNull(breakdown, "required breakdown argument missing");
-        this.debug = debug == null ? org.elasticsearch.common.collect.Map.of() : debug;
-        this.children = children == null ? org.elasticsearch.common.collect.List.of() : children;
+        this.debug = debug == null ? org.opensearch.common.collect.Map.of() : debug;
+        this.children = children == null ? org.opensearch.common.collect.List.of() : children;
         this.nodeTime = nodeTime;
     }
 
@@ -86,7 +86,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
         } else {
-            debug = org.elasticsearch.common.collect.Map.of();
+            debug = org.opensearch.common.collect.Map.of();
         }
         children = in.readList(ProfileResult::new);
     }

@@ -22,7 +22,7 @@ package org.opensearch.snapshots;
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

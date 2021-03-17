@@ -44,7 +44,7 @@ import org.opensearch.cluster.routing.allocation.StaleShard;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.Index;

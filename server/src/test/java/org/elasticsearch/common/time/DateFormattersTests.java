@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.joda.Joda;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.time.DateFormatter;

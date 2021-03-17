@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.routing;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;

@@ -20,7 +20,7 @@
 package org.opensearch.client.cluster;
 
 import org.opensearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.transport.ProxyConnectionStrategy;

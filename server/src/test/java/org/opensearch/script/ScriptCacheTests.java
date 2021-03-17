@@ -20,7 +20,7 @@ package org.opensearch.script;
 
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 public class ScriptCacheTests extends ESTestCase {

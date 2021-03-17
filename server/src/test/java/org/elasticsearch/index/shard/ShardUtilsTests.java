@@ -27,7 +27,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

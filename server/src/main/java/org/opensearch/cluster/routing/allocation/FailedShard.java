@@ -21,7 +21,7 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 /**
  * A class representing a failed shard.

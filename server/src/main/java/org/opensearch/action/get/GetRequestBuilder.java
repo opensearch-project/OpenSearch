@@ -21,7 +21,7 @@ package org.opensearch.action.get;
 
 import org.opensearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.index.VersionType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;

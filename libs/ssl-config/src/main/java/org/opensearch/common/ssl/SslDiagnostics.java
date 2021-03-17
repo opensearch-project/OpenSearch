@@ -19,7 +19,7 @@
 
 package org.opensearch.common.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 import javax.net.ssl.SSLSession;
 import java.security.cert.CertificateEncodingException;

@@ -22,7 +22,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoPoint;
-import org.elasticsearch.common.util.ESSloppyMath;
+import org.opensearch.common.util.OpenSearchSloppyMath;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -263,9 +263,9 @@ public final class GeoTileUtils {
         final double tiles = validateZXY(precision, xTile, yTile);
         final double minN = Math.PI - (2.0 * Math.PI * (yTile + 1)) / tiles;
         final double maxN = Math.PI - (2.0 * Math.PI * (yTile)) / tiles;
-        final double minY = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(minN)));
+        final double minY = Math.toDegrees(OpenSearchSloppyMath.atan(OpenSearchSloppyMath.sinh(minN)));
         final double minX = ((xTile) / tiles * 360.0) - 180;
-        final double maxY = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(maxN)));
+        final double maxY = Math.toDegrees(OpenSearchSloppyMath.atan(OpenSearchSloppyMath.sinh(maxN)));
         final double maxX = ((xTile + 1) / tiles * 360.0) - 180;
 
         return new Rectangle(minX, maxX, maxY, minY);
@@ -289,7 +289,7 @@ public final class GeoTileUtils {
     private static GeoPoint zxyToGeoPoint(int zoom, int xTile, int yTile) {
         final int tiles = validateZXY(zoom, xTile, yTile);
         final double n = Math.PI - (2.0 * Math.PI * (yTile + 0.5)) / tiles;
-        final double lat = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(n)));
+        final double lat = Math.toDegrees(OpenSearchSloppyMath.atan(OpenSearchSloppyMath.sinh(n)));
         final double lon = ((xTile + 0.5) / tiles * 360.0) - 180;
         return new GeoPoint(lat, lon);
     }

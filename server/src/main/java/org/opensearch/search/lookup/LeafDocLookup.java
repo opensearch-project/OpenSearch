@@ -20,7 +20,7 @@ package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;

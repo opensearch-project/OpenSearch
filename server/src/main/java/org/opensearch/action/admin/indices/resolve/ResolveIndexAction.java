@@ -37,7 +37,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;

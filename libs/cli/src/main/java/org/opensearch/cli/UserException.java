@@ -19,7 +19,7 @@
 
 package org.opensearch.cli;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 /**
  * An exception representing a user fixable problem in {@link Command} usage.

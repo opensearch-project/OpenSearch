@@ -16,7 +16,7 @@
 
 package org.opensearch.common.network;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;

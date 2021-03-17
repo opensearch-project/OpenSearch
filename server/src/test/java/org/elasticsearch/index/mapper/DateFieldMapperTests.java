@@ -21,8 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.common.collect.List;
+import org.opensearch.bootstrap.JavaVersion;
+import org.opensearch.common.collect.List;
 import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;

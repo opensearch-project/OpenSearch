@@ -19,8 +19,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

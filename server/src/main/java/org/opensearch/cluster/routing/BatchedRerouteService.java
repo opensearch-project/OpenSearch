@@ -28,7 +28,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.NotMasterException;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 
 import java.util.ArrayList;

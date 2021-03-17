@@ -27,7 +27,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

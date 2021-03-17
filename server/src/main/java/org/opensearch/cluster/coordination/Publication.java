@@ -28,7 +28,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 

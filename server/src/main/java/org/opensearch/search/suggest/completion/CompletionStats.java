@@ -19,7 +19,7 @@
 package org.opensearch.search.suggest.completion;
 
 import org.opensearch.common.FieldMemoryStats;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;

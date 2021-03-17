@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.opensearch.common.Rounding;
-import org.elasticsearch.common.collect.List;
+import org.opensearch.common.collect.List;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;

@@ -20,7 +20,7 @@ package org.opensearch.transport;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.opensearch.common.concurrent.CompletableContext;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;

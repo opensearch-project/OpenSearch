@@ -37,7 +37,7 @@ import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;

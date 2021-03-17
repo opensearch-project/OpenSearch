@@ -21,7 +21,7 @@ package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTermVectorsRequest, MultiTermVectorsResponse> {
 

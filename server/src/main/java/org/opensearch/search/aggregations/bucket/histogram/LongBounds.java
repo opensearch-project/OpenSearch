@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.opensearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.io.stream.StreamInput;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.opensearch.bootstrap.JavaVersion;
 
 import java.util.Arrays;
 import java.util.List;

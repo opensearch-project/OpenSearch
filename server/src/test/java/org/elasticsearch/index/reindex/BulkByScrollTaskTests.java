@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -30,9 +30,9 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static java.lang.Math.min;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.opensearch.common.unit.TimeValue.parseTimeValue;
+import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.common.unit.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
 
 public class BulkByScrollTaskTests extends ESTestCase {

@@ -22,7 +22,7 @@ import org.opensearch.client.benchmark.metrics.Metrics;
 import org.opensearch.client.benchmark.metrics.MetricsCalculator;
 import org.opensearch.client.benchmark.metrics.Sample;
 import org.opensearch.client.benchmark.metrics.SampleRecorder;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 
 import java.util.Arrays;
 import java.util.List;

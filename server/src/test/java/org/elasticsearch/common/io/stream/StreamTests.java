@@ -21,11 +21,11 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.io.stream.BytesStreamOutput;

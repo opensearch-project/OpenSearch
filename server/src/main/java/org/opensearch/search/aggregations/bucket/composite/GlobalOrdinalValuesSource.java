@@ -25,7 +25,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedFunction;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;

@@ -35,10 +35,10 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;

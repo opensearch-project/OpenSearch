@@ -20,7 +20,7 @@
 package org.opensearch.common;
 
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 import java.text.NumberFormat;
 import java.util.LinkedList;

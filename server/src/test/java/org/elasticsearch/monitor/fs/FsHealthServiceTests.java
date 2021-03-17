@@ -25,7 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;

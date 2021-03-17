@@ -24,11 +24,11 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.Booleans;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.Strings;
 import org.opensearch.common.regex.Regex;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -19,7 +19,7 @@
 
 package org.opensearch.nio;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;

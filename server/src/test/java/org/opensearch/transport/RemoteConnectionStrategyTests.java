@@ -22,7 +22,7 @@ package org.opensearch.transport;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;

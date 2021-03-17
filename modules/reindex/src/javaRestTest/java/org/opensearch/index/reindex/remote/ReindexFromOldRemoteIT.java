@@ -25,7 +25,7 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
-import org.elasticsearch.common.Booleans;
+import org.opensearch.common.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;

@@ -32,7 +32,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;

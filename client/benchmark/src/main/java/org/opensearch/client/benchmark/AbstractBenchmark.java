@@ -22,7 +22,7 @@ import org.opensearch.client.benchmark.ops.bulk.BulkBenchmarkTask;
 import org.opensearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.opensearch.client.benchmark.ops.search.SearchBenchmarkTask;
 import org.opensearch.client.benchmark.ops.search.SearchRequestExecutor;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 
 import java.io.Closeable;
 import java.lang.management.GarbageCollectorMXBean;

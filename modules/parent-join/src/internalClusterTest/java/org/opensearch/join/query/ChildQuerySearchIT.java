@@ -28,7 +28,7 @@ import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.InnerHitBuilder;

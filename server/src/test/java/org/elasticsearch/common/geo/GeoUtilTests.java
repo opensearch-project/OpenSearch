@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

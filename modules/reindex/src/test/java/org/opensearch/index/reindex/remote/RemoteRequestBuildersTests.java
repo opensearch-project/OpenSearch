@@ -27,7 +27,7 @@ import org.opensearch.client.Request;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Streams;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,7 +36,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.index.reindex.remote.RemoteRequestBuilders.DEPRECATED_URL_ENCODED_INDEX_WARNING;
 import static org.opensearch.index.reindex.remote.RemoteRequestBuilders.clearScroll;
 import static org.opensearch.index.reindex.remote.RemoteRequestBuilders.initialSearch;

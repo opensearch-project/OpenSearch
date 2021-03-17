@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.util.concurrent.EsExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ListenableFuture;

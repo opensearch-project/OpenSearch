@@ -34,7 +34,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.CheckedFunction;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;

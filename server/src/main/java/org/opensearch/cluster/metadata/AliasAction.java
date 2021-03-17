@@ -20,7 +20,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 
 /**

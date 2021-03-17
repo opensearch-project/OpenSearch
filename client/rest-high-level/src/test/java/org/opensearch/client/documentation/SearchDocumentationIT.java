@@ -56,7 +56,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.Fuzziness;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.index.get.GetResult;

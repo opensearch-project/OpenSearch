@@ -20,8 +20,8 @@
 package org.opensearch.common.util.concurrent;
 
 import org.elasticsearch.OpenSearchTimeoutException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.SuppressForbidden;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;

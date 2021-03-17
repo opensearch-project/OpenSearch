@@ -19,7 +19,7 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.elasticsearch.common.Booleans;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.io.Streams;
@@ -28,7 +28,7 @@ import org.opensearch.common.io.stream.BytesStream;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.SizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.rest.BytesRestResponse;

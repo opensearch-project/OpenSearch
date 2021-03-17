@@ -19,7 +19,7 @@
 
 package org.opensearch.common.ssl;
 
-import org.elasticsearch.common.CharArrays;
+import org.opensearch.common.CharArrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.EncryptedPrivateKeyInfo;

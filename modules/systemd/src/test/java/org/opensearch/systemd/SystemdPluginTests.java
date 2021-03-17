@@ -20,8 +20,8 @@
 package org.opensearch.systemd;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.OptionalMatchers;
 import org.opensearch.threadpool.Scheduler;

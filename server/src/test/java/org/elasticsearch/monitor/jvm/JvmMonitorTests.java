@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;

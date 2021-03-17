@@ -48,7 +48,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.io.stream.StreamOutput;

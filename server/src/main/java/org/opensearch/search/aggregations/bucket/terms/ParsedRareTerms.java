@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.opensearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

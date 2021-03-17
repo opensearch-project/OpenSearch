@@ -19,7 +19,7 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.symbol.FunctionTable;
 

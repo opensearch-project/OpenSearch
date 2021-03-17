@@ -28,7 +28,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.support.single.instance.InstanceShardOperationRequest;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
