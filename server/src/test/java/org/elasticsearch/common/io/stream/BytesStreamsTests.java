@@ -28,7 +28,7 @@ import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;

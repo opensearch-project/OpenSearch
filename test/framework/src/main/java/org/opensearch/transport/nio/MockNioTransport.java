@@ -38,7 +38,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.nio.BytesChannelContext;
@@ -79,8 +79,8 @@ import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 public class MockNioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(MockNioTransport.class);

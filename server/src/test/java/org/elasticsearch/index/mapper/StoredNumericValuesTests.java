@@ -28,11 +28,11 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Set;

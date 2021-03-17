@@ -20,7 +20,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;

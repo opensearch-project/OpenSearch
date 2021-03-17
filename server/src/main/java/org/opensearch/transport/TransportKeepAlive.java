@@ -28,8 +28,8 @@ import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.AbstractLifecycleRunnable;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;

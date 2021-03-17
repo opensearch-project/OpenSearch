@@ -36,7 +36,7 @@ import org.elasticsearch.common.Nullable;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;

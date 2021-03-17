@@ -26,7 +26,16 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.BigArray;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.ByteArray;
+import org.opensearch.common.util.DoubleArray;
+import org.opensearch.common.util.FloatArray;
+import org.opensearch.common.util.IntArray;
+import org.opensearch.common.util.LongArray;
+import org.opensearch.common.util.ObjectArray;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Collection;

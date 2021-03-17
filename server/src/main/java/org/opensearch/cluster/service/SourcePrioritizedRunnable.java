@@ -20,7 +20,7 @@
 package org.opensearch.cluster.service;
 
 import org.opensearch.common.Priority;
-import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
+import org.opensearch.common.util.concurrent.PrioritizedRunnable;
 
 /**
  * PrioritizedRunnable that also has a source string

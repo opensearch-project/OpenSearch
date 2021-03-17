@@ -32,7 +32,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 

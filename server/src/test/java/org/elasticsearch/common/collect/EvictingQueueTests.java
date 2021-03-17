@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.collect;
 
-import org.elasticsearch.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.collect.EvictingQueue;
 

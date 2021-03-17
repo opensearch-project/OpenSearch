@@ -20,9 +20,9 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.util.LongLongHash;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.LongHash;
+import org.opensearch.common.util.LongLongHash;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
 /**

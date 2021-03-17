@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,7 +38,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
+import static org.opensearch.common.util.CollectionUtils.eagerPartition;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

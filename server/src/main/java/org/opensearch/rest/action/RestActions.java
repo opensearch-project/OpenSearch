@@ -28,15 +28,15 @@ import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.opensearch.index.query.Operator;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -46,7 +46,7 @@ import org.opensearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class RestActions {
 

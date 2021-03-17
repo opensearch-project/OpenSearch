@@ -29,7 +29,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.url.URLBlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.URIPattern;
+import org.opensearch.common.util.URIPattern;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;

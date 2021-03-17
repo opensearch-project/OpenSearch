@@ -31,7 +31,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.opensearch.common.util.concurrent.CountDown;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;

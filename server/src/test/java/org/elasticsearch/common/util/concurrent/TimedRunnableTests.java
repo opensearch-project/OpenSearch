@@ -21,6 +21,8 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.TimedRunnable;
 
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;

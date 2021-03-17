@@ -20,9 +20,9 @@
 package org.opensearch.action;
 
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.FutureUtils;
+import org.opensearch.common.util.concurrent.ListenableFuture;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;

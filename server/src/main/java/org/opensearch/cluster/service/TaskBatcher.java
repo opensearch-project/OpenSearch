@@ -23,8 +23,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 
 import java.util.ArrayList;
 import java.util.Collections;

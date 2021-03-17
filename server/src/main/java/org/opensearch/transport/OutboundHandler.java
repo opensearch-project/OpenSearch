@@ -34,8 +34,8 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 

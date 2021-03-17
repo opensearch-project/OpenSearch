@@ -19,7 +19,7 @@
 
 package org.opensearch.transport;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.opensearch.tasks.Task;
 

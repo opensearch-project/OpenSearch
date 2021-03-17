@@ -33,7 +33,7 @@ import org.opensearch.transport.netty4.Netty4Transport;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
  * Creates and returns {@link io.netty.channel.EventLoopGroup} instances. It will return a shared group for

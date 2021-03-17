@@ -19,7 +19,7 @@
 
 package org.opensearch.common.recycler;
 
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Deque;
 import java.util.concurrent.atomic.AtomicInteger;

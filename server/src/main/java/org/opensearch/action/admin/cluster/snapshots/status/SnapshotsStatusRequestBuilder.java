@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.snapshots.status;
 
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.util.ArrayUtils;
+import org.opensearch.common.util.ArrayUtils;
 
 /**
  * Snapshots status request builder

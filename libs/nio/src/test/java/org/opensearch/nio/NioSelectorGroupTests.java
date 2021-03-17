@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.mockito.Mockito.mock;
 
 public class NioSelectorGroupTests extends ESTestCase {

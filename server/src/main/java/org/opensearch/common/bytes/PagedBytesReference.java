@@ -21,8 +21,8 @@ package org.opensearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.ByteArray;
+import org.opensearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 

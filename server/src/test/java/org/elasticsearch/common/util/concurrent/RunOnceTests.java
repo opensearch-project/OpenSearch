@@ -20,6 +20,8 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.RunOnce;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
