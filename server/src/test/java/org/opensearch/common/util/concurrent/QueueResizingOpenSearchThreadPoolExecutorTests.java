@@ -39,10 +39,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
- * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
+ * Tests for the automatic queue resizing of the {@code QueueResizingOpenSearchThreadPoolExecutorTests}
  * based on the time taken for each event.
  */
-public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
+public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
 
     public void testExactWindowSizeAdjustment() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);

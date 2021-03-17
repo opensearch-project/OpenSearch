@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
-public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
+public class OpenSearchThreadPoolExecutorTests extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {

@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Tests for EsExecutors and its components like EsAbortPolicy.
  */
-public class EsExecutorsTests extends ESTestCase {
+public class OpenSearchExecutorsTests extends ESTestCase {
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private TimeUnit randomTimeUnit() {
