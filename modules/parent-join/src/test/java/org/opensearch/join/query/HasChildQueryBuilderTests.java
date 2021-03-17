@@ -36,7 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
@@ -65,7 +65,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;

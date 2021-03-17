@@ -20,7 +20,7 @@
 package org.opensearch.node;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContent;
 
 public interface ReportingService<I extends ReportingService.Info> {
     I info();

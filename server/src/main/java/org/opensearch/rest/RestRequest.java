@@ -31,10 +31,10 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
 

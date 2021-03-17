@@ -25,7 +25,7 @@ import org.opensearch.cluster.ClusterState.FeatureAware;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.opensearch.cluster.Diff;

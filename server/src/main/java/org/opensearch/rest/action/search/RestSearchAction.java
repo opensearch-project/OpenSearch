@@ -30,7 +30,7 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;

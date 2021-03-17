@@ -20,8 +20,8 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.opensearch.rest.BytesRestResponse;

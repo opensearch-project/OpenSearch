@@ -19,7 +19,7 @@
 package org.opensearch.painless.action;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

@@ -36,7 +36,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;

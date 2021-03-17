@@ -24,8 +24,8 @@ import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.util.List;
 import java.util.Map;

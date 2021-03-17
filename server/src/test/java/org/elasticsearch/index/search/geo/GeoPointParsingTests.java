@@ -23,9 +23,9 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 

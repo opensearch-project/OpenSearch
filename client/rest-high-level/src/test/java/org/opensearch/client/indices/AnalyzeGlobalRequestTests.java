@@ -20,7 +20,7 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;

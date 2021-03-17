@@ -30,11 +30,11 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
 

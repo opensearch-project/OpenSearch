@@ -19,10 +19,10 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;

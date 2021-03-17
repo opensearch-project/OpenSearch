@@ -38,7 +38,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;

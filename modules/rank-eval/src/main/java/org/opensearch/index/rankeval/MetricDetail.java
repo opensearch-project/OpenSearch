@@ -20,8 +20,8 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 

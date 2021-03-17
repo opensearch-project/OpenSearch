@@ -17,11 +17,11 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
 
 dependencies {
-  api project(':libs:elasticsearch-core')
+  api project(':libs:opensearch-core')
 
   api "org.yaml:snakeyaml:${versions.snakeyaml}"
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
@@ -34,7 +34,7 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+    exclude group: 'org.opensearch', module: 'opensearch-x-content'
   }
 
 }

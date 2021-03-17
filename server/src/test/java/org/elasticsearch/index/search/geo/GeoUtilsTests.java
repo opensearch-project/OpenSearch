@@ -25,9 +25,9 @@ import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.geometry.utils.Geohash;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.spatial4j.context.SpatialContext;
@@ -35,7 +35,7 @@ import org.locationtech.spatial4j.distance.DistanceUtils;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;

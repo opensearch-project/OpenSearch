@@ -19,7 +19,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;

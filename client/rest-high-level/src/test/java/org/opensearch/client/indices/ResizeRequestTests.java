@@ -22,7 +22,7 @@ package org.opensearch.client.indices;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.client.AbstractRequestTestCase;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;

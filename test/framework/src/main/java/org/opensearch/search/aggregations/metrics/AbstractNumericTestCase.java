@@ -24,7 +24,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public abstract class AbstractNumericTestCase extends ESIntegTestCase {

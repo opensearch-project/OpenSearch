@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
@@ -31,7 +31,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase {

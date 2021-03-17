@@ -20,7 +20,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms.heuristic;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.ToXContentFragment;
 
 
 public interface SignificanceHeuristicBuilder extends ToXContentFragment {

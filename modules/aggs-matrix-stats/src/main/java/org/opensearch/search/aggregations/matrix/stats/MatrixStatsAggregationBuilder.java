@@ -20,8 +20,8 @@ package org.opensearch.search.aggregations.matrix.stats;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregationBuilder;

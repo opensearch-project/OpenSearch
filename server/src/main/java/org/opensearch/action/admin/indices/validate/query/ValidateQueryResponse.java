@@ -21,20 +21,20 @@ package org.opensearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * The response of the validate action.

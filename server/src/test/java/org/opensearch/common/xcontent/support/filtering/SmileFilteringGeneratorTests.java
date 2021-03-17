@@ -19,8 +19,8 @@
 
 package org.opensearch.common.xcontent.support.filtering;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 
 public class SmileFilteringGeneratorTests extends AbstractXContentFilteringTestCase {
 

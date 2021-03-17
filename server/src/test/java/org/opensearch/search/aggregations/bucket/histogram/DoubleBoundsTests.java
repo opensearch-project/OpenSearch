@@ -22,10 +22,10 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

@@ -24,8 +24,8 @@ import org.opensearch.client.TimedRequest;
 import org.opensearch.client.Validatable;
 import org.opensearch.client.ValidationException;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;

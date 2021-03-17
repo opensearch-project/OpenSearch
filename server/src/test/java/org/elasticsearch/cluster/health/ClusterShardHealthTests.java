@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.health;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterShardHealth;

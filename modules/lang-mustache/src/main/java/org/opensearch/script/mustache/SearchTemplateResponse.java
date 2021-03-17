@@ -21,15 +21,15 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

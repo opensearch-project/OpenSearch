@@ -22,12 +22,12 @@ package org.opensearch.common.xcontent.support;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -19,14 +19,14 @@
 package org.opensearch.search.aggregations.support;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.time.DateUtils;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.AbstractObjectParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;

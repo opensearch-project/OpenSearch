@@ -34,11 +34,11 @@ import org.opensearch.cluster.coordination.NoMasterBlockService;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShardRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -68,8 +68,8 @@ public final class RandomObjects {
 
     /**
      * Returns a tuple containing random stored field values and their corresponding expected values once printed out
-     * via {@link org.elasticsearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
-     * {@link org.elasticsearch.common.xcontent.XContentParser#objectText()}.
+     * via {@link org.opensearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
+     * {@link org.opensearch.common.xcontent.XContentParser#objectText()}.
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.elasticsearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      *
@@ -129,8 +129,8 @@ public final class RandomObjects {
 
     /**
      * Converts the provided field value to its corresponding expected value once printed out
-     * via {@link org.elasticsearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
-     * {@link org.elasticsearch.common.xcontent.XContentParser#objectText()}.
+     * via {@link org.opensearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
+     * {@link org.opensearch.common.xcontent.XContentParser#objectText()}.
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.elasticsearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      */

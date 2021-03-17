@@ -44,7 +44,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.SystemIndices;

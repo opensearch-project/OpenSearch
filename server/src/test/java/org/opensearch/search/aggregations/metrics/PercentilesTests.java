@@ -19,9 +19,9 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentParseException;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 
 import java.io.IOException;

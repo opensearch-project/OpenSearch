@@ -23,8 +23,8 @@ import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptResponse
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -36,7 +36,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;

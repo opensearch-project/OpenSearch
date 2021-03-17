@@ -22,7 +22,7 @@ package org.opensearch.index.reindex;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequestFilter;
 

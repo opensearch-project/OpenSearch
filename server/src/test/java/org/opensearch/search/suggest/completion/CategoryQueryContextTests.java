@@ -19,7 +19,7 @@
 
 package org.opensearch.search.suggest.completion;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.suggest.completion.context.CategoryQueryContext;
 
 import java.io.IOException;

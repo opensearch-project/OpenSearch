@@ -24,7 +24,7 @@ import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

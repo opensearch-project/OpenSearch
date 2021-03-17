@@ -20,9 +20,9 @@ package org.opensearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;

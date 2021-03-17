@@ -34,7 +34,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;

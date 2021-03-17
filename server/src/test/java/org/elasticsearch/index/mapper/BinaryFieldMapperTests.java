@@ -24,7 +24,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;

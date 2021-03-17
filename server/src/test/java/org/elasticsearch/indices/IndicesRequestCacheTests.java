@@ -40,7 +40,7 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.query.TermQueryBuilder;

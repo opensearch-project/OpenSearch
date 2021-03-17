@@ -22,7 +22,7 @@ package org.opensearch.action.admin.indices.rollover;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.ToXContentFragment;
 
 import java.util.Objects;
 

@@ -24,10 +24,10 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

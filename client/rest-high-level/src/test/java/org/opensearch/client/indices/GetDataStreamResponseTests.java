@@ -25,8 +25,8 @@ import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;

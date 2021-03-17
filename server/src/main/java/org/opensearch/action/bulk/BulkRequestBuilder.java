@@ -32,7 +32,7 @@ import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**

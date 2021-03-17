@@ -26,8 +26,8 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.opensearch.script.Script;
 

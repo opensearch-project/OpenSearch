@@ -23,8 +23,8 @@ import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.cluster.ClusterName;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;

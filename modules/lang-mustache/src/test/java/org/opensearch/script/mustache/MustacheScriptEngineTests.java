@@ -20,8 +20,8 @@ package org.opensearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.script.TemplateScript;
 import org.opensearch.script.Script;
 import org.elasticsearch.test.ESTestCase;

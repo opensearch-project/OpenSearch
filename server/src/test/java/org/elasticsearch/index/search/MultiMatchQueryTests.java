@@ -36,7 +36,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperService;

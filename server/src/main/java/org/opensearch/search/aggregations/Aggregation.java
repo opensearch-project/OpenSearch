@@ -18,9 +18,9 @@
  */
 package org.opensearch.search.aggregations;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentFragment;
 
 import java.util.Map;
 

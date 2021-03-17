@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 

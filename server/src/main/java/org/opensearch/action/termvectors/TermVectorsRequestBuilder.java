@@ -21,7 +21,7 @@ package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 
 import java.util.Map;

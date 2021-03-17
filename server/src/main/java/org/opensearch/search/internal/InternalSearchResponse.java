@@ -23,7 +23,7 @@ import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.profile.SearchProfileShardResults;

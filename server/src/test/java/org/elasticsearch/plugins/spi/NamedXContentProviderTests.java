@@ -19,9 +19,9 @@
 
 package org.elasticsearch.plugins.spi;
 
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.Streams;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.opensearch.search.suggest.Suggest;

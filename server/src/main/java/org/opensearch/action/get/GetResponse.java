@@ -27,9 +27,9 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 
 import java.io.IOException;

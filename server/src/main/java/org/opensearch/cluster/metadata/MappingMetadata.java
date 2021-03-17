@@ -26,10 +26,10 @@ import org.opensearch.cluster.Diff;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;

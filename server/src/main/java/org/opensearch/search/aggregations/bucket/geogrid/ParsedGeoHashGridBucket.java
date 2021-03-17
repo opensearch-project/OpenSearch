@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoPoint;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 

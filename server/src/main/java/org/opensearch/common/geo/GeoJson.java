@@ -21,16 +21,16 @@ package org.opensearch.common.geo;
 
 import org.opensearch.OpenSearchException;
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentSubParser;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentSubParser;
 import org.opensearch.geometry.Circle;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
@@ -53,8 +53,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Utility class for converting libs/geo shapes to and from GeoJson

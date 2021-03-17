@@ -36,7 +36,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.indices.TypeMissingException;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;

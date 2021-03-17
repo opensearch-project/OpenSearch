@@ -24,9 +24,9 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Module;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;

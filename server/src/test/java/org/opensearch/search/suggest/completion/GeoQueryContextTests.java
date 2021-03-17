@@ -21,9 +21,9 @@ package org.opensearch.search.suggest.completion;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.suggest.completion.context.GeoQueryContext;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoQueryContextTests extends QueryContextTestCase<GeoQueryContext> {

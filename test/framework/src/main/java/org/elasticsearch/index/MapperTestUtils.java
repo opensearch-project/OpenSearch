@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.DocumentMapper;

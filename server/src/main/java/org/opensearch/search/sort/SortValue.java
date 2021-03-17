@@ -23,7 +23,7 @@ import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;

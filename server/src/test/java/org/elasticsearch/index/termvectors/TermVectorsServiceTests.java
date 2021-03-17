@@ -25,7 +25,7 @@ import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 import static java.lang.Math.abs;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 

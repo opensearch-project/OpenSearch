@@ -20,21 +20,21 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This response is specific to the REST client. {@link ClusterStateResponse}

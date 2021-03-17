@@ -21,13 +21,13 @@ package org.opensearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
 import org.opensearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.opensearch.rest.RestStatus;
 

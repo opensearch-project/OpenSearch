@@ -47,7 +47,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;

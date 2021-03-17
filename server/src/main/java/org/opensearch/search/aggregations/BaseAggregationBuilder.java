@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 
 import java.util.Map;

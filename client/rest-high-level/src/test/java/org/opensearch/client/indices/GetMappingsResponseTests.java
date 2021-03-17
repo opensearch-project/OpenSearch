@@ -21,9 +21,9 @@ package org.opensearch.client.indices;
 
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContent.Params;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;
