@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -31,7 +31,7 @@ import org.opensearch.common.settings.Settings;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
-public class AllocationPriorityTests extends ESAllocationTestCase {
+public class AllocationPriorityTests extends OpenSearchAllocationTestCase {
 
     /**
      * Tests that higher prioritized primaries and replicas are allocated first even on the balanced shard allocator

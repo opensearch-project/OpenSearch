@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.health.ClusterStateHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -47,7 +47,7 @@ import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class PrimaryTermsTests extends ESAllocationTestCase {
+public class PrimaryTermsTests extends OpenSearchAllocationTestCase {
 
     private static final String TEST_INDEX_1 = "test1";
     private static final String TEST_INDEX_2 = "test2";

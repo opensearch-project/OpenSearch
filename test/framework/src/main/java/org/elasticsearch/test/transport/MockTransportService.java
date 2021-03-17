@@ -36,7 +36,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.core.internal.io.IOUtils;

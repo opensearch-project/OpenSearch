@@ -22,7 +22,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -55,7 +55,7 @@ import static org.opensearch.cluster.routing.allocation.decider.EnableAllocation
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
+public class EnableAllocationShortCircuitTests extends OpenSearchAllocationTestCase {
 
     private static ClusterState createClusterStateWithAllShardsAssigned() {
         AllocationService allocationService = createAllocationService(Settings.EMPTY);

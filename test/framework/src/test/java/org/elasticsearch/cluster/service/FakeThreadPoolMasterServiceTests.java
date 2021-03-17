@@ -20,13 +20,14 @@ package org.elasticsearch.cluster.service;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.service.FakeThreadPoolMasterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;

@@ -21,7 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;

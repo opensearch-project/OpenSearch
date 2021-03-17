@@ -25,6 +25,7 @@ import org.opensearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;

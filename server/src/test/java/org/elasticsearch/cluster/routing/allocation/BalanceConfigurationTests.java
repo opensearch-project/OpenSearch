@@ -25,7 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 
-public class BalanceConfigurationTests extends ESAllocationTestCase {
+public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
 
     private final Logger logger = LogManager.getLogger(BalanceConfigurationTests.class);
     // TODO maybe we can randomize these numbers somehow

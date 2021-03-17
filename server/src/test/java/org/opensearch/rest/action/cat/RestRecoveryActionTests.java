@@ -24,7 +24,7 @@ import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Table;
 import org.opensearch.common.unit.TimeValue;

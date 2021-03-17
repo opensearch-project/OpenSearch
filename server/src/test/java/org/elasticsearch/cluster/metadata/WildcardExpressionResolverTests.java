@@ -37,8 +37,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.DataStreamTestHelper.createBackingIndex;
+import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;

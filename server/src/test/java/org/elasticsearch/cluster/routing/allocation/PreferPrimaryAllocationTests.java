@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -35,7 +35,7 @@ import org.opensearch.common.settings.Settings;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
+public class PreferPrimaryAllocationTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(PreferPrimaryAllocationTests.class);
 
     public void testPreferPrimaryAllocationOverReplicas() {

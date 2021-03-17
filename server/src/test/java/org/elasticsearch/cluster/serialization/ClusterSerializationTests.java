@@ -26,7 +26,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.cluster.Diff;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ClusterSerializationTests extends ESAllocationTestCase {
+public class ClusterSerializationTests extends OpenSearchAllocationTestCase {
 
     public void testClusterStateSerialization() throws Exception {
         Metadata metadata = Metadata.builder()

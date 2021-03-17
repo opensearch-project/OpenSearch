@@ -24,7 +24,7 @@ import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiskUsage;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderTests.DevNullClusterInfo;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -37,7 +37,7 @@ import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Unit tests for the DiskThresholdDecider
  */
-public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
+public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase {
 
     public void testCanAllocateUsesMaxAvailableSpace() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);

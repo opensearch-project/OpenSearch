@@ -22,7 +22,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -57,7 +57,7 @@ import static java.util.Collections.singletonList;
 /**
  * Test {@link RestoreInProgressAllocationDecider}
  */
-public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCase {
+public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocationTestCase {
 
     public void testCanAllocatePrimary() {
         ClusterState clusterState = createInitialClusterState();

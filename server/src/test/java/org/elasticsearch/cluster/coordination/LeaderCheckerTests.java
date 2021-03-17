@@ -23,6 +23,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
+import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.coordination.LeaderChecker;
 import org.opensearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.opensearch.cluster.node.DiscoveryNode;

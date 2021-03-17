@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
+public class SingleShardNoReplicasRoutingTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(SingleShardNoReplicasRoutingTests.class);
 
     public void testSingleIndexStartedShard() {

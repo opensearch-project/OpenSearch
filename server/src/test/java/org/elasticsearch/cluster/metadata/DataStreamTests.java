@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.opensearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.hamcrest.Matchers.equalTo;
 

@@ -22,7 +22,7 @@ package org.elasticsearch.index.seqno;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActionTestUtils;
+import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;

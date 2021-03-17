@@ -23,7 +23,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.NotMasterException;

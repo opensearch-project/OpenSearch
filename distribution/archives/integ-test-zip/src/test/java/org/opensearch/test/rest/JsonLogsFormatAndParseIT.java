@@ -19,7 +19,7 @@
 
 package org.opensearch.test.rest;
 
-import org.elasticsearch.common.logging.JsonLogsIntegTestCase;
+import org.opensearch.common.logging.JsonLogsIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.BufferedReader;

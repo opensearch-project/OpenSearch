@@ -27,7 +27,7 @@ import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Table;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;

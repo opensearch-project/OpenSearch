@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.reroute;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -43,9 +43,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.gateway.TestGatewayAllocator;
-import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.opensearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -57,7 +54,7 @@ import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class ClusterRerouteTests extends ESAllocationTestCase {
+public class ClusterRerouteTests extends OpenSearchAllocationTestCase {
 
     public void testSerializeRequest() throws IOException {
         ClusterRerouteRequest req = new ClusterRerouteRequest();

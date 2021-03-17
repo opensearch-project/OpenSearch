@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterStateHealth;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
  * primary shard allocation and assert the cluster health
  * has the correct status based on those allocation decisions.
  */
-public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
+public class DecisionsImpactOnClusterHealthTests extends OpenSearchAllocationTestCase {
 
     public void testPrimaryShardNoDecisionOnIndexCreation() throws IOException {
         final String indexName = "test-idx";

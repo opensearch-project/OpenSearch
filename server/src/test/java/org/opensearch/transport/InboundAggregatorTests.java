@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.opensearch.common.breaker.TestCircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;

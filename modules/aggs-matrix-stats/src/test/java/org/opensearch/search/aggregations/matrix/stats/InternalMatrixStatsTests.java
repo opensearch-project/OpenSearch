@@ -20,11 +20,11 @@ package org.opensearch.search.aggregations.matrix.stats;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.xcontent.ContextParser;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.Aggregation;

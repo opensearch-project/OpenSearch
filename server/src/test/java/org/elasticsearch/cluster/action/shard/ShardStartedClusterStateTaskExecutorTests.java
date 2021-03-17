@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.action.shard;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -43,16 +43,16 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas;
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
 import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestCase {
+public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocationTestCase {
 
     private ShardStateAction.ShardStartedClusterStateTaskExecutor executor;
 

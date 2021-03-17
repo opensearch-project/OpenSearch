@@ -29,6 +29,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.AbstractScopedSettings;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;

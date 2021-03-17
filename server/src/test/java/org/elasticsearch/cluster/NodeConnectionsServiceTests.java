@@ -25,7 +25,7 @@ import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;

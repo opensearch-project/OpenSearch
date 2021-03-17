@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.SearchEquivalenceTestBase;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 
 public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
