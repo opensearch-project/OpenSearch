@@ -89,7 +89,6 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
-<<<<<<< HEAD
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SearchPlugin.AggregationSpec;
 import org.opensearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
