@@ -19,7 +19,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.opensearch.common.FieldMemoryStats;
-import org.elasticsearch.common.FieldMemoryStatsTests;
+import org.opensearch.common.FieldMemoryStatsTests;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
