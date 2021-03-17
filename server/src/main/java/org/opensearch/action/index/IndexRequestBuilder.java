@@ -102,7 +102,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the document source to index.
      * <p>
-     * Note, its preferable to either set it using {@link #setSource(XContentBuilder)}
+     * Note, its preferable to either set it using {@link #setSource(org.opensearch.common.xcontent.XContentBuilder)}
      * or using the {@link #setSource(byte[], XContentType)}.
      */
     public IndexRequestBuilder setSource(String source, XContentType xContentType) {

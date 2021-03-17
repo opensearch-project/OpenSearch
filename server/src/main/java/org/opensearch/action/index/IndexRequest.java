@@ -67,8 +67,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * {@link #source(byte[], XContentType)} to be set.
  *
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
- * its string form ({@link #source(String, XContentType)}) or using a {@link XContentBuilder}
- * ({@link #source(XContentBuilder)}).
+ * its string form ({@link #source(String, XContentType)}) or using a {@link org.opensearch.common.xcontent.XContentBuilder}
+ * ({@link #source(org.opensearch.common.xcontent.XContentBuilder)}).
  *
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *

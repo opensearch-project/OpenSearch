@@ -36,7 +36,6 @@ import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.ObjectParser.ValueType;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContent;
 import org.opensearch.index.fielddata.AbstractBinaryDocValues;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -295,7 +294,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     /**
      * Creates a new {@link ScriptSortBuilder} from the query held by the {@link XContentParser} in
-     * {@link XContent} format.
+     * {@link org.opensearch.common.xcontent.XContent} format.
      *
      * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call

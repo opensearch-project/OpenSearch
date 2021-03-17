@@ -66,7 +66,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         ObjectParser<T, String> parser = ObjectParser.fromBuilder(name, ctor);
         ValuesSourceAggregationBuilder.declareFields(parser, false, false, false);
         parser.declareField((p, builder, context) -> builder.precision(precisionParser.parse(p)), FIELD_PRECISION,
-            ObjectParser.ValueType.INT);
+            org.opensearch.common.xcontent.ObjectParser.ValueType.INT);
         parser.declareInt(GeoGridAggregationBuilder::size, FIELD_SIZE);
         parser.declareInt(GeoGridAggregationBuilder::shardSize, FIELD_SHARD_SIZE);
         parser.declareField((p, builder, context) -> {

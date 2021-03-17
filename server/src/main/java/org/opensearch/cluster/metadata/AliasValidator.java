@@ -65,7 +65,7 @@ public class AliasValidator {
     /**
      * Allows to partially validate an alias, without knowing which index it'll get applied to.
      * Useful with index templates containing aliases. Checks also that it is possible to parse
-     * the alias filter via {@link XContentParser},
+     * the alias filter via {@link org.opensearch.common.xcontent.XContentParser},
      * without validating it as a filter though.
      * @throws IllegalArgumentException if the alias is not valid
      */

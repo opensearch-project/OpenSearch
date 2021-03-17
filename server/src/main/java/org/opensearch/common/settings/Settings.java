@@ -604,7 +604,7 @@ public final class Settings implements ToXContentFragment {
     /**
      * Parsers the generated xcontent from {@link Settings#toXContent(XContentBuilder, Params)} into a new Settings object.
      * Note this method requires the parser to either be positioned on a null token or on
-     * {@link XContentParser.Token#START_OBJECT}.
+     * {@link org.opensearch.common.xcontent.XContentParser.Token#START_OBJECT}.
      */
     public static Settings fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true, false);

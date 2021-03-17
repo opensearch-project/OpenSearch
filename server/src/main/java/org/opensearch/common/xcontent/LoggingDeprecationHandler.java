@@ -21,7 +21,6 @@ package org.opensearch.common.xcontent;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
-
 import java.util.function.Supplier;
 
 /**

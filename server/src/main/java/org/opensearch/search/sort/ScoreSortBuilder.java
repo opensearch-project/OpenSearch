@@ -29,7 +29,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.opensearch.common.xcontent.XContent;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -78,7 +77,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     /**
      * Creates a new {@link ScoreSortBuilder} from the query held by the {@link XContentParser} in
-     * {@link XContent} format.
+     * {@link org.opensearch.common.xcontent.XContent} format.
      *
      * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call
