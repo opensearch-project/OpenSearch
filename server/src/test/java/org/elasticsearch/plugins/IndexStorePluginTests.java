@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.node.MockNode;
+import org.opensearch.node.MockNode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

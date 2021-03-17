@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.support;
 
-import org.elasticsearch.node.ReportingService;
+import org.opensearch.node.ReportingService;
 
 import java.util.HashMap;
 import java.util.Map;

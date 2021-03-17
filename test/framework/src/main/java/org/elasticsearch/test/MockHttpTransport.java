@@ -33,7 +33,7 @@ import org.elasticsearch.plugins.Plugin;
 public class MockHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
     /**
-     * Marker plugin used by {@link org.elasticsearch.node.MockNode} to enable {@link MockHttpTransport}.
+     * Marker plugin used by {@link org.opensearch.node.MockNode} to enable {@link MockHttpTransport}.
      */
     public static class TestPlugin extends Plugin {}
 

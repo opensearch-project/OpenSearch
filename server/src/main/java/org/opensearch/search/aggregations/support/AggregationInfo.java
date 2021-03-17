@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.support;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.node.ReportingService;
+import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.Collections;

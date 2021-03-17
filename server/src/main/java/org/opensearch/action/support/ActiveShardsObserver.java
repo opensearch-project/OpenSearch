@@ -25,8 +25,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.node.NodeClosedException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;

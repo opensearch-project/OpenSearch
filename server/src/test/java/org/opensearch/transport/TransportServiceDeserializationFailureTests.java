@@ -36,7 +36,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;

@@ -153,7 +153,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            // copy the setting here so we can mark it private in org.opensearch.node.Node
             return Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
         }
 
@@ -166,7 +166,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            // copy the setting here so we can mark it private in org.opensearch.node.Node
             return Setting.boolSetting("node.ingest", true, Property.Deprecated, Property.NodeScope);
         }
 
@@ -179,7 +179,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            // copy the setting here so we can mark it private in org.opensearch.node.Node
             return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
         }
 
@@ -189,7 +189,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            // copy the setting here so we can mark it private in org.opensearch.node.Node
             return Setting.boolSetting(
                 "node.remote_cluster_client",
                 RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
