@@ -40,7 +40,7 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.test.AbstractQueryTestCase;
 

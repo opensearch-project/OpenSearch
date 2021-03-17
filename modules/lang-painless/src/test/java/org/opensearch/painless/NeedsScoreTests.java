@@ -19,7 +19,7 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.painless.spi.Whitelist;

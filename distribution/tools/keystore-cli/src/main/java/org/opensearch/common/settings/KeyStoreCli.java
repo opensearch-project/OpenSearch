@@ -20,8 +20,6 @@
 package org.opensearch.common.settings;
 
 import org.elasticsearch.common.settings.ChangeKeyStorePasswordCommand;
-import org.elasticsearch.common.settings.HasPasswordKeyStoreCommand;
-import org.elasticsearch.common.settings.UpgradeKeyStoreCommand;
 import org.opensearch.cli.LoggingAwareMultiCommand;
 import org.opensearch.cli.Terminal;
 

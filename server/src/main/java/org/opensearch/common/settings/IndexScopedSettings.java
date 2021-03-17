@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.settings;
+package org.opensearch.common.settings;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
@@ -26,23 +26,23 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.IndexingSlowLog;
-import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.MergeSchedulerConfig;
-import org.elasticsearch.index.SearchSlowLog;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.FsDirectoryFactory;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesRequestCache;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexSortConfig;
+import org.opensearch.index.IndexingSlowLog;
+import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.MergeSchedulerConfig;
+import org.opensearch.index.SearchSlowLog;
+import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.fielddata.IndexFieldDataService;
+import org.opensearch.index.mapper.FieldMapper;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.IndicesRequestCache;
 
 import java.util.Arrays;
 import java.util.Collections;

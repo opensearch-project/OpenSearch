@@ -28,13 +28,13 @@ import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.opensearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
-import static org.elasticsearch.index.MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING;
-import static org.elasticsearch.index.MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING;
+import static org.opensearch.index.MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING;
+import static org.opensearch.index.MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING;
 import static org.hamcrest.core.StringContains.containsString;
 
 public class MergeSchedulerSettingsTests extends ESTestCase {
@@ -71,7 +71,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     public void testUpdateAutoThrottleSettings() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         mockAppender.start();
-        final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
+        final Logger settingsLogger = LogManager.getLogger("org.opensearch.common.settings.IndexScopedSettings");
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
@@ -102,7 +102,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     public void testUpdateMergeMaxThreadCount() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         mockAppender.start();
-        final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
+        final Logger settingsLogger = LogManager.getLogger("org.opensearch.common.settings.IndexScopedSettings");
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {

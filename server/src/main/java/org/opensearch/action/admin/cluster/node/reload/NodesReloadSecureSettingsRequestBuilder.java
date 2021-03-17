@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.node.reload;
 
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.settings.SecureString;
+import org.opensearch.common.settings.SecureString;
 
 /**
  * Builder for the reload secure settings nodes request

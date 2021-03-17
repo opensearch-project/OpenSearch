@@ -20,7 +20,7 @@
 package org.opensearch.action.admin.indices.settings.put;
 
 import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 
 /**
  * Cluster state update request that allows to update settings for some indices

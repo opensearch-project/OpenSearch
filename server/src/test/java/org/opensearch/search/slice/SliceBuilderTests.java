@@ -43,7 +43,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;

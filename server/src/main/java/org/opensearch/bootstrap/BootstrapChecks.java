@@ -27,7 +27,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.DiscoveryModule;

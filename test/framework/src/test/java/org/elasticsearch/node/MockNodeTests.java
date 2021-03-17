@@ -19,11 +19,11 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.env.Environment;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;

@@ -23,7 +23,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;

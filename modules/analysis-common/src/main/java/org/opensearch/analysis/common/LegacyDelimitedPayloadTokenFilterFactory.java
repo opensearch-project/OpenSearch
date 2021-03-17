@@ -22,8 +22,8 @@ package org.opensearch.analysis.common;
 import org.opensearch.Version;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.env.Environment;
+import org.opensearch.index.IndexSettings;
 
 public class LegacyDelimitedPayloadTokenFilterFactory extends DelimitedPayloadTokenFilterFactory {
 

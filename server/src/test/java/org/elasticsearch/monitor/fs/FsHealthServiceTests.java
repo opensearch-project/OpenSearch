@@ -28,9 +28,9 @@ import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -50,9 +50,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
-import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.is;
 
 public class FsHealthServiceTests extends ESTestCase {

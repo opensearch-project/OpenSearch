@@ -20,7 +20,7 @@ package org.opensearch.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;

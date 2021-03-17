@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.cluster.node.DiscoveryNode;

@@ -36,7 +36,7 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata.State;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;

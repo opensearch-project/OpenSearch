@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util.concurrent;
+package org.opensearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 
 import java.util.List;
 import java.util.Optional;

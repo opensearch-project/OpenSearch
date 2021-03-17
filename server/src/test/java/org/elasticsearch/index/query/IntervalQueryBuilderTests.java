@@ -31,7 +31,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;

@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.TestUtil;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;

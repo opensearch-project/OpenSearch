@@ -30,7 +30,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.PlainListenableActionFuture;
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.tasks.Task;

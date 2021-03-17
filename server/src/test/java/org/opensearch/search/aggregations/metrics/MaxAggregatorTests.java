@@ -47,7 +47,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.opensearch.script.MockScriptEngine;

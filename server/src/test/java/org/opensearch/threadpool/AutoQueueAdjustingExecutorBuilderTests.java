@@ -19,7 +19,7 @@
 
 package org.opensearch.threadpool;
 
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 
 import static org.hamcrest.CoreMatchers.containsString;
 

@@ -22,7 +22,7 @@ package org.opensearch.transport.netty4;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.PageCacheRecycler;

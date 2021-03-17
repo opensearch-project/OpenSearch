@@ -23,10 +23,10 @@ import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.SecureSetting;
+import org.opensearch.common.settings.SecureString;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.ssl.SslConfiguration;
 import org.opensearch.common.ssl.SslConfigurationKeys;
 import org.opensearch.common.ssl.SslConfigurationLoader;
@@ -47,8 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.Setting.listSetting;
-import static org.elasticsearch.common.settings.Setting.simpleString;
+import static org.opensearch.common.settings.Setting.listSetting;
+import static org.opensearch.common.settings.Setting.simpleString;
 
 /**
  * Loads "reindex.ssl.*" configuration from Settings, and makes the applicable configuration (trust manager / key manager / hostname

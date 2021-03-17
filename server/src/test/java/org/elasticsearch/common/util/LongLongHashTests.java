@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.util.BigArrays;

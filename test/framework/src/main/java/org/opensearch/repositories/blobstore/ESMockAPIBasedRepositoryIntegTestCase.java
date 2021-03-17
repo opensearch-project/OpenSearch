@@ -33,7 +33,7 @@ import org.opensearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;

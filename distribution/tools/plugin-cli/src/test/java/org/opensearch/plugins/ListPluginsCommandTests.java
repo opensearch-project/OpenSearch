@@ -32,7 +32,7 @@ import org.opensearch.Version;
 import org.opensearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;

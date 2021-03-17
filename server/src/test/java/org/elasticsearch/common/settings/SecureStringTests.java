@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.SecureString;
 
 import java.util.Arrays;
 

@@ -22,7 +22,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestStats;
 import org.opensearch.plugins.Plugin;

@@ -24,7 +24,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.opensearch.cli.Command;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;

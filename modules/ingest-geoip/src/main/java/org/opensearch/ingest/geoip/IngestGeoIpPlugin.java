@@ -29,7 +29,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.plugins.IngestPlugin;
