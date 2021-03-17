@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 
 /**
  * A {@link FieldMapper} that takes a string and writes a count of the tokens in that string

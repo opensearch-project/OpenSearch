@@ -33,7 +33,7 @@ import org.opensearch.script.StoredScriptSource;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.opensearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 

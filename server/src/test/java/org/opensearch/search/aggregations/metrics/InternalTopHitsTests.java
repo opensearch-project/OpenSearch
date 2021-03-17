@@ -35,7 +35,7 @@ import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;

@@ -20,16 +20,16 @@ package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;

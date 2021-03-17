@@ -24,7 +24,7 @@ import org.apache.http.util.EntityUtils;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

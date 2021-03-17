@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 

@@ -29,7 +29,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;

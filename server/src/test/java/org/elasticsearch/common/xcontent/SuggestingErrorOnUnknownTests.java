@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
 
 import java.util.Arrays;
 

@@ -23,7 +23,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;

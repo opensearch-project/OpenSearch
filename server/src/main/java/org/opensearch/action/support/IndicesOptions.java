@@ -36,8 +36,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 
 /**
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded

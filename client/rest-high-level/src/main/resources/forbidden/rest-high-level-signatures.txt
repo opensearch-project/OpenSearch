@@ -29,7 +29,7 @@ org.opensearch.common.logging.NodeNamePatternConverter
 org.opensearch.common.logging.PrefixLogger
 
 @defaultMessage We can't rely on log4j2 being on the classpath so don't log deprecations!
-org.elasticsearch.common.xcontent.LoggingDeprecationHandler
+org.opensearch.common.xcontent.LoggingDeprecationHandler
 
 @defaultMessage Use Nonblocking org.apache.http.nio.entity.NByteArrayEntity
 org.apache.http.entity.ByteArrayEntity
