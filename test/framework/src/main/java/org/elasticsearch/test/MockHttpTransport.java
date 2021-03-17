@@ -22,9 +22,9 @@ package org.elasticsearch.test;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.HttpStats;
+import org.opensearch.http.HttpInfo;
+import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.HttpStats;
 import org.elasticsearch.plugins.Plugin;
 
 /**

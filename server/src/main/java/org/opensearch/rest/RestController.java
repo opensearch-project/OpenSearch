@@ -36,7 +36,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.http.HttpServerTransport;
+import org.opensearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.usage.UsageService;
 

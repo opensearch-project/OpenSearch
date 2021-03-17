@@ -31,9 +31,9 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.http.HttpPipelinedResponse;
-import org.elasticsearch.http.HttpResponse;
+import org.opensearch.http.HttpPipelinedRequest;
+import org.opensearch.http.HttpPipelinedResponse;
+import org.opensearch.http.HttpResponse;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -221,7 +221,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
         @Override
         protected void channelRead0(final ChannelHandlerContext ctx, HttpPipelinedRequest pipelinedRequest) {
-            final org.elasticsearch.http.HttpRequest request = pipelinedRequest.getDelegateRequest();
+            final org.opensearch.http.HttpRequest request = pipelinedRequest.getDelegateRequest();
             final QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
 
             final String uri = decoder.path().replace("/", "");

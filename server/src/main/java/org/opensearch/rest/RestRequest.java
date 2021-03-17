@@ -35,8 +35,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
+import org.opensearch.http.HttpChannel;
+import org.opensearch.http.HttpRequest;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -28,7 +28,7 @@ import org.opensearch.client.Client;
 import org.opensearch.client.FilterClient;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.http.HttpChannel;
+import org.opensearch.http.HttpChannel;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 

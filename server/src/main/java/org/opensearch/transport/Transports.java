@@ -20,7 +20,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpServerTransport;
+import org.opensearch.http.HttpServerTransport;
 import org.opensearch.tasks.Task;
 
 import java.util.Arrays;
