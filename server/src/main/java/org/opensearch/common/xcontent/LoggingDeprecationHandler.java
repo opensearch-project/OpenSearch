@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,10 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.common.xcontent;
+package org.opensearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentLocation;
 
 import java.util.function.Supplier;
 

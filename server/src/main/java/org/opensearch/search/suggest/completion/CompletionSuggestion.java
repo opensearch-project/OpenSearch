@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.search.SearchHit.unknownMetaFieldConsumer;
 import static org.opensearch.search.suggest.Suggest.COMPARATOR;
 

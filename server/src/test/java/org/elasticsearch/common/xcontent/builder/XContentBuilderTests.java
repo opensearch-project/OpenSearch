@@ -27,7 +27,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentOpenSearchExtension;
+import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;

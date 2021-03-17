@@ -19,7 +19,7 @@
 package org.elasticsearch.test.rest.yaml.restspec;
 
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;

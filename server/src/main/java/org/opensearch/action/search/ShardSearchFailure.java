@@ -38,7 +38,7 @@ import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Represents a failure to search on a specific shard.

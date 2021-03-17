@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.xcontent.XContentParserUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

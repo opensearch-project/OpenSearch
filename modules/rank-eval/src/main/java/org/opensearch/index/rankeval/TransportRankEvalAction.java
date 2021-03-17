@@ -30,7 +30,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -50,7 +50,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
+import static org.opensearch.common.xcontent.XContentHelper.createParser;
 import static org.opensearch.index.rankeval.RatedRequest.validateEvaluatedQuery;
 
 /**

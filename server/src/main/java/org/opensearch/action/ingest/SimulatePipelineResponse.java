@@ -36,7 +36,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class SimulatePipelineResponse extends ActionResponse implements ToXContentObject {
     private String pipelineId;

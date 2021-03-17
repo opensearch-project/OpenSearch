@@ -22,7 +22,7 @@ package org.opensearch.client.indices;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.opensearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;

@@ -25,7 +25,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ESSloppyMath;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.geometry.Rectangle;
 
 import java.io.IOException;

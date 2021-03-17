@@ -23,6 +23,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 
 import java.io.IOException;
 import java.util.EnumSet;
