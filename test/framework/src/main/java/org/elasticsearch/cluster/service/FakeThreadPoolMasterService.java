@@ -31,7 +31,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.EsExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 import org.opensearch.cluster.service.MasterService;
 import org.opensearch.threadpool.ThreadPool;
 

@@ -29,7 +29,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,7 +46,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 
 /**

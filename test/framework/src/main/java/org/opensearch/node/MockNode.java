@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.node;
+package org.opensearch.node;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterInfoService;

@@ -25,7 +25,7 @@ import joptsimple.util.KeyValuePair;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.InternalSettingsPreparer;
+import org.opensearch.node.InternalSettingsPreparer;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;

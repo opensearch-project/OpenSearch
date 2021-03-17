@@ -19,8 +19,9 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.settings.Settings;
-import org.elasticsearch.node.MockNode;
+import org.elasticsearch.common.settings.Settings;
+import org.opensearch.node.MockNode;
+
 import org.opensearch.plugins.Plugin;
 
 import java.util.Map;
