@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.Strings;
@@ -36,7 +36,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.util.Collection;
 import java.util.Map;
 
-import static org.elasticsearch.index.MapperTestUtils.assertConflicts;
+import static org.opensearch.index.MapperTestUtils.assertConflicts;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SourceFieldMapperTests extends ESSingleNodeTestCase {

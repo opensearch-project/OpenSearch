@@ -21,8 +21,8 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.reindex.BulkByScrollResponse;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;

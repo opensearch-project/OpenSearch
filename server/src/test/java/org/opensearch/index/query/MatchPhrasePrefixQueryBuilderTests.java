@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.opensearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -25,7 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.opensearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
