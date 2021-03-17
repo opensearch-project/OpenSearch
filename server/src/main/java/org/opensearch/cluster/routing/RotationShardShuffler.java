@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.routing;
 
-import org.elasticsearch.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;

@@ -24,7 +24,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
 import java.util.List;

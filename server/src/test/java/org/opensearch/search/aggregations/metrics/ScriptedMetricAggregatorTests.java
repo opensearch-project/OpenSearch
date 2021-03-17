@@ -35,7 +35,7 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;

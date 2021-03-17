@@ -45,7 +45,7 @@ import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;

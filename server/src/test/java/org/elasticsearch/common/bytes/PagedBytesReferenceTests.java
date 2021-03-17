@@ -20,7 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.ByteArray;
+import org.opensearch.common.util.ByteArray;
 import org.hamcrest.Matchers;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;

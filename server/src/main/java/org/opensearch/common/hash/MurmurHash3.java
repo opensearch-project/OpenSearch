@@ -19,7 +19,7 @@
 
 package org.opensearch.common.hash;
 
-import org.elasticsearch.common.util.ByteUtils;
+import org.opensearch.common.util.ByteUtils;
 
 import java.util.Objects;
 

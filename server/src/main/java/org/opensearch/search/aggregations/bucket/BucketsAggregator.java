@@ -19,8 +19,8 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.IntArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;

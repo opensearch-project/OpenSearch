@@ -34,7 +34,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;

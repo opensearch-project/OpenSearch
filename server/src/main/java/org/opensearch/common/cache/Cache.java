@@ -20,7 +20,7 @@
 package org.opensearch.common.cache;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 
 import java.util.Arrays;
 import java.util.HashMap;

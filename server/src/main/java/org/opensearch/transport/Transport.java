@@ -27,8 +27,8 @@ import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 
 import java.io.Closeable;
 import java.io.IOException;

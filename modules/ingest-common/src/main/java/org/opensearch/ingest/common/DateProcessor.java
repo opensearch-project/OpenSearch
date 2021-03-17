@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.LocaleUtils;
+import org.opensearch.common.util.LocaleUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;

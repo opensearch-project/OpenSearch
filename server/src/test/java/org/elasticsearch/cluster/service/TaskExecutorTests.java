@@ -25,8 +25,8 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.cluster.service.SourcePrioritizedRunnable;
 import org.opensearch.threadpool.TestThreadPool;
@@ -43,7 +43,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 

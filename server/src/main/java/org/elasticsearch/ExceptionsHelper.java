@@ -27,7 +27,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.opensearch.rest.RestStatus;
 

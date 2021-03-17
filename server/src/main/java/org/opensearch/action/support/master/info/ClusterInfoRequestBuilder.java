@@ -23,7 +23,7 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.util.ArrayUtils;
+import org.opensearch.common.util.ArrayUtils;
 
 public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse,
         Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>>

@@ -26,7 +26,7 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportResponse;
 

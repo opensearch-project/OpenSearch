@@ -25,7 +25,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.threadpool.TestThreadPool;

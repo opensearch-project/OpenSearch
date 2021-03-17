@@ -41,7 +41,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;

@@ -26,6 +26,8 @@ import com.carrotsearch.hppc.cursors.LongLongCursor;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.LongHash;
 
 import java.util.HashMap;
 import java.util.HashSet;

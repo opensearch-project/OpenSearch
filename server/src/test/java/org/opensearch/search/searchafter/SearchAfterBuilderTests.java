@@ -28,7 +28,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.text.Text;
-import org.elasticsearch.common.util.BigArrays;
+import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;

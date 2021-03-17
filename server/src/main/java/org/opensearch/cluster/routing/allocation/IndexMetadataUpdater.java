@@ -29,7 +29,7 @@ import org.opensearch.cluster.routing.RoutingChangesObserver;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 

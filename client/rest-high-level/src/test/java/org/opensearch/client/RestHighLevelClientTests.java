@@ -55,7 +55,7 @@ import org.opensearch.client.core.MainResponse;
 import org.elasticsearch.common.CheckedFunction;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;

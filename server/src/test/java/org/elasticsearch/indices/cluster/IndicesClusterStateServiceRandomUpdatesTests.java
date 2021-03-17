@@ -47,7 +47,7 @@ import org.opensearch.cluster.routing.allocation.FailedShard;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;

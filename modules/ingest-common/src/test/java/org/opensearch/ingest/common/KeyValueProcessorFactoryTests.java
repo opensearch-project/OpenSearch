@@ -21,7 +21,7 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.common.util.set.Sets;
+import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

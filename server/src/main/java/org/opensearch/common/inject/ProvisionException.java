@@ -25,7 +25,7 @@ import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.common.util.set.Sets.newHashSet;
 
 /**
  * Indicates that there was a runtime failure while providing an instance.

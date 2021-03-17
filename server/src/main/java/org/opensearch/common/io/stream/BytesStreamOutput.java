@@ -24,9 +24,9 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.ByteArray;
+import org.opensearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 
@@ -174,8 +174,8 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     /**
-     * Returns the number of bytes used by the underlying {@link org.elasticsearch.common.util.ByteArray}
-     * @see org.elasticsearch.common.util.ByteArray#ramBytesUsed()
+     * Returns the number of bytes used by the underlying {@link org.opensearch.common.util.ByteArray}
+     * @see org.opensearch.common.util.ByteArray#ramBytesUsed()
      */
     public long ramBytesUsed() {
         return bytes.ramBytesUsed();

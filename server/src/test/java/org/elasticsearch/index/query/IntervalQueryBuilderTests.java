@@ -33,7 +33,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.BigArrays;
+import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.opensearch.script.Script;

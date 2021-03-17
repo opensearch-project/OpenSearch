@@ -21,7 +21,7 @@ package org.opensearch.common.logging;
 
 import org.elasticsearch.Build;
 import org.opensearch.Version;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.Task;
 
 import java.nio.charset.Charset;

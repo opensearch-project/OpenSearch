@@ -24,6 +24,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BigDoubleArray;
+import org.opensearch.common.util.BinarySearcher;
+import org.opensearch.common.util.DoubleArray;
 
 import java.util.Arrays;
 

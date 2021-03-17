@@ -24,7 +24,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.FormatNames;
-import org.elasticsearch.common.util.LazyInitializable;
+import org.opensearch.common.util.LazyInitializable;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeField;

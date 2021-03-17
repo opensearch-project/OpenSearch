@@ -22,6 +22,7 @@ import org.opensearch.common.Randomness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.AfterClass;

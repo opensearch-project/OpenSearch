@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.BigArrays;
+import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.ValuesSource;

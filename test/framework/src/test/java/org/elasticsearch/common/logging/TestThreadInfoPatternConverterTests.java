@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 

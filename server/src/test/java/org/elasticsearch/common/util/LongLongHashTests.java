@@ -22,6 +22,8 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.LongLongHash;
 
 import java.util.ArrayList;
 import java.util.HashMap;

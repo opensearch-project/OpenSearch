@@ -21,7 +21,7 @@ package org.elasticsearch.index;
 
 import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
 
