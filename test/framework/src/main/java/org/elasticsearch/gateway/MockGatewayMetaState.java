@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.opensearch.gateway;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Manifest;

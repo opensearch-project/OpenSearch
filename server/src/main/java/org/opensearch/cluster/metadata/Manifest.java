@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.gateway.MetadataStateFormat;
+import org.opensearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
