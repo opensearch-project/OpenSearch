@@ -21,8 +21,8 @@ package org.opensearch.ingest.useragent;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.IngestPlugin;
+import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.io.InputStream;

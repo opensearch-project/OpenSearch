@@ -22,7 +22,7 @@ package org.opensearch.join.aggregations;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.opensearch.join.ParentJoinPlugin;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.opensearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;

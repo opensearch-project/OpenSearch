@@ -22,8 +22,8 @@ package org.opensearch.script.expression;
 import java.util.Collection;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 

@@ -20,7 +20,7 @@ package org.opensearch;
 
 import org.opensearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.opensearch.transport.Netty4Plugin;
 import org.opensearch.transport.netty4.Netty4Transport;

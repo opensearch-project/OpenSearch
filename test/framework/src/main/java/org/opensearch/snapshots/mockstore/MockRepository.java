@@ -40,7 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.RepositoryPlugin;
+import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
@@ -65,7 +65,7 @@ import java.util.stream.Collectors;
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
 
-    public static class Plugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
+    public static class Plugin extends org.opensearch.plugins.Plugin implements RepositoryPlugin {
 
         public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", Property.NodeScope);
         public static final Setting<String> PASSWORD_SETTING =

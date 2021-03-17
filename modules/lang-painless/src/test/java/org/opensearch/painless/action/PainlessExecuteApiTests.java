@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.opensearch.painless.PainlessPlugin;
 import org.opensearch.painless.action.PainlessExecuteAction.Request;
 import org.opensearch.painless.action.PainlessExecuteAction.Response;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.ScriptService;

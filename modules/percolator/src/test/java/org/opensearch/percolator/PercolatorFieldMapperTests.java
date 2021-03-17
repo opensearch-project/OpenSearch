@@ -85,7 +85,7 @@ import org.elasticsearch.indices.TermsLookup;
 import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.join.query.HasChildQueryBuilder;
 import org.opensearch.join.query.HasParentQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.elasticsearch.test.ESSingleNodeTestCase;

@@ -51,7 +51,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.join.mapper.MetaJoinFieldMapper;
 import org.opensearch.join.mapper.ParentJoinFieldMapper;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.opensearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
