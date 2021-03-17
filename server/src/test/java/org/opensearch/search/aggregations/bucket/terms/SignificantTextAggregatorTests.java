@@ -41,8 +41,8 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
@@ -56,8 +56,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
+import static org.opensearch.search.aggregations.AggregationBuilders.sampler;
+import static org.opensearch.search.aggregations.AggregationBuilders.significantText;
 
 public class SignificantTextAggregatorTests extends AggregatorTestCase {
 

@@ -23,7 +23,7 @@ import org.opensearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
 
 import java.io.IOException;

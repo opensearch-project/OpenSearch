@@ -138,7 +138,7 @@ import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptMetadata;
-import org.elasticsearch.search.MockSearchService;
+import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;

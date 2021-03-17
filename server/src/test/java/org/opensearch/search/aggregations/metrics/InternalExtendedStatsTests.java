@@ -20,8 +20,8 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.search.aggregations.metrics.ExtendedStats.Bounds;
 import org.elasticsearch.test.InternalAggregationTestCase;
 

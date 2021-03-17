@@ -50,7 +50,7 @@ package org.opensearch.search.aggregations.support;
  * implementations, and aggregations register what types they support via one of the
  * {@link org.opensearch.search.aggregations.support.ValuesSourceRegistry.Builder#register} methods.  The VaulesSourceType itself holds
  * information on how to with values of that type, including methods for creating
- * {@link org.opensearch.search.aggregations.support.ValuesSource} instances and {@link org.elasticsearch.search.DocValueFormat}
+ * {@link org.opensearch.search.aggregations.support.ValuesSource} instances and {@link org.opensearch.search.DocValueFormat}
  * instances.
  * </p>
  *

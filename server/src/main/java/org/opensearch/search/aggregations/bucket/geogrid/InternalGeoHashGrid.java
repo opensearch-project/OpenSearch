@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 import java.util.List;

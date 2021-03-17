@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.script.Script;
-import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.opensearch.search.aggregations.BasePipelineAggregationTestCase;
 
 import java.util.HashMap;
 import java.util.Map;

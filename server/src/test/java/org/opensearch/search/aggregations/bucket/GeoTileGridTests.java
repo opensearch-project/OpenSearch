@@ -27,7 +27,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;

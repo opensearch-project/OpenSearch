@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
 import java.util.List;

@@ -21,7 +21,7 @@ package org.opensearch.join.aggregations;
 
 import org.opensearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.util.Arrays;
