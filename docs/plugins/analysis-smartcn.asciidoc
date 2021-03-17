@@ -2,7 +2,7 @@
 === Smart Chinese Analysis Plugin
 
 The Smart Chinese Analysis plugin integrates Lucene's Smart Chinese analysis
-module into {opensearch}.
+module into opensearch.
 
 It provides an analyzer for Chinese or mixed Chinese-English text. This
 analyzer uses probabilistic knowledge to find the optimal word segmentation
