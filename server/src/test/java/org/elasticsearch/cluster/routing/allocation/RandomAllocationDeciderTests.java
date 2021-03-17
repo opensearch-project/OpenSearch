@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -53,7 +53,7 @@ import java.util.Random;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RandomAllocationDeciderTests extends ESAllocationTestCase {
+public class RandomAllocationDeciderTests extends OpenSearchAllocationTestCase {
     /* This test will make random allocation decision on a growing and shrinking
      * cluster leading to a random distribution of the shards. After a certain
      * amount of iterations the test allows allocation unless the same shard is

@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -40,7 +40,7 @@ import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
+public class RoutingNodesIntegrityTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(IndexBalanceTests.class);
 
     public void testBalanceAllNodesStarted() {

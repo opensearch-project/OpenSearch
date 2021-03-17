@@ -57,8 +57,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.DataStreamTestHelper.createBackingIndex;
+import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.opensearch.common.util.set.Sets.newHashSet;

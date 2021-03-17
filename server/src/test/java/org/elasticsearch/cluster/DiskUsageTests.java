@@ -26,7 +26,7 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;

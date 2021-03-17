@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.opensearch.cluster.coordination.DeterministicTaskQueue;
+import org.opensearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.opensearch.common.Priority;
 import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.PrioritizedRunnable;

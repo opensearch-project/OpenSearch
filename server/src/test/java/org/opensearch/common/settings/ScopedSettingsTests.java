@@ -27,6 +27,7 @@ import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;

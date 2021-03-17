@@ -65,7 +65,7 @@ import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;

@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.cli.ExitCodes;
-import org.elasticsearch.cli.MockTerminal;
+import org.opensearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;

@@ -19,15 +19,10 @@
 
 package org.opensearch.common.bytes;
 
-import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.opensearch.common.util.ByteArray;
 import org.hamcrest.Matchers;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.bytes.CompositeBytesReference;
-import org.opensearch.common.bytes.ReleasableBytesReference;
 
 import java.io.IOException;
 import java.util.ArrayList;

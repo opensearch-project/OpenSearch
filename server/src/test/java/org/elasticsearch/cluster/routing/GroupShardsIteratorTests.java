@@ -29,6 +29,7 @@ import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.PlainShardIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.TestShardRouting;
 
 import java.util.ArrayList;
 import java.util.Arrays;

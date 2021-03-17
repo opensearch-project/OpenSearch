@@ -18,11 +18,8 @@
  */
 package org.opensearch.common.bytes;
 
-import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.hamcrest.Matchers;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 
