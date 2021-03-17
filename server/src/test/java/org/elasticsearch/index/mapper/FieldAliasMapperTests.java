@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 

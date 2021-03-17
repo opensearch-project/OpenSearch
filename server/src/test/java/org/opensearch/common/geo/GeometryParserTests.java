@@ -21,11 +21,11 @@ package org.opensearch.common.geo;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParseException;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.geo.GeometryFormat;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.geometry.Geometry;

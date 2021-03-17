@@ -30,7 +30,7 @@ import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.client.Request;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 

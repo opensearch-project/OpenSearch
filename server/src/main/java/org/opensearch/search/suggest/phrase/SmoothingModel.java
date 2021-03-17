@@ -21,9 +21,9 @@ package org.opensearch.search.suggest.phrase;
 
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.suggest.phrase.WordScorer.WordScorerFactory;
 
 import java.io.IOException;

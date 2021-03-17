@@ -22,14 +22,14 @@ package org.opensearch.action.admin.indices.mapping.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 
 import java.io.IOException;

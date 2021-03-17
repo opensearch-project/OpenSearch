@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.PluginInfo;
 

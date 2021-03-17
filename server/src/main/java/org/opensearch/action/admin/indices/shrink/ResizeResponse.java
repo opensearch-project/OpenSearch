@@ -21,8 +21,8 @@ package org.opensearch.action.admin.indices.shrink;
 
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 

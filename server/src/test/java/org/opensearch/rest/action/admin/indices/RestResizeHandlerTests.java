@@ -20,7 +20,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 

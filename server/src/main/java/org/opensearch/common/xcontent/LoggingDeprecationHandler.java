@@ -19,11 +19,8 @@
 
 package org.opensearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentLocation;
-
 import java.util.function.Supplier;
 
 /**

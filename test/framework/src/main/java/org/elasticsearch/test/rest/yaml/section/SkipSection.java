@@ -21,7 +21,7 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.opensearch.Version;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.Features;
 

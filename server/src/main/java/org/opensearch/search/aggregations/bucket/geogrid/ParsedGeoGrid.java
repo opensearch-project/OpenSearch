@@ -20,8 +20,8 @@
 package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.CheckedFunction;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;

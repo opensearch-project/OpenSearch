@@ -23,7 +23,7 @@ import org.opensearch.cluster.Diff;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.cluster.metadata.AliasMetadata;

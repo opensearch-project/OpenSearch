@@ -19,13 +19,10 @@
 
 package org.opensearch.common.xcontent;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.opensearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Locale;

@@ -28,7 +28,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.opensearch.rest.action.document.RestIndexAction.CreateHandler;

@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;

@@ -20,8 +20,8 @@
 package org.opensearch.client;
 
 import org.opensearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentTestCase;
 

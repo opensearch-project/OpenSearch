@@ -21,8 +21,8 @@ package org.opensearch.common.text;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

@@ -34,15 +34,15 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -604,7 +604,7 @@ public final class Settings implements ToXContentFragment {
     /**
      * Parsers the generated xcontent from {@link Settings#toXContent(XContentBuilder, Params)} into a new Settings object.
      * Note this method requires the parser to either be positioned on a null token or on
-     * {@link org.elasticsearch.common.xcontent.XContentParser.Token#START_OBJECT}.
+     * {@link org.opensearch.common.xcontent.XContentParser.Token#START_OBJECT}.
      */
     public static Settings fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true, false);

@@ -22,11 +22,11 @@ package org.opensearch.action.admin.cluster.allocation;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 

@@ -20,8 +20,6 @@
 package org.opensearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderExtension;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.ByteSizeValue;

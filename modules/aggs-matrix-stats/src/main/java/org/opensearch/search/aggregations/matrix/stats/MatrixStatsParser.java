@@ -18,8 +18,8 @@
  */
 package org.opensearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
