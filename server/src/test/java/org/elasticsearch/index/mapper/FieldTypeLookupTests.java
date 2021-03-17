@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.collect.Set;
+import org.opensearch.common.collect.Set;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

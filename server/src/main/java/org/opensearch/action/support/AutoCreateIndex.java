@@ -21,9 +21,9 @@ package org.opensearch.action.support;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Booleans;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;

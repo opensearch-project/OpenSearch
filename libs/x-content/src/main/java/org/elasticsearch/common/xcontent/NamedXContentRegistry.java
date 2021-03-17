@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.opensearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 
 import java.io.IOException;

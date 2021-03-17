@@ -21,7 +21,7 @@ package org.elasticsearch.test;
 
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedBiFunction;
-import org.elasticsearch.common.CheckedFunction;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;

@@ -40,7 +40,7 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.PlainShardIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;

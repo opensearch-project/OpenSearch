@@ -19,7 +19,7 @@
 
 package org.opensearch.nio;
 
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;

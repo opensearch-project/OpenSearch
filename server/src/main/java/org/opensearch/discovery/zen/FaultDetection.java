@@ -28,14 +28,14 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportConnectionListener;
 import org.opensearch.transport.TransportService;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A base class for {@link MasterFaultDetection} &amp; {@link NodesFaultDetection},

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.cache;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;

@@ -30,7 +30,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -435,7 +435,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             List<List<IndexableField>> docs = new ArrayList<>();
             for (int n = 0; n < 10000; n++) {
-                docs.add(org.elasticsearch.common.collect.List.of(
+                docs.add(org.opensearch.common.collect.List.of(
                     new SortedNumericDocValuesField("outer", n % 100),
                     new SortedNumericDocValuesField("inner", n / 100),
                     new SortedNumericDocValuesField("n", n)

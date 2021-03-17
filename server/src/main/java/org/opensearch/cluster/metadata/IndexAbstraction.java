@@ -19,9 +19,9 @@
 package org.opensearch.cluster.metadata;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
-import static org.elasticsearch.common.collect.List.copyOf;
+import static org.opensearch.common.collect.List.copyOf;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.

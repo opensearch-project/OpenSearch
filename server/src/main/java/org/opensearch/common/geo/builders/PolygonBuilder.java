@@ -19,7 +19,7 @@
 
 package org.opensearch.common.geo.builders;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.io.stream.StreamInput;

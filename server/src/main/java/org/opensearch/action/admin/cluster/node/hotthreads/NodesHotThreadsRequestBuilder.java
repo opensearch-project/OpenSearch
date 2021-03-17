@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.node.hotthreads;
 
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 public class NodesHotThreadsRequestBuilder
         extends NodesOperationRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {

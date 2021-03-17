@@ -19,7 +19,7 @@
 package org.elasticsearch.test;
 
 import org.opensearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;

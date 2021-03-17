@@ -19,7 +19,7 @@
 
 package org.opensearch.common.cache;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.Objects;
 import java.util.function.ToLongBiFunction;

@@ -20,7 +20,7 @@ package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;

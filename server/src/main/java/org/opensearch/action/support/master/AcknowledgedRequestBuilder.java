@@ -20,7 +20,7 @@ package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * Base request builder for master node operations that support acknowledgements

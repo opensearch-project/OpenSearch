@@ -27,8 +27,8 @@ import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.Map;
 import java.util.Objects;

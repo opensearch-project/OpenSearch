@@ -20,7 +20,7 @@
 package org.elasticsearch.common.joda;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.joda.Joda;
 import org.opensearch.common.joda.JodaDateFormatter;
 import org.opensearch.common.time.DateFormatter;

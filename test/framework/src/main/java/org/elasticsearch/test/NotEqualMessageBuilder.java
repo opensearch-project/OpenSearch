@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 import java.util.List;
 import java.util.Locale;
@@ -28,7 +28,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * Builds a message describing how two sets of values are unequal. 
+ * Builds a message describing how two sets of values are unequal.
  */
 public class NotEqualMessageBuilder {
     private final StringBuilder message;

@@ -23,7 +23,7 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.http.HttpPipelinedRequest;
 import org.opensearch.http.HttpPipelinedResponse;
 import org.opensearch.http.HttpPipeliningAggregator;

@@ -25,8 +25,8 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.CharArrays;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamOutput;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Booleans;
+import org.opensearch.common.Booleans;
 
 import java.io.IOException;
 import java.util.Map;

@@ -40,11 +40,11 @@ import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.WarningsHandler;
-import org.elasticsearch.common.CheckedRunnable;
+import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -54,7 +54,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.indices.flush.SyncedFlushService;
@@ -578,7 +578,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field or
             // that doesn't support data streams so it's safe to ignore
             int statusCode = e.getResponse().getStatusLine().getStatusCode();
-            if (org.elasticsearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
+            if (org.opensearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
                 throw e;
             }
         }

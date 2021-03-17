@@ -26,7 +26,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -46,7 +46,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 
 /**
  * Round trip tests for all {@link Writeable} things declared in this plugin.

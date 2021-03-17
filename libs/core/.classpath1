@@ -49,7 +49,7 @@
 			<attribute name="test" value="false"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="src" path="/:libs:elasticsearch-nio">
+	<classpathentry kind="src" path="/:libs:opensearch-nio">
 		<attributes>
 			<attribute name="test" value="false"/>
 		</attributes>
@@ -59,22 +59,22 @@
 			<attribute name="test" value="false"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="src" path="/:libs:elasticsearch-cli">
+	<classpathentry kind="src" path="/:libs:opensearch-cli">
 		<attributes>
 			<attribute name="test" value="false"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="src" path="/:libs:elasticsearch-x-content">
+	<classpathentry kind="src" path="/:libs:opensearch-x-content">
 		<attributes>
 			<attribute name="test" value="false"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="src" path="/:libs:elasticsearch-secure-sm">
+	<classpathentry kind="src" path="/:libs:opensearch-secure-sm">
 		<attributes>
 			<attribute name="test" value="false"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="src" path="/:libs:elasticsearch-geo">
+	<classpathentry kind="src" path="/:libs:opensearch-geo">
 		<attributes>
 			<attribute name="test" value="false"/>
 		</attributes>
@@ -121,13 +121,13 @@
 			<attribute name="test" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.elasticsearch/securemock/1.2/98201d4ad5ac93f6b415ae9172d52b5e7cda490e/securemock-1.2.jar">
+	<classpathentry kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.opensearch/securemock/1.2/98201d4ad5ac93f6b415ae9172d52b5e7cda490e/securemock-1.2.jar">
 		<attributes>
 			<attribute name="gradle_used_by_scope" value="test"/>
 			<attribute name="test" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/org.elasticsearch/mocksocket/1.2/5a7e4e48580119231e834b5d77333248275e3fb7/mocksocket-1.2-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.elasticsearch/mocksocket/1.2/190ad3f42fd6ab7367bae0c0e14d1dc4e4a3c361/mocksocket-1.2.jar">
+	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/org.opensearch/mocksocket/1.2/5a7e4e48580119231e834b5d77333248275e3fb7/mocksocket-1.2-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.opensearch/mocksocket/1.2/190ad3f42fd6ab7367bae0c0e14d1dc4e4a3c361/mocksocket-1.2.jar">
 		<attributes>
 			<attribute name="gradle_used_by_scope" value="test"/>
 			<attribute name="test" value="true"/>
@@ -301,7 +301,7 @@
 			<attribute name="test" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/org.elasticsearch/jna/4.5.1/965bf0f4cf5b71c2b1e9bb5a8d7b6919020e0492/jna-4.5.1-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.elasticsearch/jna/4.5.1/da10908ae23dc59b19dc258e63aea1c44621dc3a/jna-4.5.1.jar">
+	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/org.opensearch/jna/4.5.1/965bf0f4cf5b71c2b1e9bb5a8d7b6919020e0492/jna-4.5.1-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.opensearch/jna/4.5.1/da10908ae23dc59b19dc258e63aea1c44621dc3a/jna-4.5.1.jar">
 		<attributes>
 			<attribute name="gradle_used_by_scope" value="test"/>
 			<attribute name="test" value="true"/>

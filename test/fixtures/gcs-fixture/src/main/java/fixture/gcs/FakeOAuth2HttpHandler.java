@@ -20,7 +20,7 @@ package fixture.gcs;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

@@ -19,7 +19,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 
 import java.io.IOException;
 import java.util.ArrayList;

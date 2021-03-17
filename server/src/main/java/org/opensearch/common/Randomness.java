@@ -19,7 +19,6 @@
 
 package org.opensearch.common;
 
-import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 

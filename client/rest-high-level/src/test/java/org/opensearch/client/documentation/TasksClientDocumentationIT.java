@@ -31,7 +31,7 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.tasks.CancelTasksRequest;
 import org.opensearch.client.tasks.CancelTasksResponse;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 

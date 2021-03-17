@@ -27,7 +27,7 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -88,7 +88,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = SnapshotsInProgress.of(
-            org.elasticsearch.common.collect.List.of(new SnapshotsInProgress.Entry(snapshot, true, false,
+            org.opensearch.common.collect.List.of(new SnapshotsInProgress.Entry(snapshot, true, false,
                 SnapshotsInProgress.State.INIT, singletonList(new IndexId(index, "doesn't matter")),
                 Collections.emptyList(), System.currentTimeMillis(), (long) randomIntBetween(0, 1000), ImmutableOpenMap.of(), null,
                 SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()))));
@@ -125,13 +125,13 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndices = randomIntBetween(2, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            org.elasticsearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
-            org.elasticsearch.common.collect.List.of());
+            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            org.opensearch.common.collect.List.of());
 
         int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
-        ClusterState after = service.deleteIndices(before, org.elasticsearch.common.collect.Set.of(indexToDelete));
+        ClusterState after = service.deleteIndices(before, org.opensearch.common.collect.Set.of(indexToDelete));
 
         assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
@@ -144,8 +144,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            org.elasticsearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
-            org.elasticsearch.common.collect.List.of());
+            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            org.opensearch.common.collect.List.of());
 
         List<Integer> indexNumbersToDelete =
             randomSubsetOf(numBackingIndicesToDelete, IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList()));
@@ -170,12 +170,12 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndices = randomIntBetween(1, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            org.elasticsearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
-            org.elasticsearch.common.collect.List.of());
+            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            org.opensearch.common.collect.List.of());
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> service.deleteIndices(before, org.elasticsearch.common.collect.Set.of(indexToDelete)));
+            () -> service.deleteIndices(before, org.opensearch.common.collect.Set.of(indexToDelete)));
 
         assertThat(e.getMessage(), containsString("index [" + indexToDelete.getName() + "] is the write index for data stream [" +
             dataStreamName + "] and cannot be deleted"));

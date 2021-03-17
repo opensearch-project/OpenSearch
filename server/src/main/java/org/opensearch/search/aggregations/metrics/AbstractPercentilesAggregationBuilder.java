@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.io.stream.StreamInput;

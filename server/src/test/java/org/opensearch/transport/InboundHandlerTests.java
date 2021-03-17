@@ -28,14 +28,14 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -191,8 +191,8 @@ public class InboundHandlerTests extends ESTestCase {
             TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), remoteVersion);
         final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
         requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
-        requestHeader.headers = Tuple.tuple(org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.Map.of());
-        requestHeader.features = org.elasticsearch.common.collect.Set.of();
+        requestHeader.headers = Tuple.tuple(org.opensearch.common.collect.Map.of(), org.opensearch.common.collect.Map.of());
+        requestHeader.features = org.opensearch.common.collect.Set.of();
         handler.inboundMessage(channel, requestMessage);
 
         final BytesReference responseBytesReference = channel.getMessageCaptor().get();
@@ -230,8 +230,8 @@ public class InboundHandlerTests extends ESTestCase {
                 TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), remoteVersion);
             final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
-            requestHeader.headers = Tuple.tuple(org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.Map.of());
-            requestHeader.features = org.elasticsearch.common.collect.Set.of();
+            requestHeader.headers = Tuple.tuple(org.opensearch.common.collect.Map.of(), org.opensearch.common.collect.Map.of());
+            requestHeader.features = org.opensearch.common.collect.Set.of();
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
             assertNull(channel.getMessageCaptor().get());
@@ -270,7 +270,7 @@ public class InboundHandlerTests extends ESTestCase {
                     });
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Collections.emptyMap(), Collections.emptyMap());
-            requestHeader.features = org.elasticsearch.common.collect.Set.of();
+            requestHeader.features = org.opensearch.common.collect.Set.of();
             handler.inboundMessage(channel, requestMessage);
             assertNotNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();

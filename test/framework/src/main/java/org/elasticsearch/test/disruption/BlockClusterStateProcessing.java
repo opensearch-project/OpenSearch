@@ -21,7 +21,7 @@ package org.elasticsearch.test.disruption;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;

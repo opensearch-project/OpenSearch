@@ -19,8 +19,8 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 

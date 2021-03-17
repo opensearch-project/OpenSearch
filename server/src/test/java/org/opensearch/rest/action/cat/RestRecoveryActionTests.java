@@ -27,7 +27,7 @@ import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Table;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;

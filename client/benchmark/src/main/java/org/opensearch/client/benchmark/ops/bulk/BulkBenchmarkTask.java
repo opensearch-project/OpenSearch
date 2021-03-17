@@ -24,8 +24,8 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.client.benchmark.BenchmarkTask;
 import org.opensearch.client.benchmark.metrics.Sample;
 import org.opensearch.client.benchmark.metrics.SampleRecorder;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;

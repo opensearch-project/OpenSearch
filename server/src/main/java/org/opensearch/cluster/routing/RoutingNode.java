@@ -20,7 +20,7 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 

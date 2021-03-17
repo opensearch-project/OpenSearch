@@ -47,13 +47,13 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
@@ -581,7 +581,7 @@ public class MetadataCreateIndexService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 indexService.newQueryShardContext(0, null, () -> 0L, null)),
-            org.elasticsearch.common.collect.List.of(), metadataTransformer);
+            org.opensearch.common.collect.List.of(), metadataTransformer);
     }
 
     /**

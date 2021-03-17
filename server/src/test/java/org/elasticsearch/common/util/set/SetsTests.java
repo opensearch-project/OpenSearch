@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util.set;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.util.set.Sets;
 

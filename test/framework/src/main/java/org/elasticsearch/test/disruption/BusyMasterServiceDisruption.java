@@ -22,7 +22,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;

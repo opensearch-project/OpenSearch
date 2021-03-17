@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.hamcrest;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;

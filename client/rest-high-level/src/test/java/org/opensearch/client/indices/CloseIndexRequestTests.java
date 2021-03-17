@@ -23,7 +23,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.ValidationException;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;

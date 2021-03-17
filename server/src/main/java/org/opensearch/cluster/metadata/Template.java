@@ -20,7 +20,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;

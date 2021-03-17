@@ -41,7 +41,7 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
 import org.opensearch.cluster.ClusterName;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.node.Node;

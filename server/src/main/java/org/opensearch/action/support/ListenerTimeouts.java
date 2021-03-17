@@ -21,7 +21,7 @@ package org.opensearch.action.support;
 
 import org.elasticsearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 

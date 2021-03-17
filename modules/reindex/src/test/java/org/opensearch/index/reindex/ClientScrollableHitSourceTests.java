@@ -35,7 +35,7 @@ import org.opensearch.client.support.AbstractClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
@@ -60,7 +60,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ClientScrollableHitSourceTests extends ESTestCase {

@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.OpenSearchGenerationException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;

@@ -20,7 +20,7 @@ package org.opensearch.client.benchmark;
 
 import org.opensearch.client.benchmark.rest.RestClientBenchmark;
 import org.opensearch.client.benchmark.transport.TransportClientBenchmark;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 
 import java.util.Arrays;
 

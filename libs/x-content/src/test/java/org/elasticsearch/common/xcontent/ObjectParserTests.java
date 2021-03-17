@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.opensearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;

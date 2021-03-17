@@ -19,7 +19,7 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;

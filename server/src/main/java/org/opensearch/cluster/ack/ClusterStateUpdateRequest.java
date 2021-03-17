@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.ack;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * Base class to be used when needing to update the cluster state

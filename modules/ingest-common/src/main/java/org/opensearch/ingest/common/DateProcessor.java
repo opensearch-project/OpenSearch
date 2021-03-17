@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.LocaleUtils;
 import org.elasticsearch.ingest.AbstractProcessor;

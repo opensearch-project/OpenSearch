@@ -26,7 +26,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.tasks.TransportTasksAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.threadpool.ThreadPool;
@@ -35,7 +35,7 @@ import org.opensearch.transport.TransportService;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
     public static long waitForCompletionTimeout(TimeValue timeout) {

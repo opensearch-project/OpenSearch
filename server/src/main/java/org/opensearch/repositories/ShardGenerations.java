@@ -19,7 +19,7 @@
 
 package org.opensearch.repositories;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.util.Arrays;
