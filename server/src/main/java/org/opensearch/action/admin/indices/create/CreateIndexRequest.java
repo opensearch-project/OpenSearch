@@ -19,9 +19,9 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import org.elasticsearch.OpenSearchGenerationException;
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.Version;
+import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -63,7 +63,7 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 /**
  * A request to create an index. Best created with {@link org.opensearch.client.Requests#createIndexRequest(String)}.
  * <p>
- * The index created can optionally be created with {@link #settings(Settings)}.
+ * The index created can optionally be created with {@link #settings(org.opensearch.common.settings.Settings)}.
  *
  * @see org.opensearch.client.IndicesAdminClient#create(CreateIndexRequest)
  * @see org.opensearch.client.Requests#createIndexRequest(String)
