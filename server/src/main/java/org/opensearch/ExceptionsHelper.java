@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.opensearch;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.LogManager;
@@ -28,7 +28,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

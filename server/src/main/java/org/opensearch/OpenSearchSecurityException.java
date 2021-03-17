@@ -18,7 +18,6 @@
  */
 package org.opensearch;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.rest.RestStatus;
 

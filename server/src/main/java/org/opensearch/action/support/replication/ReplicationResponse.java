@@ -20,7 +20,7 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.cluster.metadata.IndexMetadata;

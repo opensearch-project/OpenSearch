@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;

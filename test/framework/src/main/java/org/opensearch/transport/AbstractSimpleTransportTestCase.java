@@ -26,7 +26,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;

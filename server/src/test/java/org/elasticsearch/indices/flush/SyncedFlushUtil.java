@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.ShardRouting;

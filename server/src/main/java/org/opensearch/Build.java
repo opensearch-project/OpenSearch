@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.opensearch;
 
 import org.opensearch.common.Booleans;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.Version;
 
 import java.io.IOException;
 import java.net.URL;

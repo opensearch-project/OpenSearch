@@ -19,7 +19,7 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.SpecialPermission;
+import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.Compiler.Loader;
 import org.opensearch.painless.lookup.PainlessLookup;

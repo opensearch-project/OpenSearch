@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Assertions;
+import org.opensearch.Assertions;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.action.support.ActiveShardCount;

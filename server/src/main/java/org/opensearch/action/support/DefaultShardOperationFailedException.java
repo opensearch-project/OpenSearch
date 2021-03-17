@@ -20,7 +20,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -33,7 +33,7 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ExceptionsHelper.detailedMessage;
+import static org.opensearch.ExceptionsHelper.detailedMessage;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class DefaultShardOperationFailedException extends ShardOperationFailedException implements Writeable {

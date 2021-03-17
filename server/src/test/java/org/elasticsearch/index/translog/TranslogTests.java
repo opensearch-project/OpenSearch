@@ -34,7 +34,7 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Assertions;
+import org.opensearch.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Randomness;

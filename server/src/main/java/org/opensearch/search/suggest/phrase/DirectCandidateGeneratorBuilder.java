@@ -27,7 +27,7 @@ import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
