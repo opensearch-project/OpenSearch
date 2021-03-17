@@ -32,7 +32,7 @@ import org.opensearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 

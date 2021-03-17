@@ -21,7 +21,7 @@ package org.opensearch.search.internal;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.StoredFieldsContext;

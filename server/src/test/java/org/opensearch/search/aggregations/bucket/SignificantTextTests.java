@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTextAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;

@@ -20,8 +20,8 @@
 package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.script.Script;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.BasePipelineAggregationTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

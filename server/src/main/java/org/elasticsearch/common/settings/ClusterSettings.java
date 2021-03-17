@@ -114,7 +114,7 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;

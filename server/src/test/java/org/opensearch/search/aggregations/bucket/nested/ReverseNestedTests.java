@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 
 public class ReverseNestedTests extends BaseAggregationTestCase<ReverseNestedAggregationBuilder> {
 

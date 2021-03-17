@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.bucket.composite;
 
 import org.opensearch.script.Script;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.sort.SortOrder;
 

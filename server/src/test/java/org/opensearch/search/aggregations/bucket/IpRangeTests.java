@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.common.network.NetworkAddress;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
 
 public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuilder> {

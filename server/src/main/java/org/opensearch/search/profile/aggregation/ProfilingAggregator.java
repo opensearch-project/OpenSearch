@@ -21,9 +21,9 @@ package org.opensearch.search.profile.aggregation;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.AggregationPath.PathElement;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.Timer;

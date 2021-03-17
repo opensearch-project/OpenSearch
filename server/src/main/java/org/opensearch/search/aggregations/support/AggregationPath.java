@@ -20,10 +20,10 @@
 package org.opensearch.search.aggregations.support;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.AggregationExecutionException;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.Aggregator.BucketComparator;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.opensearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.opensearch.search.profile.aggregation.ProfilingAggregator;

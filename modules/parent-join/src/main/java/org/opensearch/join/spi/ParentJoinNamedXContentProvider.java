@@ -27,7 +27,7 @@ import org.opensearch.join.aggregations.ParentAggregationBuilder;
 import org.opensearch.join.aggregations.ParsedChildren;
 import org.opensearch.join.aggregations.ParsedParent;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregation;
 
 import java.util.Arrays;
 import java.util.List;

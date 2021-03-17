@@ -23,7 +23,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.search.aggregations.metrics.InternalGeoCentroid.Fields;
 
 import java.io.IOException;
