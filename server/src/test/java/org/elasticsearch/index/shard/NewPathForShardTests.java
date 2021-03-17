@@ -22,7 +22,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;

@@ -28,7 +28,7 @@ import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.recycler.Recycler;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Arrays;
 

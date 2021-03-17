@@ -26,7 +26,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingHelper.initWithSameId;
+import static org.opensearch.cluster.routing.ShardRoutingHelper.initWithSameId;
 
 public class NoOpEngineRecoveryTests extends IndexShardTestCase {
 

@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.routing;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.UUIDs;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;

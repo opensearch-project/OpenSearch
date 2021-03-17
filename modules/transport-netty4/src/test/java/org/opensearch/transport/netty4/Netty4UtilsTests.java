@@ -24,7 +24,7 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
+import org.opensearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;

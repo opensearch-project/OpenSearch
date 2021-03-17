@@ -27,6 +27,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongObjectPagedHashMap;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
 
 public class LongObjectHashMapTests extends ESTestCase {
 

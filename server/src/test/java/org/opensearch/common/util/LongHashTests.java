@@ -30,6 +30,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongHash;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
 
 import java.util.HashMap;
 import java.util.HashSet;

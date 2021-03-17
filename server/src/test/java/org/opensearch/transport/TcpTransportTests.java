@@ -33,7 +33,7 @@ import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.opensearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;

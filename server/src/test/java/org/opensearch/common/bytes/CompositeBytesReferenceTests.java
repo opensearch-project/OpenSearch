@@ -21,13 +21,9 @@ package org.opensearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.hamcrest.Matchers;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.bytes.CompositeBytesReference;
 
 import java.io.IOException;
 import java.util.ArrayList;

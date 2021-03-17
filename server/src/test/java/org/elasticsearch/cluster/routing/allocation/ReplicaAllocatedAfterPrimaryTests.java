@@ -29,7 +29,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.ESAllocationTestCase;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;

@@ -29,7 +29,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;

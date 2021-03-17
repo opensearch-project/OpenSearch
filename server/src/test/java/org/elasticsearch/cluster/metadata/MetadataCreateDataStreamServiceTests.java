@@ -36,9 +36,9 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.opensearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
+import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

@@ -21,6 +21,7 @@ package org.opensearch.common.lucene.store;
 
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.lucene.store.ESIndexInputTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

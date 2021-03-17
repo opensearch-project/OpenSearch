@@ -22,7 +22,7 @@ package org.opensearch.transport;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;

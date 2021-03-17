@@ -30,6 +30,8 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BigDoubleArray;
 import org.opensearch.common.util.BinarySearcher;
 import org.opensearch.common.util.DoubleArray;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
 
 import java.util.Arrays;
 

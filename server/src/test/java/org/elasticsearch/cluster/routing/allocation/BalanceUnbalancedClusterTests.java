@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.lucene.util.TestUtil;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.ESAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;

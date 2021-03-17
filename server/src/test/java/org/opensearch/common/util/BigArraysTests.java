@@ -44,6 +44,8 @@ import org.opensearch.common.util.DoubleArray;
 import org.opensearch.common.util.FloatArray;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.ObjectArray;
 import org.opensearch.common.util.PageCacheRecycler;
 
