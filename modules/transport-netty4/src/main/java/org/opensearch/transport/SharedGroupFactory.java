@@ -26,7 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.http.HttpServerTransport;
+import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.opensearch.transport.netty4.Netty4Transport;
 

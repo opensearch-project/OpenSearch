@@ -23,7 +23,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.http.HttpPipelinedRequest;
+import org.opensearch.http.HttpPipelinedRequest;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {

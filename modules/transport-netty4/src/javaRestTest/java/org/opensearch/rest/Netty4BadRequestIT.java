@@ -26,7 +26,7 @@ import org.opensearch.client.ResponseException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.http.HttpTransportSettings;
+import org.opensearch.http.HttpTransportSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 

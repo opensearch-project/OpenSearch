@@ -24,9 +24,9 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.http.HttpResponse;
+import org.opensearch.http.HttpChannel;
+import org.opensearch.http.HttpRequest;
+import org.opensearch.http.HttpResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 

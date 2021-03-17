@@ -33,7 +33,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpServerTransport;
+import org.opensearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
