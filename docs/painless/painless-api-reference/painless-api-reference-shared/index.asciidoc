@@ -382,13 +382,13 @@ The following classes are available grouped by their respective packages. Click 
 
 * <<painless-api-reference-shared-BytesRef, BytesRef>>
 
-==== org.elasticsearch.common.geo
-<<painless-api-reference-shared-org-elasticsearch-common-geo, Expand details for org.elasticsearch.common.geo>>
+==== org.opensearch.common.geo
+<<painless-api-reference-shared-org-elasticsearch-common-geo, Expand details for org.opensearch.common.geo>>
 
 * <<painless-api-reference-shared-GeoPoint, GeoPoint>>
 
-==== org.elasticsearch.index.fielddata
-<<painless-api-reference-shared-org-elasticsearch-index-fielddata, Expand details for org.elasticsearch.index.fielddata>>
+==== org.opensearch.index.fielddata
+<<painless-api-reference-shared-org-elasticsearch-index-fielddata, Expand details for org.opensearch.index.fielddata>>
 
 * <<painless-api-reference-shared-ScriptDocValues-Booleans, ScriptDocValues.Booleans>>
 * <<painless-api-reference-shared-ScriptDocValues-BytesRefs, ScriptDocValues.BytesRefs>>
@@ -398,36 +398,36 @@ The following classes are available grouped by their respective packages. Click 
 * <<painless-api-reference-shared-ScriptDocValues-Longs, ScriptDocValues.Longs>>
 * <<painless-api-reference-shared-ScriptDocValues-Strings, ScriptDocValues.Strings>>
 
-==== org.elasticsearch.index.mapper
-<<painless-api-reference-shared-org-elasticsearch-index-mapper, Expand details for org.elasticsearch.index.mapper>>
+==== org.opensearch.index.mapper
+<<painless-api-reference-shared-org-elasticsearch-index-mapper, Expand details for org.opensearch.index.mapper>>
 
 * <<painless-api-reference-shared-IpFieldMapper-IpFieldType-IpScriptDocValues, IpFieldMapper.IpFieldType.IpScriptDocValues>>
 
-==== org.elasticsearch.index.query
-<<painless-api-reference-shared-org-elasticsearch-index-query, Expand details for org.elasticsearch.index.query>>
+==== org.opensearch.index.query
+<<painless-api-reference-shared-org-elasticsearch-index-query, Expand details for org.opensearch.index.query>>
 
 * <<painless-api-reference-shared-IntervalFilterScript-Interval, IntervalFilterScript.Interval>>
 
-==== org.elasticsearch.index.similarity
-<<painless-api-reference-shared-org-elasticsearch-index-similarity, Expand details for org.elasticsearch.index.similarity>>
+==== org.opensearch.index.similarity
+<<painless-api-reference-shared-org-elasticsearch-index-similarity, Expand details for org.opensearch.index.similarity>>
 
 * <<painless-api-reference-shared-ScriptedSimilarity-Doc, ScriptedSimilarity.Doc>>
 * <<painless-api-reference-shared-ScriptedSimilarity-Field, ScriptedSimilarity.Field>>
 * <<painless-api-reference-shared-ScriptedSimilarity-Query, ScriptedSimilarity.Query>>
 * <<painless-api-reference-shared-ScriptedSimilarity-Term, ScriptedSimilarity.Term>>
 
-==== org.elasticsearch.painless.api
-<<painless-api-reference-shared-org-elasticsearch-painless-api, Expand details for org.elasticsearch.painless.api>>
+==== org.opensearch.painless.api
+<<painless-api-reference-shared-org-elasticsearch-painless-api, Expand details for org.opensearch.painless.api>>
 
 * <<painless-api-reference-shared-Debug, Debug>>
 
-==== org.elasticsearch.script
-<<painless-api-reference-shared-org-elasticsearch-script, Expand details for org.elasticsearch.script>>
+==== org.opensearch.script
+<<painless-api-reference-shared-org-elasticsearch-script, Expand details for org.opensearch.script>>
 
 * <<painless-api-reference-shared-JodaCompatibleZonedDateTime, JodaCompatibleZonedDateTime>>
 
-==== org.elasticsearch.search.lookup
-<<painless-api-reference-shared-org-elasticsearch-search-lookup, Expand details for org.elasticsearch.search.lookup>>
+==== org.opensearch.search.lookup
+<<painless-api-reference-shared-org-elasticsearch-search-lookup, Expand details for org.opensearch.search.lookup>>
 
 * <<painless-api-reference-shared-FieldLookup, FieldLookup>>
 

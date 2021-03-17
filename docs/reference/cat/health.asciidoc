@@ -75,10 +75,10 @@ The API returns the following response:
 [source,txt]
 --------------------------------------------------
 epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-1475871424 16:17:04  elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
+1475871424 16:17:04  opensearch green           1         1      1   1    0    0        0             0                  -                100.0%
 --------------------------------------------------
 // TESTRESPONSE[s/1475871424 16:17:04/\\d+ \\d+:\\d+:\\d+/]
-// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
+// TESTRESPONSE[s/opensearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
 
 [[cat-health-api-example-no-timestamp]]
 ===== Example without a timestamp
@@ -95,9 +95,9 @@ The API returns the following response:
 [source,txt]
 --------------------------------------------------
 cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
+opensearch green           1         1      1   1    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
+// TESTRESPONSE[s/opensearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
 
 [[cat-health-api-example-across-nodes]]
 ===== Example across nodes

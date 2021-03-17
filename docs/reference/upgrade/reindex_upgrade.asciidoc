@@ -79,7 +79,7 @@ For example, you cannot reindex from a 7.x cluster into a 6.x cluster.
 To migrate your indices:
 
 . Set up a new {version} cluster and add the existing cluster to the
-`reindex.remote.whitelist` in `elasticsearch.yml`.
+`reindex.remote.whitelist` in `opensearch.yml`.
 +
 --
 [source,yaml]

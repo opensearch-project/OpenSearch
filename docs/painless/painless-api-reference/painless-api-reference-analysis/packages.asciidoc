@@ -60,8 +60,8 @@ See the <<painless-api-reference-analysis, Analysis API>> for a high-level overv
 * String {java11-javadoc}/java.base/java/lang/String.html#trim()[trim]()
 
 
-[role="exclude",id="painless-api-reference-analysis-org-elasticsearch-analysis-common"]
-=== Analysis API for package org.elasticsearch.analysis.common
+[role="exclude",id="painless-api-reference-analysis-org-opensearch-analysis-common"]
+=== Analysis API for package org.opensearch.analysis.common
 See the <<painless-api-reference-analysis, Analysis API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-analysis-AnalysisPredicateScript-Token]]

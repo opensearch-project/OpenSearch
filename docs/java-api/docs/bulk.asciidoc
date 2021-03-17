@@ -6,7 +6,7 @@ single request. Here is a sample usage:
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.opensearch.common.xcontent.XContentFactory.*;
 
 BulkRequestBuilder bulkRequest = client.prepareBulk();
 
@@ -47,11 +47,11 @@ To use it, first create a `BulkProcessor` instance:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.BulkProcessor;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.bulk.BulkProcessor;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
 
 BulkProcessor bulkProcessor = BulkProcessor.builder(
         client,  <1>

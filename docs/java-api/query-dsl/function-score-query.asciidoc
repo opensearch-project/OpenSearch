@@ -7,7 +7,7 @@ To use `ScoreFunctionBuilders` just import them in your class:
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.*;
 --------------------------------------------------
 
 ["source","java",subs="attributes,callouts,macros"]

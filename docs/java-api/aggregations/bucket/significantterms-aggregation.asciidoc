@@ -31,7 +31,7 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
+import org.opensearch.search.aggregations.bucket.significant.SignificantTerms;
 --------------------------------------------------
 
 [source,java]

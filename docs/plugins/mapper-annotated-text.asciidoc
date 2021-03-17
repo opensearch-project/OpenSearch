@@ -9,7 +9,7 @@ items of interest such as people or organisations (see NER or Named Entity Recog
 tools). 
 
 
-The elasticsearch markup allows one or more additional tokens to be injected, unchanged, into the token
+The opensearch markup allows one or more additional tokens to be injected, unchanged, into the token
 stream at the same position as the underlying text it annotates.
 
 :plugin_name: mapper-annotated-text

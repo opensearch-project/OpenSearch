@@ -15,18 +15,18 @@ To enable Azure repositories, you have first to define your azure storage settin
 
 [source,sh]
 ----------------------------------------------------------------
-bin/elasticsearch-keystore add azure.client.default.account
-bin/elasticsearch-keystore add azure.client.default.key
+bin/opensearch-keystore add azure.client.default.account
+bin/opensearch-keystore add azure.client.default.key
 ----------------------------------------------------------------
 
 Note that you can also define more than one account:
 
 [source,sh]
 ----------------------------------------------------------------
-bin/elasticsearch-keystore add azure.client.default.account
-bin/elasticsearch-keystore add azure.client.default.key
-bin/elasticsearch-keystore add azure.client.secondary.account
-bin/elasticsearch-keystore add azure.client.secondary.sas_token
+bin/opensearch-keystore add azure.client.default.account
+bin/opensearch-keystore add azure.client.default.key
+bin/opensearch-keystore add azure.client.secondary.account
+bin/opensearch-keystore add azure.client.secondary.sas_token
 ----------------------------------------------------------------
 
 For more information about these settings, see
@@ -66,7 +66,7 @@ PUT _snapshot/my_backup
 ----
 // TEST[skip:we don't have azure setup while testing this]
 
-Most client settings can be added to the `elasticsearch.yml` configuration file.
+Most client settings can be added to the `opensearch.yml` configuration file.
 For example:
 
 [source,yaml]
@@ -95,7 +95,7 @@ built when the operation started.
 
 The following list contains the available client settings. Those that must be
 stored in the keystore are marked as "secure"; the other settings belong in the
-`elasticsearch.yml` file.
+`opensearch.yml` file.
 
 `account` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
   The Azure account name, which is used by the repository's internal Azure client.
@@ -155,7 +155,7 @@ The Azure repository supports following settings:
 `container`::
 
     Container name. You must create the azure container before creating the repository.
-    Defaults to `elasticsearch-snapshots`.
+    Defaults to `opensearch-snapshots`.
 
 `base_path`::
 
@@ -208,7 +208,7 @@ PUT _snapshot/my_backup2
 }
 
 
-# With two accounts defined in elasticsearch.yml (my_account1 and my_account2)
+# With two accounts defined in opensearch.yml (my_account1 and my_account2)
 PUT _snapshot/my_backup3
 {
   "type": "azure",

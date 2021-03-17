@@ -23,7 +23,7 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
+import org.opensearch.search.aggregations.bucket.nested.Nested;
 --------------------------------------------------
 
 [source,java]

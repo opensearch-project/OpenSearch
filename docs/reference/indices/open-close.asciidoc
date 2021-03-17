@@ -84,7 +84,7 @@ To target all indices, use `_all` or `*`.
 +
 To disallow use of `_all` or wildcard expressions,
 change the `action.destructive_requires_name` cluster setting to `true`.
-You can update this setting in the `elasticsearch.yml` file
+You can update this setting in the `opensearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.
 
 

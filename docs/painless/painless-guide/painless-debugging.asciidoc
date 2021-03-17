@@ -35,8 +35,9 @@ POST /hockey/_explain/1
 // we have to override it to get a normal shaped response
 
 Which shows that the class of `doc.first` is
-`org.elasticsearch.index.fielddata.ScriptDocValues.Longs` by responding with:
+`org.opensearch.index.fielddata.ScriptDocValues.Longs` by responding with:
 
+// TODO(OpenSearch): Change the class path after renaming or test will be failed
 [source,console-result]
 ---------------------------------------------------------
 {

@@ -23,7 +23,7 @@ in your class:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.aggregations.AggregationBuilders;
 --------------------------------------------------
 
 === Structuring aggregations

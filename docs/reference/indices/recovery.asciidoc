@@ -262,7 +262,7 @@ The API returns the following response:
         "host" : "my.fqdn",
         "transport_address" : "my.fqdn",
         "ip" : "10.0.1.7",
-        "name" : "my_es_node"
+        "name" : "my_opensearch_node"
       },
       "index" : {
         "size" : {
@@ -315,7 +315,7 @@ because we don't really care about the field values but we want to check the fie
 This response includes information
 about a single index recovering a single shard.
 The source of the recovery is a snapshot repository
-and the target of the recovery is the `my_es_node` node.
+and the target of the recovery is the `my_opensearch_node` node.
 
 The response also includes the number
 and percentage of files and bytes recovered.
@@ -355,14 +355,14 @@ The API returns the following response:
         "host" : "my.fqdn",
         "transport_address" : "my.fqdn",
         "ip" : "10.0.1.7",
-        "name" : "my_es_node"
+        "name" : "my_opensearch_node"
       },
       "target" : {
         "id" : "RGMdRc-yQWWKIBM4DGvwqQ",
         "host" : "my.fqdn",
         "transport_address" : "my.fqdn",
         "ip" : "10.0.1.7",
-        "name" : "my_es_node"
+        "name" : "my_opensearch_node"
       },
       "index" : {
         "size" : {

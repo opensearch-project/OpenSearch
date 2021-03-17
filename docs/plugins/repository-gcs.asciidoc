@@ -127,7 +127,7 @@ it was built when the operation started.
 
 The client used to connect to Google Cloud Storage has a number of settings available.
 Client setting names are of the form `gcs.client.CLIENT_NAME.SETTING_NAME` and are specified
-inside `elasticsearch.yml`. The default client name looked up by a `gcs` repository is
+inside `opensearch.yml`. The default client name looked up by a `gcs` repository is
 called `default`, but can be customized with the repository setting `client`.
 
 For example:
@@ -150,7 +150,7 @@ Some settings are sensitive and must be stored in the
 
 [source,sh]
 ----
-bin/elasticsearch-keystore add-file gcs.client.default.credentials_file /path/service-account.json
+bin/opensearch-keystore add-file gcs.client.default.credentials_file /path/service-account.json
 ----
 
 The following are the available client settings. Those that must be stored in the keystore

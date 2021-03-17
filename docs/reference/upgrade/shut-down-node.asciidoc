@@ -2,14 +2,14 @@
 +
 [source,sh]
 --------------------------------------------------
-sudo systemctl stop elasticsearch.service
+sudo systemctl stop opensearch.service
 --------------------------------------------------
 
 * If you are running {es} with SysV `init`:
 +
 [source,sh]
 --------------------------------------------------
-sudo -i service elasticsearch stop
+sudo -i service opensearch stop
 --------------------------------------------------
 
 * If you are running {es} as a daemon:

@@ -14,15 +14,15 @@ Run the following command to get usage instructions:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin -h
+sudo bin/opensearch-plugin -h
 -----------------------------------
 
 [IMPORTANT]
 .Running as root
 =====================
 If Elasticsearch was installed using the deb or rpm package then run
-`/usr/share/elasticsearch/bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
-Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasticsearch
+`/usr/share/opensearch/bin/opensearchh-plugin` as `root` so it can write to the appropriate files on disk.
+Otherwise run `bin/opensearch-plugin` as the user that owns all of the Elasticsearch
 files.
 =====================
 
@@ -40,7 +40,7 @@ Core Elasticsearch plugins can be installed as follows:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install [plugin_name]
+sudo bin/opensearch-plugin install [plugin_name]
 -----------------------------------
 
 For instance, to install the core <<analysis-icu,ICU plugin>>, just run the
@@ -48,7 +48,7 @@ following command:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install analysis-icu
+sudo bin/opensearch-plugin install analysis-icu
 -----------------------------------
 
 This command will install the version of the plugin that matches your
@@ -61,7 +61,7 @@ A plugin can also be downloaded directly from a custom location by specifying th
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install [url] <1>
+sudo bin/opensearch-plugin install [url] <1>
 -----------------------------------
 <1> must be a valid URL, the plugin name is determined from its descriptor.
 
@@ -71,7 +71,7 @@ To install a plugin from your local file system at `/path/to/plugin.zip`, you co
 +
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
+sudo bin/opensearch-plugin install file:///path/to/plugin.zip
 -----------------------------------
 
 Windows::
@@ -79,7 +79,7 @@ To install a plugin from your local file system at `C:\path\to\plugin.zip`, you 
 +
 [source,shell]
 -----------------------------------
-bin\elasticsearch-plugin install file:///C:/path/to/plugin.zip
+bin\opensearch-plugin install file:///C:/path/to/plugin.zip
 -----------------------------------
 +
 NOTE: Any path that contains spaces must be wrapped in quotes!
@@ -93,7 +93,7 @@ To install a plugin from an HTTP URL:
 +
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install https://some.domain/path/to/plugin.zip
+sudo bin/opensearch-plugin install https://some.domain/path/to/plugin.zip
 -----------------------------------
 +
 The plugin script will refuse to talk to an HTTPS URL with an untrusted
@@ -102,7 +102,7 @@ to a local Java truststore and pass the location to the script as follows:
 +
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
+sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/opensearch-plugin install https://host/plugin.zip
 -----------------------------------
 --
 
@@ -113,7 +113,7 @@ Multiple plugins can be installed in one invocation as follows:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install [plugin_id] [plugin_id] ... [plugin_id]
+sudo bin/opensearch-plugin install [plugin_id] [plugin_id] ... [plugin_id]
 -----------------------------------
 
 Each `plugin_id` can be any valid form for installing a single plugin (e.g., the
@@ -124,7 +124,7 @@ For instance, to install the core <<analysis-icu,ICU plugin>>, and
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install analysis-icu repository-s3
+sudo bin/opensearch-plugin install analysis-icu repository-s3
 -----------------------------------
 
 This command will install the versions of the plugins that matches your
@@ -136,7 +136,7 @@ if any installation fails.
 === Mandatory Plugins
 
 If you rely on some plugins, you can define mandatory plugins by adding
-`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for
+`plugin.mandatory` setting to the `config/opensearch.yml` file, for
 example:
 
 [source,yaml]
@@ -156,7 +156,7 @@ A list of the currently loaded plugins can be retrieved with the `list` option:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin list
+sudo bin/opensearch-plugin list
 -----------------------------------
 
 Alternatively, use the {ref}/cluster-nodes-info.html[node-info API] to find
@@ -170,7 +170,7 @@ Plugins can be removed manually, by deleting the appropriate directory under
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin remove [pluginname]
+sudo bin/opensearch-plugin remove [pluginname]
 -----------------------------------
 
 After a Java plugin has been removed, you will need to restart the node to
@@ -190,8 +190,8 @@ each time Elasticsearch is updated.
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin remove [pluginname]
-sudo bin/elasticsearch-plugin install [pluginname]
+sudo bin/opensearch-plugin remove [pluginname]
+sudo bin/opensearch-plugin install [pluginname]
 -----------------------------------
 
 === Other command line parameters
@@ -226,19 +226,19 @@ mode can be forced by specifying `-b` or `--batch` as follows:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install --batch [pluginname]
+sudo bin/opensearch-plugin install --batch [pluginname]
 -----------------------------------
 
 [discrete]
 === Custom config directory
 
-If your `elasticsearch.yml` config file is in a custom location, you will need
+If your `opensearch.yml` config file is in a custom location, you will need
 to specify the path to the config file when using the `plugin` script.  You
 can do this as follows:
 
 [source,sh]
 ---------------------
-sudo ES_PATH_CONF=/path/to/conf/dir bin/elasticsearch-plugin install <plugin name>
+sudo ES_PATH_CONF=/path/to/conf/dir bin/opensearch-plugin install <plugin name>
 ---------------------
 
 [discrete]
@@ -258,7 +258,7 @@ Or on Windows:
 [source,shell]
 ------------------------------------
 set ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
-bin\elasticsearch-plugin install analysis-icu
+bin\opensearch-plugin install analysis-icu
 ------------------------------------
 
 === Plugins directory

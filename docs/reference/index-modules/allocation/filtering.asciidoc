@@ -25,7 +25,7 @@ for a particular index to the most appropriate class of hardware.
 To filter based on a custom node attribute:
 
 . Specify the filter characteristics with a custom node attribute in each
-node's `elasticsearch.yml` configuration file. For example, if you have `small`,
+node's `opensearch.yml` configuration file. For example, if you have `small`,
 `medium`, and `big` nodes, you could add a `size` attribute to filter based
 on node size.
 +
@@ -38,7 +38,7 @@ You can also set custom attributes when you start a node:
 +
 [source,sh]
 --------------------------------------------------------
-`./bin/elasticsearch -Enode.attr.size=medium
+`./bin/opensearch -Enode.attr.size=medium
 --------------------------------------------------------
 
 . Add a routing allocation filter to the index. The `index.routing.allocation`

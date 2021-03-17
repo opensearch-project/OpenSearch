@@ -50,7 +50,7 @@ You can use {ref}/modules-network.html[core network host settings]. For example 
 * Create Azure instances
 * Install Elasticsearch
 * Install Azure plugin
-* Modify `elasticsearch.yml` file
+* Modify `opensearch.yml` file
 * Start Elasticsearch
 
 [[discovery-azure-classic-settings]]
@@ -95,8 +95,8 @@ The following are a list of settings that can further control the discovery:
 
     When using `public_ip` this setting is used to identify the endpoint name
     used to forward requests to Elasticsearch (aka transport port name).
-    Defaults to `elasticsearch`. In Azure management console, you could define
-    an endpoint `elasticsearch` forwarding for example requests on public IP
+    Defaults to `opensearch`. In Azure management console, you could define
+    an endpoint `opensearch` forwarding for example requests on public IP
     on port 8100 to the virtual machine on port 9300.
 
 `discovery.azure.deployment.name`::
@@ -118,7 +118,7 @@ discovery:
         host:
             type: private_ip
         endpoint:
-            name: elasticsearch
+            name: opensearch
         deployment:
             name: your_azure_cloud_service_name
             slot: production
@@ -242,7 +242,7 @@ Let's say we are going to deploy an Ubuntu image on an extra small instance in W
 [horizontal]
 Azure cluster name::
 
-    `azure-elasticsearch-cluster`
+    `azure-opensearch-cluster`
 
 Image::
 
@@ -262,7 +262,7 @@ Location::
 
 Login::
 
-    `elasticsearch`
+    `opensearch`
 
 Password::
 
@@ -273,14 +273,14 @@ Using command line:
 
 [source,sh]
 ----
-azure vm create azure-elasticsearch-cluster \
+azure vm create azure-opensearch-cluster \
                 b39f27a8b8c64d52b05eac6a62ebad85__Ubuntu-13_10-amd64-server-20130808-alpha3-en-us-30GB \
                 --vm-name myesnode1 \
                 --location "West Europe" \
                 --vm-size extrasmall \
                 --ssh 22 \
                 --ssh-cert /tmp/azure-certificate.pem \
-                elasticsearch password1234\!\!
+                opensearch password1234\!\!
 ----
 
 You should see something like:
@@ -307,7 +307,7 @@ You need to give the private key and username each time you log on your instance
 
 [source,sh]
 ----
-ssh -i ~/.ssh/azure-private.key elasticsearch@myescluster.cloudapp.net
+ssh -i ~/.ssh/azure-private.key opensearch@myescluster.cloudapp.net
 ----
 
 But you can also define it once in `~/.ssh/config` file:
@@ -315,7 +315,7 @@ But you can also define it once in `~/.ssh/config` file:
 [source,text]
 ----
 Host *.cloudapp.net
- User elasticsearch
+ User opensearch
  StrictHostKeyChecking no
  UserKnownHostsFile=/dev/null
  IdentityFile ~/.ssh/azure-private.key
@@ -327,8 +327,8 @@ keystore to the instance, then connect to the instance using SSH:
 
 [source,sh]
 ----
-scp /tmp/azurekeystore.pkcs12 azure-elasticsearch-cluster.cloudapp.net:/home/elasticsearch
-ssh azure-elasticsearch-cluster.cloudapp.net
+scp /tmp/azurekeystore.pkcs12 azure-opensearch-cluster.cloudapp.net:/home/opensearch
+ssh azure-opensearch-cluster.cloudapp.net
 ----
 
 Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
@@ -346,7 +346,7 @@ This command should give you a JSON result:
 --------------------------------------------
 {
   "name" : "Cp8oag6",
-  "cluster_name" : "elasticsearch",
+  "cluster_name" : "opensearch",
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
     "number" : "{version_qualified}",
@@ -362,7 +362,7 @@ This command should give you a JSON result:
 }
 --------------------------------------------
 // TESTRESPONSE[s/"name" : "Cp8oag6",/"name" : "$body.name",/]
-// TESTRESPONSE[s/"cluster_name" : "elasticsearch",/"cluster_name" : "$body.cluster_name",/]
+// TESTRESPONSE[s/"cluster_name" : "opensearch",/"cluster_name" : "$body.cluster_name",/]
 // TESTRESPONSE[s/"cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",/"cluster_uuid" : "$body.cluster_uuid",/]
 // TESTRESPONSE[s/"build_hash" : "f27399d",/"build_hash" : "$body.version.build_hash",/]
 // TESTRESPONSE[s/"build_date" : "2016-03-30T09:51:41.449Z",/"build_date" : $body.version.build_date,/]
@@ -377,13 +377,13 @@ This command should give you a JSON result:
 [source,sh]
 ----
 # Stop Elasticsearch
-sudo service elasticsearch stop
+sudo service opensearch stop
 
 # Install the plugin
-sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install discovery-azure-classic
+sudo /usr/share/opensearch/bin/opensearch-plugin install discovery-azure-classic
 
 # Configure it
-sudo vi /etc/elasticsearch/elasticsearch.yml
+sudo vi /etc/opensearch/opensearch.yml
 ----
 
 And add the following lines:
@@ -397,24 +397,24 @@ cloud:
              subscription.id: your_azure_subscription_id
              cloud.service.name: your_azure_cloud_service_name
              keystore:
-                   path: /home/elasticsearch/azurekeystore.pkcs12
+                   path: /home/opensearch/azurekeystore.pkcs12
                    password: your_password_for_keystore
 
 discovery:
     type: azure
 
 # Recommended (warning: non durable disk)
-# path.data: /mnt/resource/elasticsearch/data
+# path.data: /mnt/resource/opensearch/data
 ----
 
 Restart Elasticsearch:
 
 [source,sh]
 ----
-sudo service elasticsearch start
+sudo service opensearch start
 ----
 
-If anything goes wrong, check your logs in `/var/log/elasticsearch`.
+If anything goes wrong, check your logs in `/var/log/opensearch`.
 
 [[discovery-azure-classic-scale]]
 ==== Scaling Out!
@@ -433,14 +433,14 @@ azure vm capture myesnode1 esnode-image --delete
 # Note that the previous instance has been deleted (mandatory)
 # So you need to create it again and BTW create other instances.
 
-azure vm create azure-elasticsearch-cluster \
+azure vm create azure-opensearch-cluster \
                 esnode-image \
                 --vm-name myesnode1 \
                 --location "West Europe" \
                 --vm-size extrasmall \
                 --ssh 22 \
                 --ssh-cert /tmp/azure-certificate.pem \
-                elasticsearch password1234\!\!
+                opensearch password1234\!\!
 ----
 
 
@@ -465,14 +465,14 @@ Let's start more instances!
 for x in $(seq  2 10)
 	do
 		echo "Launching azure instance #$x..."
-		azure vm create azure-elasticsearch-cluster \
+		azure vm create azure-opensearch-cluster \
 		                esnode-image \
 		                --vm-name myesnode$x \
 		                --vm-size extrasmall \
 		                --ssh $((21 + $x)) \
 		                --ssh-cert /tmp/azure-certificate.pem \
 		                --connect \
-		                elasticsearch password1234\!\!
+		                opensearch password1234\!\!
 	done
 ----
 

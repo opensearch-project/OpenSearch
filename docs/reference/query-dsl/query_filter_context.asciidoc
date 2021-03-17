@@ -54,7 +54,7 @@ in the `search` API.  This query will match documents where all of the following
 conditions are met:
 
 * The `title` field contains the word `search`.
-* The `content` field contains the word `elasticsearch`.
+* The `content` field contains the word `opensearch`.
 * The `status` field contains the exact word `published`.
 * The `publish_date` field contains a date from 1 Jan 2015 onwards.
 

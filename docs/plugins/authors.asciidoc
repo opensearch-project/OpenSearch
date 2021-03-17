@@ -103,8 +103,8 @@ from gaining escalated permissions. For example:
 
 [source,java]
 --------------------------------------------------
-// ES permission you should check before doPrivileged() blocks
-import org.elasticsearch.SpecialPermission;
+// OpenSearch permission you should check before doPrivileged() blocks
+import org.opensearch.SpecialPermission;
 
 SecurityManager sm = System.getSecurityManager();
 if (sm != null) {

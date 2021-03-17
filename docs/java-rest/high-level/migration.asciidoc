@@ -37,7 +37,7 @@ requires the following steps:
 === Updating the dependencies
 
 Java application that uses the `TransportClient` depends on the
-`org.elasticsearch.client:transport` artifact. This dependency
+`org.opensearch.client:transport` artifact. This dependency
 must be replaced by a new dependency on the high-level client.
 
 The <<java-rest-high-getting-started,Getting Started>> page shows

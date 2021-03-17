@@ -114,4 +114,4 @@ will contain the rendered search source instead of a `SearchResponse`:
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[render-search-template-response]
 --------------------------------------------------
-<1> The rendered source in bytes, in our example `{"query": { "match" : { "title" : "elasticsearch" }}, "size" : 5}`.
+<1> The rendered source in bytes, in our example `{"query": { "match" : { "title" : "opensearch" }}, "size" : 5}`.

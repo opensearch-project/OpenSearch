@@ -7953,7 +7953,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-common-geo"]
-=== Shared API for package org.elasticsearch.common.geo
+=== Shared API for package org.opensearch.common.geo
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-GeoPoint]]
@@ -7966,7 +7966,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-fielddata"]
-=== Shared API for package org.elasticsearch.index.fielddata
+=== Shared API for package org.opensearch.index.fielddata
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ScriptDocValues-Booleans]]
@@ -8379,7 +8379,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-mapper"]
-=== Shared API for package org.elasticsearch.index.mapper
+=== Shared API for package org.opensearch.index.mapper
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-IpFieldMapper-IpFieldType-IpScriptDocValues]]
@@ -8440,7 +8440,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-query"]
-=== Shared API for package org.elasticsearch.index.query
+=== Shared API for package org.opensearch.index.query
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-IntervalFilterScript-Interval]]
@@ -8454,7 +8454,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-similarity"]
-=== Shared API for package org.elasticsearch.index.similarity
+=== Shared API for package org.opensearch.index.similarity
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ScriptedSimilarity-Doc]]
@@ -8494,7 +8494,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-painless-api"]
-=== Shared API for package org.elasticsearch.painless.api
+=== Shared API for package org.opensearch.painless.api
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Debug]]
@@ -8506,7 +8506,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-script"]
-=== Shared API for package org.elasticsearch.script
+=== Shared API for package org.opensearch.script
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-JodaCompatibleZonedDateTime]]
@@ -8601,7 +8601,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-search-lookup"]
-=== Shared API for package org.elasticsearch.search.lookup
+=== Shared API for package org.opensearch.search.lookup
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-FieldLookup]]

@@ -18,30 +18,30 @@ If you run {es} from the command line, {es} prints logs to the standard output
 
 Elasticsearch uses https://logging.apache.org/log4j/2.x/[Log4j 2] for
 logging. Log4j 2 can be configured using the log4j2.properties
-file. Elasticsearch exposes three properties, `${sys:es.logs.base_path}`,
-`${sys:es.logs.cluster_name}`, and `${sys:es.logs.node_name}` that can be
+file. Elasticsearch exposes three properties, `${sys:opensearch.logs.base_path}`,
+`${sys:opensearch.logs.cluster_name}`, and `${sys:opensearch.logs.node_name}` that can be
 referenced in the configuration file to determine the location of the log
-files. The property `${sys:es.logs.base_path}` will resolve to the log directory,
-`${sys:es.logs.cluster_name}` will resolve to the cluster name (used as the
+files. The property `${sys:opensearch.logs.base_path}` will resolve to the log directory,
+`${sys:opensearch.logs.cluster_name}` will resolve to the cluster name (used as the
 prefix of log filenames in the default configuration), and
-`${sys:es.logs.node_name}` will resolve to the node name (if the node name is
+`${sys:opensearch.logs.node_name}` will resolve to the node name (if the node name is
 explicitly set).
 
-For example, if your log directory (`path.logs`) is `/var/log/elasticsearch` and
-your cluster is named `production` then `${sys:es.logs.base_path}` will resolve
-to `/var/log/elasticsearch` and
-`${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}.log`
-will resolve to `/var/log/elasticsearch/production.log`.
+For example, if your log directory (`path.logs`) is `/var/log/opensearch` and
+your cluster is named `production` then `${sys:opensearch.logs.base_path}` will resolve
+to `/var/log/opensearch` and
+`${sys:opensearch.logs.base_path}${sys:file.separator}${sys:opensearch.logs.cluster_name}.log`
+will resolve to `/var/log/opensearch/production.log`.
 
 [source,properties]
 --------------------------------------------------
 ######## Server JSON ############################
 appender.rolling.type = RollingFile <1>
 appender.rolling.name = rolling
-appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.json <2>
+appender.rolling.fileName = ${sys:opensearch.logs.base_path}${sys:file.separator}${sys:opensearch.logs.cluster_name}_server.json <2>
 appender.rolling.layout.type = ESJsonLayout <3>
 appender.rolling.layout.type_name = server <4>
-appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.json.gz <5>
+appender.rolling.filePattern = ${sys:opensearch.logs.base_path}${sys:file.separator}${sys:opensearch.logs.cluster_name}-%d{yyyy-MM-dd}-%i.json.gz <5>
 appender.rolling.policies.type = Policies
 appender.rolling.policies.time.type = TimeBasedTriggeringPolicy <6>
 appender.rolling.policies.time.interval = 1 <7>
@@ -51,20 +51,20 @@ appender.rolling.policies.size.size = 256MB <10>
 appender.rolling.strategy.type = DefaultRolloverStrategy
 appender.rolling.strategy.fileIndex = nomax
 appender.rolling.strategy.action.type = Delete <11>
-appender.rolling.strategy.action.basepath = ${sys:es.logs.base_path}
+appender.rolling.strategy.action.basepath = ${sys:opensearch.logs.base_path}
 appender.rolling.strategy.action.condition.type = IfFileName <12>
-appender.rolling.strategy.action.condition.glob = ${sys:es.logs.cluster_name}-* <13>
+appender.rolling.strategy.action.condition.glob = ${sys:opensearch.logs.cluster_name}-* <13>
 appender.rolling.strategy.action.condition.nested_condition.type = IfAccumulatedFileSize <14>
 appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <15>
 ################################################
 --------------------------------------------------
 
 <1> Configure the `RollingFile` appender
-<2> Log to `/var/log/elasticsearch/production_server.json`
+<2> Log to `/var/log/opensearch/production_server.json`
 <3> Use JSON layout.
 <4> `type_name` is a flag populating the `type` field in a `ESJsonLayout`.
  It can be used to distinguish different types of logs more easily when parsing them.
-<5> Roll logs to `/var/log/elasticsearch/production-yyyy-MM-dd-i.json`; logs
+<5> Roll logs to `/var/log/opensearch/production-yyyy-MM-dd-i.json`; logs
     will be compressed on each roll and `i` will be incremented
 <6> Use a time-based roll policy
 <7> Roll logs on a daily basis
@@ -83,10 +83,10 @@ appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <15>
 ######## Server -  old style pattern ###########
 appender.rolling_old.type = RollingFile
 appender.rolling_old.name = rolling_old
-appender.rolling_old.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.log <1>
+appender.rolling_old.fileName = ${sys:opensearch.logs.base_path}${sys:file.separator}${sys:opensearch.logs.cluster_name}_server.log <1>
 appender.rolling_old.layout.type = PatternLayout
 appender.rolling_old.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n
-appender.rolling_old.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.old_log.gz
+appender.rolling_old.filePattern = ${sys:opensearch.logs.base_path}${sys:file.separator}${sys:opensearch.logs.cluster_name}-%d{yyyy-MM-dd}-%i.old_log.gz
 
 --------------------------------------------------
 <1> The configuration for `old style` pattern appenders. These logs will be saved in `*.log` files and if archived will be in `*
@@ -107,9 +107,9 @@ rollover strategy with a delete action.
 --------------------------------------------------
 appender.rolling.strategy.type = DefaultRolloverStrategy <1>
 appender.rolling.strategy.action.type = Delete <2>
-appender.rolling.strategy.action.basepath = ${sys:es.logs.base_path} <3>
+appender.rolling.strategy.action.basepath = ${sys:opensearch.logs.base_path} <3>
 appender.rolling.strategy.action.condition.type = IfFileName <4>
-appender.rolling.strategy.action.condition.glob = ${sys:es.logs.cluster_name}-* <5>
+appender.rolling.strategy.action.condition.glob = ${sys:opensearch.logs.cluster_name}-* <5>
 appender.rolling.strategy.action.condition.nested_condition.type = IfLastModified <6>
 appender.rolling.strategy.action.condition.nested_condition.age = 7D <7>
 --------------------------------------------------
@@ -119,7 +119,7 @@ appender.rolling.strategy.action.condition.nested_condition.age = 7D <7>
 <3> The base path to the Elasticsearch logs
 <4> The condition to apply when handling rollovers
 <5> Delete files from the base path matching the glob
-    `${sys:es.logs.cluster_name}-*`; this is the glob that log files are rolled
+    `${sys:opensearch.logs.cluster_name}-*`; this is the glob that log files are rolled
     to; this is needed to only delete the rolled Elasticsearch logs but not also
     delete the deprecation and slow logs
 <6> A nested condition to apply to files matching the glob
@@ -140,8 +140,8 @@ documentation].
 === Configuring logging levels
 
 Each Java package in the {es-repo}[{es} source code] has a related logger. For
-example, the `org.elasticsearch.discovery` package has
-`logger.org.elasticsearch.discovery` for logs related to the
+example, the `org.opensearch.discovery` package has
+`logger.org.opensearch.discovery` for logs related to the
 <<modules-discovery-hosts-providers,discovery>> process.
 
 To get more or less verbose logs, use the <<cluster-update-settings,cluster
@@ -156,19 +156,19 @@ only intended for expert use.
 PUT /_cluster/settings
 {
   "transient": {
-    "logger.org.elasticsearch.discovery": "DEBUG"
+    "logger.org.opensearch.discovery": "DEBUG"
   }
 }
 ----
 
 Other ways to change log levels include:
 
-1. `elasticsearch.yml`:
+1. `opensearch.yml`:
 +
 --
 [source,yaml]
 ----
-logger.org.elasticsearch.discovery: DEBUG
+logger.org.opensearch.discovery: DEBUG
 ----
 
 This is most appropriate when debugging a problem on a single node.
@@ -179,7 +179,7 @@ This is most appropriate when debugging a problem on a single node.
 --
 [source,properties]
 ----
-logger.discovery.name = org.elasticsearch.discovery
+logger.discovery.name = org.opensearch.discovery
 logger.discovery.level = debug
 ----
 
@@ -215,7 +215,7 @@ You can disable it in the `config/log4j2.properties` file by setting the depreca
 log level to `error` like this:
 [source,properties]
 --------------------------------------------------
-logger.deprecation.name = org.elasticsearch.deprecation
+logger.deprecation.name = org.opensearch.deprecation
 logger.deprecation.level = error
 --------------------------------------------------
 
@@ -253,7 +253,7 @@ logs streams when parsing.
 appender.rolling.layout.type = ESJsonLayout
 appender.rolling.layout.type_name = server
 --------------------------------------------------
-:es-json-layout-java-doc: {elasticsearch-javadoc}/org/elasticsearch/common/logging/ESJsonLayout.html
+:es-json-layout-java-doc: {elasticsearch-javadoc}/org/opensearch/common/logging/ESJsonLayout.html
 
 Each line contains a single JSON document with the properties configured in `ESJsonLayout`.
 See this class {es-json-layout-java-doc}[javadoc] for more details.
@@ -268,8 +268,8 @@ NOTE: You can still use your own custom layout. To do that replace the line
 --------------------------------------------------
 appender.rolling.type = RollingFile
 appender.rolling.name = rolling
-appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.log
+appender.rolling.fileName = ${sys:opensearch.logs.base_path}${sys:file.separator}${sys:opensearch.logs.cluster_name}_server.log
 appender.rolling.layout.type = PatternLayout
 appender.rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %.-10000m%n
-appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.log.gz
+appender.rolling.filePattern = ${sys:opensearch.logs.base_path}${sys:file.separator}${sys:opensearch.logs.cluster_name}-%d{yyyy-MM-dd}-%i.log.gz
 --------------------------------------------------
