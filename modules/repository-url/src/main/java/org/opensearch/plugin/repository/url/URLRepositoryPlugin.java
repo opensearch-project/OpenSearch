@@ -24,8 +24,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.url.URLRepository;
 

@@ -22,7 +22,7 @@ package org.opensearch.script;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IntervalFilterScript;
-import org.elasticsearch.plugins.ScriptPlugin;
+import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.Collections;

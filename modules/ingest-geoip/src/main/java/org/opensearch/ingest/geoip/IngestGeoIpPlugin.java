@@ -32,7 +32,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.plugins.IngestPlugin;
+import org.opensearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.Closeable;

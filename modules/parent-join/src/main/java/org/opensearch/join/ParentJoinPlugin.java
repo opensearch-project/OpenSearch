@@ -28,9 +28,9 @@ import org.opensearch.join.mapper.ParentJoinFieldMapper;
 import org.opensearch.join.query.HasChildQueryBuilder;
 import org.opensearch.join.query.HasParentQueryBuilder;
 import org.opensearch.join.query.ParentIdQueryBuilder;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
 
 import java.util.Arrays;
 import java.util.Collections;

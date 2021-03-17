@@ -32,8 +32,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.opensearch.plugin.noop.action.search.NoopSearchAction;
 import org.opensearch.plugin.noop.action.search.RestNoopSearchAction;
 import org.opensearch.plugin.noop.action.search.TransportNoopSearchAction;
-import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 

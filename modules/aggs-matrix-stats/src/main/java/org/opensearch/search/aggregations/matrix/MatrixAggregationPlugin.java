@@ -19,8 +19,8 @@
 
 package org.opensearch.search.aggregations.matrix;
 
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.matrix.stats.InternalMatrixStats;
 import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.opensearch.search.aggregations.matrix.stats.MatrixStatsParser;
