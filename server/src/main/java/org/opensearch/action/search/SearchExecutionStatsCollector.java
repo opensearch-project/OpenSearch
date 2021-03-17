@@ -20,7 +20,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.node.ResponseCollectorService;
+import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.Transport;

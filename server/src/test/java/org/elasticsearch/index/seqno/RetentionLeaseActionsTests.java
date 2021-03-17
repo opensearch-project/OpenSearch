@@ -29,7 +29,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.Node;
+import org.opensearch.node.Node;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 

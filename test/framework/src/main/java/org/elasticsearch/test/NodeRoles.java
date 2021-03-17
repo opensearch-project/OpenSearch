@@ -20,8 +20,8 @@
 package org.elasticsearch.test;
 
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.common.settings.Settings;
-import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.opensearch.node.NodeRoleSettings;
 
 import java.util.Collections;
 import java.util.Set;
