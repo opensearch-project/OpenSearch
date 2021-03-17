@@ -26,7 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 
 public class IngestDocumentMatcherTests extends ESTestCase {
 

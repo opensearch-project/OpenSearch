@@ -21,7 +21,7 @@ package org.opensearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.opensearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -29,7 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
-import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

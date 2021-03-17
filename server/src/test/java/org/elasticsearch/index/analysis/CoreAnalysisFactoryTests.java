@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
+import org.opensearch.indices.analysis.AnalysisFactoryTestCase;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 /**

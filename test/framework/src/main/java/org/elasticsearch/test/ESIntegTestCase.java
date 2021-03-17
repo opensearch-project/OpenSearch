@@ -113,7 +113,7 @@ import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.zen.ElectMasterService;
 import org.opensearch.discovery.zen.ZenDiscovery;
 import org.opensearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
+import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;

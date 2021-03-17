@@ -20,7 +20,7 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.TestTemplateService;
+import org.opensearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.ZoneId;
