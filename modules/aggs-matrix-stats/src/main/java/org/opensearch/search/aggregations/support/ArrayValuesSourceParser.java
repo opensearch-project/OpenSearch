@@ -23,8 +23,8 @@ import org.elasticsearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.opensearch.script.Script;
-import org.elasticsearch.search.aggregations.AggregationBuilder.CommonFields;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregationBuilder.CommonFields;
+import org.opensearch.search.aggregations.Aggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;

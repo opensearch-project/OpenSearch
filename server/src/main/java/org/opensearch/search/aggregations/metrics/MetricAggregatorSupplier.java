@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 

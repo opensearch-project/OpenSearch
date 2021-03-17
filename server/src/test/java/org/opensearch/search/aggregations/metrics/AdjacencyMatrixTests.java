@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 
 import java.util.HashMap;

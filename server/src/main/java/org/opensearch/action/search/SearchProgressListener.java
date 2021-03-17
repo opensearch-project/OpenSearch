@@ -27,7 +27,7 @@ import org.opensearch.action.search.SearchResponse.Clusters;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.util.Collections;
 import java.util.List;

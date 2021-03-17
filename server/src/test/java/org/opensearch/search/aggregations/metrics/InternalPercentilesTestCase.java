@@ -19,8 +19,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.ParsedAggregation;
 
 import java.util.List;
 

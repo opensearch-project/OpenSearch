@@ -22,7 +22,7 @@ package org.elasticsearch.test.search.aggregations.bucket;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
@@ -39,8 +39,8 @@ import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.search.aggregations.AggregationBuilders.significantTerms;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
 public class SharedSignificantTermsTestMethods {
     public static final String INDEX_NAME = "testidx";

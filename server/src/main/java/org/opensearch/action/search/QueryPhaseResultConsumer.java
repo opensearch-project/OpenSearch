@@ -31,8 +31,8 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContextBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregation.ReduceContextBuilder;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.query.QuerySearchResult;
 

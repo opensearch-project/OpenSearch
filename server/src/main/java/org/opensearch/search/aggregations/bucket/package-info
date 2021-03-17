@@ -20,5 +20,5 @@
 /**
  * Aggregations module
  */
-package org.elasticsearch.search.aggregations.bucket;
+package org.opensearch.search.aggregations.bucket;
 

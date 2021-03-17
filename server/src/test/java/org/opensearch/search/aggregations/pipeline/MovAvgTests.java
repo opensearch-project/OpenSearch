@@ -26,8 +26,8 @@ import static org.hamcrest.Matchers.nullValue;
 import java.io.IOException;
 
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.opensearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.search.aggregations.pipeline.HoltWintersModel.SeasonalityType;
 

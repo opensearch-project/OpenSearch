@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.script.SignificantTermsHeuristicScoreScript;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 import java.util.HashMap;

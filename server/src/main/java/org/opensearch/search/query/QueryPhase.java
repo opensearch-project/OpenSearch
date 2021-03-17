@@ -58,7 +58,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchService;
-import org.elasticsearch.search.aggregations.AggregationPhase;
+import org.opensearch.search.aggregations.AggregationPhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;

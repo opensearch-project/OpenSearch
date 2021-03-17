@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.search.aggregations.pipeline.InternalStatsBucket;
 import org.opensearch.search.aggregations.pipeline.ParsedStatsBucket;
 

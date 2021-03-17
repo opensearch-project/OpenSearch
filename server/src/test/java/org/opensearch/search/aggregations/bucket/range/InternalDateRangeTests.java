@@ -21,9 +21,9 @@ package org.opensearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 

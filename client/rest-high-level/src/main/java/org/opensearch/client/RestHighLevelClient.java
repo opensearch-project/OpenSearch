@@ -94,7 +94,7 @@ import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.MultiSearchTemplateResponse;
 import org.opensearch.script.mustache.SearchTemplateRequest;
 import org.opensearch.script.mustache.SearchTemplateResponse;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
 import org.opensearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;

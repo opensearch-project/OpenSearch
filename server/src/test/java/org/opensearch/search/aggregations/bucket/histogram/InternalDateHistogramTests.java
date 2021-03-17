@@ -22,9 +22,9 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.opensearch.common.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.time.ZonedDateTime;
