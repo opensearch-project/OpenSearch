@@ -203,7 +203,7 @@ locations for a Debian-based system:
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `$ES_HOME`
+  | Elasticsearch home directory or `$OPENSEARCH_HOME`
   | /usr/share/opensearch
  d|
 
@@ -216,7 +216,7 @@ locations for a Debian-based system:
 | conf
   | Configuration files including `opensearch.yml`
   | /etc/opensearch
-  | <<config-files-location,ES_PATH_CONF>>
+  | <<config-files-location,OPENSEARCH_PATH_CONF>>
 
 | conf
   | Environment variables including heap size, file descriptors.

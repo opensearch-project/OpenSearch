@@ -13,7 +13,7 @@ under the CCA-ShareAlike 4.0 license. For more details see, http://dev.maxmind.c
 
 The `geoip` processor can run with other city, country and ASN GeoIP2 databases
 from Maxmind. The database files must be copied into the `ingest-geoip` config
-directory located at `$ES_CONFIG/ingest-geoip`. Custom database files must be
+directory located at `$OPENSEARCH_CONFIG/ingest-geoip`. Custom database files must be
 stored uncompressed and the extension must be `-City.mmdb`, `-Country.mmdb`, or
 `-ASN.mmdb` to indicate the type of the database. These database files can not
 have the same filename as any of the built-in database names. The

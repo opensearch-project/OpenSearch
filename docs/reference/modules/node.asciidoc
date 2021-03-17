@@ -234,8 +234,8 @@ excess data that prevents a node from starting.
 
 Every data and master-eligible node requires access to a data directory where
 shards and index and cluster metadata will be stored. The `path.data` defaults
-to `$ES_HOME/data` but can be configured in the `opensearch.yml` config
-file an absolute path or a path relative to `$ES_HOME` as follows:
+to `$OPENSEARCH_HOME/data` but can be configured in the `opensearch.yml` config
+file an absolute path or a path relative to `$OPENSEARCH_HOME` as follows:
 
 [source,yaml]
 ----

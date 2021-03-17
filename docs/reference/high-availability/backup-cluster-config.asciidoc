@@ -12,14 +12,14 @@ Configuration information resides in
 setting values such as passwords, are specified inside a binary secure container, the
 <<secure-settings, opensearch.keystore>> file. Some setting values are
 file paths to the associated configuration data, such as the ingest geo ip
-database. All these files are contained inside the `ES_PATH_CONF` directory.
+database. All these files are contained inside the `OPENSEARCH_PATH_CONF` directory.
 
 NOTE: All changes to configuration files are done by manually editing the files
 or using command line utilities, but *not* through APIs. In practice, these
 changes are infrequent after the initial setup.
 
 We recommend that you take regular (ideally, daily) backups of your {es} config
-(`$ES_PATH_CONF`) directory using the file backup software of your choice.
+(`$OPENSEARCH_PATH_CONF`) directory using the file backup software of your choice.
 
 TIP: We recommend that you have a configuration management plan for these
 configuration files. You may wish to check them into version control, or

@@ -58,7 +58,7 @@ by binding transport to an external interface and setting the discovery type to
 `single-node`). For this situation, you can force execution of the bootstrap
 checks by setting the system property `es.enforce.bootstrap.checks` to `true`
 (set this in <<jvm-options>>, or by adding `-Des.enforce.bootstrap.checks=true`
-to the environment variable `ES_JAVA_OPTS`). We strongly encourage you to do
+to the environment variable `OPENSEARCH_JAVA_OPTS`). We strongly encourage you to do
 this if you are in this specific situation. This system property can be used to
 force execution of the bootstrap checks independent of the node configuration.
 

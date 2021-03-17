@@ -4,7 +4,7 @@
 You should rarely need to change Java Virtual Machine (JVM) options. If you do,
 the most likely change is setting the <<heap-size,heap size>>. The remainder of
 this document explains in detail how to set JVM options. You can set options
-either with `jvm.options` files or with the `ES_JAVA_OPTS` environment variable.
+either with `jvm.options` files or with the `OPENSEARCH_JAVA_OPTS` environment variable.
 
 The preferred method of setting or overriding JVM options is via JVM options
 files. When installing from the tar or zip distributions, the root `jvm.options`
@@ -66,15 +66,15 @@ list of JVM arguments following a special syntax:
 * all other lines are rejected
 
 An alternative mechanism for setting Java Virtual Machine options is via the
-`ES_JAVA_OPTS` environment variable. For instance:
+`OPENSEARCH_JAVA_OPTS` environment variable. For instance:
 
 [source,sh]
 ---------------------------------
-export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
+export OPENSEARCH_JAVA_OPTS="$OPENSEARCH_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 ./bin/elasticsearch
 ---------------------------------
 
-When using the RPM or Debian packages, `ES_JAVA_OPTS` can be specified in the
+When using the RPM or Debian packages, `OPENSEARCH_JAVA_OPTS` can be specified in the
 <<sysconfig,system configuration file>>.
 
 The JVM has a built-in mechanism for observing the `JAVA_TOOL_OPTIONS`
@@ -87,4 +87,4 @@ Additionally, some other Java programs support the `JAVA_OPTS` environment
 variable. This is *not* a mechanism built into the JVM but instead a convention
 in the ecosystem. However, we do not support this environment variable, instead
 supporting setting JVM options via the `jvm.options` file or the environment
-variable `ES_JAVA_OPTS` as above.
+variable `OPENSEARCH_JAVA_OPTS` as above.

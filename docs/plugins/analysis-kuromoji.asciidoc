@@ -146,7 +146,7 @@ may be appended to the default dictionary. The dictionary should have the follow
 --
 
 As a demonstration of how the user dictionary can be used, save the following
-dictionary to `$ES_HOME/config/userdict_ja.txt`:
+dictionary to `$OPENSEARCH_HOME/config/userdict_ja.txt`:
 
 [source,csv]
 -----------------------
