@@ -47,6 +47,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -332,12 +333,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         BytesReference bytes = BytesReference.bytes(builder().startObject().field("binary", randomBytes).endObject());
 
         try (XContentParser parser = createParser(xcontentType().xContent(), bytes)) {
-            assertSame(parser.nextToken(), XContentParser.Token.START_OBJECT);
-            assertSame(parser.nextToken(), XContentParser.Token.FIELD_NAME);
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "binary");
             assertTrue(parser.nextToken().isValue());
             assertArrayEquals(randomBytes, parser.binaryValue());
-            assertSame(parser.nextToken(), XContentParser.Token.END_OBJECT);
+            assertSame(parser.nextToken(), Token.END_OBJECT);
             assertNull(parser.nextToken());
         }
     }
@@ -349,12 +350,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         BytesReference bytes = BytesReference.bytes(builder().startObject().field("binary").value(randomBytes).endObject());
 
         try (XContentParser parser = createParser(xcontentType().xContent(), bytes)) {
-            assertSame(parser.nextToken(), XContentParser.Token.START_OBJECT);
-            assertSame(parser.nextToken(), XContentParser.Token.FIELD_NAME);
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "binary");
             assertTrue(parser.nextToken().isValue());
             assertArrayEquals(randomBytes, parser.binaryValue());
-            assertSame(parser.nextToken(), XContentParser.Token.END_OBJECT);
+            assertSame(parser.nextToken(), Token.END_OBJECT);
             assertNull(parser.nextToken());
         }
     }
@@ -375,12 +376,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         builder.endObject();
 
         try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
-            assertSame(parser.nextToken(), XContentParser.Token.START_OBJECT);
-            assertSame(parser.nextToken(), XContentParser.Token.FIELD_NAME);
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "bin");
             assertTrue(parser.nextToken().isValue());
             assertArrayEquals(Arrays.copyOfRange(randomBytes, offset, offset + length), parser.binaryValue());
-            assertSame(parser.nextToken(), XContentParser.Token.END_OBJECT);
+            assertSame(parser.nextToken(), Token.END_OBJECT);
             assertNull(parser.nextToken());
         }
     }
@@ -394,12 +395,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         builder.endObject();
 
         try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
-            assertSame(parser.nextToken(), XContentParser.Token.START_OBJECT);
-            assertSame(parser.nextToken(), XContentParser.Token.FIELD_NAME);
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "utf8");
             assertTrue(parser.nextToken().isValue());
             assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
-            assertSame(parser.nextToken(), XContentParser.Token.END_OBJECT);
+            assertSame(parser.nextToken(), Token.END_OBJECT);
             assertNull(parser.nextToken());
         }
     }
@@ -413,12 +414,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
 
         try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
-            assertSame(parser.nextToken(), XContentParser.Token.START_OBJECT);
-            assertSame(parser.nextToken(), XContentParser.Token.FIELD_NAME);
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "text");
             assertTrue(parser.nextToken().isValue());
             assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(random.utf8ToString()));
-            assertSame(parser.nextToken(), XContentParser.Token.END_OBJECT);
+            assertSame(parser.nextToken(), Token.END_OBJECT);
             assertNull(parser.nextToken());
         }
     }
@@ -915,15 +916,15 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         try (XContentParser parser = xcontentType().xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
             assertEquals("bar", parser.currentName());
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
             assertEquals("foo", parser.currentName());
-            assertEquals(XContentParser.Token.VALUE_NULL, parser.nextToken());
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertEquals(Token.VALUE_NULL, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
     }
@@ -951,11 +952,11 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         try (XContentParser parser = xcontentType().xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
             assertEquals("foo", parser.currentName());
-            assertEquals(XContentParser.Token.VALUE_NULL, parser.nextToken());
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertEquals(Token.VALUE_NULL, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
 
@@ -976,15 +977,15 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         try (XContentParser parser = xcontentType().xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
             assertEquals("test", parser.currentName());
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
             assertEquals("foo", parser.currentName());
-            assertEquals(XContentParser.Token.VALUE_NULL, parser.nextToken());
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertEquals(Token.VALUE_NULL, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
 

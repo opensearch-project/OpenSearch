@@ -40,7 +40,6 @@ import org.opensearch.common.xcontent.ObjectParser.ValueType;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
@@ -726,7 +725,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * is that this way we can reuse the parser when parsing xContent from
      * {@link org.opensearch.search.suggest.completion.CompletionSuggestion.Entry.Option} which unfortunately inlines
      * the output of
-     * {@link #toInnerXContent(XContentBuilder, ToXContent.Params)}
+     * {@link #toInnerXContent(XContentBuilder, org.opensearch.common.xcontent.ToXContent.Params)}
      * of the included search hit. The output of the map is used to create the
      * actual SearchHit instance via {@link #createFromMap(Map)}
      */

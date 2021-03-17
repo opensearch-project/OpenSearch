@@ -72,7 +72,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         parser.declareField((p, builder, context) -> {
                 builder.setGeoBoundingBox(GeoBoundingBox.parseBoundingBox(p));
             },
-            GeoBoundingBox.BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+            GeoBoundingBox.BOUNDS_FIELD, org.opensearch.common.xcontent.ObjectParser.ValueType.OBJECT);
         return parser;
     }
 
