@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;

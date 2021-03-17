@@ -28,7 +28,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;

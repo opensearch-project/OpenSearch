@@ -24,8 +24,6 @@ import java.util.Collections;
 import java.util.List;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.common.settings.BaseKeyStoreCommand;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.opensearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 

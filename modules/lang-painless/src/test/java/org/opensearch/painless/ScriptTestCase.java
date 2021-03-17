@@ -20,7 +20,7 @@
 package org.opensearch.painless;
 
 import junit.framework.AssertionFailedError;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.antlr.Walker;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.painless.spi.WhitelistLoader;

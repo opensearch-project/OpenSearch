@@ -32,11 +32,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -47,7 +47,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final ClusterApplierService clusterApplierService;
 
-    public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA =
+    public static final org.opensearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA =
         Setting.prefixKeySetting("cluster.metadata.", (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
 
     /**

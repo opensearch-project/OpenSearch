@@ -29,7 +29,7 @@ import org.opensearch.client.RestClient;
 import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.ssl.PemKeyConfig;
 import org.opensearch.common.ssl.PemTrustConfig;
 import org.opensearch.env.Environment;

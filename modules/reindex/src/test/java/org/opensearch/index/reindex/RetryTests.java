@@ -28,7 +28,7 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.bulk.Retry;
 import org.opensearch.client.Client;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
 import org.opensearch.http.HttpInfo;

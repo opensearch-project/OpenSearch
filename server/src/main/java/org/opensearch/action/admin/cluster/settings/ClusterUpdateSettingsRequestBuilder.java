@@ -21,7 +21,7 @@ package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;

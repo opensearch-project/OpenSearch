@@ -27,7 +27,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;

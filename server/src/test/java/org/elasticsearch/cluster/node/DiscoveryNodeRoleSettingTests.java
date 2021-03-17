@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;

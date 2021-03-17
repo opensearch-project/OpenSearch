@@ -32,7 +32,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;

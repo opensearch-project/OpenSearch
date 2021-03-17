@@ -32,7 +32,7 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;

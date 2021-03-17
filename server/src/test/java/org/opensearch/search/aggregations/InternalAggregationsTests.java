@@ -24,7 +24,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;

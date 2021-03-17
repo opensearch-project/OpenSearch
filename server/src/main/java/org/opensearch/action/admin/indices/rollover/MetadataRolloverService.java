@@ -37,7 +37,7 @@ import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;

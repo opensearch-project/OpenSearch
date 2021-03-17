@@ -42,7 +42,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;

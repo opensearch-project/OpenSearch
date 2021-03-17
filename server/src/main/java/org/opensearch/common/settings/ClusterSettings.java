@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.settings;
+package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -66,7 +66,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

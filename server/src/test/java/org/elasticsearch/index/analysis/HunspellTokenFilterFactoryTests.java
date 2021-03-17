@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 

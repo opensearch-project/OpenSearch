@@ -21,7 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 

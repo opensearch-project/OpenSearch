@@ -20,7 +20,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.elasticsearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;

@@ -36,9 +36,9 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingUpgrader;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.SettingUpgrader;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,7 +60,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.settings.Setting.intSetting;
+import static org.opensearch.common.settings.Setting.intSetting;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 

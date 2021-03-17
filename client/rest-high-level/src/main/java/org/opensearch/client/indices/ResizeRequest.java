@@ -23,7 +23,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.Validatable;
 import org.opensearch.client.ValidationException;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

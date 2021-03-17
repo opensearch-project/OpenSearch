@@ -37,7 +37,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.SecureString;
+import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;

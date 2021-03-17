@@ -36,15 +36,15 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
@@ -57,7 +57,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
+import static org.opensearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

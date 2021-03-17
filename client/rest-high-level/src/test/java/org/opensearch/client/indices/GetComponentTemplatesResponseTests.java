@@ -23,7 +23,7 @@ import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 

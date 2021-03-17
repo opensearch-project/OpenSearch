@@ -20,7 +20,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.network.NetworkUtils;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetSocketAddress;

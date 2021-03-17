@@ -21,7 +21,7 @@ package org.opensearch.cli;
 
 import org.apache.logging.log4j.Level;
 import org.opensearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 
 /**
  * Holder class for method to configure logging without Elasticsearch configuration files for use in CLI tools that will not read such

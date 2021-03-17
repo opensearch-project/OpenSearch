@@ -32,7 +32,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.geo.builders.EnvelopeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;

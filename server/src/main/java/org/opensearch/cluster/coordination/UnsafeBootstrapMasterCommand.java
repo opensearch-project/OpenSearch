@@ -29,8 +29,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.gateway.PersistedClusterStateService;
 

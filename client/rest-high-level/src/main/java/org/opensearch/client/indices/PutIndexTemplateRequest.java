@@ -28,7 +28,7 @@ import org.opensearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -51,7 +51,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.

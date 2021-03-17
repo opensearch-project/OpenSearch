@@ -42,15 +42,15 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.internal.net.NetUtils;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4NioSocketChannel;
 import org.opensearch.transport.NettyAllocator;
@@ -64,8 +64,8 @@ import java.net.InetSocketAddress;
 import java.net.SocketOption;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
-import static org.elasticsearch.common.settings.Setting.intSetting;
+import static org.opensearch.common.settings.Setting.byteSizeSetting;
+import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 /**

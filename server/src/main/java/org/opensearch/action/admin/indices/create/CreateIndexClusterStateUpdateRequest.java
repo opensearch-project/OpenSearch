@@ -25,7 +25,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.HashMap;

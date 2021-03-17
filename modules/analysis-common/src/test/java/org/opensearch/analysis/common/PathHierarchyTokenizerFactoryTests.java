@@ -22,7 +22,7 @@ package org.opensearch.analysis.common;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;

@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.elasticsearch.test.ESTestCase;
+import org.opensearch.common.settings.PropertyPlaceholder;
 
 import static org.hamcrest.Matchers.is;
 

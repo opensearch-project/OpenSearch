@@ -49,14 +49,14 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.IpFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -95,7 +95,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MinAggregatorTests extends AggregatorTestCase {

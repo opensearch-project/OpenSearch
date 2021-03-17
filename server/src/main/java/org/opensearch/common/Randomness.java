@@ -20,8 +20,8 @@
 package org.opensearch.common;
 
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 
 import java.lang.reflect.Method;
 import java.security.SecureRandom;

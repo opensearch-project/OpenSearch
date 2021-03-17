@@ -36,8 +36,8 @@ import org.opensearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllo
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.Rebalance;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 
 import java.util.EnumSet;

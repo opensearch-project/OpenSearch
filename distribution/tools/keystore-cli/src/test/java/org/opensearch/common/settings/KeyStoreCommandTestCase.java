@@ -29,8 +29,6 @@ import java.util.List;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.CommandTestCase;

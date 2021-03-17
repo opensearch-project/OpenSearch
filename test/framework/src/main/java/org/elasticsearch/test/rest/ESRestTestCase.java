@@ -43,7 +43,7 @@ import org.opensearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedRunnable;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;

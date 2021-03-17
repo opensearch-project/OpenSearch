@@ -32,7 +32,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;

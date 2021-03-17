@@ -26,7 +26,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;

@@ -20,8 +20,8 @@ package org.opensearch.transport;
 
 import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.opensearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -30,11 +30,11 @@ import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.settings.Setting.affixKeySetting;
-import static org.elasticsearch.common.settings.Setting.boolSetting;
-import static org.elasticsearch.common.settings.Setting.intSetting;
-import static org.elasticsearch.common.settings.Setting.listSetting;
-import static org.elasticsearch.common.settings.Setting.timeSetting;
+import static org.opensearch.common.settings.Setting.affixKeySetting;
+import static org.opensearch.common.settings.Setting.boolSetting;
+import static org.opensearch.common.settings.Setting.intSetting;
+import static org.opensearch.common.settings.Setting.listSetting;
+import static org.opensearch.common.settings.Setting.timeSetting;
 
 public final class TransportSettings {
 

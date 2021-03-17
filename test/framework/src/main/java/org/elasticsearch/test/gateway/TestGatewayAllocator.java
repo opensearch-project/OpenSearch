@@ -29,8 +29,8 @@ import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PrimaryShardAllocator;
 import org.opensearch.gateway.ReplicaShardAllocator;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
 import java.util.Collections;
 import java.util.HashMap;

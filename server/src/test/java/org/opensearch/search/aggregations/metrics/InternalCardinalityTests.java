@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;

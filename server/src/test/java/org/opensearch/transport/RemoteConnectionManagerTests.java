@@ -22,7 +22,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
