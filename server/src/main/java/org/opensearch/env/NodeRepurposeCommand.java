@@ -31,8 +31,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.MetadataStateFormat;
-import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.opensearch.gateway.MetadataStateFormat;
+import org.opensearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;

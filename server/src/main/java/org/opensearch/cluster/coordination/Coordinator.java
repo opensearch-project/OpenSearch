@@ -94,8 +94,8 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
-import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
-import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
+import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
