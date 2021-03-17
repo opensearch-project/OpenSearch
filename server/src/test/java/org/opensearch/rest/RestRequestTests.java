@@ -27,8 +27,8 @@ import org.opensearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
+import org.opensearch.http.HttpChannel;
+import org.opensearch.http.HttpRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
