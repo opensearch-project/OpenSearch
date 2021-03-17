@@ -18,7 +18,7 @@
  */
 package org.opensearch.cluster;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 import java.util.IdentityHashMap;
 import java.util.List;

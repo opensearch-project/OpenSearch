@@ -20,7 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.collect.List;
+import org.opensearch.common.collect.List;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,7 +42,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store");
+        return org.opensearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store");
     }
 
     @Override

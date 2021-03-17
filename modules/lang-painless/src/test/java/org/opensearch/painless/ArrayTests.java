@@ -20,7 +20,7 @@
 package org.opensearch.painless;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.opensearch.bootstrap.JavaVersion;
 import org.hamcrest.Matcher;
 
 import java.lang.invoke.MethodHandle;

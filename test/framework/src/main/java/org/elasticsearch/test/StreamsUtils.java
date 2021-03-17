@@ -21,7 +21,7 @@ package org.elasticsearch.test;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.core.internal.io.Streams;
+import org.opensearch.core.internal.io.Streams;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

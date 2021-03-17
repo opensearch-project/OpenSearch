@@ -28,7 +28,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;

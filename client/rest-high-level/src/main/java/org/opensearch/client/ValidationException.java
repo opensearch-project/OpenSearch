@@ -18,7 +18,7 @@
  */
 package org.opensearch.client;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -19,10 +19,9 @@
 
 package org.opensearch.bootstrap;
 
-import org.elasticsearch.bootstrap.JarHell;
 import org.opensearch.cli.Command;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.http.HttpTransportSettings;

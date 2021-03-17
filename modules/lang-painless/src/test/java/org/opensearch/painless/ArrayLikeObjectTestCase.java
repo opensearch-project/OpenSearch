@@ -19,7 +19,7 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.hamcrest.Matcher;
 
 import static java.util.Collections.singletonMap;

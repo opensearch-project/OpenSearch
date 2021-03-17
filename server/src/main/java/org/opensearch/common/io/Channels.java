@@ -19,7 +19,7 @@
 
 package org.opensearch.common.io;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 
 import java.io.EOFException;
 import java.io.IOException;

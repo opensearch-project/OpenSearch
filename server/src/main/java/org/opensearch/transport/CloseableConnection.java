@@ -20,7 +20,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.opensearch.common.concurrent.CompletableContext;
 
 
 /**

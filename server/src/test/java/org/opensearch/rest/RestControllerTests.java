@@ -33,7 +33,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;

@@ -36,7 +36,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;

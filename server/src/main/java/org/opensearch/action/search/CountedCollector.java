@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.search;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;

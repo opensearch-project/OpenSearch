@@ -20,7 +20,7 @@
 package org.elasticsearch.common.time;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.opensearch.bootstrap.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;

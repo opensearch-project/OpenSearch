@@ -21,7 +21,7 @@ package org.opensearch.docker.test;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.OpenSearchException;
 import org.opensearch.client.Request;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;

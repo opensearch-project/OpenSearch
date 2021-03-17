@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.test.ESTestCase;

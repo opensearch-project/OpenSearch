@@ -24,9 +24,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelPromise;
 import org.elasticsearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TransportException;
 

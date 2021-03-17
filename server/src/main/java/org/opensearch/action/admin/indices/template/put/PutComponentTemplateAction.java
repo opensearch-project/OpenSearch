@@ -24,7 +24,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

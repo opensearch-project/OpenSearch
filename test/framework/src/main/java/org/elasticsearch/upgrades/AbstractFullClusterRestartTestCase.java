@@ -21,7 +21,7 @@ package org.elasticsearch.upgrades;
 
 import org.opensearch.Version;
 import org.opensearch.client.Request;
-import org.elasticsearch.common.Booleans;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;

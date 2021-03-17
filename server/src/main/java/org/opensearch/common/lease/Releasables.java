@@ -19,8 +19,8 @@
 
 package org.opensearch.common.lease;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.common.Nullable;
+import org.opensearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

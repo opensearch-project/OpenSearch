@@ -20,7 +20,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.common.CheckedConsumer;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.MapBuilder;

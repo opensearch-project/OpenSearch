@@ -46,7 +46,7 @@ import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.lucene.search.Queries;

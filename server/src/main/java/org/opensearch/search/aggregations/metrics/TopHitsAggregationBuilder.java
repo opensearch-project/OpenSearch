@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;

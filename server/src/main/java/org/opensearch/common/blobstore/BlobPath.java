@@ -19,7 +19,7 @@
 
 package org.opensearch.common.blobstore;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;

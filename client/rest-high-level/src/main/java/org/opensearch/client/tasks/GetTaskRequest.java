@@ -20,7 +20,7 @@ package org.opensearch.client.tasks;
 
 import org.opensearch.client.Validatable;
 import org.opensearch.client.ValidationException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.Objects;
 import java.util.Optional;

@@ -21,8 +21,8 @@ package org.opensearch.client.indices;
 
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.Validatable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * A request to read the content of component templates

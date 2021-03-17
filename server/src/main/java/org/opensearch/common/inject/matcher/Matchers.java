@@ -16,7 +16,7 @@
 
 package org.opensearch.common.inject.matcher;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Retention;

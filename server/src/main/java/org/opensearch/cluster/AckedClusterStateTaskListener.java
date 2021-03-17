@@ -19,8 +19,8 @@
 package org.opensearch.cluster;
 
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
 
 public interface AckedClusterStateTaskListener extends ClusterStateTaskListener {
 

@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;

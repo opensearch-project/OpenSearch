@@ -21,7 +21,7 @@ package org.opensearch.http.netty4;
 
 import io.netty.channel.Channel;
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.transport.netty4.Netty4TcpChannel;

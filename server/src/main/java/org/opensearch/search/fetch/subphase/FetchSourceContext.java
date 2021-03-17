@@ -19,7 +19,7 @@
 
 package org.opensearch.search.fetch.subphase;
 
-import org.elasticsearch.common.Booleans;
+import org.opensearch.common.Booleans;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;

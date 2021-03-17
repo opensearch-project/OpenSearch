@@ -24,11 +24,11 @@ import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.time.DateFormatter;
@@ -72,7 +72,7 @@ public class IndexNameExpressionResolver {
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
     private final List<ExpressionResolver> expressionResolvers =
-        org.elasticsearch.common.collect.List.of(dateMathExpressionResolver, wildcardExpressionResolver);
+        org.opensearch.common.collect.List.of(dateMathExpressionResolver, wildcardExpressionResolver);
 
     private final ThreadContext threadContext;
 
@@ -144,7 +144,7 @@ public class IndexNameExpressionResolver {
         }
 
         List<String> dataStreams = wildcardExpressionResolver.resolve(context, Arrays.asList(indexExpressions));
-        return ((dataStreams == null) ? org.elasticsearch.common.collect.List.<String>of() : dataStreams).stream()
+        return ((dataStreams == null) ? org.opensearch.common.collect.List.<String>of() : dataStreams).stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)

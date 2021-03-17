@@ -19,11 +19,11 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.painless.action.PainlessContextClassBindingInfo;
 import org.opensearch.painless.action.PainlessContextClassInfo;
 import org.opensearch.painless.action.PainlessContextConstructorInfo;

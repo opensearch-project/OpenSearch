@@ -19,7 +19,7 @@
 
 package org.opensearch.common.geo;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.geometry.LinearRing;
 import org.opensearch.geometry.MultiPolygon;
 import org.opensearch.geometry.Point;

@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.search;
 
-import org.elasticsearch.common.CheckedRunnable;
+import org.opensearch.common.CheckedRunnable;
 
 import java.io.IOException;
 import java.util.Objects;

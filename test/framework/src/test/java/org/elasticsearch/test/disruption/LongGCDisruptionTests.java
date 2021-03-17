@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.management.ThreadInfo;
