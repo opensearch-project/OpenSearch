@@ -26,7 +26,7 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.LuceneTests;
+import org.opensearch.common.lucene.LuceneTests;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;

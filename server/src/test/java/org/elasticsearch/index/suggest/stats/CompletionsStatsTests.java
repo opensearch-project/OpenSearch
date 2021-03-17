@@ -19,7 +19,7 @@
 package org.elasticsearch.index.suggest.stats;
 
 import org.opensearch.common.FieldMemoryStats;
-import org.elasticsearch.common.FieldMemoryStatsTests;
+import org.opensearch.common.FieldMemoryStatsTests;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.search.suggest.completion.CompletionStats;

@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.common.geo.GeoBoundingBoxTests;
+import org.opensearch.common.geo.GeoBoundingBoxTests;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;

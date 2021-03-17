@@ -32,7 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.geo.GeoBoundingBoxTests;
+import org.opensearch.common.geo.GeoBoundingBoxTests;
 import org.opensearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
