@@ -374,7 +374,7 @@ But you can specify the port value Elasticsearch is meant to use using google co
 [[discovery-gce-usage-port-create]]
 ===== When creating instance
 
-Add `--metadata _port=9301` option:
+Add `--metadata opensearch_port=9301` option:
 
 [source,sh]
 --------------------------------------------------
