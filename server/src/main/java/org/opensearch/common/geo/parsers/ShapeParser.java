@@ -21,7 +21,7 @@ package org.opensearch.common.geo.parsers;
 import org.elasticsearch.OpenSearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;

@@ -31,7 +31,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.RestStatus;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;

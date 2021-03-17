@@ -29,7 +29,7 @@ import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentOpenSearchExtension;
+import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;

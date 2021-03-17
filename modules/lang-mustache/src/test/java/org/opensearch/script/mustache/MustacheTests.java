@@ -20,7 +20,7 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.TemplateScript;

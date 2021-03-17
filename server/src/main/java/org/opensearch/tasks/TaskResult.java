@@ -28,12 +28,12 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParserHelper;
+import org.opensearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,7 +43,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
+import static org.opensearch.common.xcontent.XContentHelper.convertToMap;
 
 /**
  * Information about a running task or a task that stored its result. Running tasks just have a {@link #getTask()} while
