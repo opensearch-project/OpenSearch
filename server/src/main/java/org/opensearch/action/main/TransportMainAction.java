@@ -19,7 +19,7 @@
 
 package org.opensearch.action.main;
 
-import org.elasticsearch.Build;
+import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;

@@ -28,7 +28,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;

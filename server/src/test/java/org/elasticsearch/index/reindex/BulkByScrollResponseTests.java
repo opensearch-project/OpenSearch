@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
 import org.opensearch.client.transport.NoNodeAvailableException;

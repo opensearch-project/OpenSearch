@@ -30,7 +30,7 @@ import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.SpecialPermission;
+import org.opensearch.SpecialPermission;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;

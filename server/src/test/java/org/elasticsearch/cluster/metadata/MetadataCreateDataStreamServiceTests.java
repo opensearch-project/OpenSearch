@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
+import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.cluster.ClusterName;

@@ -19,7 +19,7 @@
 package org.elasticsearch.common.hppc;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import org.elasticsearch.Assertions;
+import org.opensearch.Assertions;
 import org.opensearch.common.collect.HppcMaps;
 import org.elasticsearch.test.ESTestCase;
 

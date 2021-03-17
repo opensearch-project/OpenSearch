@@ -25,7 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.SpecialPermission;
+import org.opensearch.SpecialPermission;
 import org.opensearch.script.GeneralScriptException;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;

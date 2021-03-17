@@ -19,8 +19,6 @@
 
 package org.opensearch;
 
-import org.elasticsearch.Assertions;
-import org.elasticsearch.Build;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;

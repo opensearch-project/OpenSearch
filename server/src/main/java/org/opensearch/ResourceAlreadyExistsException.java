@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,32 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch;
+
+package org.opensearch;
 
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.Index;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- * Generic ResourceNotFoundException corresponding to the {@link RestStatus#NOT_FOUND} status code
- */
-public class ResourceNotFoundException extends OpenSearchException {
+public class ResourceAlreadyExistsException extends OpenSearchException {
 
-    public ResourceNotFoundException(String msg, Object... args) {
+    public ResourceAlreadyExistsException(Index index) {
+        this("index {} already exists", index.toString());
+        setIndex(index);
+    }
+
+    public ResourceAlreadyExistsException(String msg, Object... args) {
         super(msg, args);
     }
 
-    public ResourceNotFoundException(String msg, Throwable cause, Object... args) {
-        super(msg, cause, args);
-    }
-
-    public ResourceNotFoundException(StreamInput in) throws IOException {
+    public ResourceAlreadyExistsException(StreamInput in) throws IOException{
         super(in);
     }
 
     @Override
-    public final RestStatus status() {
-        return RestStatus.NOT_FOUND;
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }
