@@ -37,7 +37,7 @@ POST /hockey/_explain/1
 Which shows that the class of `doc.first` is
 `org.opensearch.index.fielddata.ScriptDocValues.Longs` by responding with:
 
-// TODO: Change the class path after renaming or test will be failed
+// TODO(OpenSearch): Change the class path after renaming or test will be failed
 [source,console-result]
 ---------------------------------------------------------
 {

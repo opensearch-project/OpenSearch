@@ -1,4 +1,3 @@
-// TODO: Correct the docker repository for OpenSearch
 [[docker]]
 === Install {es} with Docker
 

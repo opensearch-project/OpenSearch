@@ -4,10 +4,10 @@
 This page lists all the available search queries with their corresponding `QueryBuilder` class name and helper method name in the
 `QueryBuilders` utility class.
 
-:query-ref:             {elasticsearch-javadoc}/org/elasticsearch/index/query
-:mapper-extras-ref:     {mapper-extras-client-javadoc}/org/elasticsearch/index/query
-:parentjoin-ref:        {parent-join-client-javadoc}/org/elasticsearch/join/query
-:percolate-ref:         {percolator-client-javadoc}/org/elasticsearch/percolator
+:query-ref:             {elasticsearch-javadoc}/org/opensearch/index/query
+:mapper-extras-ref:     {mapper-extras-client-javadoc}/org/opensearch/index/query
+:parentjoin-ref:        {parent-join-client-javadoc}/org/opensearch/join/query
+:percolate-ref:         {percolator-client-javadoc}/org/opensearch/percolator
 
 ==== Match All Query
 [options="header"]

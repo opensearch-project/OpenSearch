@@ -131,10 +131,10 @@ and add it as a dependency. As an example, we will use the `slf4j-simple` logger
 </dependency>
 --------------------------------------------------
 
-:client-tests: {search-root}/server/src/internalClusterTest/java/org/elasticsearch/client/documentation
-:hlrc-tests: {search-root}/client/rest-high-level/src/test/java/org/elasticsearch/client
+:client-tests: {search-root}/server/src/internalClusterTest/java/org/opensearch/client/documentation
+:hlrc-tests: {search-root}/client/rest-high-level/src/test/java/org/opensearch/client
 
-:client-reindex-tests: {search-root}/modules/reindex/src/internalClusterTest/java/org/elasticsearch/client/documentation
+:client-reindex-tests: {search-root}/modules/reindex/src/internalClusterTest/java/org/opensearch/client/documentation
 
 include::client.asciidoc[]
 
