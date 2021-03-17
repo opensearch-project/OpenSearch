@@ -19,9 +19,9 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;

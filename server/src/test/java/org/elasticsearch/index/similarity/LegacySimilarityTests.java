@@ -25,8 +25,8 @@ import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 

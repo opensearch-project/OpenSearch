@@ -27,7 +27,7 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -35,10 +35,10 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.action.document.RestTermVectorsAction;
 
@@ -52,7 +52,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Request returning the term vector (doc frequency, positions, offsets) for a

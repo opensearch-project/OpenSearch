@@ -19,7 +19,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

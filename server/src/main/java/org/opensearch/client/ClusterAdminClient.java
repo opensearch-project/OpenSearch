@@ -119,7 +119,7 @@ import org.opensearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.tasks.TaskId;
 
 /**

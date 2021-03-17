@@ -22,14 +22,14 @@ package org.opensearch.action.admin.cluster.snapshots.status;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.broadcast.BroadcastShardResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -37,8 +37,8 @@ import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContentFragment {
 

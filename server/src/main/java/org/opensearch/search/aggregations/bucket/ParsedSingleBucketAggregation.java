@@ -18,8 +18,8 @@
  */
 package org.opensearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.Aggregations;

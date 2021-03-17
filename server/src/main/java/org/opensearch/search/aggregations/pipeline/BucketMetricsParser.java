@@ -19,9 +19,9 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;

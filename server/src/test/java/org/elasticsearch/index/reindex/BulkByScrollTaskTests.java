@@ -21,9 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

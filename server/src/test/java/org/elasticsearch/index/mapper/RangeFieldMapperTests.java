@@ -25,9 +25,9 @@ import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Strings;
 import org.opensearch.common.network.InetAddresses;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;

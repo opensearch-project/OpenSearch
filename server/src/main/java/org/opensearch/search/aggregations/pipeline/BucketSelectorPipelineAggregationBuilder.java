@@ -22,8 +22,8 @@ package org.opensearch.search.aggregations.pipeline;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 

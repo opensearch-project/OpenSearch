@@ -19,10 +19,10 @@
 
 package org.opensearch.client.indices;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class AnalyzeResponse {
 

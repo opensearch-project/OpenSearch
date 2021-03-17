@@ -20,14 +20,14 @@
 package org.opensearch.search.aggregations;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.DeprecationHandler;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;

@@ -19,8 +19,8 @@
 package org.elasticsearch.test.rest.yaml.restspec;
 
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;

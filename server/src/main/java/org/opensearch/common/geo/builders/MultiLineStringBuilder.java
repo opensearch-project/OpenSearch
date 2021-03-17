@@ -24,7 +24,7 @@ import org.opensearch.common.geo.parsers.GeoWKTParser;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.geometry.Line;
 import org.opensearch.geometry.MultiLine;
 import org.locationtech.jts.geom.Coordinate;

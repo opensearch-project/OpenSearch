@@ -21,9 +21,9 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedFunction;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 

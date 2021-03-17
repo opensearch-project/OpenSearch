@@ -27,7 +27,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;

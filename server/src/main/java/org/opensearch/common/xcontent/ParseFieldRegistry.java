@@ -19,9 +19,7 @@
 
 package org.opensearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentLocation;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.collect.Tuple;
 

@@ -33,7 +33,7 @@ import org.opensearch.client.tasks.GetTaskResponse;
 import org.opensearch.client.tasks.TaskId;
 import org.opensearch.client.tasks.TaskSubmissionResponse;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.opensearch.rest.RestStatus;
 

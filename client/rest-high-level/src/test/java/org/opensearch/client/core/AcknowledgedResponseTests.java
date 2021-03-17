@@ -19,8 +19,8 @@
 package org.opensearch.client.core;
 
 import org.opensearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 

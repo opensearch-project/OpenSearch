@@ -21,8 +21,8 @@ package org.opensearch.search.aggregations.bucket.global;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;

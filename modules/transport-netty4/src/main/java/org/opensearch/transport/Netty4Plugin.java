@@ -29,7 +29,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.opensearch.indices.breaker.CircuitBreakerService;

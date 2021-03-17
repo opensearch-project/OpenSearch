@@ -43,7 +43,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;

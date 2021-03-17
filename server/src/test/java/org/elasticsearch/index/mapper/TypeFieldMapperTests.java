@@ -28,7 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;

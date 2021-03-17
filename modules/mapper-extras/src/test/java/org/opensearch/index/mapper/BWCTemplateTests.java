@@ -19,8 +19,7 @@
 
 package org.opensearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperExtrasPlugin;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 

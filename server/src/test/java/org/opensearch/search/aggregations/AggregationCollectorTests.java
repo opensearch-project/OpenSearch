@@ -19,8 +19,8 @@
 
 package org.opensearch.search.aggregations;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.opensearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;

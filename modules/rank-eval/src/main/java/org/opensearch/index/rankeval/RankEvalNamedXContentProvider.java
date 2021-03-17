@@ -19,8 +19,8 @@
 
 package org.opensearch.index.rankeval;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.plugins.spi.NamedXContentProvider;
 
 import java.util.ArrayList;

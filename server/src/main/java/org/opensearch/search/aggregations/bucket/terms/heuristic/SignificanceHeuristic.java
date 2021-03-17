@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.bucket.terms.heuristic;
 
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;

@@ -31,9 +31,9 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.GeoUtils;

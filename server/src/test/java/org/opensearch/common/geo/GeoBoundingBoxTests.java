@@ -21,9 +21,9 @@ package org.opensearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;

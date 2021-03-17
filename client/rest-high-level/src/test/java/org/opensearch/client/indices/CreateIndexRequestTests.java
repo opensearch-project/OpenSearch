@@ -20,7 +20,7 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

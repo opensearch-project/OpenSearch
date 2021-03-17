@@ -29,7 +29,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestController;

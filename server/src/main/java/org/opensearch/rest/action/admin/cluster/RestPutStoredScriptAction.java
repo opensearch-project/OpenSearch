@@ -21,7 +21,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;

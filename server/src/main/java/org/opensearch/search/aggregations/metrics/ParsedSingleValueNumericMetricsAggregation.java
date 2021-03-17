@@ -18,8 +18,8 @@
  */
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.ObjectParser.ValueType;
 import org.opensearch.search.aggregations.ParsedAggregation;
 
 public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedAggregation

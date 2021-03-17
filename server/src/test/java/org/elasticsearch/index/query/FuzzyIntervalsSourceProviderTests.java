@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.IntervalsSourceProvider.Fuzzy;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 

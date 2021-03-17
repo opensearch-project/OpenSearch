@@ -19,13 +19,13 @@
 package org.opensearch.common.geo.parsers;
 
 import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 

@@ -43,7 +43,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

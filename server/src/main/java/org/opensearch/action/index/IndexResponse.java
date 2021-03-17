@@ -22,7 +22,7 @@ package org.opensearch.action.index;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 

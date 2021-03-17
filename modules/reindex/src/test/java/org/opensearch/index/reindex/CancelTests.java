@@ -28,7 +28,7 @@ import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;

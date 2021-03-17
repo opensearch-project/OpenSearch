@@ -64,7 +64,7 @@ import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.reindex.ScrollableHitSource.Hit;

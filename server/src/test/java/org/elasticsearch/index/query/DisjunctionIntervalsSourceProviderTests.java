@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 

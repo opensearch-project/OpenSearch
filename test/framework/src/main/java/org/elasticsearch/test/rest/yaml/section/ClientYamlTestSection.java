@@ -19,8 +19,8 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.opensearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;

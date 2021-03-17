@@ -30,7 +30,7 @@ import org.opensearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.opensearch.client.transport.TransportClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.noop.NoopPlugin;
 import org.opensearch.plugin.noop.action.bulk.NoopBulkAction;

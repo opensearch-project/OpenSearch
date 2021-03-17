@@ -26,7 +26,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -52,7 +52,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;

@@ -21,7 +21,7 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.Scroll;

@@ -27,16 +27,16 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.time.DateUtils;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.ObjectParser.ValueType;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -682,7 +682,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     /**
      * Creates a new {@link FieldSortBuilder} from the query held by the {@link XContentParser} in
-     * {@link org.elasticsearch.common.xcontent.XContent} format.
+     * {@link org.opensearch.common.xcontent.XContent} format.
      *
      * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call

@@ -21,7 +21,7 @@ package org.opensearch.plugin.repository.url;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;

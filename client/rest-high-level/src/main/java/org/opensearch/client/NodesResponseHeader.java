@@ -21,11 +21,11 @@ package org.opensearch.client;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.action.RestActions;
 
 import java.io.IOException;

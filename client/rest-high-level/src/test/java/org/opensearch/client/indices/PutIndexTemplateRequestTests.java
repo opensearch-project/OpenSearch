@@ -21,8 +21,8 @@ package org.opensearch.client.indices;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

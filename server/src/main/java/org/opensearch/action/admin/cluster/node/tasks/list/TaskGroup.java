@@ -19,8 +19,8 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;

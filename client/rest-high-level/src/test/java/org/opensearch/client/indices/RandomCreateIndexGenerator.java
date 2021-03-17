@@ -19,8 +19,8 @@
 
 package org.opensearch.client.indices;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 

@@ -20,14 +20,10 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.ObjectParser.ValueType;
+import org.opensearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;

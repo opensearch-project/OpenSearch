@@ -20,8 +20,8 @@
 package org.opensearch.action.search;
 
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.profile.ProfileShardResult;

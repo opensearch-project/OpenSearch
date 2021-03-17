@@ -19,8 +19,8 @@
 
 package org.opensearch.join.aggregations;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;

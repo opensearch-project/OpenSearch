@@ -22,7 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.search.aggregations.AggregationExecutionException;

@@ -35,7 +35,7 @@ import org.opensearch.client.sniff.OpenSearchNodesSniffer;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;

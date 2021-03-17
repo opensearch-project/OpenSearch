@@ -26,7 +26,7 @@ import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;

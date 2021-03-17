@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.ParseField;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.io.IOException;

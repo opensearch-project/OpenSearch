@@ -22,8 +22,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 

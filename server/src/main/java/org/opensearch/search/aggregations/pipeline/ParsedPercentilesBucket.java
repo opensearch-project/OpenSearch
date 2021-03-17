@@ -19,9 +19,9 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.aggregations.metrics.ParsedPercentiles;
 import org.opensearch.search.aggregations.metrics.Percentiles;
 

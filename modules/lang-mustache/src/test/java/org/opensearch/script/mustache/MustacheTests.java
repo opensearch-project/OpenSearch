@@ -19,7 +19,7 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptException;
@@ -40,7 +40,7 @@ import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;

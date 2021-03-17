@@ -28,9 +28,9 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContent;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

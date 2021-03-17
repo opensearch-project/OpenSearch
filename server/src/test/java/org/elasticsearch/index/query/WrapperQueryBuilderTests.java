@@ -28,7 +28,7 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

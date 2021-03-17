@@ -18,7 +18,7 @@
  */
 package org.opensearch.client.cluster;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;

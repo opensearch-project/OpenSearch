@@ -119,7 +119,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;

@@ -29,13 +29,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedConsumer;
-import org.elasticsearch.common.ParseField;
+import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

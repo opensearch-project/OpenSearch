@@ -28,7 +28,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
+import org.opensearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;

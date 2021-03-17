@@ -24,7 +24,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.common.util.ArrayUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.junit.AfterClass;
 

@@ -22,9 +22,9 @@ package org.elasticsearch.index;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 

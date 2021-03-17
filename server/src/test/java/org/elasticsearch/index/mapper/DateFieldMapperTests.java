@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.collect.List;
 import org.opensearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.opensearch.search.DocValueFormat;
 

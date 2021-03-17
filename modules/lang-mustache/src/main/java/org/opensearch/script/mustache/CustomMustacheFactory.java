@@ -32,8 +32,8 @@ import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.StringWriter;

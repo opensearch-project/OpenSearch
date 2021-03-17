@@ -21,8 +21,8 @@ package org.opensearch.painless;
 
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.painless.action.PainlessContextClassBindingInfo;
 import org.opensearch.painless.action.PainlessContextClassInfo;

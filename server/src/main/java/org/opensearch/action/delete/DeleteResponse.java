@@ -21,7 +21,7 @@ package org.opensearch.action.delete;
 
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 

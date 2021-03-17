@@ -20,7 +20,7 @@ package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregations;

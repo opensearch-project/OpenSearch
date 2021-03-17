@@ -61,7 +61,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.DiscoveryStats;
