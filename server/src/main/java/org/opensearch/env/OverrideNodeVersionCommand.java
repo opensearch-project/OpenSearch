@@ -24,7 +24,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
-import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.opensearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;

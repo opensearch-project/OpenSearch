@@ -38,7 +38,7 @@ import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDeci
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayAllocator;
+import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;

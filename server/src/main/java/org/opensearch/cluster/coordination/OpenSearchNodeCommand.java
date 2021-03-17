@@ -47,7 +47,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
-import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.opensearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Files;
