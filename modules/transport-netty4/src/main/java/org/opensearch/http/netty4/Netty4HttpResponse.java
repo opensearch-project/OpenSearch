@@ -24,7 +24,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.http.HttpResponse;
+import org.opensearch.http.HttpResponse;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.transport.netty4.Netty4Utils;
 

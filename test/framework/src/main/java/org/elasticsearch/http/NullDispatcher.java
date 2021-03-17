@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.opensearch.http;
 
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.rest.RestChannel;
