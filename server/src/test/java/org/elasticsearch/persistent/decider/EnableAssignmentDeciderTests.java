@@ -19,7 +19,7 @@
 package org.elasticsearch.persistent.decider;
 
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksDecidersTestCase;
 
 public class EnableAssignmentDeciderTests extends PersistentTasksDecidersTestCase {

@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.analyze;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.test.ESTestCase;

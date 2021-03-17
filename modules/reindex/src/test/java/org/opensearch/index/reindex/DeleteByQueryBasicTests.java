@@ -24,7 +24,7 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;

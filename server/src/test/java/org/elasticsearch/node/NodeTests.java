@@ -25,7 +25,7 @@ import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;

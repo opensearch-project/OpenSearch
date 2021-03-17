@@ -42,7 +42,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
 import org.opensearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.node.Node;
 

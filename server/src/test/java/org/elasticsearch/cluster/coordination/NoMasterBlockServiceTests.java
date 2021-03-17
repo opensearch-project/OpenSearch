@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.opensearch.cluster.coordination.NoMasterBlockService;
 
@@ -28,7 +28,7 @@ import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING;
-import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class NoMasterBlockServiceTests extends ESTestCase {

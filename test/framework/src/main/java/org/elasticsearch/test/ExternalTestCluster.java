@@ -30,7 +30,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.opensearch.http.HttpInfo;

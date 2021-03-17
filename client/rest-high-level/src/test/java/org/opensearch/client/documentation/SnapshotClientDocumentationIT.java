@@ -49,7 +49,7 @@ import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.repositories.fs.FsRepository;

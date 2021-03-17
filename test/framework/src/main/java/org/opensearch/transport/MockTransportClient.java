@@ -21,7 +21,7 @@ package org.opensearch.transport;
 import org.opensearch.client.transport.TransportClient;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 

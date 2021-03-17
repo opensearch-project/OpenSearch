@@ -21,7 +21,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 

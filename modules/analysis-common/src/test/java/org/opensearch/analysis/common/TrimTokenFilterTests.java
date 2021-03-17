@@ -20,7 +20,7 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.NamedAnalyzer;

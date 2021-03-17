@@ -62,7 +62,7 @@ import org.opensearch.client.indices.ResizeRequest;
 import org.opensearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;

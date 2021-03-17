@@ -25,13 +25,18 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.opensearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
-import org.elasticsearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.AbstractScopedSettings;
+import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -1200,7 +1205,7 @@ public class SettingTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("must be stored inside elasticsearch.yml"));
     }
 
-    @TestLogging(value="org.elasticsearch.common.settings.IndexScopedSettings:INFO",
+    @TestLogging(value="org.opensearch.common.settings.IndexScopedSettings:INFO",
         reason="to ensure we log INFO-level messages from IndexScopedSettings")
     public void testLogSettingUpdate() throws Exception {
         final IndexMetadata metadata = newIndexMeta("index1",
@@ -1210,7 +1215,7 @@ public class SettingTests extends ESTestCase {
         final MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
             "message",
-            "org.elasticsearch.common.settings.IndexScopedSettings",
+            "org.opensearch.common.settings.IndexScopedSettings",
             Level.INFO,
             "updating [index.refresh_interval] from [20s] to [10s]") {
             @Override

@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.node;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;

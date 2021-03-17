@@ -26,7 +26,7 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
 final class RemoteClusterAwareClient extends AbstractClient {

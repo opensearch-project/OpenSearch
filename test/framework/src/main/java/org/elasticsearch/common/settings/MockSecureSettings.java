@@ -20,6 +20,8 @@
 package org.elasticsearch.common.settings;
 
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.common.settings.SecureSettings;
+import org.opensearch.common.settings.SecureString;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

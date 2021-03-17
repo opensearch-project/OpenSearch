@@ -19,8 +19,8 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.painless.api.Augmentation;
 
 import java.util.HashMap;

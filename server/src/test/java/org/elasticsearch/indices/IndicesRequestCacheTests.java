@@ -37,14 +37,14 @@ import org.opensearch.common.bytes.AbstractBytesReference;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.cache.request.ShardRequestCache;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.cache.request.ShardRequestCache;
+import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

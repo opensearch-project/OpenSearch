@@ -22,7 +22,7 @@ package org.opensearch.transport.client;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.opensearch.client.transport.TransportClient;
 import org.opensearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.reindex.ReindexPlugin;
 import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.percolator.PercolatorPlugin;

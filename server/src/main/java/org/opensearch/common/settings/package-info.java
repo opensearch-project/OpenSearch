@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,33 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.settings;
-
-import org.opensearch.OpenSearchException;
-import org.opensearch.common.io.stream.StreamInput;
-
-import java.io.IOException;
-
 /**
- * A generic failure to handle settings.
- *
- *
+ * Settings based utility.
  */
-public class SettingsException extends OpenSearchException {
-
-    public SettingsException(String message) {
-        super(message);
-    }
-
-    public SettingsException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
-    public SettingsException(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    public SettingsException(String msg, Object... args) {
-        super(msg, args);
-    }
-}
+package org.opensearch.common.settings;

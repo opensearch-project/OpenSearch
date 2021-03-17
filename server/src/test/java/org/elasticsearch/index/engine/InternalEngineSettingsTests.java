@@ -19,7 +19,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.EngineAccess;

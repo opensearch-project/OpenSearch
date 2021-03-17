@@ -34,7 +34,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -69,7 +69,7 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.emptySet;
 import static org.opensearch.cluster.NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING;
-import static org.elasticsearch.common.settings.Settings.builder;
+import static org.opensearch.common.settings.Settings.builder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;

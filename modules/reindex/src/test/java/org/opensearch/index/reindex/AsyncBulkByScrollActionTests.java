@@ -59,7 +59,7 @@ import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedConsumer;
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;

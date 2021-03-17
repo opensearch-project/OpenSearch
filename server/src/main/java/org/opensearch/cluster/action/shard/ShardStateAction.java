@@ -48,7 +48,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.NodeClosedException;
