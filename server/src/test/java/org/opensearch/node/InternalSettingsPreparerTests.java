@@ -26,7 +26,7 @@ import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -82,7 +82,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
 
     public void testDefaultClusterName() {
         Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertEquals("elasticsearch", settings.get("cluster.name"));
+        assertEquals("opensearch", settings.get("cluster.name"));
         settings = InternalSettingsPreparer.prepareSettings(Settings.builder().put("cluster.name", "foobar").build());
         assertEquals("foobar", settings.get("cluster.name"));
     }
@@ -93,32 +93,34 @@ public class InternalSettingsPreparerTests extends ESTestCase {
             Path home = createTempDir();
             Path config = home.resolve("config");
             Files.createDirectory(config);
-            Files.copy(garbage, config.resolve("elasticsearch.yml"));
+            Files.copy(garbage, config.resolve("opensearch.yml"));
             InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(),
                     emptyMap(), null, () -> "default_node_name");
         } catch (SettingsException e) {
-            assertEquals("Failed to load settings from [elasticsearch.yml]", e.getMessage());
+            assertEquals("Failed to load settings from [opensearch.yml]", e.getMessage());
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/358")
     public void testYamlNotAllowed() throws IOException {
-        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yml");
+        InputStream yaml = getClass().getResourceAsStream("/config/opensearch.yml");
         Path config = homeDir.resolve("config");
         Files.createDirectory(config);
-        Files.copy(yaml, config.resolve("elasticsearch.yaml"));
+        Files.copy(yaml, config.resolve("opensearch.yaml"));
         SettingsException e = expectThrows(SettingsException.class, () -> InternalSettingsPreparer.prepareEnvironment(
                 Settings.builder().put(baseEnvSettings).build(), emptyMap(), null, DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED));
-        assertEquals("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml", e.getMessage());
+        assertEquals("opensearch.yaml was deprecated in 5.5.0 and must be renamed to opensearch.yml", e.getMessage());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/358")
     public void testJsonNotAllowed() throws IOException {
-        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.json");
+        InputStream yaml = getClass().getResourceAsStream("/config/opensearch.json");
         Path config = homeDir.resolve("config");
         Files.createDirectory(config);
-        Files.copy(yaml, config.resolve("elasticsearch.json"));
+        Files.copy(yaml, config.resolve("opensearch.json"));
         SettingsException e = expectThrows(SettingsException.class, () -> InternalSettingsPreparer.prepareEnvironment(
                 Settings.builder().put(baseEnvSettings).build(), emptyMap(), null, DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED));
-        assertEquals("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml", e.getMessage());
+        assertEquals("opensearch.json was deprecated in 5.5.0 and must be converted to opensearch.yml", e.getMessage());
     }
 
     public void testSecureSettings() {
