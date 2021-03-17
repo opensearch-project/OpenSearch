@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.template.get;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.TransportMasterNodeReadAction;

@@ -37,7 +37,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
+import static org.opensearch.ExceptionsHelper.rethrowAndSuppress;
 
 
 /**
