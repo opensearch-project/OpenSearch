@@ -48,7 +48,7 @@ import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.zen.PublishClusterStateStats;
-import org.elasticsearch.gateway.GatewayService;
+import org.opensearch.gateway.GatewayService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLogAppender;
 import org.opensearch.cluster.coordination.DetachClusterCommand;

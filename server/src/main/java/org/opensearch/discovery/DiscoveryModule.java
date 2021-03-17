@@ -39,7 +39,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.gateway.GatewayMetaState;
+import org.opensearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.opensearch.threadpool.ThreadPool;

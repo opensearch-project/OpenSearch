@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public interface ZenPing extends Releasable {
 

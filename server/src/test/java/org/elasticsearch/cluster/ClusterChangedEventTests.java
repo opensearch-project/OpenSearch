@@ -32,7 +32,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayService;
+import org.opensearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;

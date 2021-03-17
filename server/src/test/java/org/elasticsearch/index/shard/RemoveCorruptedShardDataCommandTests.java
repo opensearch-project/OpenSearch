@@ -42,7 +42,7 @@ import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.opensearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;

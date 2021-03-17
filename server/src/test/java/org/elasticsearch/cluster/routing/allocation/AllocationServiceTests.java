@@ -49,7 +49,7 @@ import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDeci
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayAllocator;
+import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
