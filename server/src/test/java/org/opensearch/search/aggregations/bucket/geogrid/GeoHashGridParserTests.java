@@ -27,7 +27,7 @@ import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.geo.GeometryTestUtils;
+import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 

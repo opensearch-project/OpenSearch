@@ -53,7 +53,7 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
-import org.elasticsearch.env.TestEnvironment;
+import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.AnalyzerProvider;
 import org.opensearch.index.analysis.AnalyzerScope;

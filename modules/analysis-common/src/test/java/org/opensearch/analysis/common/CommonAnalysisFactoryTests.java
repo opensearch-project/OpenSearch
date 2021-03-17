@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
-import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
+import org.opensearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
 import java.util.Map;

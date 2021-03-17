@@ -23,7 +23,7 @@ import com.maxmind.geoip2.DatabaseReader;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.io.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

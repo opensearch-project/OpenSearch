@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.opensearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;

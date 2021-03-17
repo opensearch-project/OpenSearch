@@ -24,10 +24,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.GeometryTestUtils;
-import org.opensearch.common.geo.GeoBoundingBox;
-import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 

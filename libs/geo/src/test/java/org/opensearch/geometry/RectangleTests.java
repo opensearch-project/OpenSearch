@@ -19,7 +19,7 @@
 
 package org.opensearch.geometry;
 
-import org.elasticsearch.geo.GeometryTestUtils;
+import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.opensearch.geometry.utils.GeometryValidator;
 import org.opensearch.geometry.utils.StandardValidator;

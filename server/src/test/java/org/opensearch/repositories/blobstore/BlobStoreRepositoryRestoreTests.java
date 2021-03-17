@@ -34,7 +34,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
+import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexShard;

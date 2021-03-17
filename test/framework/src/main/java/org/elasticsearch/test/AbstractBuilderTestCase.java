@@ -46,7 +46,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
+import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
