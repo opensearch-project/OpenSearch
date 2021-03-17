@@ -24,7 +24,7 @@ import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.node.InternalSettingsPreparer;
 
 import java.nio.file.Path;
@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
+/** A cli command which requires an {@link org.opensearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
 
     private final OptionSpec<KeyValuePair> settingOption;

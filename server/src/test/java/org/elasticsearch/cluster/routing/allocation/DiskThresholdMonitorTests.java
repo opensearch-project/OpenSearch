@@ -27,7 +27,7 @@ import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiskUsage;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -60,7 +60,7 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DiskThresholdMonitorTests extends ESAllocationTestCase {
+public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
 
     public void testMarkFloodStageIndicesReadOnly() {
         AllocationService allocation = createAllocationService(Settings.builder()

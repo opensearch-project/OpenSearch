@@ -20,7 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.opensearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActionTestUtils;
+import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;

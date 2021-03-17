@@ -29,7 +29,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
+public class ReplicaAllocatedAfterPrimaryTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(ReplicaAllocatedAfterPrimaryTests.class);
 
     public void testBackupIsAllocatedAfterPrimary() {

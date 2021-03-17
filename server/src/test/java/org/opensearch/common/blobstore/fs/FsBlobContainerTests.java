@@ -23,7 +23,7 @@ import org.apache.lucene.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.io.Streams;
 import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;

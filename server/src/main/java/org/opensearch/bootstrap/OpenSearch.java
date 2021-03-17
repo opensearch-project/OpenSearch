@@ -29,7 +29,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.logging.LogConfigurator;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.NodeValidationException;
 

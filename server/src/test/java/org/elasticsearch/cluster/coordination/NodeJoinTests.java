@@ -23,15 +23,16 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
+import org.opensearch.cluster.service.FakeThreadPoolMasterService;
 import org.opensearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.opensearch.common.Randomness;
@@ -189,7 +190,7 @@ public class NodeJoinTests extends ESTestCase {
             clusterSettings, Collections.emptySet());
         coordinator = new Coordinator("test_node", Settings.EMPTY, clusterSettings,
             transportService, writableRegistry(),
-            ESAllocationTestCase.createAllocationService(Settings.EMPTY),
+            OpenSearchAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
             () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),
             new NoOpClusterApplier(),

@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
+public class MaxRetryAllocationDeciderTests extends OpenSearchAllocationTestCase {
 
     private AllocationService strategy;
 

@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
-import org.elasticsearch.cluster.coordination.LinearizabilityChecker.KeyedSpec;
-import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
+import org.opensearch.cluster.coordination.LinearizabilityChecker;
+import org.opensearch.cluster.coordination.LinearizabilityChecker.History;
+import org.opensearch.cluster.coordination.LinearizabilityChecker.KeyedSpec;
+import org.opensearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.opensearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.serialization;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -38,7 +38,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
-public class ClusterStateToStringTests extends ESAllocationTestCase {
+public class ClusterStateToStringTests extends OpenSearchAllocationTestCase {
     public void testClusterStateSerialization() throws Exception {
         Metadata metadata = Metadata.builder()
                 .put(IndexMetadata.builder("test_idx").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))

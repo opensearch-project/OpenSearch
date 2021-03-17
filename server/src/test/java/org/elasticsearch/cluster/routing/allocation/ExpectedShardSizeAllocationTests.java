@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -39,7 +39,7 @@ import org.opensearch.common.settings.Settings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
+public class ExpectedShardSizeAllocationTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(ExpectedShardSizeAllocationTests.class);
 
     public void testInitializingHasExpectedSize() {

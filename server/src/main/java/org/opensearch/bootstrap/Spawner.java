@@ -21,10 +21,10 @@ package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginsService;
+import org.opensearch.env.Environment;
+import org.opensearch.plugins.Platforms;
+import org.opensearch.plugins.PluginInfo;
+import org.opensearch.plugins.PluginsService;
 
 import java.io.Closeable;
 import java.io.IOException;

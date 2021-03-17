@@ -26,7 +26,7 @@ import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.opensearch.Version;
-import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;

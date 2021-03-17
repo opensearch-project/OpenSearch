@@ -20,7 +20,7 @@
 package org.opensearch.node;
 
 import org.opensearch.cluster.ClusterName;
-import org.elasticsearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;

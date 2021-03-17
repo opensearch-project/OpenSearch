@@ -19,15 +19,9 @@
 
 package org.opensearch.common.settings;
 
-import org.elasticsearch.common.inject.ModuleTestCase;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.opensearch.common.settings.SecureSetting;
-import org.opensearch.common.settings.Setting;
+import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.Setting.Property;
 import org.hamcrest.Matchers;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsFilter;
-import org.opensearch.common.settings.SettingsModule;
 
 import java.util.Arrays;
 

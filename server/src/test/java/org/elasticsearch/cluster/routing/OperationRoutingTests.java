@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.opensearch.Version;
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;

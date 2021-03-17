@@ -20,14 +20,13 @@
 package org.opensearch.common.lucene.store;
 
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
-import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ByteArrayIndexInputTests extends ESIndexInputTestCase {
+public class ByteArrayIndexInputTests extends OpenSearchIndexInputTestCase {
     public void testRandomReads() throws IOException {
         for (int i = 0; i < 100; i++) {
             byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);

@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.opensearch.common.breaker.TestCircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;

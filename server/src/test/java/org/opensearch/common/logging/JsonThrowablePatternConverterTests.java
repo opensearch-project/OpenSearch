@@ -27,6 +27,8 @@ import org.elasticsearch.common.logging.JsonLogLine;
 import org.elasticsearch.common.logging.JsonLogsStream;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.opensearch.common.logging.JsonLogLine;
+import org.opensearch.common.logging.JsonLogsStream;
 import org.opensearch.common.logging.JsonThrowablePatternConverter;
 
 import java.io.BufferedReader;
