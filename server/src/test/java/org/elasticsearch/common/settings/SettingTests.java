@@ -1202,7 +1202,7 @@ public class SettingTests extends ESTestCase {
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         Setting<String> setting = Setting.simpleString("foo", Property.NodeScope);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
-        assertThat(e.getMessage(), containsString("must be stored inside elasticsearch.yml"));
+        assertThat(e.getMessage(), containsString("must be stored inside opensearch.yml"));
     }
 
     @TestLogging(value="org.opensearch.common.settings.IndexScopedSettings:INFO",

@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -19,20 +19,20 @@ import org.elasticsearch.gradle.info.BuildParams
  * under the License.
  */
 
-apply plugin: 'elasticsearch.build'
+apply plugin: 'opensearch.build'
 apply plugin: 'nebula.optional-base'
-apply plugin: 'elasticsearch.publish'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'opensearch.publish'
+apply plugin: 'opensearch.internal-cluster-test'
 
 publishing {
   publications {
     nebula {
-      artifactId 'elasticsearch'
+      artifactId 'opensearch'
     }
   }
 }
 
-archivesBaseName = 'elasticsearch'
+archivesBaseName = 'opensearch'
 
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
 if (!isEclipse) {
@@ -76,13 +76,13 @@ if (!isEclipse) {
 
 dependencies {
 
-  api project(':libs:elasticsearch-core')
-  api project(':libs:elasticsearch-secure-sm')
-  api project(':libs:elasticsearch-x-content')
-  api project(":libs:elasticsearch-geo")
+  api project(':libs:opensearch-core')
+  api project(':libs:opensearch-secure-sm')
+  api project(':libs:opensearch-x-content')
+  api project(":libs:opensearch-geo")
 
-  compileOnly project(':libs:elasticsearch-plugin-classloader')
-  testRuntimeOnly project(':libs:elasticsearch-plugin-classloader')
+  compileOnly project(':libs:opensearch-plugin-classloader')
+  testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -101,7 +101,7 @@ dependencies {
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:opensearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
 
   // time handling, remove with java 8 time
@@ -121,14 +121,14 @@ dependencies {
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
   // repackaged jna with native bits linked against all elastic supported platforms
-  api "org.elasticsearch:jna:${versions.jna}"
+  api "org.opensearch:jna:${versions.jna}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
-    exclude group: 'org.elasticsearch', module: 'server'
+    exclude group: 'org.opensearch', module: 'server'
   }
   internalClusterTestImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'server'
+    exclude group: 'org.opensearch', module: 'server'
   }
 }
 
@@ -167,8 +167,8 @@ tasks.named("testingConventions").configure {
             baseClass "org.apache.lucene.util.LuceneTestCase"
         }
         IT {
-            baseClass "org.elasticsearch.test.ESIntegTestCase"
-            baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
+            baseClass "org.opensearch.test.ESIntegTestCase"
+            baseClass "org.opensearch.test.ESSingleNodeTestCase"
         }
     }
 }
@@ -322,8 +322,8 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
     dependencies = project.configurations.runtimeClasspath.fileCollection {
-        it.group.startsWith('org.elasticsearch') == false ||
-                // keep the following org.elasticsearch jars in
+        it.group.startsWith('org.opensearch') == false ||
+                // keep the following org.opensearch jars in
                 (it.name == 'jna' ||
                         it.name == 'securesm')
     }
@@ -331,9 +331,9 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("licenseHeaders").configure {
     // Ignore our vendored version of Google Guice
-    excludes << 'org/elasticsearch/common/inject/**/*'
+    excludes << 'org/opensearch/common/inject/**/*'
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
-    excludes << 'org/elasticsearch/client/documentation/placeholder.txt'
+    excludes << 'org/opensearch/client/documentation/placeholder.txt'
 }
