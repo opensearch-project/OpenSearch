@@ -22,8 +22,8 @@ package org.opensearch.ingest.common;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.TestTemplateService;
+import org.opensearch.ingest.TestProcessor;
+import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
@@ -38,7 +38,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ForEachProcessorTests extends ESTestCase {

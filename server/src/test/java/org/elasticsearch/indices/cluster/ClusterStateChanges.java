@@ -84,7 +84,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
+import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService;

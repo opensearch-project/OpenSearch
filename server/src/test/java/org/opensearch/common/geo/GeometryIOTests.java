@@ -19,8 +19,6 @@
 
 package org.opensearch.common.geo;
 
-import org.opensearch.common.geo.GeoShapeType;
-import org.opensearch.common.geo.GeometryIO;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -31,7 +29,7 @@ import org.opensearch.geometry.GeometryCollection;
 import org.opensearch.geometry.ShapeType;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.geo.GeometryTestUtils.randomGeometry;
+import static org.opensearch.geo.GeometryTestUtils.randomGeometry;
 import static org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor.geometryToShapeBuilder;
 
 public class GeometryIOTests extends ESTestCase {

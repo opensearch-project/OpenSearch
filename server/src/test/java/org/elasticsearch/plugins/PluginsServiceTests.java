@@ -28,10 +28,11 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
+import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.opensearch.plugins.PluginTestUtil;
 
 import java.io.IOException;
 import java.io.InputStream;

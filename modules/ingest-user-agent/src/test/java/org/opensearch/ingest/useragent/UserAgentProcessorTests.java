@@ -19,7 +19,7 @@
 
 package org.opensearch.ingest.useragent;
 
-import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.opensearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -31,7 +31,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;

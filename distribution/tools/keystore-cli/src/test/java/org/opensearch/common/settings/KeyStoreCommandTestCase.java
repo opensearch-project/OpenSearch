@@ -34,7 +34,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.cli.CommandTestCase;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
+import org.opensearch.env.TestEnvironment;
 import org.junit.After;
 import org.junit.Before;
 

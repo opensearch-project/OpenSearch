@@ -41,7 +41,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.ingest.IngestTestPlugin;
+import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskInfo;
