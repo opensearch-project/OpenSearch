@@ -47,8 +47,8 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.metrics.tophits.TopHits;
 --------------------------------------------------
 
 [source,java]

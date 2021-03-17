@@ -25,7 +25,7 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
+import org.opensearch.search.aggregations.metrics.valuecount.ValueCount;
 --------------------------------------------------
 
 [source,java]

@@ -32,9 +32,9 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
-import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.bucket.nested.Nested;
+import org.opensearch.search.aggregations.bucket.nested.ReverseNested;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
 --------------------------------------------------
 
 [source,java]

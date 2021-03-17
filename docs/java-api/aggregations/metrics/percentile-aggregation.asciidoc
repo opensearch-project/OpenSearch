@@ -35,8 +35,8 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
+import org.opensearch.search.aggregations.metrics.percentiles.Percentile;
+import org.opensearch.search.aggregations.metrics.percentiles.Percentiles;
 --------------------------------------------------
 
 [source,java]

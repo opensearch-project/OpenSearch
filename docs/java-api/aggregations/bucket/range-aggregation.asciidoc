@@ -28,7 +28,7 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.opensearch.search.aggregations.bucket.range.Range;
 --------------------------------------------------
 
 [source,java]

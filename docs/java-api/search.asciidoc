@@ -8,9 +8,9 @@ The body of the search request is built using the `SearchSourceBuilder`. Here is
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.index.query.QueryBuilders.*;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchType;
+import org.opensearch.index.query.QueryBuilders.*;
 --------------------------------------------------
 
 [source,java]
@@ -48,7 +48,7 @@ first!
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.opensearch.index.query.QueryBuilders.*;
 
 QueryBuilder qb = termQuery("multi", "test");
 

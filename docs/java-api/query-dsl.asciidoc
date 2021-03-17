@@ -10,7 +10,7 @@ To use `QueryBuilders` just import them in your class:
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.opensearch.index.query.QueryBuilders.*;
 --------------------------------------------------
 
 Note that you can easily print (aka debug) JSON generated queries using

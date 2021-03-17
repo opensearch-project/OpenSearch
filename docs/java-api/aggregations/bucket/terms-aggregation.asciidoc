@@ -24,7 +24,7 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
 --------------------------------------------------
 
 [source,java]
@@ -45,7 +45,7 @@ Import bucket ordering strategy classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.BucketOrder;
 --------------------------------------------------
 
 Ordering the buckets by their `doc_count` in an ascending manner:
