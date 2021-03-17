@@ -20,7 +20,7 @@
 package org.opensearch.action;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;

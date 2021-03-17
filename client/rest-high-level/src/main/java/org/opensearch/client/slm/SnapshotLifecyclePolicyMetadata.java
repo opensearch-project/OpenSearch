@@ -19,7 +19,7 @@
 
 package org.opensearch.client.slm;
 
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

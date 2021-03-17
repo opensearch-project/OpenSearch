@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.PageCacheRecycler;

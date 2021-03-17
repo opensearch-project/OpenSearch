@@ -27,7 +27,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.NotMasterException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.zen.MembershipAction;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;

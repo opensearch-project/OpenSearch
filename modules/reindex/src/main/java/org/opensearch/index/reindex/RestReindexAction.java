@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**

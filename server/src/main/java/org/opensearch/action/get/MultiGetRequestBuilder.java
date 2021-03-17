@@ -21,7 +21,7 @@ package org.opensearch.action.get;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 
 /**
  * A multi get document action request builder.

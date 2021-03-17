@@ -28,7 +28,7 @@ import org.apache.lucene.util.TimeUnits;
 import org.opensearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
 @Listeners({

@@ -21,8 +21,8 @@ package org.elasticsearch.common.network;
 
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.transport.BoundTransportAddress;

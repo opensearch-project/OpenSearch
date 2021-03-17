@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderExtension;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

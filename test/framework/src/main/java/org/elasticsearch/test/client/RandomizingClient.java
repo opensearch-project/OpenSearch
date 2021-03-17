@@ -26,7 +26,7 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.client.Client;
 import org.opensearch.client.FilterClient;
 import org.opensearch.cluster.routing.Preference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.Arrays;
 import java.util.Random;

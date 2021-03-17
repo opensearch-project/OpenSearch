@@ -47,7 +47,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final ClusterApplierService clusterApplierService;
 
-    public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA =
+    public static final org.opensearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA =
         Setting.prefixKeySetting("cluster.metadata.", (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
 
     /**

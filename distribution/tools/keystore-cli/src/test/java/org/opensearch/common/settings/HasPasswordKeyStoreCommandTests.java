@@ -19,7 +19,6 @@
 
 package org.opensearch.common.settings;
 
-import org.elasticsearch.common.settings.HasPasswordKeyStoreCommand;
 import org.opensearch.cli.Command;
 import org.opensearch.cli.UserException;
 import org.elasticsearch.env.Environment;

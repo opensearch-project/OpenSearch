@@ -37,8 +37,8 @@ import org.opensearch.cluster.routing.ShardShuffler;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;

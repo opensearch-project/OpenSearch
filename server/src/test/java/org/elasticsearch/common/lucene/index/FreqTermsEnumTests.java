@@ -35,7 +35,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.common.lucene.index.FreqTermsEnum;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.BigArrays;

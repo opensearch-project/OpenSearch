@@ -20,7 +20,7 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.search.SearchPhaseResult;

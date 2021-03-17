@@ -19,8 +19,8 @@
 package org.elasticsearch.test;
 
 import org.opensearch.Version;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;

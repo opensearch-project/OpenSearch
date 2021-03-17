@@ -69,7 +69,7 @@ public class ESLoggerUsageChecker {
     public static final Type SUPPLIER_ARRAY_CLASS = Type.getType(Supplier[].class);
     public static final Type MARKER_CLASS = Type.getType(Marker.class);
     public static final List<String> LOGGER_METHODS = Arrays.asList("trace", "debug", "info", "warn", "error", "fatal");
-    public static final String IGNORE_CHECKS_ANNOTATION = "org.elasticsearch.common.SuppressLoggerChecks";
+    public static final String IGNORE_CHECKS_ANNOTATION = "org.opensearch.common.SuppressLoggerChecks";
     // types which are subject to checking when used in logger. <code>TestMessage<code> is also declared here to
     // make sure this functionality works
     public static final Set<Type> DEPRECATED_TYPES = Stream.of(

@@ -19,7 +19,7 @@
 package org.opensearch.discovery;
 
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Collections;

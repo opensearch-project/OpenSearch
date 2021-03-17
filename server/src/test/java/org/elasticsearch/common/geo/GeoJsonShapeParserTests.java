@@ -27,7 +27,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;

@@ -27,7 +27,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.threadpool.ThreadPool;

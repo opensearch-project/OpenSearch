@@ -19,7 +19,7 @@
 
 package org.elasticsearch.env;
 
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 
 /**
  * Provides a convenience method for tests to construct an Environment when the config path does not matter.

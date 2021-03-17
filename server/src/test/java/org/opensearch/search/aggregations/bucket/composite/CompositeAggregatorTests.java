@@ -50,7 +50,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.TestUtil;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;

@@ -26,7 +26,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.collect.List;
+import org.opensearch.common.collect.List;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 

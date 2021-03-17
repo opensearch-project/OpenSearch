@@ -40,7 +40,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.discovery.zen.PublishClusterStateAction;
 import org.opensearch.discovery.zen.PublishClusterStateStats;
 import org.opensearch.threadpool.ThreadPool;

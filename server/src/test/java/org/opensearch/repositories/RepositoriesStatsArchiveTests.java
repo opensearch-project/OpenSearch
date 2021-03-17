@@ -20,7 +20,7 @@
 package org.opensearch.repositories;
 
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -47,7 +47,7 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         int statsToBeRetainedCount = randomInt(10);
         for (int i = 0; i < statsToBeRetainedCount; i++) {
             RepositoryStatsSnapshot repoStats =
-                createRepositoryStats(new RepositoryStats(org.elasticsearch.common.collect.Map.of("GET", 10L)));
+                createRepositoryStats(new RepositoryStats(org.opensearch.common.collect.Map.of("GET", 10L)));
             repositoriesStatsArchive.archive(repoStats);
         }
 
@@ -55,7 +55,7 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         assertThat(archivedStats.size(), equalTo(statsToBeRetainedCount));
         for (RepositoryStatsSnapshot repositoryStatsSnapshot : archivedStats) {
             assertThat(repositoryStatsSnapshot.getRepositoryStats().requestCounts,
-                equalTo(org.elasticsearch.common.collect.Map.of("GET", 10L)));
+                equalTo(org.opensearch.common.collect.Map.of("GET", 10L)));
         }
     }
 
@@ -109,7 +109,7 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         RepositoryInfo repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            org.elasticsearch.common.collect.Map.of("bucket", randomAlphaOfLength(10)),
+            org.opensearch.common.collect.Map.of("bucket", randomAlphaOfLength(10)),
             System.currentTimeMillis(),
             null);
         return new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, clusterVersion, true);

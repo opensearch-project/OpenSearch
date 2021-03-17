@@ -25,7 +25,7 @@ import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

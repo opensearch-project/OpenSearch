@@ -24,7 +24,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.opensearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 

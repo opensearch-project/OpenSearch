@@ -19,7 +19,7 @@
 package org.opensearch.repositories.url;
 
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

@@ -19,7 +19,7 @@
 package org.opensearch.painless.action;
 
 import org.opensearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchQueryBuilder;

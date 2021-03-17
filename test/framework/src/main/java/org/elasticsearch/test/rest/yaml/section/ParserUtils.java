@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.opensearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -72,5 +72,5 @@ class ParserUtils {
             throw new IllegalArgumentException("malformed test section: field name expected but found " + token + " at "
                     + parser.getTokenLocation());
         }
-    } 
+    }
 }

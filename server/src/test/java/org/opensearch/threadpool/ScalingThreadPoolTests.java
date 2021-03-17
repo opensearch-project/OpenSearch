@@ -19,8 +19,8 @@
 
 package org.opensearch.threadpool;
 
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
 
 import java.util.HashMap;

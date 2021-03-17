@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.BufferedReader;

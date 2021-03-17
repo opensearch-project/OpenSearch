@@ -19,7 +19,7 @@
 
 package org.opensearch.action;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;

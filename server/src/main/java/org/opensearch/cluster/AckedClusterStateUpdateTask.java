@@ -21,9 +21,9 @@ package org.opensearch.cluster;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ack.AckedRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when

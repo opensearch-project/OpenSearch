@@ -30,7 +30,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.network.NetworkUtils;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;

@@ -21,7 +21,7 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.StreamInput;

@@ -20,8 +20,8 @@
 package org.opensearch.cli;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.SecureString;
+import org.opensearch.common.settings.KeyStoreWrapper;
+import org.opensearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;

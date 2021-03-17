@@ -26,7 +26,7 @@ import org.opensearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 
 /**
  * Shared superclass for testing reindex and friends. In particular it makes sure to test the slice features.

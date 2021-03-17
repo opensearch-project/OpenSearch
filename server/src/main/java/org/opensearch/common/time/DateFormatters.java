@@ -20,7 +20,7 @@
 package org.opensearch.common.time;
 
 import org.opensearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.util.LazyInitializable;
 

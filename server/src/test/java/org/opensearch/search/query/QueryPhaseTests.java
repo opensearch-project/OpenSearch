@@ -78,15 +78,15 @@ import org.apache.lucene.util.bkd.BKDConfig;
 import org.apache.lucene.util.bkd.BKDReader;
 import org.apache.lucene.util.bkd.BKDWriter;
 import org.opensearch.action.search.SearchShardTask;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
-import org.elasticsearch.index.shard.IndexShard;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.query.ParsedQuery;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
+import org.opensearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.internal.ContextIndexSearcher;
@@ -834,16 +834,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     public void testMaxScoreQueryVisitor() {
         BitSetProducer producer = context -> new FixedBitSet(1);
-        Query query = new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested");
+        Query query = new OpenSearchToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested");
         assertTrue(hasInfMaxScore(query));
 
-        query = new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.None, "nested");
+        query = new OpenSearchToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.None, "nested");
         assertFalse(hasInfMaxScore(query));
 
 
         for (Occur occur : Occur.values()) {
             query = new BooleanQuery.Builder()
-                .add(new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
+                .add(new OpenSearchToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
                 .build();
             if (occur == Occur.MUST) {
                 assertTrue(hasInfMaxScore(query));
@@ -853,7 +853,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             query = new BooleanQuery.Builder()
                 .add(new BooleanQuery.Builder()
-                    .add(new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
+                    .add(new OpenSearchToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
                     .build(), occur)
                 .build();
             if (occur == Occur.MUST) {
@@ -864,7 +864,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             query = new BooleanQuery.Builder()
                 .add(new BooleanQuery.Builder()
-                    .add(new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
+                    .add(new OpenSearchToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
                     .build(), Occur.FILTER)
                 .build();
             assertFalse(hasInfMaxScore(query));
@@ -872,7 +872,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             query = new BooleanQuery.Builder()
                 .add(new BooleanQuery.Builder()
                     .add(new SpanTermQuery(new Term("field", "foo")), occur)
-                    .add(new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
+                    .add(new OpenSearchToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
                     .build(), occur)
                 .build();
             if (occur == Occur.MUST) {

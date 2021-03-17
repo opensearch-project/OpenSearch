@@ -22,9 +22,9 @@ package org.opensearch.common.util;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.recycler.AbstractRecyclerC;
 import org.opensearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 

@@ -19,7 +19,7 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
 /**
