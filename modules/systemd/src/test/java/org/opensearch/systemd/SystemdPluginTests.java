@@ -19,7 +19,7 @@
 
 package org.opensearch.systemd;
 
-import org.elasticsearch.Build;
+import org.opensearch.Build;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;

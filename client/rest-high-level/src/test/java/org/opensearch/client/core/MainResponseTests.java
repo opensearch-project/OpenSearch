@@ -19,7 +19,7 @@
 
 package org.opensearch.client.core;
 
-import org.elasticsearch.Build;
+import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.cluster.ClusterName;

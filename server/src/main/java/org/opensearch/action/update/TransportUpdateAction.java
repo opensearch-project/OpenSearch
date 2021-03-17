@@ -19,7 +19,7 @@
 
 package org.opensearch.action.update;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
+import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
@@ -64,7 +64,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.ExceptionsHelper.unwrapCause;
+import static org.opensearch.ExceptionsHelper.unwrapCause;
 import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.wrapBulkResponse;
 

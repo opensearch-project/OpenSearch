@@ -20,7 +20,7 @@
 package org.opensearch.action.support;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.UnavailableShardsException;
 import org.elasticsearch.index.IndexNotFoundException;

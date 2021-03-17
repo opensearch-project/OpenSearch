@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;

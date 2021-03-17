@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 

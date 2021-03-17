@@ -19,7 +19,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
