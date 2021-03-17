@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.Aggregation;
 
 /**
  * Interface for MatrixStats Metric Aggregation

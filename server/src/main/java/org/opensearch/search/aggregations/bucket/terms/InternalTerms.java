@@ -25,14 +25,14 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.InternalOrder;
-import org.elasticsearch.search.aggregations.KeyComparable;
+import org.opensearch.search.aggregations.AggregationExecutionException;
+import org.opensearch.search.aggregations.Aggregations;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.InternalOrder;
+import org.opensearch.search.aggregations.KeyComparable;
 import org.opensearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
@@ -45,8 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.InternalOrder.isKeyAsc;
-import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
+import static org.opensearch.search.aggregations.InternalOrder.isKeyAsc;
+import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
 public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>>
         extends InternalMultiBucketAggregation<A, B> implements Terms {

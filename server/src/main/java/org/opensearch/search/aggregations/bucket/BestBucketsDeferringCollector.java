@@ -31,11 +31,11 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongHash;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.MultiBucketCollector;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.BucketCollector;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;

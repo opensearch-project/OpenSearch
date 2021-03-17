@@ -23,7 +23,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
 import java.util.List;

@@ -18,6 +18,6 @@
  */
 
 /**
- * Built in {@link org.elasticsearch.search.fetch.FetchSubPhase}s like matched queries and fetching {@code _source}.
+ * Built in {@link org.opensearch.search.fetch.FetchSubPhase}s like matched queries and fetching {@code _source}.
  */
-package org.elasticsearch.search.fetch.subphase;
+package org.opensearch.search.fetch.subphase;

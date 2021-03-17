@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.opensearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.util.HashMap;

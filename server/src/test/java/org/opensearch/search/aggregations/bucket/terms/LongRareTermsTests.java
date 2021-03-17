@@ -22,9 +22,9 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.HashMap;

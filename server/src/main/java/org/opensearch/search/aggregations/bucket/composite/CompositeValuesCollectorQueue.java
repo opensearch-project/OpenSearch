@@ -26,7 +26,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.IntArray;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.bucket.filter;
 
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;

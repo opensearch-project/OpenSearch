@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.bucket.geogrid;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.geometry.utils.Geohash;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 

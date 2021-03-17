@@ -20,10 +20,10 @@
 package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.Aggregations;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 import java.util.List;

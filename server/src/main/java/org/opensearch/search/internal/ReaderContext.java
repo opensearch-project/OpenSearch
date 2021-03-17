@@ -26,7 +26,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.opensearch.search.RescoreDocIds;
-import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.SearchService;
 import org.opensearch.transport.TransportRequest;
 

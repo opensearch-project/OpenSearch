@@ -48,8 +48,8 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;

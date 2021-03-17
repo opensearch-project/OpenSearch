@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.opensearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;

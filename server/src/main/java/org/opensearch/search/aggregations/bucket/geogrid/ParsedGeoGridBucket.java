@@ -19,8 +19,8 @@
 package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
 

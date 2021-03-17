@@ -19,8 +19,8 @@
 
 package org.opensearch.search.aggregations.bucket.missing;
 
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.util.List;

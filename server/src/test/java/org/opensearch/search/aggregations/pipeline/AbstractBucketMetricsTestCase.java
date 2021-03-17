@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.opensearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsPipelineAggregationBuilder<PAF>>

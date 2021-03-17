@@ -31,7 +31,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;

@@ -20,7 +20,7 @@
 package org.opensearch.search.profile.aggregation;
 
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;

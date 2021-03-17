@@ -26,7 +26,7 @@ import org.opensearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptedMetricAggContexts;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;

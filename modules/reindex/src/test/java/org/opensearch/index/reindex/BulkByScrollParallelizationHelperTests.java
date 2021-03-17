@@ -28,8 +28,8 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.index.reindex.BulkByScrollParallelizationHelper.sliceIntoSubRequests;
-import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
-import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
+import static org.opensearch.search.RandomSearchRequestGenerator.randomSearchRequest;
+import static org.opensearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 
 public class BulkByScrollParallelizationHelperTests extends ESTestCase {
     public void testSliceIntoSubRequests() throws IOException {

@@ -33,7 +33,7 @@ public class CoreValuesSourceTypeTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> CoreValuesSourceType.fromString("does_not_exist"));
         assertThat(e.getMessage(),
-            equalTo("No enum constant org.elasticsearch.search.aggregations.support.CoreValuesSourceType.DOES_NOT_EXIST"));
+            equalTo("No enum constant org.opensearch.search.aggregations.support.CoreValuesSourceType.DOES_NOT_EXIST"));
         expectThrows(NullPointerException.class, () -> CoreValuesSourceType.fromString(null));
     }
 }

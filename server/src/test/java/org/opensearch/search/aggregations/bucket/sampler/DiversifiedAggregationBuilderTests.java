@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregator.ExecutionMode;
 
 public class DiversifiedAggregationBuilderTests extends BaseAggregationTestCase<DiversifiedAggregationBuilder> {
