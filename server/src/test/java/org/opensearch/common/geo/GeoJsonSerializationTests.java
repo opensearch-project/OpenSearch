@@ -29,8 +29,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.geo.GeometryTestUtils;
-import org.opensearch.common.geo.GeoJson;
+import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -41,14 +40,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.geo.GeometryTestUtils.randomCircle;
-import static org.elasticsearch.geo.GeometryTestUtils.randomGeometryCollection;
-import static org.elasticsearch.geo.GeometryTestUtils.randomLine;
-import static org.elasticsearch.geo.GeometryTestUtils.randomMultiLine;
-import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPoint;
-import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPolygon;
-import static org.elasticsearch.geo.GeometryTestUtils.randomPoint;
-import static org.elasticsearch.geo.GeometryTestUtils.randomPolygon;
+import static org.opensearch.geo.GeometryTestUtils.randomCircle;
+import static org.opensearch.geo.GeometryTestUtils.randomGeometryCollection;
+import static org.opensearch.geo.GeometryTestUtils.randomLine;
+import static org.opensearch.geo.GeometryTestUtils.randomMultiLine;
+import static org.opensearch.geo.GeometryTestUtils.randomMultiPoint;
+import static org.opensearch.geo.GeometryTestUtils.randomMultiPolygon;
+import static org.opensearch.geo.GeometryTestUtils.randomPoint;
+import static org.opensearch.geo.GeometryTestUtils.randomPolygon;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoJsonSerializationTests extends ESTestCase {

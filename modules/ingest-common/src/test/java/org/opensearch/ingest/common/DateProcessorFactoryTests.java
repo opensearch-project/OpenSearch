@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.ingest.TestTemplateService;
+import org.opensearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

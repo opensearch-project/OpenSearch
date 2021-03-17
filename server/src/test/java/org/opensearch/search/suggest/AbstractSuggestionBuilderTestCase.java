@@ -41,7 +41,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.query.QueryShardContext;
-import org.elasticsearch.ingest.TestTemplateService;
+import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
