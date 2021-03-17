@@ -19,8 +19,8 @@
 
 package org.opensearch.search.fetch.subphase.highlight;
 
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 
 import java.util.Map;

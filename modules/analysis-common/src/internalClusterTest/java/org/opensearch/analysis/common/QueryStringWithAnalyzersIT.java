@@ -22,7 +22,7 @@ package org.opensearch.analysis.common;
 import org.opensearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;

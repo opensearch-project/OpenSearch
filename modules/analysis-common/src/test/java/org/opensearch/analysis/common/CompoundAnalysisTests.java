@@ -33,7 +33,7 @@ import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;

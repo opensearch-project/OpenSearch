@@ -21,7 +21,7 @@ package org.opensearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperExtrasPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collection;

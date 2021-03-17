@@ -17,5 +17,5 @@
 # under the License.
 #
 
-org.elasticsearch.plugins.PluginsServiceTests$TestExtension1
-org.elasticsearch.plugins.PluginsServiceTests$TestExtension2
+org.opensearch.plugins.PluginsServiceTests$TestExtension1
+org.opensearch.plugins.PluginsServiceTests$TestExtension2

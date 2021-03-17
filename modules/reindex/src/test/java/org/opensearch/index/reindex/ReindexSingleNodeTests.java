@@ -22,7 +22,7 @@ package org.opensearch.index.reindex;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 

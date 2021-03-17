@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregation;

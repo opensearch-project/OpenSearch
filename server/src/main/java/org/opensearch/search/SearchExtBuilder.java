@@ -25,8 +25,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
+import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.plugins.SearchPlugin.SearchExtSpec;
 
 /**
  * Intermediate serializable representation of a search ext section. To be subclassed by plugins that support

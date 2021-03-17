@@ -25,7 +25,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.MockScriptPlugin;
 import org.elasticsearch.test.ESIntegTestCase;

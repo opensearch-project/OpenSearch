@@ -24,8 +24,8 @@ import org.opensearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 

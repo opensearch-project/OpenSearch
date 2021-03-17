@@ -43,7 +43,7 @@ import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4Plugin;

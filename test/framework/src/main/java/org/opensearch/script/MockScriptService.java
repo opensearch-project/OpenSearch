@@ -21,7 +21,7 @@ package org.opensearch.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 
 import java.util.Map;
 import java.util.Set;
