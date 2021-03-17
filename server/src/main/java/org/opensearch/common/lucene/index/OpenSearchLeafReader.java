@@ -21,7 +21,7 @@ package org.opensearch.common.lucene.index;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 
 /**
  * A {@link org.apache.lucene.index.FilterLeafReader} that exposes
