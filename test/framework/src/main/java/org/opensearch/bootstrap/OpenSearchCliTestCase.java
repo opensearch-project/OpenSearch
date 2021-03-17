@@ -22,7 +22,7 @@ package org.opensearch.bootstrap;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
@@ -32,7 +32,7 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-abstract class ESElasticsearchCliTestCase extends ESTestCase {
+abstract class OpenSearchCliTestCase extends ESTestCase {
 
     interface InitConsumer {
         void accept(boolean foreground, Path pidFile, boolean quiet, Environment initialEnv);
@@ -48,7 +48,7 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
         final Path home = createTempDir();
         try {
             final AtomicBoolean init = new AtomicBoolean();
-            final int status = Elasticsearch.main(args, new Elasticsearch() {
+            final int status = OpenSearch.main(args, new OpenSearch() {
                 @Override
                 protected Environment createEnv(final Map<String, String> settings) throws UserException {
                     Settings.Builder builder = Settings.builder().put("path.home", home);

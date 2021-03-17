@@ -29,7 +29,7 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
@@ -970,7 +970,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService));
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
-                final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
+                final AllocationService allocationService = OpenSearchAllocationTestCase.createAllocationService(Settings.EMPTY);
                 coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
                     allocationService, masterService, this::getPersistedState,
                     Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), (s, p, r) -> {},

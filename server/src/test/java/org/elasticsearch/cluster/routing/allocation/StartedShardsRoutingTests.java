@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StartedShardsRoutingTests extends ESAllocationTestCase {
+public class StartedShardsRoutingTests extends OpenSearchAllocationTestCase {
     public void testStartedShardsMatching() {
         AllocationService allocation = createAllocationService();
 

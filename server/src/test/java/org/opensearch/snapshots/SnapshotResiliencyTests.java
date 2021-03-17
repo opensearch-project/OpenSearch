@@ -96,7 +96,7 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -1498,7 +1498,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(settings, clusterService,
                     () -> repositoriesService, rerouteServiceSetOnce::get);
-                allocationService = ESAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
+                allocationService = OpenSearchAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
                 rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings =

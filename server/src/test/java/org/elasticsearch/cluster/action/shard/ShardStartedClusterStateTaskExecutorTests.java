@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.action.shard;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestCase {
+public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocationTestCase {
 
     private ShardStateAction.ShardStartedClusterStateTaskExecutor executor;
 

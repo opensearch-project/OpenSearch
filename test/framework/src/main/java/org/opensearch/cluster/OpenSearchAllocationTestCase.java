@@ -60,7 +60,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
-public abstract class ESAllocationTestCase extends ESTestCase {
+public abstract class OpenSearchAllocationTestCase extends ESTestCase {
     private static final ClusterSettings EMPTY_CLUSTER_SETTINGS =
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 

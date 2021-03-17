@@ -33,7 +33,7 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.cli.CommandTestCase;
 import org.opensearch.common.io.PathUtilsForTesting;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.junit.After;
 import org.junit.Before;

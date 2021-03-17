@@ -23,7 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
@@ -190,7 +190,7 @@ public class NodeJoinTests extends ESTestCase {
             clusterSettings, Collections.emptySet());
         coordinator = new Coordinator("test_node", Settings.EMPTY, clusterSettings,
             transportService, writableRegistry(),
-            ESAllocationTestCase.createAllocationService(Settings.EMPTY),
+            OpenSearchAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
             () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),
             new NoOpClusterApplier(),

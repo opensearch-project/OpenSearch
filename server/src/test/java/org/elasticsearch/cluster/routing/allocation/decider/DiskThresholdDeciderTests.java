@@ -26,7 +26,7 @@ import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiskUsage;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -93,7 +93,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class DiskThresholdDeciderTests extends ESAllocationTestCase {
+public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
 
     DiskThresholdDecider makeDecider(Settings settings) {
         return new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));

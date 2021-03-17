@@ -25,7 +25,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
-import org.opensearch.cluster.ESAllocationTestCase;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -61,7 +61,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 
-public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCase {
+public class ShardFailedClusterStateTaskExecutorTests extends OpenSearchAllocationTestCase {
 
     private static final String INDEX = "INDEX";
     private AllocationService allocationService;
@@ -193,7 +193,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             ClusterState.builder(clusterState).nodes(nodes).build();
         RoutingTable afterReroute = allocationService.reroute(stateAfterAddingNode, reason).routingTable();
         ClusterState stateAfterReroute = ClusterState.builder(stateAfterAddingNode).routingTable(afterReroute).build();
-        return ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, stateAfterReroute);
+        return OpenSearchAllocationTestCase.startInitializingShardsAndReroute(allocationService, stateAfterReroute);
     }
 
     private List<ShardStateAction.FailedShardEntry> createExistingShards(ClusterState currentState, String reason) {

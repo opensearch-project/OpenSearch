@@ -36,7 +36,7 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Test harness for verifying {@link IndexInput} implementations.
  */
-public class ESIndexInputTestCase extends ESTestCase {
+public class OpenSearchIndexInputTestCase extends ESTestCase {
 
     private static EsThreadPoolExecutor executor;
 
