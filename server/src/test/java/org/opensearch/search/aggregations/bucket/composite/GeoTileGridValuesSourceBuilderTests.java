@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.bucket.composite;
 
 import org.opensearch.Version;
 import org.opensearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.geo.GeoBoundingBoxTests;
+import org.opensearch.common.geo.GeoBoundingBoxTests;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
