@@ -21,7 +21,7 @@ package org.opensearch.common.settings;
 
 import org.opensearch.cli.Command;
 import org.opensearch.cli.UserException;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import java.io.InputStream;
 import java.io.OutputStream;
