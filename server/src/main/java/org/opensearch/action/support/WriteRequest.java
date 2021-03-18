@@ -22,7 +22,7 @@ package org.opensearch.action.support;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

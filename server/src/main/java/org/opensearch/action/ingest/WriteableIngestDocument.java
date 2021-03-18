@@ -28,8 +28,8 @@ import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestDocument.Metadata;
 
 import java.io.IOException;
 import java.time.ZoneId;

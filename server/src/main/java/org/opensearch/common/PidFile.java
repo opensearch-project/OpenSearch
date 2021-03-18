@@ -19,7 +19,7 @@
 package org.opensearch.common;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 import java.io.OutputStream;

@@ -19,8 +19,8 @@
 
 package org.opensearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.mapper.ObjectMapper;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;

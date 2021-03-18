@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.bucket.missing;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.DocValueBits;
+import org.opensearch.index.fielddata.DocValueBits;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.CardinalityUpperBound;

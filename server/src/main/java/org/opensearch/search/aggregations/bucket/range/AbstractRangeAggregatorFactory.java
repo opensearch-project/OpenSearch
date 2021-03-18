@@ -49,7 +49,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     ) {
         builder.register(
             registryKey,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             RangeAggregator::new,
                 true);
     }

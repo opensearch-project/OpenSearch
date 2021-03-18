@@ -102,7 +102,7 @@ public abstract class ValuesSource {
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
-            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
+            return org.opensearch.index.fielddata.FieldData.docsWithValue(bytes);
         }
 
         @Override
@@ -118,7 +118,7 @@ public abstract class ValuesSource {
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
-            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
+            return org.opensearch.index.fielddata.FieldData.docsWithValue(bytes);
         }
 
         @Override
@@ -142,7 +142,7 @@ public abstract class ValuesSource {
 
                 @Override
                 public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                    return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
+                    return org.opensearch.index.fielddata.FieldData.emptySortedBinary();
                 }
 
                 @Override
@@ -155,7 +155,7 @@ public abstract class ValuesSource {
             @Override
             public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
                 final SortedSetDocValues ordinals = ordinalsValues(context);
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(ordinals);
+                return org.opensearch.index.fielddata.FieldData.docsWithValue(ordinals);
             }
 
             public abstract SortedSetDocValues ordinalsValues(LeafReaderContext context)
@@ -356,12 +356,12 @@ public abstract class ValuesSource {
 
             @Override
             public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
-                return org.elasticsearch.index.fielddata.FieldData.emptySortedNumericDoubles();
+                return org.opensearch.index.fielddata.FieldData.emptySortedNumericDoubles();
             }
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
+                return org.opensearch.index.fielddata.FieldData.emptySortedBinary();
             }
 
         };
@@ -379,10 +379,10 @@ public abstract class ValuesSource {
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             if (isFloatingPoint()) {
                 final SortedNumericDoubleValues values = doubleValues(context);
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
+                return org.opensearch.index.fielddata.FieldData.docsWithValue(values);
             } else {
                 final SortedNumericDocValues values = longValues(context);
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
+                return org.opensearch.index.fielddata.FieldData.docsWithValue(values);
             }
         }
 
@@ -567,12 +567,12 @@ public abstract class ValuesSource {
 
             @Override
             public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints();
+                return org.opensearch.index.fielddata.FieldData.emptyMultiGeoPoints();
             }
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
+                return org.opensearch.index.fielddata.FieldData.emptySortedBinary();
             }
 
         };
@@ -580,7 +580,7 @@ public abstract class ValuesSource {
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             final MultiGeoPointValues geoPoints = geoPointValues(context);
-            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints);
+            return org.opensearch.index.fielddata.FieldData.docsWithValue(geoPoints);
         }
 
         @Override
@@ -603,7 +603,7 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
-            public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+            public org.opensearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getGeoPointValues();
             }
         }

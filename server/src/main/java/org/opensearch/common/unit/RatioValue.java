@@ -19,7 +19,7 @@
 
 package org.opensearch.common.unit;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 
 /**
  * Utility class to represent ratio and percentage values between 0 and 100

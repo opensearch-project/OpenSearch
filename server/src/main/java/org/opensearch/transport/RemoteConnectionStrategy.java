@@ -31,8 +31,8 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -244,7 +244,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             } else {
                 if (listeners.size() >= maxPendingConnectionListeners) {
                     assert listeners.size() == maxPendingConnectionListeners;
-                    listener.onFailure(new EsRejectedExecutionException("connect listener queue is full"));
+                    listener.onFailure(new OpenSearchRejectedExecutionException("connect listener queue is full"));
                     return;
                 } else {
                     listeners.add(listener);

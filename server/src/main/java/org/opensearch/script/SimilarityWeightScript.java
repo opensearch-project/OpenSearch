@@ -19,7 +19,7 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.index.similarity.ScriptedSimilarity;
+import org.opensearch.index.similarity.ScriptedSimilarity;
 
 /** A script that is used to compute scoring factors that are the same for all documents. */
 public abstract class SimilarityWeightScript  {

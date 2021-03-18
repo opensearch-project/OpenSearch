@@ -24,13 +24,13 @@ import org.apache.lucene.search.suggest.document.ContextQuery;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.opensearch.index.mapper.CompletionFieldMapper;
+import org.opensearch.index.mapper.DocumentMapperParser;
+import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.search.suggest.completion.context.ContextMapping.Type;
 
 import java.io.IOException;

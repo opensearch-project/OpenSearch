@@ -18,7 +18,7 @@
  */
 package org.opensearch.cluster.ack;
 
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 
 /**
  * Base cluster state update request that allows to execute update against multiple indices

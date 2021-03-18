@@ -26,10 +26,10 @@ import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.index.analysis.AnalyzerComponentsProvider;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.Comparator;
 import java.util.List;

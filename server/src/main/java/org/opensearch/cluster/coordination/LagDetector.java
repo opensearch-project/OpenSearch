@@ -37,7 +37,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 /**
  * A publication can succeed and complete before all nodes have applied the published state and acknowledged it; however we need every node

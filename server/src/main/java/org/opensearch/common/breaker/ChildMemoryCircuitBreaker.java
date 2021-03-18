@@ -22,8 +22,8 @@ package org.opensearch.common.breaker;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.indices.breaker.BreakerSettings;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.opensearch.indices.breaker.BreakerSettings;
+import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 
 import java.util.concurrent.atomic.AtomicLong;
 

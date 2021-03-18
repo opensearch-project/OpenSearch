@@ -28,16 +28,16 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.indices.InvalidAliasNameException;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.Rewriteable;
+import org.opensearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 /**
  * Validator for an alias, to be used before adding an alias to the index metadata
@@ -108,7 +108,7 @@ public class AliasValidator {
 
     /**
      * Validates an alias filter by parsing it using the
-     * provided {@link org.elasticsearch.index.query.QueryShardContext}
+     * provided {@link org.opensearch.index.query.QueryShardContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
     public void validateAliasFilter(String alias, String filter, QueryShardContext queryShardContext,
@@ -124,7 +124,7 @@ public class AliasValidator {
 
     /**
      * Validates an alias filter by parsing it using the
-     * provided {@link org.elasticsearch.index.query.QueryShardContext}
+     * provided {@link org.opensearch.index.query.QueryShardContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
     public void validateAliasFilter(String alias, BytesReference filter, QueryShardContext queryShardContext,

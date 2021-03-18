@@ -40,8 +40,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.zen.ZenDiscovery;
 import org.opensearch.gateway.GatewayMetaState;
-import org.elasticsearch.monitor.NodeHealthService;
-import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.opensearch.monitor.NodeHealthService;
+import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 

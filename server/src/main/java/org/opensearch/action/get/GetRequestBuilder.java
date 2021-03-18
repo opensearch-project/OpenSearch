@@ -146,7 +146,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     * Sets the versioning type. Defaults to {@link org.opensearch.index.VersionType#INTERNAL}.
      */
     public GetRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);

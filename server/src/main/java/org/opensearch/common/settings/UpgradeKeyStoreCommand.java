@@ -21,7 +21,7 @@ package org.opensearch.common.settings;
 
 import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 /**
  * A sub-command for the keystore CLI that enables upgrading the keystore format.

@@ -18,7 +18,8 @@
  */
 package org.opensearch.common.geo.parsers;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.locationtech.jts.geom.Coordinate;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoShapeType;
@@ -29,8 +30,7 @@ import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentSubParser;
-import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
-import org.locationtech.jts.geom.Coordinate;
+import org.opensearch.index.mapper.AbstractShapeGeometryFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;

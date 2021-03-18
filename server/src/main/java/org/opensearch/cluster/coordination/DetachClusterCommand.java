@@ -22,7 +22,7 @@ import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;

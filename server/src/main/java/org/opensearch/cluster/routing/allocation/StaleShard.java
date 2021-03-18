@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 
 /**
  * A class that represents a stale shard copy.

@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.support;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 

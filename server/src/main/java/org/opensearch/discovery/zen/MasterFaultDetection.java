@@ -35,7 +35,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
@@ -194,7 +194,7 @@ public class MasterFaultDetection extends FaultDetection {
                         listener.onMasterFailure(masterNode, cause, reason);
                     }
                 });
-            } catch (EsRejectedExecutionException e) {
+            } catch (OpenSearchRejectedExecutionException e) {
                 logger.error("master failure notification was rejected, it's highly likely the node is shutting down", e);
             }
             stop("master failure, " + reason);

@@ -19,6 +19,7 @@
 
 package org.opensearch.plugins;
 
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
@@ -44,7 +45,6 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;

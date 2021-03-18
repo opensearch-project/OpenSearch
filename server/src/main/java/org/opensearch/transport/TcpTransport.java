@@ -49,12 +49,12 @@ import org.opensearch.common.transport.PortsRange;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.Node;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
@@ -94,7 +94,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.opensearch.common.transport.NetworkExceptionHelper.isConnectException;
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
