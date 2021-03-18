@@ -17,7 +17,7 @@
  * under the License.
  */
 
-esplugin {
+opensearchplugin {
   description 'Integrates OpenSearch with systemd'
   classname 'org.opensearch.systemd.SystemdPlugin'
 }

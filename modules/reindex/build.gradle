@@ -28,7 +28,7 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.opensearch.index.reindex.ReindexPlugin'
   hasClientJar = true
@@ -145,7 +145,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       env 'JAVA_HOME', jdks.legacy.javaHomePath
-      args 'oldes.OldElasticsearch',
+      args 'oldes.OldOpenSearch',
         baseDir,
         unzip.temporaryDir,
         version == '090'

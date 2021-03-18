@@ -2,9 +2,9 @@ import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.util.GradleUtils
 
 apply plugin: 'opensearch.java-rest-test'
-apply plugin: 'opensearch.esplugin'
+apply plugin: 'opensearch.opensearchplugin'
 
-esplugin {
+opensearchplugin {
   description 'Die with dignity plugin'
   classname 'org.opensearch.DieWithDignityPlugin'
 }
