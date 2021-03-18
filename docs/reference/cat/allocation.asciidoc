@@ -19,7 +19,7 @@ and their disk space.
 [[cat-allocation-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{esrepo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 [[cat-allocation-api-query-params]]
 ==== {api-query-parms-title}
