@@ -33,7 +33,7 @@ ifeval::["{release-state}"=="unreleased"]
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
-:opensearch-javadoc: https://artifacts.elastic.co/javadoc/org/opensearch/elasticsearch/{version}
+:opensearch-javadoc: https://artifacts.elastic.co/javadoc/org/opensearch/opensearch/{version}
 :transport-client-javadoc: https://artifacts.elastic.co/javadoc/org/opensearch/client/transport/{version}
 :rest-client-javadoc: https://artifacts.elastic.co/javadoc/org/opensearch/client/elasticsearch-rest-client/{version}
 :rest-client-sniffer-javadoc: https://artifacts.elastic.co/javadoc/org/opensearch/client/elasticsearch-rest-client-sniffer/{version}
