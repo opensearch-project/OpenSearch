@@ -106,7 +106,7 @@ The supported regular expression syntax is explained in <<regexp-syntax>>.
 =======
 The `allow_leading_wildcard` parameter does not have any control over
 regular expressions.  A query string such as the following would force
-{opensearch} to visit every term in the index:
+OpenSearch to visit every term in the index:
 
     /.*n/
 

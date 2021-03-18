@@ -122,7 +122,7 @@ PUT my-index-000001/_doc/4?routing=1&refresh
 
 ==== Parent-join and performance
 
-The join field shouldn't be used like joins in a relation database. In {opensearch} the key to good performance
+The join field shouldn't be used like joins in a relation database. In OpenSearch the key to good performance
 is to de-normalize your data into documents. Each join field, `has_child` or `has_parent` query adds a
 significant tax to your query performance. It can also trigger <<eager-global-ordinals, global ordinals>> to be built.
 

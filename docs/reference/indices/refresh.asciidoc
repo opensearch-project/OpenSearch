@@ -34,7 +34,7 @@ since the last refresh
 available for search.
 
 // tag::refresh-interval-default[]
-By default, {opensearch} periodically refreshes indices every second, but only on
+By default, OpenSearch periodically refreshes indices every second, but only on
 indices that have received one search request or more in the last 30 seconds.
 // end::refresh-interval-default[]
 You can change this default interval

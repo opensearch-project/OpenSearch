@@ -33,7 +33,7 @@ restore one from a snapshot, you can use `opensearch-shard` to remove the
 corrupted data and restore access to any remaining data in unaffected segments.
 
 [WARNING]
-Stop {opensearch} before running `opensearch-shard`.
+Stop OpenSearch before running `opensearch-shard`.
 
 To remove corrupted shard data use the `remove-corrupted-data` subcommand.
 
@@ -113,7 +113,7 @@ Deleted corrupt marker corrupted_FzTSBSuxT7i3Tls_TgwEag from /var/lib/opensearch
 
 When you use `opensearch-shard` to drop the corrupted data, the shard's
 allocation ID changes. After restarting the node, you must use the
-<<cluster-reroute,cluster reroute API>> to tell {opensearch} to use the new ID.
+<<cluster-reroute,cluster reroute API>> to tell OpenSearch to use the new ID.
 The `opensearch-shard` command shows the request that you need to submit.
 
 You can also use the `-h` option to get a list of all options and parameters

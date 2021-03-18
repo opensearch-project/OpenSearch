@@ -130,7 +130,7 @@ A split operation:
 
 
 [[incremental-resharding]]
-===== Why doesn't {opensearch} support incremental resharding?
+===== Why doesn't OpenSearch support incremental resharding?
 
 Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a
 feature that is supported by many key-value stores. Adding a new shard and
@@ -143,12 +143,12 @@ a different hashing scheme.
 The most common way that key-value stores do this efficiently is by using
 consistent hashing. Consistent hashing only requires `1/N`-th of the keys to
 be relocated when growing the number of shards from `N` to `N+1`. However
-{opensearch}'s unit of storage, shards, are Lucene indices. Because of their
+OpenSearch's unit of storage, shards, are Lucene indices. Because of their
 search-oriented data structure, taking a significant portion of a Lucene index,
 be it only 5% of documents, deleting them and indexing them on another shard
 typically comes with a much higher cost than with a key-value store. This cost
 is kept reasonable when growing the number of shards by a multiplicative factor
-as described in the above section: this allows {opensearch} to perform the
+as described in the above section: this allows OpenSearch to perform the
 split locally, which in-turn allows to perform the split at the index level
 rather than reindexing documents that need to move, as well as using hard links
 for efficient file copying.
@@ -237,7 +237,7 @@ can be allocated on that node.
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 split process begins. When the split operation completes, the shard will
-become `active`. At that  point, {opensearch} will try to allocate any
+become `active`. At that  point, OpenSearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 

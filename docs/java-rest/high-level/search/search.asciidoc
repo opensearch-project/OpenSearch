@@ -93,7 +93,7 @@ include-tagged::{doc-tests-file}[{api}-source-setter]
 ===== Building queries
 
 Search queries are created using `QueryBuilder` objects. A `QueryBuilder` exists
- for every search query type supported by {opensearch}'s {ref}/query-dsl.html[Query DSL].
+ for every search query type supported by OpenSearch's {ref}/query-dsl.html[Query DSL].
 
 A `QueryBuilder` can be created using its constructor:
 

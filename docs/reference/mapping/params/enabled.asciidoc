@@ -1,14 +1,14 @@
 [[enabled]]
 === `enabled`
 
-{opensearch} tries to index all of the fields you give it, but sometimes you
+OpenSearch tries to index all of the fields you give it, but sometimes you
 want to just store the field without indexing it.  For instance, imagine that
-you are using {opensearch} as a web session store.  You may want to index the
+you are using OpenSearch as a web session store.  You may want to index the
 session ID and last update time, but you don't need to query or run
 aggregations on the session data itself.
 
 The `enabled` setting, which can be applied only to the top-level mapping
-definition and to <<object,`object`>> fields, causes {opensearch} to skip
+definition and to <<object,`object`>> fields, causes OpenSearch to skip
 parsing of the contents of the field entirely.  The JSON can still be retrieved
 from the <<mapping-source-field,`_source`>> field, but it is not searchable or
 stored in any other way:
@@ -92,7 +92,7 @@ GET my-index-000001/_mapping <3>
 The `enabled` setting for existing fields and the top-level mapping
 definition cannot be updated.
 
-Note that because {opensearch} completely skips parsing the field
+Note that because OpenSearch completely skips parsing the field
 contents, it is possible to add non-object data to a disabled field:
 
 [source,console]

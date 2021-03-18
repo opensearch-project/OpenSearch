@@ -32,7 +32,7 @@ unassigned.
 To enable shard allocation awareness:
 
 . Specify the location of each node with a custom node attribute. For example,
-if you want {opensearch} to distribute shards across different racks, you might
+if you want OpenSearch to distribute shards across different racks, you might
 set an awareness attribute called `rack_id` in each node's `opensearch.yml`
 config file.
 +
@@ -82,7 +82,7 @@ enable forced awareness.
 [[forced-awareness]]
 ===== Forced awareness
 
-By default, if one location fails, {opensearch} assigns all of the missing
+By default, if one location fails, OpenSearch assigns all of the missing
 replica shards to the remaining locations. While you might have sufficient
 resources across all locations to host your primary and replica shards, a single
 location might be unable to host *ALL* of the shards.
@@ -92,7 +92,7 @@ you can set `cluster.routing.allocation.awareness.force` so no replicas are
 allocated until nodes are available in another location.
 
 For example, if you have an awareness attribute called `zone` and configure nodes
-in `zone1` and `zone2`, you can use forced awareness to prevent {opensearch}
+in `zone1` and `zone2`, you can use forced awareness to prevent OpenSearch
 from allocating replicas if only one zone is available:
 
 [source,yaml]
@@ -103,6 +103,6 @@ cluster.routing.allocation.awareness.force.zone.values: zone1,zone2 <1>
 <1> Specify all possible values for the awareness attribute.
 
 With this example configuration, if you start two nodes with `node.attr.zone` set
-to `zone1` and create an index with 5 shards and 1 replica, {opensearch} creates
+to `zone1` and create an index with 5 shards and 1 replica, OpenSearch creates
 the index and allocates the 5 primary shards but no replicas. Replicas are
 only allocated once nodes with `node.attr.zone` set to `zone2` are available.

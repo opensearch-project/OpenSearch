@@ -2,14 +2,14 @@
 == Painless scripting language
 
 _Painless_ is a simple, secure scripting language designed specifically for use
-with {opensearch}. It is the default scripting language for {opensearch} and
+with OpenSearch. It is the default scripting language for OpenSearch and
 can safely be used for inline and stored scripts. To get started with
 Painless, see the {painless}/painless-guide.html[Painless Guide]. For a
 detailed description of the Painless syntax and language features, see the
 {painless}/painless-lang-spec.html[Painless Language Specification].
 
 [[painless-features]]
-You can use Painless anywhere scripts can be used in {opensearch}. Painless
+You can use Painless anywhere scripts can be used in OpenSearch. Painless
 provides:
 
 * Fast performance: Painless scripts https://benchmarks.elastic.co/index.html#search_qps_scripts[
@@ -25,7 +25,7 @@ dynamic `def` type.
 * Syntax: Extends a subset of Java's syntax to provide additional scripting
 language features.
 
-* Optimizations: Designed specifically for {opensearch} scripting.
+* Optimizations: Designed specifically for OpenSearch scripting.
 
 Ready to start scripting with Painless? See the
 {painless}/painless-guide.html[Painless Guide] for the

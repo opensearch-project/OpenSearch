@@ -1,6 +1,6 @@
-==== Running {opensearch} with SysV `init`
+==== Running OpenSearch with SysV `init`
 
-Use the `update-rc.d` command to configure {opensearch} to start automatically
+Use the `update-rc.d` command to configure OpenSearch to start automatically
 when the system boots up:
 
 [source,sh]
@@ -8,7 +8,7 @@ when the system boots up:
 sudo update-rc.d opensearch defaults 95 10
 --------------------------------------------------
 
-{opensearch} can be started and stopped using the `service` command:
+OpenSearch can be started and stopped using the `service` command:
 
 [source,sh]
 --------------------------------------------
@@ -16,5 +16,5 @@ sudo -i service opensearch start
 sudo -i service opensearch stop
 --------------------------------------------
 
-If {opensearch} fails to start for any reason, it will print the reason for
+If OpenSearch fails to start for any reason, it will print the reason for
 failure to STDOUT. Log files can be found in `/var/log/opensearch/`.

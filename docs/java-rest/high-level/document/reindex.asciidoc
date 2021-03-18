@@ -28,8 +28,8 @@ include-tagged::{doc-tests-file}[{api}-request]
 <3> Adds the destination index
 
 The `dest` element can be configured like the index API to control optimistic concurrency control. Just leaving out
-`versionType` (as above) or setting it to internal will cause {opensearch} to blindly dump documents into the target.
-Setting `versionType` to external will cause {opensearch} to preserve the version from the source, create any documents
+`versionType` (as above) or setting it to internal will cause OpenSearch to blindly dump documents into the target.
+Setting `versionType` to external will cause OpenSearch to preserve the version from the source, create any documents
 that are missing, and update any documents that have an older version in the destination index than they do in the
 source index.
 
@@ -98,10 +98,10 @@ include-tagged::{doc-tests-file}[{api}-request-script]
 --------------------------------------------------
 <1> `setScript` to increment the `likes` field on all documents with user `kimchy`.
 
-+{request}+ supports reindexing from a remote {opensearch} cluster. When using a remote cluster the query should be
++{request}+ supports reindexing from a remote OpenSearch cluster. When using a remote cluster the query should be
 specified inside the `RemoteInfo` object and not using `setSourceQuery`. If both the remote info and the source query are
-set it results in a validation error during the request. The reason for this is that the remote {opensearch} may not
-understand queries built by the modern query builders. The remote cluster support works all the way back to {opensearch}
+set it results in a validation error during the request. The reason for this is that the remote OpenSearch may not
+understand queries built by the modern query builders. The remote cluster support works all the way back to OpenSearch
 0.90 and the query language has changed since then. When reaching older versions, it is safer to write the query by hand
 in JSON.
 

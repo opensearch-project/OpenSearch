@@ -31,7 +31,7 @@ The `custom` analyzer accepts the following parameters:
 
 `position_increment_gap`::
 
-    When indexing an array of text values, {opensearch} inserts a fake "gap"
+    When indexing an array of text values, OpenSearch inserts a fake "gap"
     between the last term of one value and the first term of the next value to
     ensure that a phrase query doesn't match two terms from different array
     elements.  Defaults to `100`. See <<position-increment-gap>> for more.
@@ -81,7 +81,7 @@ POST my-index-000001/_analyze
 }
 --------------------------------
 
-<1> Setting `type` to `custom` tells {opensearch} that we are defining a custom analyzer.
+<1> Setting `type` to `custom` tells OpenSearch that we are defining a custom analyzer.
     Compare this to how <<configuring-analyzers,built-in analyzers can be configured>>:
     `type` will be set to the name of the built-in analyzer, like
     <<analysis-standard-analyzer,`standard`>> or <<analysis-simple-analyzer,`simple`>>.

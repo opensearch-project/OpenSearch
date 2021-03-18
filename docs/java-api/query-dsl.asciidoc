@@ -1,7 +1,7 @@
 [[java-query-dsl]]
 == Query DSL
 
-{opensearch} provides a full Java query dsl in a similar manner to the
+OpenSearch provides a full Java query dsl in a similar manner to the
 REST {ref}/query-dsl.html[Query DSL]. The factory for query
 builders is `QueryBuilders`. Once your query is ready, you can use the
 <<java-search,Search API>>.

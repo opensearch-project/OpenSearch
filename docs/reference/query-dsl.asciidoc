@@ -4,7 +4,7 @@
 [partintro]
 --
 
-{opensearch} provides a full Query DSL (Domain Specific Language) based on JSON to define queries.
+OpenSearch provides a full Query DSL (Domain Specific Language) based on JSON to define queries.
 Think of the Query DSL as an AST (Abstract Syntax Tree) of queries, consisting of two types of
 clauses:
 

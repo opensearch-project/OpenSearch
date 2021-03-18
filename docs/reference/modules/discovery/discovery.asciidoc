@@ -3,7 +3,7 @@
 
 Discovery is the process by which the cluster formation module finds other
 nodes with which to form a cluster. This process runs when you start an
-{opensearch} node or when a node believes the master node failed and continues
+OpenSearch node or when a node believes the master node failed and continues
 until the master node is found or a new master node is elected.
 
 This process starts with a list of _seed_ addresses from one or more

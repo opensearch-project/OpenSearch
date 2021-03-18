@@ -54,6 +54,6 @@ related to these application-level health checks.
 You must also ensure your network infrastructure does not interfere with the
 long-lived connections between nodes, <<long-lived-connections,even if those
 connections appear to be idle>>. Devices which drop connections when they reach
-a certain age are a common source of problems to {opensearch} clusters, and
+a certain age are a common source of problems to OpenSearch clusters, and
 must not be used.
 

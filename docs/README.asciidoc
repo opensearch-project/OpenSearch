@@ -1,5 +1,5 @@
-The {opensearch} docs are in AsciiDoc format and can be built using the
-{opensearch} documentation build process.
+The OpenSearch docs are in AsciiDoc format and can be built using the
+OpenSearch documentation build process.
 
 // TODO: Correct the build guide
 See: https://github.com/elastic/docs
@@ -80,7 +80,7 @@ used for its modifiers:
   they are useful for eliding portions of the response that are not pertinent
   to the documentation.
     * One interesting difference here is that you often want to match against
-    the response from {opensearch}. To do that you can reference the "body" of
+    the response from OpenSearch. To do that you can reference the "body" of
     the response like this: `// TESTRESPONSE[s/"took": 25/"took": $body.took/]`.
     Note the `$body` string. This says "I don't expect that 25 number in the
     response, just match against what is in the response." Instead of writing

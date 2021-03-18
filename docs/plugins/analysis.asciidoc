@@ -1,8 +1,8 @@
 [[analysis]]
 == Analysis Plugins
 
-Analysis plugins extend {opensearch} by adding new analyzers, tokenizers,
-token filters, or character filters to {opensearch}.
+Analysis plugins extend OpenSearch by adding new analyzers, tokenizers,
+token filters, or character filters to OpenSearch.
 
 [discrete]
 ==== Core analysis plugins

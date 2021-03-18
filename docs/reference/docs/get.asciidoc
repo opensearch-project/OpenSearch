@@ -139,9 +139,9 @@ better GET scaling we will have.
 You can use the `version` parameter to retrieve the document only if
 its current version is equal to the specified one.
 
-Internally, {opensearch} has marked the old document as deleted and added an
+Internally, OpenSearch has marked the old document as deleted and added an
 entirely new document. The old version of the document doesn’t disappear
-immediately, although you won’t be able to access it. {opensearch} cleans up
+immediately, although you won’t be able to access it. OpenSearch cleans up
 deleted documents in the background as you continue to index more data.
 
 [[docs-get-api-path-params]]

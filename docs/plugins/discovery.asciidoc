@@ -1,7 +1,7 @@
 [[discovery]]
 == Discovery Plugins
 
-Discovery plugins extend {opensearch} by adding new seed hosts providers that
+Discovery plugins extend OpenSearch by adding new seed hosts providers that
 can be used to extend the {ref}/modules-discovery.html[cluster formation
 module].
 

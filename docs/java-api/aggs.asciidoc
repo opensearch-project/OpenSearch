@@ -1,7 +1,7 @@
 [[java-aggs]]
 == Aggregations
 
-{opensearch} provides a full Java API to play with aggregations. See the
+OpenSearch provides a full Java API to play with aggregations. See the
 {ref}/search-aggregations.html[Aggregations guide].
 
 Use the factory for aggregation builders (`AggregationBuilders`) and add each aggregation

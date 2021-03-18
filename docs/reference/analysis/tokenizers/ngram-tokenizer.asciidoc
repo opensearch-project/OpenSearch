@@ -182,7 +182,7 @@ The `ngram` tokenizer accepts the following parameters:
 
 `token_chars`::
 
-    Character classes that should be included in a token. {opensearch}
+    Character classes that should be included in a token. OpenSearch
     will split on characters that don't belong to the classes specified.
     Defaults to `[]` (keep all characters).
 +

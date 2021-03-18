@@ -5,6 +5,6 @@ You now have a test {es} environment set up.  Before you start
 serious development or go into production with {es}, you must do some additional
 setup:
 
-* Learn how to <<settings,configure {opensearch}>>.
-* Configure <<important-settings,important {opensearch} settings>>.
+* Learn how to <<settings,configure OpenSearch>>.
+* Configure <<important-settings,important OpenSearch settings>>.
 * Configure <<system-config,important system settings>>.

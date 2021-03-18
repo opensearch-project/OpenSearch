@@ -12,7 +12,7 @@ given order.
 
 An initial search request with a `scroll` parameter must be executed to
 initialize the scroll session through the <<java-rest-high-search>>.
-When processing this `SearchRequest`, {opensearch} detects the presence of
+When processing this `SearchRequest`, OpenSearch detects the presence of
 the `scroll` parameter and keeps the search context alive for the
 corresponding time interval.
 
@@ -32,7 +32,7 @@ being kept alive and will be needed in the following search scroll call
 
 As a second step, the received scroll identifier must be set to a
 `SearchScrollRequest` along with a new scroll interval and sent through the
-`searchScroll` method. {opensearch} returns another batch of results with
+`searchScroll` method. OpenSearch returns another batch of results with
 a new scroll identifier. This new scroll identifier can then be used in a
 subsequent `SearchScrollRequest` to retrieve the next batch of results,
 and so on. This process should be repeated in a loop until no more results are

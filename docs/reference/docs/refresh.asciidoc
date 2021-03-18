@@ -17,7 +17,7 @@ indexing and a search standpoint.
 
 Wait for the changes made by the request to be made visible by a refresh before
 replying. This doesn't force an immediate refresh, rather, it waits for a
-refresh to happen. {opensearch} automatically refreshes shards that have changed
+refresh to happen. OpenSearch automatically refreshes shards that have changed
 every `index.refresh_interval` which defaults to one second. That setting is
 <<dynamic-index-settings,dynamic>>. Calling the <<indices-refresh>> API or
 setting `refresh` to `true` on any of the APIs that support it will also
@@ -37,7 +37,7 @@ use `refresh=false` (the default setting). The simplest and fastest choice is to
 
 If you absolutely must have the changes made by a request visible synchronously
 with the request, you must choose between putting more load on
-{opensearch} (`true`) and waiting longer for the response (`wait_for`).
+OpenSearch (`true`) and waiting longer for the response (`wait_for`).
 // end::refresh-default[]
 Here are a few points that should inform that decision:
 
@@ -50,7 +50,7 @@ that the cost of `true` is paid at index time to create the tiny segment, at
 search time to search the tiny segment, and at merge time to make the larger
 segments.
 * Never start multiple `refresh=wait_for` requests in a row. Instead batch them
-into a single bulk request with `refresh=wait_for` and {opensearch} will start
+into a single bulk request with `refresh=wait_for` and OpenSearch will start
 them all in parallel and return only when they have all finished.
 * If the refresh interval is set to `-1`, disabling the automatic refreshes,
 then requests with `refresh=wait_for` will wait indefinitely until some action

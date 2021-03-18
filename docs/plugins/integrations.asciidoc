@@ -2,7 +2,7 @@
 
 == Integrations
 
-Integrations are not plugins, but are external tools or modules that make it easier to work with {opensearch}.
+Integrations are not plugins, but are external tools or modules that make it easier to work with OpenSearch.
 
 [discrete]
 [[cms-integrations]]

@@ -6,7 +6,7 @@
 Painless doesn't have a
 {wikipedia}/Read%E2%80%93eval%E2%80%93print_loop[REPL]
 and while it'd be nice for it to have one day, it wouldn't tell you the
-whole story around debugging painless scripts embedded in {opensearch} because
+whole story around debugging painless scripts embedded in OpenSearch because
 the data that the scripts have access to or "context" is so important. For now
 the best way to debug embedded scripts is by throwing exceptions at choice
 places. While you can throw your own exceptions

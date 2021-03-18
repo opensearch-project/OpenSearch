@@ -3,11 +3,11 @@
 
 The Java REST Client comes in 2 flavors:
 
-* <<java-rest-low>>: the official low-level client for {opensearch}.
-It allows to communicate with an {opensearch} cluster through http.
+* <<java-rest-low>>: the official low-level client for OpenSearch.
+It allows to communicate with an OpenSearch cluster through http.
 Leaves requests marshalling and responses un-marshalling to users.
-It is compatible with all {opensearch} versions.
+It is compatible with all OpenSearch versions.
 
-* <<java-rest-high>>: the official high-level client for {opensearch}.
+* <<java-rest-high>>: the official high-level client for OpenSearch.
 Based on the low-level client, it exposes API specific methods and takes care
 of requests marshalling and responses un-marshalling.

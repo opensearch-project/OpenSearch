@@ -14,7 +14,7 @@ There are a number of settings available to control the shard allocation process
 *   <<cluster-shard-allocation-settings>> control allocation and
     rebalancing operations.
 
-*   <<disk-based-shard-allocation>> explains how {opensearch} takes available
+*   <<disk-based-shard-allocation>> explains how OpenSearch takes available
     disk space into account, and the related settings.
 
 *   <<shard-allocation-awareness>> and <<forced-awareness>> control how shards

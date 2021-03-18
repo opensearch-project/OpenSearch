@@ -1,11 +1,11 @@
 [[optimistic-concurrency-control]]
 === Optimistic concurrency control
 
-{opensearch} is distributed. When documents are created, updated, or deleted,
+OpenSearch is distributed. When documents are created, updated, or deleted,
 the new version of the document has to be replicated to other nodes in the cluster. 
-{opensearch} is also asynchronous and concurrent, meaning that these replication
+OpenSearch is also asynchronous and concurrent, meaning that these replication
 requests are sent in parallel, and may arrive at their destination out of sequence. 
-{opensearch} needs a way of ensuring that an older version of a document never 
+OpenSearch needs a way of ensuring that an older version of a document never 
 overwrites a newer version.
 
 
@@ -13,7 +13,7 @@ To ensure an older version of a document doesn't overwrite a newer version, ever
 operation performed to a document is assigned a sequence number by the primary
 shard that coordinates that change. The sequence number is increased with each
 operation and thus newer operations are guaranteed to have a higher sequence
-number than older operations. {opensearch} can then use the sequence number of
+number than older operations. OpenSearch can then use the sequence number of
 operations to make sure a newer document version is never overridden by
 a change that has a smaller sequence number assigned to it.
 
@@ -53,7 +53,7 @@ You can see the assigned sequence number and primary term in the
 // TESTRESPONSE[s/"_primary_term": 2/"_primary_term": $body._primary_term/]
 
 
-{opensearch} keeps tracks of the sequence number and primary term of the last
+OpenSearch keeps tracks of the sequence number and primary term of the last
 operation to have changed each of the documents it stores. The sequence number
 and primary term are returned in the `_seq_no` and `_primary_term` fields in
 the response of the <<docs-get,GET API>>:

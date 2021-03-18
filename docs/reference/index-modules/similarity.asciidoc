@@ -333,7 +333,7 @@ Which yields:
 
 WARNING: While scripted similarities provide a lot of flexibility, there is
 a set of rules that they need to satisfy. Failing to do so could make
-{opensearch} silently return wrong top hits or fail with internal errors at
+OpenSearch silently return wrong top hits or fail with internal errors at
 search time:
 
  - Returned scores must be positive.
@@ -512,7 +512,7 @@ Type name: `scripted`
 [[default-base]]
 ==== Default Similarity
 
-By default, {opensearch} will use whatever similarity is configured as
+By default, OpenSearch will use whatever similarity is configured as
 `default`.
 
 You can change the default similarity for all fields in an index when

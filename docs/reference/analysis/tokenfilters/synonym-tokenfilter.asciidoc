@@ -169,7 +169,7 @@ as well.
 [discrete]
 === Parsing synonym files
 
-{opensearch} will use the token filters preceding the synonym filter
+OpenSearch will use the token filters preceding the synonym filter
 in a tokenizer chain to parse the entries in a synonym file.  So, for example, if a
 synonym filter is placed after a stemmer, then the stemmer will also be applied
 to the synonym entries.  Because entries in the synonym map cannot have stacked

@@ -1,17 +1,17 @@
 [[targz]]
-=== Install {opensearch} from archive on Linux or MacOS
+=== Install OpenSearch from archive on Linux or MacOS
 
-{opensearch} is as a `.tar.gz` archive for Linux and MacOS. 
+OpenSearch is as a `.tar.gz` archive for Linux and MacOS. 
 
 include::license.asciidoc[]
 
 // TODO: Correct the links for OpenSearch
-The latest stable version of {opensearch} can be found on the
-link:/downloads/elasticsearch[Download {opensearch}] page.
+The latest stable version of OpenSearch can be found on the
+link:/downloads/elasticsearch[Download OpenSearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
-NOTE: {opensearch} includes a bundled version of https://openjdk.java.net[OpenJDK]
+NOTE: OpenSearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
@@ -20,13 +20,13 @@ see the <<jvm-version, JVM version requirements>>
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of {opensearch} has not yet been released.
+Version {version} of OpenSearch has not yet been released.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The Linux archive for {opensearch} v{version} can be downloaded and installed as follows:
+The Linux archive for OpenSearch v{version} can be downloaded and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -51,13 +51,13 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of {opensearch} has not yet been released.
+Version {version} of OpenSearch has not yet been released.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The MacOS archive for {opensearch} v{version} can be downloaded and installed as follows:
+The MacOS archive for OpenSearch v{version} can be downloaded and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -89,9 +89,9 @@ option on the command line.
 include::targz-daemon.asciidoc[]
 
 [[targz-configuring]]
-==== Configuring {opensearch} on the command line
+==== Configuring OpenSearch on the command line
 
-{opensearch} loads its configuration from the `$OPENSEARCH_HOME/config/opensearch.yml`
+OpenSearch loads its configuration from the `$OPENSEARCH_HOME/config/opensearch.yml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -115,7 +115,7 @@ directories are, by default, contained within `$OPENSEARCH_HOME` -- the director
 created when unpacking the archive.
 
 This is very convenient because you don't have to create any directories to
-start using {opensearch}, and uninstalling {opensearch} is as easy as
+start using OpenSearch, and uninstalling OpenSearch is as easy as
 removing the `$OPENSEARCH_HOME` directory.  However, it is advisable to change the
 default locations of the config directory, the data directory, and the logs
 directory so that you do not delete important data later on.
@@ -125,7 +125,7 @@ directory so that you do not delete important data later on.
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | {opensearch} home directory or `$OPENSEARCH_HOME`
+  | OpenSearch home directory or `$OPENSEARCH_HOME`
  d| Directory created by unpacking the archive
   |
 

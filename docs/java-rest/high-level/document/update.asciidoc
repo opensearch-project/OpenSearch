@@ -65,7 +65,7 @@ to JSON format
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-with-doc-as-xcontent]
 --------------------------------------------------
-<1> Partial document source provided as an `XContentBuilder` object, the {opensearch}
+<1> Partial document source provided as an `XContentBuilder` object, the OpenSearch
 built-in helpers to generate JSON content
 
 ["source","java",subs="attributes,callouts,macros"]

@@ -100,7 +100,7 @@ the segments is synced to disk. Segments that are synced can survive a hard rebo
 +
 If `false`,
 the data from uncommitted segments is also stored in
-the transaction log so that {opensearch} is able to replay
+the transaction log so that OpenSearch is able to replay
 changes on the next start.
 end::committed[]
 

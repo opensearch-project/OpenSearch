@@ -3,7 +3,7 @@
 
 [partintro]
 --
-This section includes information on how to setup {opensearch} and get it
+This section includes information on how to setup OpenSearch and get it
 running, including:
 
 * Downloading
@@ -16,23 +16,23 @@ running, including:
 == Supported platforms
 
 The matrix of officially supported operating systems and JVMs is available here:
-link:/support/matrix[Support Matrix]. {opensearch} is tested on the listed
+link:/support/matrix[Support Matrix]. OpenSearch is tested on the listed
 platforms, but it is possible that it will work on other platforms too.
 
 [discrete]
 [[jvm-version]]
 == Java (JVM) Version
 
-{opensearch} is built using Java, and includes a bundled version of
+OpenSearch is built using Java, and includes a bundled version of
 https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
 within each distribution. The bundled JVM is the recommended JVM and
-is located within the `jdk` directory of the {opensearch} home directory.
+is located within the `jdk` directory of the OpenSearch home directory.
 
 To use your own version of Java, set the `JAVA_HOME` environment variable.
 If you must use a version of Java that is different from the bundled JVM,
 we recommend using a link:/support/matrix[supported]
 https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
-{opensearch} will refuse to start if a known-bad version of Java is used.
+OpenSearch will refuse to start if a known-bad version of Java is used.
 The bundled JVM directory may be removed when using your own JVM.
 
 --

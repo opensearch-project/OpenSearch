@@ -1,7 +1,7 @@
 [[settings]]
-== Configuring {opensearch}
+== Configuring OpenSearch
 
-{opensearch} ships with good defaults and requires very little configuration.
+OpenSearch ships with good defaults and requires very little configuration.
 Most settings can be changed on a running cluster using the
 <<cluster-update-settings>> API.
 
@@ -13,11 +13,11 @@ able to join a cluster, such as `cluster.name` and `network.host`.
 [discrete]
 === Config files location
 
-{opensearch} has three configuration files:
+OpenSearch has three configuration files:
 
-* `elasticsearch.yml` for configuring {opensearch}
-* `jvm.options` for configuring {opensearch} JVM settings
-* `log4j2.properties` for configuring {opensearch} logging
+* `elasticsearch.yml` for configuring OpenSearch
+* `jvm.options` for configuring OpenSearch JVM settings
+* `log4j2.properties` for configuring OpenSearch logging
 
 These files are located in the config directory, whose default location depends
 on whether or not the installation is from an archive distribution (`tar.gz` or
@@ -96,7 +96,7 @@ node.name:    ${HOSTNAME}
 network.host: ${OPENSEARCH_NETWORK_HOST}
 --------------------------------------------------
 
-Values for environment variables must be simple strings. Use a comma-separated string to provide values that {opensearch} will parse as a list. For example, {opensearch} will split the following string into a list of values for the `${HOSTNAME}` environment variable:
+Values for environment variables must be simple strings. Use a comma-separated string to provide values that OpenSearch will parse as a list. For example, OpenSearch will split the following string into a list of values for the `${HOSTNAME}` environment variable:
 
 [source,yaml]
 ----

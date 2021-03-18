@@ -1,7 +1,7 @@
 [[painless-context-examples]]
 === Context examples
 
-To run the examples, index the sample seat data into {opensearch}. The examples
+To run the examples, index the sample seat data into OpenSearch. The examples
 must be run sequentially to work correctly.
 
 . Download the
@@ -33,10 +33,10 @@ Each document contains the following fields:
 `time` ({ref}/keyword.html[`keyword`])::
         The time of the play as a keyword.
 
-. {defguide}/running-elasticsearch.html[Start] {opensearch}. Note these
-examples assume {opensearch} and Kibana are running locally. To use the Console
+. {defguide}/running-elasticsearch.html[Start] OpenSearch. Note these
+examples assume OpenSearch and Kibana are running locally. To use the Console
 editor with a remote Kibana instance, click the settings icon and enter the
-Console URL. To submit a cURL request to a remote {opensearch} instance, edit
+Console URL. To submit a cURL request to a remote OpenSearch instance, edit
 the request URL.
 
 . Create {ref}/mapping.html[mappings] for the sample data:

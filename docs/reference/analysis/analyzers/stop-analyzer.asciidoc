@@ -117,7 +117,7 @@ The `stop` analyzer accepts the following parameters:
 `stopwords_path`::
 
     The path to a file containing stop words. This path is relative to the
-    {opensearch} `config` directory.
+    OpenSearch `config` directory.
 
 
 See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information

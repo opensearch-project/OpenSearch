@@ -15,7 +15,7 @@ represents (used for highlighting search snippets).
 * _Token type_, a classification of each term produced, such as `<ALPHANUM>`,
 `<HANGUL>`, or `<NUM>`. Simpler analyzers only produce the `word` token type.
 
-{opensearch} has a number of built in tokenizers which can be used to build
+OpenSearch has a number of built in tokenizers which can be used to build
 <<analysis-custom-analyzer,custom analyzers>>.
 
 [discrete]

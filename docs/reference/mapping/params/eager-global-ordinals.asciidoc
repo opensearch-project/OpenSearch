@@ -4,7 +4,7 @@
 ==== What are global ordinals?
 
 To support aggregations and other operations that require looking up field
-values on a per-document basis, {opensearch} uses a data structure called
+values on a per-document basis, OpenSearch uses a data structure called
 <<doc-values, doc values>>. Term-based field types such as `keyword` store
 their doc values using an ordinal mapping for a more compact representation.
 This mapping works by assigning each term an incremental integer or 'ordinal'
@@ -19,7 +19,7 @@ original term values when combining results across shards.
 
 Each index segment defines its own ordinal mapping, but aggregations collect
 data across an entire shard. So to be able to use ordinals for shard-level
-operations like aggregations, {opensearch} creates a unified mapping called
+operations like aggregations, OpenSearch creates a unified mapping called
 'global ordinals'. The global ordinal mapping is built on top of segment
 ordinals, and works by maintaining a map from global ordinal to the local
 ordinal for each segment.
@@ -63,9 +63,9 @@ PUT my-index-000001/_mapping
 // TEST[s/^/PUT my-index-000001\n/]
 
 When `eager_global_ordinals` is enabled, global ordinals are built when a shard
-is <<indices-refresh, refreshed>> -- {opensearch} always loads them before
+is <<indices-refresh, refreshed>> -- OpenSearch always loads them before
 exposing changes to the content of the index. This shifts the cost of building
-global ordinals from search to index-time. {opensearch} will also eagerly
+global ordinals from search to index-time. OpenSearch will also eagerly
 build global ordinals when creating a new copy of a shard, as can occur when
 increasing the number of replicas or relocating a shard onto a new node.
 
@@ -103,7 +103,7 @@ that helps control how buckets are collected. It defaults to `global_ordinals`,
 but can be set to `map` to instead use the term values directly.
 * If a shard has been <<indices-forcemerge,force-merged>> down to a single
 segment, then its segment ordinals are already 'global' to the shard. In this
-case, {opensearch} does not need to build a global ordinal mapping and there
+case, OpenSearch does not need to build a global ordinal mapping and there
 is no additional overhead from using global ordinals. Note that for performance
 reasons you should only force-merge an index to which you will never write to
 again.

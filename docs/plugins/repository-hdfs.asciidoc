@@ -13,7 +13,7 @@ include::install_remove.asciidoc[]
 The HDFS snapshot/restore plugin is built against the latest Apache Hadoop 2.x (currently 2.7.1). If the distro you are using is not protocol
 compatible with Apache Hadoop, consider replacing the Hadoop libraries inside the plugin folder with your own (you might have to adjust the security permissions required).
 
-Even if Hadoop is already installed on the {opensearch} nodes, for security reasons, the required libraries need to be placed under the plugin folder. Note that in most cases, if the distro is compatible, one simply needs to configure the repository with the appropriate Hadoop configuration files (see below).
+Even if Hadoop is already installed on the OpenSearch nodes, for security reasons, the required libraries need to be placed under the plugin folder. Note that in most cases, if the distro is compatible, one simply needs to configure the repository with the appropriate Hadoop configuration files (see below).
 
 Windows Users::
 Using Apache Hadoop on Windows is problematic and thus it is not recommended. For those _really_ wanting to use it, make sure you place the elusive `winutils.exe` under the
@@ -96,7 +96,7 @@ methods are supported by the plugin:
 `simple`::
 
     Also means "no security" and is enabled by default. Uses information from underlying operating system account
-    running {opensearch} to inform Hadoop of the name of the current user. Hadoop makes no attempts to verify this
+    running OpenSearch to inform Hadoop of the name of the current user. Hadoop makes no attempts to verify this
     information.
 
 `kerberos`::
@@ -109,7 +109,7 @@ methods are supported by the plugin:
 [discrete]
 ===== Principals and Keytabs
 Before attempting to connect to a secured HDFS cluster, provision the Kerberos principals and keytabs that the
-{opensearch} nodes will use for authenticating to Kerberos. For maximum security and to avoid tripping up the Kerberos
+OpenSearch nodes will use for authenticating to Kerberos. For maximum security and to avoid tripping up the Kerberos
 replay protection, you should create a service principal per node, following the pattern of
 `opensearch/hostname@REALM`.
 
@@ -117,7 +117,7 @@ WARNING: In some cases, if the same principal is authenticating from multiple cl
 authentication for those principals under the assumption that they could be replay attacks. If you are running the
 plugin in production with multiple nodes you should be using a unique service principal for each node.
 
-On each {opensearch} node, place the appropriate keytab file in the node's configuration location under the
+On each OpenSearch node, place the appropriate keytab file in the node's configuration location under the
 `repository-hdfs` directory using the name `krb5.keytab`:
 
 [source, bash]
@@ -158,7 +158,7 @@ PUT _snapshot/my_hdfs_repository
 // TEST[skip:we don't have hdfs set up while testing this]
 
 If you are using different service principals for each node, you can use the `_HOST` pattern in your principal
-name. {opensearch} will automatically replace the pattern with the hostname of the node at runtime:
+name. OpenSearch will automatically replace the pattern with the hostname of the node at runtime:
 
 [source,console]
 ----
@@ -177,12 +177,12 @@ PUT _snapshot/my_hdfs_repository
 [[repository-hdfs-security-authorization]]
 [discrete]
 ===== Authorization
-Once {opensearch} is connected and authenticated to HDFS, HDFS will infer a username to use for
+Once OpenSearch is connected and authenticated to HDFS, HDFS will infer a username to use for
 authorizing file access for the client. By default, it picks this username from the primary part of
 the kerberos principal used to authenticate to the service. For example, in the case of a principal
 like `opensearch@REALM` or `opensearch/hostname@REALM` then the username that HDFS
 extracts for file access checks will be `opensearch`.
 
-NOTE: The repository plugin makes no assumptions of what {opensearch}'s principal name is. The main fragment of the
+NOTE: The repository plugin makes no assumptions of what OpenSearch's principal name is. The main fragment of the
 Kerberos principal is not required to be `opensearch`. If you have a principal or service name that works better
 for you or your organization then feel free to use it instead!

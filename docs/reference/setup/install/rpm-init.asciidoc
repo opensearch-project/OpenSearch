@@ -1,6 +1,6 @@
-==== Running {opensearch} with SysV `init`
+==== Running OpenSearch with SysV `init`
 
-Use the `chkconfig` command to configure {opensearch} to start automatically
+Use the `chkconfig` command to configure OpenSearch to start automatically
 when the system boots up:
 
 [source,sh]
@@ -8,7 +8,7 @@ when the system boots up:
 sudo chkconfig --add opensearch
 --------------------------------------------------
 
-{opensearch} can be started and stopped using the `service` command:
+OpenSearch can be started and stopped using the `service` command:
 
 [source,sh]
 --------------------------------------------
@@ -16,5 +16,5 @@ sudo -i service opensearch start
 sudo -i service opensearch stop
 --------------------------------------------
 
-If {opensearch} fails to start for any reason, it will print the reason for
+If OpenSearch fails to start for any reason, it will print the reason for
 failure to STDOUT. Log files can be found in `/var/log/opensearch/`.

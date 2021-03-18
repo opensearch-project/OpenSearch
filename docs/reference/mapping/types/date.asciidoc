@@ -4,7 +4,7 @@
 <titleabbrev>Date</titleabbrev>
 ++++
 
-JSON doesn't have a date data type, so dates in {opensearch} can either be:
+JSON doesn't have a date data type, so dates in OpenSearch can either be:
 
 * strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
 * a long number representing _milliseconds-since-the-epoch_.

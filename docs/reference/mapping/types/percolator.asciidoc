@@ -10,7 +10,7 @@ can use it to match provided documents.
 
 Any field that contains a json object can be configured to be a percolator
 field. The percolator field type has no settings. Just configuring the `percolator`
-field type is sufficient to instruct {opensearch} to treat a field as a
+field type is sufficient to instruct OpenSearch to treat a field as a
 query.
 
 If the following mapping configures the `percolator` field type for the
@@ -108,8 +108,8 @@ PUT queries/_doc/1?refresh
 <1> It is always recommended to define an alias for your index, so that in case of a reindex systems / applications
     don't need to be changed to know that the percolator queries are now in a different index.
 
-Lets say you're going to upgrade to a new major version and in order for the new {opensearch} version to still be able
-to read your queries you need to reindex your queries into a new index on the current {opensearch} version:
+Lets say you're going to upgrade to a new major version and in order for the new OpenSearch version to still be able
+to read your queries you need to reindex your queries into a new index on the current OpenSearch version:
 
 [source,console]
 --------------------------------------------------

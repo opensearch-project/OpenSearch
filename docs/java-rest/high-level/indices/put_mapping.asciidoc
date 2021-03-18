@@ -42,7 +42,7 @@ to JSON format
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-xcontent]
 --------------------------------------------------
-<1> Mapping source provided as an `XContentBuilder` object, the {opensearch}
+<1> Mapping source provided as an `XContentBuilder` object, the OpenSearch
 built-in helpers to generate JSON content
 
 ==== Optional arguments

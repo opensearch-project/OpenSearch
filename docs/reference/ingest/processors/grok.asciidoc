@@ -358,7 +358,7 @@ settings:
 [[grok-debugging]]
 ==== Grok debugging
 
-It is recommended to enable debug logging for Grok so that any additional messages may also be seen in the {opensearch}
+It is recommended to enable debug logging for Grok so that any additional messages may also be seen in the OpenSearch
 server log.
 
 [source,js]

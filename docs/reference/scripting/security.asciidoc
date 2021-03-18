@@ -1,38 +1,38 @@
 [[modules-scripting-security]]
 == Scripting and security
 
-While {opensearch} contributors make every effort to prevent scripts from
+While OpenSearch contributors make every effort to prevent scripts from
 running amok, security is something best done in
 {wikipedia}/Defense_in_depth_(computing)[layers] because
 all software has bugs and it is important to minimize the risk of failure in
-any security layer. Find below rules of thumb for how to keep {opensearch}
+any security layer. Find below rules of thumb for how to keep OpenSearch
 from being a vulnerability.
 
 [discrete]
 === Do not run as root
-First and foremost, never run {opensearch} as the `root` user as this would
+First and foremost, never run OpenSearch as the `root` user as this would
 allow any successful effort to circumvent the other security layers to do
-*anything* on your server. {opensearch} will refuse to start if it detects
+*anything* on your server. OpenSearch will refuse to start if it detects
 that it is running as `root` but this is so important that it is worth double
 and triple checking.
 
 [discrete]
-=== Do not expose {opensearch} directly to users
-Do not expose {opensearch} directly to users, instead have an application
+=== Do not expose OpenSearch directly to users
+Do not expose OpenSearch directly to users, instead have an application
 make requests on behalf of users. If this is not possible, have an application
 to sanitize requests from users. If *that* is not possible then have some
 mechanism to track which users did what. Understand that it is quite possible
-to write a <<search, `_search`>> that overwhelms {opensearch} and brings down
-the cluster. All such searches should be considered bugs and the {opensearch}
+to write a <<search, `_search`>> that overwhelms OpenSearch and brings down
+the cluster. All such searches should be considered bugs and the OpenSearch
 contributors make an effort to prevent this but they are still possible.
 
 [discrete]
-=== Do not expose {opensearch} directly to the Internet
-Do not expose E{opensearch} to the Internet, instead have an application
+=== Do not expose OpenSearch directly to the Internet
+Do not expose EOpenSearch to the Internet, instead have an application
 make requests on behalf of the Internet. Do not entertain the thought of having
-an application "sanitize" requests to {opensearch}. Understand that it is
+an application "sanitize" requests to OpenSearch. Understand that it is
 possible for a sufficiently determined malicious user to write searches that
-overwhelm the {opensearch} cluster and bring it down. For example:
+overwhelm the OpenSearch cluster and bring it down. For example:
 
 Good:
 
@@ -52,33 +52,33 @@ Bad:
 [discrete]
 [[modules-scripting-other-layers]]
 === Other security layers
-In addition to user privileges and script sandboxing {opensearch} uses the
+In addition to user privileges and script sandboxing OpenSearch uses the
 https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager]
 and native security tools as additional layers of security.
 
-As part of its startup sequence {opensearch} enables the Java Security Manager
+As part of its startup sequence OpenSearch enables the Java Security Manager
 which limits the actions that can be taken by portions of the code. Painless
 uses this to limit the actions that generated Painless scripts can take,
 preventing them from being able to do things like write files and listen to
 sockets.
 
-{opensearch} uses
+OpenSearch uses
 {wikipedia}/Seccomp[seccomp] in Linux,
 https://www.chromium.org/developers/design-documents/sandbox/osx-sandboxing-design[Seatbelt]
 in macOS, and
 https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147[ActiveProcessLimit]
-on Windows to prevent {opensearch} from forking or executing other processes.
+on Windows to prevent OpenSearch from forking or executing other processes.
 
 Below this we describe the security settings for scripts and how you can
 change from the defaults described above. You should be very, very careful
 when allowing more than the defaults. Any extra permissions weakens the total
-security of the {opensearch} deployment.
+security of the OpenSearch deployment.
 
 [[allowed-script-types-setting]]
 [discrete]
 === Allowed script types setting
 
-{opensearch} supports two script types: `inline` and `stored` (<<modules-scripting-using>>).
+OpenSearch supports two script types: `inline` and `stored` (<<modules-scripting-using>>).
 By default, {es} is configured to run both types of scripts. 
 To limit what type of scripts are run, set `script.allowed_types` to `inline` or `stored`. 
 To prevent any scripts from running, set `script.allowed_types` to `none`.

@@ -18,7 +18,7 @@ also be analyzed to the terms `foo`,`bar` and will thus match the
 terms stored in the index.
 
 It is this process of analysis (both at index time and at search time)
-that allows {opensearch} to perform full text queries.
+that allows OpenSearch to perform full text queries.
 
 Also see <<glossary-text,text>> and <<glossary-term,term>>.
 // end::analysis-def[]
@@ -46,7 +46,7 @@ A building block for constructing <<index-templates,index templates>> that speci
 
 [[glossary-document]] document ::
 
-A document is a JSON document which is stored in {opensearch}. It is
+A document is a JSON document which is stored in OpenSearch. It is
 like a row in a table in a relational database. Each document is
 stored in an <<glossary-index,index>> and has a <<glossary-type,type>> and an
 <<glossary-id,id>>.
@@ -188,7 +188,7 @@ automatically when a document is indexed.
 
 [[glossary-node]] node ::
 
-A node is a running instance of {opensearch} which belongs to a
+A node is a running instance of OpenSearch which belongs to a
 <<glossary-cluster,cluster>>. Multiple nodes can be started on a single
 server for testing purposes, but usually you should have one node per
 server.
@@ -328,7 +328,7 @@ reliably stored outside the cluster.
 --
 // tag::shard-def[]
 A shard is a single Lucene instance. It is a low-level “worker” unit
-which is managed automatically by {opensearch}. An index is a logical
+which is managed automatically by OpenSearch. An index is a logical
 namespace which points to <<glossary-primary-shard,primary>> and
 <<glossary-replica-shard,replica>> shards.
 +
@@ -336,7 +336,7 @@ Other than defining the number of primary and replica shards that an
 index should have, you never need to refer to shards directly.
 Instead, your code should deal only with an index.
 +
-{opensearch} distributes shards amongst all <<glossary-node,nodes>> in the
+OpenSearch distributes shards amongst all <<glossary-node,nodes>> in the
 <<glossary-cluster,cluster>>, and can move shards automatically from one
 node to another in the case of node failure, or the addition of new
 nodes.
@@ -386,7 +386,7 @@ You should not directly access or modify system indices.
 
 [[glossary-term]] term ::
 
-A term is an exact value that is indexed in {opensearch}. The terms
+A term is an exact value that is indexed in OpenSearch. The terms
 `foo`, `Foo`, `FOO` are NOT equivalent. Terms (i.e. exact values) can
 be searched for using _term_ queries.
 +

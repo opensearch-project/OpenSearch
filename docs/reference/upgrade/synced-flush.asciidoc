@@ -12,4 +12,4 @@ still returns a 200 OK status. If there are failures, reissue the request.
 
 // TODO: Correct the version number of OpenSearch
 Note that synced flush is deprecated and will be removed in 8.0. A flush
-has the same effect as a synced flush on {opensearch} 7.6 or later.
+has the same effect as a synced flush on OpenSearch 7.6 or later.

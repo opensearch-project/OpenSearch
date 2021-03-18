@@ -2,7 +2,7 @@
 === Ingest `geoip` Processor Plugin
 
 The `geoip` processor is no longer distributed as a plugin, but is now a module
-distributed by default with {opensearch}. See the
+distributed by default with OpenSearch. See the
 {ref}/geoip-processor.html[GeoIP processor] for more details.
 
 [[using-ingest-geoip]]
