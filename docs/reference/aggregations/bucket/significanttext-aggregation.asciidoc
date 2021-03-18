@@ -104,7 +104,7 @@ Filtering near-duplicate text is a difficult task at index-time but we can clean
 `filter_duplicate_text` setting.
 
 
-// TODO(OpenSearch): Replace the example for OpenSearch. To read the news in the example: https://www.prweb.com/releases/2015/09/prweb12964572.htm
+// TODO(OpenSearch): Replace the example. To read the news in the example: https://www.prweb.com/releases/2015/09/prweb12964572.htm
 First let's look at an unfiltered real-world example using the https://research.signalmedia.co/newsir16/signal-dataset.html[Signal media dataset] of
 a million news articles covering a wide variety of news. Here are the raw significant text results for a search for the articles 
 mentioning "<keyword>":
