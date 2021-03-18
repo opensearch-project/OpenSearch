@@ -1,7 +1,7 @@
 [[security]]
 == Security Plugins
 
-Security plugins add a security layer to  Elasticsearch.
+Security plugins add a security layer to OpenSearch.
 
 [discrete]
 === Community contributed security plugins

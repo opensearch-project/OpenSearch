@@ -1,7 +1,7 @@
 [[java-joining-queries]]
 === Joining queries
 
-Performing full SQL-style joins in a distributed system like Elasticsearch is
+Performing full SQL-style joins in a distributed system like OpenSearch is
 prohibitively expensive.  Instead, Elasticsearch offers two forms of join
 which are designed to scale horizontally.
 

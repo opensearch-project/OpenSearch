@@ -126,7 +126,7 @@ and the result:
 --------------------------------------------------
 // TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
 
-The above example shows that `_index` was set to `<my-index-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
+The above example shows that `_index` was set to `<my-index-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. OpenSearch
 understands this to mean `2016-04-01` as is explained in the <<date-math-index-names, date math index name documentation>>
 
 [[date-index-name-options]]

@@ -6,7 +6,7 @@ ensure that they are still connected and healthy. Each node in the cluster also
 periodically checks the health of the elected master. These checks are known
 respectively as _follower checks_ and _leader checks_.
 
-Elasticsearch allows these checks to occasionally fail or timeout without
+OpenSearch allows these checks to occasionally fail or timeout without
 taking any action. It considers a node to be faulty only after a number of
 consecutive checks have failed. You can control fault detection behavior with
 <<modules-discovery-settings,`cluster.fault_detection.*` settings>>.

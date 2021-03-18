@@ -87,7 +87,7 @@ GET _cluster/health <1>
 
 ==== Removing a node permanently
 
-If a node is not going to return and you would like Elasticsearch to allocate
+If a node is not going to return and you would like OpenSearch to allocate
 the missing shards immediately, just update the timeout to zero:
 
 

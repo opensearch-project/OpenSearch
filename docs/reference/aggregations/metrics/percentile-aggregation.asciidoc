@@ -226,7 +226,7 @@ percentile, you simply find the value that is at `my_array[count(my_array) * 0.5
 
 Clearly, the naive implementation does not scale -- the sorted array grows
 linearly with the number of values in your dataset.  To calculate percentiles
-across potentially billions of values in an Elasticsearch cluster, _approximate_
+across potentially billions of values in an OpenSearch cluster, _approximate_
 percentiles are calculated.
 
 The algorithm used by the `percentile` metric is called TDigest (introduced by

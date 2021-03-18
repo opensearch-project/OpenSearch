@@ -443,7 +443,7 @@ See <<misc-cluster-settings>>.
 
 This page has been removed.
 
-See <<settings,Configuring Elasticsearch>> for settings information:
+See <<settings,Configuring OpenSearch>> for settings information:
 
 * <<circuit-breaker>>
 * <<modules-cluster>>
