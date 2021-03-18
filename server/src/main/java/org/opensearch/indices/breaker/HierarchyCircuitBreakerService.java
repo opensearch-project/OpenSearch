@@ -362,9 +362,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         JvmInfo jvmInfo = JvmInfo.jvmInfo();
         if (trackRealMemoryUsage && jvmInfo.useG1GC().equals("true")
             // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
-            && Booleans.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.enabled"), true)) {
+            && Booleans.parseBoolean(System.getProperty("opensearch.real_memory_circuit_breaker.g1_over_limit_strategy.enabled"), true)) {
             TimeValue lockTimeout = TimeValue.timeValueMillis(
-                Integer.parseInt(System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.lock_timeout_ms", "500"))
+                Integer.parseInt(System.getProperty("opensearch.real_memory_circuit_breaker.g1_over_limit_strategy.lock_timeout_ms", "500"))
             );
             // hardcode interval, do not want any tuning of it outside code changes.
             return new G1OverLimitStrategy(jvmInfo, HierarchyCircuitBreakerService::realMemoryUsage, createYoungGcCountSupplier(),

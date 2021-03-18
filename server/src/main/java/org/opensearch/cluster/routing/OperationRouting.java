@@ -52,7 +52,7 @@ public class OperationRouting {
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OperationRouting.class);
-    private static final String IGNORE_AWARENESS_ATTRIBUTES_PROPERTY = "es.search.ignore_awareness_attributes";
+    private static final String IGNORE_AWARENESS_ATTRIBUTES_PROPERTY = "opensearch.search.ignore_awareness_attributes";
     static final String IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE =
         "searches will not be routed based on awareness attributes starting in version 8.0.0; " +
             "to opt into this behaviour now please set the system property [" + IGNORE_AWARENESS_ATTRIBUTES_PROPERTY + "] to [true]";

@@ -162,19 +162,19 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
             // TODO: remove setting logging level via system property
             test.systemProperty("tests.logger.level", "WARN");
             System.getProperties().entrySet().forEach(entry -> {
-                if ((entry.getKey().toString().startsWith("tests.") || entry.getKey().toString().startsWith("es."))) {
+                if ((entry.getKey().toString().startsWith("tests.") || entry.getKey().toString().startsWith("opensearch."))) {
                     test.systemProperty(entry.getKey().toString(), entry.getValue());
                 }
             });
 
             // TODO: remove this once ctx isn't added to update script params in 7.0
-            test.systemProperty("es.scripting.update.ctx_in_params", "false");
+            test.systemProperty("opensearch.scripting.update.ctx_in_params", "false");
 
             // TODO: remove this property in 8.0
-            test.systemProperty("es.search.rewrite_sort", "true");
+            test.systemProperty("opensearch.search.rewrite_sort", "true");
 
             // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
-            test.systemProperty("es.transport.cname_in_publish_address", "true");
+            test.systemProperty("opensearch.transport.cname_in_publish_address", "true");
 
             // Set netty system properties to the properties we configure in jvm.options
             test.systemProperty("io.netty.noUnsafe", "true");

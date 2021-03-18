@@ -34,16 +34,16 @@ import org.apache.lucene.search.similarities.Similarity;
 public final class NonNegativeScoresSimilarity extends Similarity {
 
     // Escape hatch
-    private static final String ES_ENFORCE_POSITIVE_SCORES = "es.enforce.positive.scores";
+    private static final String OPENSEARCH_ENFORCE_POSITIVE_SCORES = "opensearch.enforce.positive.scores";
     private static final boolean ENFORCE_POSITIVE_SCORES;
     static {
-        String enforcePositiveScores = System.getProperty(ES_ENFORCE_POSITIVE_SCORES);
+        String enforcePositiveScores = System.getProperty(OPENSEARCH_ENFORCE_POSITIVE_SCORES);
         if (enforcePositiveScores == null) {
             ENFORCE_POSITIVE_SCORES = true;
         } else if ("false".equals(enforcePositiveScores)) {
             ENFORCE_POSITIVE_SCORES = false;
         } else {
-            throw new IllegalArgumentException(ES_ENFORCE_POSITIVE_SCORES + " may only be unset or set to [false], but got [" +
+            throw new IllegalArgumentException(OPENSEARCH_ENFORCE_POSITIVE_SCORES + " may only be unset or set to [false], but got [" +
                     enforcePositiveScores + "]");
         }
     }

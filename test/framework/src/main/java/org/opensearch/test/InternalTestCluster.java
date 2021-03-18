@@ -378,11 +378,11 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
         builder.put(TransportSettings.PORT.getKey(), 0);
         builder.put("http.port", 0);
-        if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
-            builder.put("logger.level", System.getProperty("tests.es.logger.level"));
+        if (Strings.hasLength(System.getProperty("tests.opensearch.logger.level"))) {
+            builder.put("logger.level", System.getProperty("tests.opensearch.logger.level"));
         }
-        if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
-            builder.put("logger.prefix", System.getProperty("es.logger.prefix"));
+        if (Strings.hasLength(System.getProperty("opensearch.logger.prefix"))) {
+            builder.put("logger.prefix", System.getProperty("opensearch.logger.prefix"));
         }
         // Default the watermarks to absurdly low to prevent the tests
         // from failing on nodes without enough disk space

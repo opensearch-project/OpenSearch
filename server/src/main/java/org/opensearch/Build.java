@@ -93,7 +93,7 @@ public class Build {
         final String version;
 
         // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
-        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
+        type = Type.fromDisplayName(System.getProperty("opensearch.distribution.type", "unknown"), true);
 
         final String opensearchPrefix = "opensearch-" + Version.CURRENT;
         final URL url = getOpenSearchCodeSourceLocation();

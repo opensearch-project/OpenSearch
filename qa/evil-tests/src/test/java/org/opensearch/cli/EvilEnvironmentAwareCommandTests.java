@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.hasToString;
 public class EvilEnvironmentAwareCommandTests extends OpenSearchTestCase {
 
     @Rule
-    public TestRule restoreSystemProperties = new TestRuleRestoreSystemProperties("es.path.conf");
+    public TestRule restoreSystemProperties = new TestRuleRestoreSystemProperties("opensearch.path.conf");
 
     public void testEsPathConfNotSet() throws Exception {
         clearEsPathConf();
@@ -54,12 +54,12 @@ public class EvilEnvironmentAwareCommandTests extends OpenSearchTestCase {
         final TestEnvironmentAwareCommand command = new TestEnvironmentAwareCommand("test");
         final UserException e =
                 expectThrows(UserException.class, () -> command.mainWithoutErrorHandling(new String[0], new MockTerminal()));
-        assertThat(e, hasToString(containsString("the system property [es.path.conf] must be set")));
+        assertThat(e, hasToString(containsString("the system property [opensearch.path.conf] must be set")));
     }
 
-    @SuppressForbidden(reason =  "clears system property es.path.conf as part of test setup")
+    @SuppressForbidden(reason =  "clears system property opensearch.path.conf as part of test setup")
     private void clearEsPathConf() {
-        System.clearProperty("es.path.conf");
+        System.clearProperty("opensearch.path.conf");
     }
 
 }

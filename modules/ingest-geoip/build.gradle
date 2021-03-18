@@ -80,6 +80,6 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   tasks.named("test").configure {
     // Windows cannot cleanup database files properly unless it loads everything on heap.
     // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
-    systemProperty 'es.geoip.load_db_on_heap', 'true'
+    systemProperty 'opensearch.geoip.load_db_on_heap', 'true'
   }
 }
