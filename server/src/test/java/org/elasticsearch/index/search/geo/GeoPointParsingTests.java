@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
-import org.elasticsearch.test.geo.RandomGeoGenerator;
+import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 import java.util.function.DoubleSupplier;

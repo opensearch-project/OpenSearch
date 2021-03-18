@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.loggerusage;
+package org.opensearch.test.loggerusage;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -74,7 +74,7 @@ public class ESLoggerUsageChecker {
     // make sure this functionality works
     public static final Set<Type> DEPRECATED_TYPES = Stream.of(
         Type.getObjectType("org/elasticsearch/common/logging/DeprecatedMessage"),
-        Type.getObjectType("org/elasticsearch/test/loggerusage/TestMessage")
+        Type.getObjectType("org/opensearch/test/loggerusage/TestMessage")
     ).collect(Collectors.toSet());
 
     public static final Type PARAMETERIZED_MESSAGE_CLASS = Type.getType(ParameterizedMessage.class);

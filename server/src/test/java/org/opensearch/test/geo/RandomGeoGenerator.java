@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.geo;
+package org.opensearch.test.geo;
 
 import org.opensearch.common.geo.GeoPoint;
 
@@ -25,7 +25,7 @@ import java.util.Random;
 
 /**
  * Random geo generation utilities for randomized {@code geo_point} type testing
- * does not depend on jts or spatial4j. Use {@link org.elasticsearch.test.geo.RandomShapeGenerator}
+ * does not depend on jts or spatial4j. Use {@link org.opensearch.test.geo.RandomShapeGenerator}
  * to create random OGC compliant shapes.
  */
 public class RandomGeoGenerator {

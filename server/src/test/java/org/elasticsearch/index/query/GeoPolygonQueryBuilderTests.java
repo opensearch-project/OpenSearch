@@ -29,8 +29,8 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.opensearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
+import org.opensearch.test.geo.RandomShapeGenerator;
+import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 

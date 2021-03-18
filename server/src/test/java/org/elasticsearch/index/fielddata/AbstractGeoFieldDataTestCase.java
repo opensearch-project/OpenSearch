@@ -27,7 +27,7 @@ import org.opensearch.common.geo.GeoUtils;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.geo.RandomShapeGenerator.randomPoint;
+import static org.opensearch.test.geo.RandomShapeGenerator.randomPoint;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
