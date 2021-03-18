@@ -20,9 +20,9 @@
 package org.opensearch.action.support.broadcast;
 
 import org.opensearch.OpenSearchException;
-import org.elasticsearch.OpenSearchWrapperException;
+import org.opensearch.OpenSearchWrapperException;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 

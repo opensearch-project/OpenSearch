@@ -21,8 +21,8 @@ package org.opensearch.cluster.coordination;
 import org.opensearch.cli.CommandLoggingConfigurator;
 import org.opensearch.cli.MultiCommand;
 import org.opensearch.cli.Terminal;
-import org.elasticsearch.env.NodeRepurposeCommand;
-import org.elasticsearch.env.OverrideNodeVersionCommand;
+import org.opensearch.env.NodeRepurposeCommand;
+import org.opensearch.env.OverrideNodeVersionCommand;
 
 // NodeToolCli does not extend LoggingAwareCommand, because LoggingAwareCommand performs logging initialization
 // after LoggingAwareCommand instance is constructed.

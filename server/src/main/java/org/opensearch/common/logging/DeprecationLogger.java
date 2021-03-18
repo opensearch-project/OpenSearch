@@ -25,8 +25,8 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * A logger that logs deprecation notices. Logger should be initialized with a parent logger which name will be used
- * for deprecation logger. For instance <code>DeprecationLogger.getLogger("org.elasticsearch.test.SomeClass")</code> will
- * result in a deprecation logger with name <code>org.elasticsearch.deprecation.test.SomeClass</code>. This allows to use a
+ * for deprecation logger. For instance <code>DeprecationLogger.getLogger("org.opensearch.test.SomeClass")</code> will
+ * result in a deprecation logger with name <code>org.opensearch.deprecation.test.SomeClass</code>. This allows to use a
  * <code>deprecation</code> logger defined in log4j2.properties.
  * <p>
  * Logs are emitted at the custom {@link #DEPRECATION} level, and routed wherever they need to go using log4j. For example,
@@ -60,17 +60,17 @@ public class DeprecationLogger {
 
     /**
      * Creates a new deprecation logger based on the parent logger. Automatically
-     * prefixes the logger name with "deprecation", if it starts with "org.elasticsearch.",
-     * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
-     * the "org.elasticsearch" namespace.
+     * prefixes the logger name with "deprecation", if it starts with "org.opensearch.",
+     * it replaces "org.opensearch" with "org.opensearch.deprecation" to maintain
+     * the "org.opensearch" namespace.
      */
     public static DeprecationLogger getLogger(String name) {
         return new DeprecationLogger(getDeprecatedLoggerForName(name));
     }
 
     private static Logger getDeprecatedLoggerForName(String name) {
-        if (name.startsWith("org.elasticsearch")) {
-            name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
+        if (name.startsWith("org.opensearch")) {
+            name = name.replace("org.opensearch.", "org.opensearch.deprecation.");
         } else {
             name = "deprecation." + name;
         }

@@ -19,7 +19,7 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
@@ -57,7 +57,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     /**
      * Force merge UUID to store in the live commit data of a shard under
-     * {@link org.elasticsearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
+     * {@link org.opensearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
      */
     @Nullable
     private final String forceMergeUUID;

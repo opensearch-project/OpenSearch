@@ -20,7 +20,7 @@
 package org.opensearch.action;
 
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 
 import java.util.Collection;
 import java.util.Optional;

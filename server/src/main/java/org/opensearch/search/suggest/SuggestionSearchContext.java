@@ -20,7 +20,7 @@ package org.opensearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

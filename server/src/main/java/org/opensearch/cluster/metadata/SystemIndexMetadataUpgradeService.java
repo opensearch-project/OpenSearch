@@ -28,7 +28,7 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.indices.SystemIndices;
+import org.opensearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.List;

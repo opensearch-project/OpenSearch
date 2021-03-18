@@ -452,7 +452,7 @@ public final class InternalAutoDateHistogram extends
         Bucket lastBucket = null;
         ListIterator<Bucket> iter = list.listIterator();
         InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(
-            org.elasticsearch.common.collect.List.of(bucketInfo.emptySubAggregations), reduceContext
+            org.opensearch.common.collect.List.of(bucketInfo.emptySubAggregations), reduceContext
         );
 
         // Add the empty buckets within the data,

@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.lookup;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -19,13 +19,12 @@
 package org.opensearch.common.lucene.search.function;
 
 import com.carrotsearch.hppc.BitMixer;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.LeafFieldData;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
 import java.util.Objects;

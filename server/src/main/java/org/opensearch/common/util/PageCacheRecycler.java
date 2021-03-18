@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -74,7 +74,7 @@ public class PageCacheRecycler {
     public PageCacheRecycler(Settings settings) {
         final Type type = TYPE_SETTING.get(settings);
         final long limit = LIMIT_HEAP_SETTING.get(settings).getBytes();
-        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
 
         // We have a global amount of memory that we need to divide across data types.
         // Since some types are more useful than other ones we give them different weights.

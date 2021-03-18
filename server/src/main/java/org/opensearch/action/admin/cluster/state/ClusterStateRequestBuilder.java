@@ -19,10 +19,10 @@
 
 package org.opensearch.action.admin.cluster.state;
 
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.action.support.IndicesOptions;
 
 public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest,
         ClusterStateResponse, ClusterStateRequestBuilder> {
@@ -80,7 +80,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
+     * Should the cluster state result include the {@link org.opensearch.cluster.routing.RoutingTable}. Defaults
      * to {@code true}.
      */
     public ClusterStateRequestBuilder setRoutingTable(boolean filter) {

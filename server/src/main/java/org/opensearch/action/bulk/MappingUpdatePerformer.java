@@ -20,8 +20,8 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.mapper.Mapping;
+import org.opensearch.index.shard.ShardId;
 
 public interface MappingUpdatePerformer {
 

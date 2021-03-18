@@ -20,15 +20,15 @@
 package org.opensearch.action.update;
 
 import org.opensearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.WriteRequestBuilder;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
+import org.opensearch.index.VersionType;
 import org.opensearch.script.Script;
 
 import java.util.Map;
@@ -143,7 +143,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
-     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     * Sets the versioning type. Defaults to {@link org.opensearch.index.VersionType#INTERNAL}.
      */
     public UpdateRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
@@ -155,7 +155,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public UpdateRequestBuilder setIfSeqNo(long seqNo) {
         request.setIfSeqNo(seqNo);
@@ -167,7 +167,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public UpdateRequestBuilder setIfPrimaryTerm(long term) {
         request.setIfPrimaryTerm(term);
@@ -268,7 +268,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Sets the index request to be used if the document does not exists. Otherwise, a
-     * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
+     * {@link org.opensearch.index.engine.DocumentMissingException} is thrown.
      */
     public UpdateRequestBuilder setUpsert(IndexRequest indexRequest) {
         request.upsert(indexRequest);

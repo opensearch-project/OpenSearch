@@ -65,11 +65,11 @@
  *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
  *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
  *      |  |  .....
- *      |  |  |- snap-20131010.dat - SMILE serialized {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} for
+ *      |  |  |- snap-20131010.dat - SMILE serialized {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} for
  *      |  |  |                      snapshot "20131010"
- *      |  |  |- snap-20131011.dat - SMILE serialized {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} for
+ *      |  |  |- snap-20131011.dat - SMILE serialized {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} for
  *      |  |  |                      snapshot "20131011"
- *      |  |  |- index-123         - SMILE serialized {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} for
+ *      |  |  |- index-123         - SMILE serialized {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} for
  *      |  |  |                      the shard (files with numeric suffixes were created by older versions, newer ES versions use a uuid
  *      |  |  |                      suffix instead)
  *      |  |
@@ -183,7 +183,7 @@
  *
  * <ol>
  * <li>Create the {@link org.apache.lucene.index.IndexCommit} for the shard to snapshot.</li>
- * <li>Get the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
+ * <li>Get the {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
  * with name {@code index-${uuid}} with the {@code uuid} generation returned by
  * {@link org.opensearch.repositories.ShardGenerations#getShardGen} to get the information of what segment files are
  * already available in the blobstore.</li>
@@ -191,7 +191,7 @@
  * that need to be written to the blob store. For each segment that needs to be added to the blob store, generate a unique name by combining
  * the segment data blob prefix {@code __} and a UUID and write the segment to the blobstore.</li>
  * <li>After completing all segment writes, a blob containing a
- * {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} with name {@code snap-${snapshot-uuid}.dat} is written to
+ * {@link org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} with name {@code snap-${snapshot-uuid}.dat} is written to
  * the shard's path and contains a list of all the files referenced by the snapshot as well as some metadata about the snapshot. See the
  * documentation of {@code BlobStoreIndexShardSnapshot} for details on its contents.</li>
  * <li>Once all the segments and the {@code BlobStoreIndexShardSnapshot} blob have been written, an updated

@@ -39,7 +39,7 @@ final class StartupException extends RuntimeException {
     /** maximum length of a stacktrace, before we truncate it */
     static final int STACKTRACE_LIMIT = 30;
     /** all lines from this package are RLE-compressed */
-    static final String GUICE_PACKAGE = "org.elasticsearch.common.inject";
+    static final String GUICE_PACKAGE = "org.opensearch.common.inject";
 
     /**
      * Create a new StartupException that will format {@code cause}

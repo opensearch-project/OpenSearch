@@ -19,7 +19,7 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.OpenSearchGenerationException;
+import org.opensearch.OpenSearchGenerationException;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -20,6 +20,6 @@
 /**
  * Search phase that fetches the top hits from the shards after the results of the query phase have been merged. Pluggable by implementing
  * {@link org.opensearch.search.fetch.FetchSubPhase} and
- * {@link org.elasticsearch.plugins.SearchPlugin#getFetchSubPhases(org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext)}.
+ * {@link org.opensearch.plugins.SearchPlugin#getFetchSubPhases(org.opensearch.plugins.SearchPlugin.FetchPhaseConstructionContext)}.
  */
 package org.opensearch.search.fetch;

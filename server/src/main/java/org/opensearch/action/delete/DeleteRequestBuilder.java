@@ -86,7 +86,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public DeleteRequestBuilder setIfSeqNo(long seqNo) {
         request.setIfSeqNo(seqNo);
@@ -98,7 +98,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public DeleteRequestBuilder setIfPrimaryTerm(long term) {
         request.setIfPrimaryTerm(term);

@@ -21,7 +21,7 @@ package org.opensearch.action.bulk;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
+import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.Nullable;

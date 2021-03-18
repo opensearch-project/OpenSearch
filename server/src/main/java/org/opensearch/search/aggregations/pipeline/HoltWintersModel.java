@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.pipeline;
 
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;

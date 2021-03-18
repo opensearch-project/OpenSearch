@@ -19,7 +19,7 @@
 
 package org.opensearch.env;
 
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.util.concurrent.atomic.AtomicBoolean;
