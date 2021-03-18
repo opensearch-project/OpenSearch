@@ -218,9 +218,9 @@ also used in the unstructured text. (Note the annotated_text syntax requires esc
 By repeating the annotation values in a structured field this application has ensured that 
 the tokens discovered in the structured field can be used for search and highlighting 
 in the unstructured field.  
-<2> In this example we search for documents that talk about components of the elastic stack
+<2> In this example we search for documents that talk about components of opensearch
 <3> We use the `my_twitter_handles` field here to discover people who are significantly
-associated with the elastic stack.
+associated with opensearch.
 
 ===== Avoiding over-matching annotations
 By design, the regular text tokens and the annotation tokens co-exist in the same indexed 

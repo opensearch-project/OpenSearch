@@ -245,7 +245,7 @@ GET news/_search
 --------------------------------------------------
 // TEST[setup:news]
 
-The results from analysing our deduplicated text are obviously of higher quality to anyone familiar with the elastic stack:
+The results from analysing our deduplicated text are obviously of higher quality to anyone familiar with opensearch:
 
 [source,js]
 --------------------------------------------------
