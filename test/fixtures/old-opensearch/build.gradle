@@ -17,13 +17,14 @@
  * under the License.
  */
 
+//TODO(OpenSearch): Remove later if not needed.
 description = """\
 Launches versions of Elasticsearch prior to 5.0 for testing.
 These need special handling because they do not support writing
 a "ports" file with the port on which Elasticsearch is running.
 """
 
-apply plugin: 'elasticsearch.java'
+apply plugin: 'opensearch.java'
 test.enabled = false
 
 dependencies {
