@@ -25,7 +25,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.opensearch.common.Randomness;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;

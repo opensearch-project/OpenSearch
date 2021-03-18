@@ -23,7 +23,7 @@ import org.opensearch.cli.Command;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import java.io.IOException;
 import java.nio.file.Files;
