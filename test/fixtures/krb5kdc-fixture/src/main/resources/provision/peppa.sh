@@ -2,7 +2,7 @@
 
 set -e
 
-addprinc.sh elasticsearch
+addprinc.sh opensearch
 addprinc.sh HTTP/localhost
 addprinc.sh peppa
 addprinc.sh george          dino
