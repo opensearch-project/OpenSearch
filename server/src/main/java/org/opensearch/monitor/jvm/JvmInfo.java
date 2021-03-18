@@ -158,7 +158,7 @@ public class JvmInfo implements ReportingService.Info {
 
         }
 
-        final boolean bundledJdk = Booleans.parseBoolean(System.getProperty("es.bundled_jdk", Boolean.FALSE.toString()));
+        final boolean bundledJdk = Booleans.parseBoolean(System.getProperty("opensearch.bundled_jdk", Boolean.FALSE.toString()));
         final Boolean usingBundledJdk = bundledJdk ? usingBundledJdk() : null;
 
         INSTANCE = new JvmInfo(JvmPid.getPid(), System.getProperty("java.version"), runtimeMXBean.getVmName(), runtimeMXBean.getVmVersion(),

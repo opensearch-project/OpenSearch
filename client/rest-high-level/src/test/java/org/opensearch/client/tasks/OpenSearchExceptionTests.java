@@ -34,7 +34,7 @@ public class OpenSearchExceptionTests extends AbstractResponseTestCase<org.opens
         IllegalArgumentException iae = new IllegalArgumentException("argument", ies);
         org.opensearch.OpenSearchException exception = new org.opensearch.OpenSearchException("elastic_exception", iae);
         exception.addHeader("key","value");
-        exception.addMetadata("es.meta","data");
+        exception.addMetadata("opensearch.meta","data");
         exception.addSuppressed(new NumberFormatException("3/0"));
         return exception;
     }

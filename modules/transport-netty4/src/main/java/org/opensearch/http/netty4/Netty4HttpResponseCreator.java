@@ -39,7 +39,7 @@ import java.util.List;
 @ChannelHandler.Sharable
 class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
 
-    private static final String DO_NOT_SPLIT = "es.unsafe.do_not_split_http_responses";
+    private static final String DO_NOT_SPLIT = "opensearch.unsafe.do_not_split_http_responses";
 
     private static final boolean DO_NOT_SPLIT_HTTP_RESPONSES;
     private static final int SPLIT_THRESHOLD;

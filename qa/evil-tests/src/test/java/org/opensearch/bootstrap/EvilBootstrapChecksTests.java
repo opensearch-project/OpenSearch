@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.opensearch.bootstrap.BootstrapChecks.ES_ENFORCE_BOOTSTRAP_CHECKS;
+import static org.opensearch.bootstrap.BootstrapChecks.OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -41,7 +41,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
-    private String esEnforceBootstrapChecks = System.getProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
+    private String esEnforceBootstrapChecks = System.getProperty(OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS);
 
     @Override
     @Before
@@ -88,16 +88,16 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 IllegalArgumentException.class,
                 () -> BootstrapChecks.check(emptyContext, enforceLimits, emptyList()));
         final Matcher<String> matcher = containsString(
-                "[es.enforce.bootstrap.checks] must be [true] but was [" + value + "]");
+                "[opensearch.enforce.bootstrap.checks] must be [true] but was [" + value + "]");
         assertThat(e, hasToString(matcher));
     }
 
-    @SuppressForbidden(reason = "set or clear system property es.enforce.bootstrap.checks")
+    @SuppressForbidden(reason = "set or clear system property opensearch.enforce.bootstrap.checks")
     public void setEsEnforceBootstrapChecks(final String value) {
         if (value == null) {
-            System.clearProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
+            System.clearProperty(OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS);
         } else {
-            System.setProperty(ES_ENFORCE_BOOTSTRAP_CHECKS, value);
+            System.setProperty(OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS, value);
         }
     }
 

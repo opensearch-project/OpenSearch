@@ -65,7 +65,7 @@ testClusters.yamlRestTest {
   // use gce fixture for Auth calls instead of http://metadata.google.internal
   environment 'GCE_METADATA_HOST', { "http://${gceFixture.addressAndPort}" }, IGNORE_VALUE
   // allows to configure hidden settings (`cloud.gce.host` and `cloud.gce.root_url`)
-  systemProperty 'es.allow_reroute_gce_settings', 'true'
+  systemProperty 'opensearch.allow_reroute_gce_settings', 'true'
 
   setting 'discovery.seed_providers', 'gce'
   // use gce fixture for metadata server calls instead of http://metadata.google.internal

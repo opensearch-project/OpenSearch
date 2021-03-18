@@ -44,16 +44,16 @@ public class NettyAllocator {
     private static final ByteBufAllocator ALLOCATOR;
     private static final String DESCRIPTION;
 
-    private static final String USE_UNPOOLED = "es.use_unpooled_allocator";
-    private static final String USE_NETTY_DEFAULT = "es.unsafe.use_netty_default_allocator";
-    private static final String USE_NETTY_DEFAULT_CHUNK = "es.unsafe.use_netty_default_chunk_and_page_size";
+    private static final String USE_UNPOOLED = "opensearch.use_unpooled_allocator";
+    private static final String USE_NETTY_DEFAULT = "opensearch.unsafe.use_netty_default_allocator";
+    private static final String USE_NETTY_DEFAULT_CHUNK = "opensearch.unsafe.use_netty_default_chunk_and_page_size";
 
     static {
         if (Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT), false)) {
             ALLOCATOR = ByteBufAllocator.DEFAULT;
             SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
             DESCRIPTION = "[name=netty_default, suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
-                + ", factors={es.unsafe.use_netty_default_allocator=true}]";
+                + ", factors={opensearch.unsafe.use_netty_default_allocator=true}]";
         } else {
             final long heapSizeInBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
             final boolean g1gcEnabled = Boolean.parseBoolean(JvmInfo.jvmInfo().useG1GC());
@@ -73,7 +73,7 @@ public class NettyAllocator {
                     SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
                 }
                 DESCRIPTION = "[name=unpooled, suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
-                    + ", factors={es.unsafe.use_unpooled_allocator=" + System.getProperty(USE_UNPOOLED)
+                    + ", factors={opensearch.unsafe.use_unpooled_allocator=" + System.getProperty(USE_UNPOOLED)
                     + ", g1gc_enabled=" + g1gcEnabled
                     + ", g1gc_region_size=" + g1gcRegionSize
                     + ", heap_size=" + heapSize + "}]";
@@ -108,7 +108,7 @@ public class NettyAllocator {
                 SUGGESTED_MAX_ALLOCATION_SIZE = chunkSizeInBytes;
                 DESCRIPTION = "[name=opensearch_configured, chunk_size=" + chunkSize
                     + ", suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
-                    + ", factors={es.unsafe.use_netty_default_chunk_and_page_size=" + useDefaultChunkAndPageSize()
+                    + ", factors={opensearch.unsafe.use_netty_default_chunk_and_page_size=" + useDefaultChunkAndPageSize()
                     + ", g1gc_enabled=" + g1gcEnabled
                     + ", g1gc_region_size=" + g1gcRegionSize + "}]";
             }

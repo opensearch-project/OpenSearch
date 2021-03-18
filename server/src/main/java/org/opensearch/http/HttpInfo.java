@@ -36,7 +36,7 @@ public class HttpInfo implements ReportingService.Info {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(HttpInfo.class);
 
     /** Deprecated property, just here for deprecation logging in 7.x. */
-    private static final boolean CNAME_IN_PUBLISH_HOST = System.getProperty("es.http.cname_in_publish_address") != null;
+    private static final boolean CNAME_IN_PUBLISH_HOST = System.getProperty("opensearch.http.cname_in_publish_address") != null;
 
     private final BoundTransportAddress address;
     private final long maxContentLength;
@@ -74,7 +74,7 @@ public class HttpInfo implements ReportingService.Info {
         if (CNAME_IN_PUBLISH_HOST) {
             deprecationLogger.deprecate(
                 "cname_in_publish_address",
-                "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
+                "opensearch.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
                     "formatting. Remove this property to get rid of this deprecation warning."
             );
         }

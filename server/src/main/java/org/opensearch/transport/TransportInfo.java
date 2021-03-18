@@ -41,7 +41,7 @@ public class TransportInfo implements ReportingService.Info {
 
     /** Whether to add hostname to publish host field when serializing. */
     private static final boolean CNAME_IN_PUBLISH_ADDRESS =
-            parseBoolean(System.getProperty("es.transport.cname_in_publish_address"), false);
+            parseBoolean(System.getProperty("opensearch.transport.cname_in_publish_address"), false);
 
     private final BoundTransportAddress address;
     private Map<String, BoundTransportAddress> profileAddresses;

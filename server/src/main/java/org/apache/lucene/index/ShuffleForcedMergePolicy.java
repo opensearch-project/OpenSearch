@@ -35,7 +35,7 @@ import java.util.Map;
  * first, to be efficient at finding the most recent documents too.
  */
 public class ShuffleForcedMergePolicy extends FilterMergePolicy {
-    private static final String SHUFFLE_MERGE_KEY = "es.shuffle_merge";
+    private static final String SHUFFLE_MERGE_KEY = "opensearch.shuffle_merge";
 
     public ShuffleForcedMergePolicy(MergePolicy in) {
         super(in);

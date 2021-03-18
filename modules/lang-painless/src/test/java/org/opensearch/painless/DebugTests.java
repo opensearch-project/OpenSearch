@@ -45,16 +45,16 @@ public class DebugTests extends ScriptTestCase {
         PainlessExplainError e = expectScriptThrows(PainlessExplainError.class, () -> exec(
                 "Debug.explain(params.a)", singletonMap("a", dummy), true));
         assertSame(dummy, e.getObjectToExplain());
-        assertThat(e.getHeaders(painlessLookup), hasEntry("es.to_string", singletonList(dummy.toString())));
-        assertThat(e.getHeaders(painlessLookup), hasEntry("es.java_class", singletonList("java.lang.Object")));
-        assertThat(e.getHeaders(painlessLookup), hasEntry("es.painless_class", singletonList("java.lang.Object")));
+        assertThat(e.getHeaders(painlessLookup), hasEntry("opensearch.to_string", singletonList(dummy.toString())));
+        assertThat(e.getHeaders(painlessLookup), hasEntry("opensearch.java_class", singletonList("java.lang.Object")));
+        assertThat(e.getHeaders(painlessLookup), hasEntry("opensearch.painless_class", singletonList("java.lang.Object")));
 
         // Null should be ok
         e = expectScriptThrows(PainlessExplainError.class, () -> exec("Debug.explain(null)"));
         assertNull(e.getObjectToExplain());
-        assertThat(e.getHeaders(painlessLookup), hasEntry("es.to_string", singletonList("null")));
-        assertThat(e.getHeaders(painlessLookup), not(hasKey("es.java_class")));
-        assertThat(e.getHeaders(painlessLookup), not(hasKey("es.painless_class")));
+        assertThat(e.getHeaders(painlessLookup), hasEntry("opensearch.to_string", singletonList("null")));
+        assertThat(e.getHeaders(painlessLookup), not(hasKey("opensearch.java_class")));
+        assertThat(e.getHeaders(painlessLookup), not(hasKey("opensearch.painless_class")));
 
         // You can't catch the explain exception
         e = expectScriptThrows(PainlessExplainError.class, () -> exec(
@@ -72,17 +72,17 @@ public class DebugTests extends ScriptTestCase {
     public void testPainlessExplainErrorSerialization() throws IOException {
         Map<String, Object> params = singletonMap("a", "jumped over the moon");
         ScriptException e = expectThrows(ScriptException.class, () -> exec("Debug.explain(params.a)", params, true));
-        assertEquals(singletonList("jumped over the moon"), e.getMetadata("es.to_string"));
-        assertEquals(singletonList("java.lang.String"), e.getMetadata("es.java_class"));
-        assertEquals(singletonList("java.lang.String"), e.getMetadata("es.painless_class"));
+        assertEquals(singletonList("jumped over the moon"), e.getMetadata("opensearch.to_string"));
+        assertEquals(singletonList("java.lang.String"), e.getMetadata("opensearch.java_class"));
+        assertEquals(singletonList("java.lang.String"), e.getMetadata("opensearch.painless_class"));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeException(e);
             try (StreamInput in = out.bytes().streamInput()) {
                 OpenSearchException read = (ScriptException) in.readException();
-                assertEquals(singletonList("jumped over the moon"), read.getMetadata("es.to_string"));
-                assertEquals(singletonList("java.lang.String"), read.getMetadata("es.java_class"));
-                assertEquals(singletonList("java.lang.String"), read.getMetadata("es.painless_class"));
+                assertEquals(singletonList("jumped over the moon"), read.getMetadata("opensearch.to_string"));
+                assertEquals(singletonList("java.lang.String"), read.getMetadata("opensearch.java_class"));
+                assertEquals(singletonList("java.lang.String"), read.getMetadata("opensearch.painless_class"));
             }
         }
     }

@@ -86,8 +86,8 @@ public class JsonLoggerTests extends OpenSearchTestCase {
             testLogger.deprecate("someKey", "deprecated message1");
 
             final Path path = PathUtils.get(
-                System.getProperty("es.logs.base_path"),
-                System.getProperty("es.logs.cluster_name") + "_deprecated.json"
+                System.getProperty("opensearch.logs.base_path"),
+                System.getProperty("opensearch.logs.cluster_name") + "_deprecated.json"
             );
 
             try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
@@ -122,8 +122,8 @@ public class JsonLoggerTests extends OpenSearchTestCase {
         testLogger.info(new DeprecatedMessage("key", null, "deprecated message3"));
         testLogger.info("deprecated message4");
 
-        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-            System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+        final Path path = PathUtils.get(System.getProperty("opensearch.logs.base_path"),
+            System.getProperty("opensearch.logs.cluster_name") + "_deprecated.json");
         try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
             List<Map<String, String>> jsonLogs = stream
                 .collect(Collectors.toList());
@@ -283,8 +283,8 @@ public class JsonLoggerTests extends OpenSearchTestCase {
             deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
 
-            final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-                System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+            final Path path = PathUtils.get(System.getProperty("opensearch.logs.base_path"),
+                System.getProperty("opensearch.logs.cluster_name") + "_deprecated.json");
             try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
                 List<Map<String, String>> jsonLogs = stream
                     .collect(Collectors.toList());
@@ -312,8 +312,8 @@ public class JsonLoggerTests extends OpenSearchTestCase {
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(
-                System.getProperty("es.logs.base_path"),
-                System.getProperty("es.logs.cluster_name") + "_deprecated.json"
+                System.getProperty("opensearch.logs.base_path"),
+                System.getProperty("opensearch.logs.cluster_name") + "_deprecated.json"
             );
             try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
                 List<Map<String, String>> jsonLogs = stream.collect(Collectors.toList());
@@ -352,7 +352,7 @@ public class JsonLoggerTests extends OpenSearchTestCase {
     }
 
     private Path clusterLogsPath() {
-        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".log");
+        return PathUtils.get(System.getProperty("opensearch.logs.base_path"), System.getProperty("opensearch.logs.cluster_name") + ".log");
     }
 
     private void setupLogging(final String config) throws IOException, UserException {

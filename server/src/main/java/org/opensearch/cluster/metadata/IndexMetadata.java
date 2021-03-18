@@ -138,9 +138,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * if a cluster should allow to create more than 1024 shards per index. NOTE: this does not limit the number of shards
          * per cluster. this also prevents creating stuff like a new index with millions of shards by accident which essentially
          * kills the entire cluster with OOM on the spot.*/
-        final int maxNumShards = Integer.parseInt(System.getProperty("es.index.max_number_of_shards", "1024"));
+        final int maxNumShards = Integer.parseInt(System.getProperty("opensearch.index.max_number_of_shards", "1024"));
         if (maxNumShards < 1) {
-            throw new IllegalArgumentException("es.index.max_number_of_shards must be > 0");
+            throw new IllegalArgumentException("opensearch.index.max_number_of_shards must be > 0");
         }
         return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, 1, 1, maxNumShards, Property.IndexScope, Property.Final);
     }

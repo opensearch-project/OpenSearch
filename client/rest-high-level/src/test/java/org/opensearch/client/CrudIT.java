@@ -126,7 +126,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[" + docId + "]: " +
                 "version conflict, required seqNo [2], primary term [2]. current document has seqNo [3] and primary term [1]]",
                 exception.getMessage());
-            assertEquals("index", exception.getMetadata("es.index").get(0));
+            assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         {
             // Testing version type
@@ -154,7 +154,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(RestStatus.CONFLICT, exception.status());
             assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[" +
                 docId + "]: version conflict, current version [12] is higher or equal to the one provided [10]]", exception.getMessage());
-            assertEquals("index", exception.getMetadata("es.index").get(0));
+            assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         {
             // Testing routing
@@ -300,7 +300,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                     () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
-            assertEquals("index", exception.getMetadata("es.index").get(0));
+            assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         IndexRequest index = new IndexRequest("index").id("id");
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
@@ -314,7 +314,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(RestStatus.CONFLICT, exception.status());
             assertEquals("OpenSearch exception [type=version_conflict_engine_exception, " + "reason=[id]: " +
                     "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
-            assertEquals("index", exception.getMetadata("es.index").get(0));
+            assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         {
             GetRequest getRequest = new GetRequest("index", "id");
@@ -493,7 +493,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 () -> execute(getRequest, highLevelClient()::getSource, highLevelClient()::getSourceAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertEquals("OpenSearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
-            assertEquals("index", exception.getMetadata("es.index").get(0));
+            assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         IndexRequest index = new IndexRequest("index").id("id");
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
@@ -606,7 +606,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals("OpenSearch exception [type=version_conflict_engine_exception, reason=[id]: " +
                          "version conflict, required seqNo [1], primary term [5]. current document has seqNo [2] and primary term [1]]",
                 exception.getMessage());
-            assertEquals("index", exception.getMetadata("es.index").get(0));
+            assertEquals("index", exception.getMetadata("opensearch.index").get(0));
         }
         {
             OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> {

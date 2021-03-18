@@ -63,12 +63,12 @@ public class PainlessExplainError extends Error {
             }
         }
 
-        headers.put("es.to_string", singletonList(toString));
+        headers.put("opensearch.to_string", singletonList(toString));
         if (painlessClassName != null) {
-            headers.put("es.painless_class", singletonList(painlessClassName));
+            headers.put("opensearch.painless_class", singletonList(painlessClassName));
         }
         if (javaClassName != null) {
-            headers.put("es.java_class", singletonList(javaClassName));
+            headers.put("opensearch.java_class", singletonList(javaClassName));
         }
         return headers;
     }
