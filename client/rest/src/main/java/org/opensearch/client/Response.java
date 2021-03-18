@@ -145,7 +145,7 @@ public class Response {
     }
 
     /**
-     * Refer to org.elasticsearch.common.logging.DeprecationLogger
+     * Refer to org.opensearch.common.logging.DeprecationLogger
      */
     private static String extractWarningValueFromWarningHeader(final String s) {
         String warningHeader = s;

@@ -19,7 +19,7 @@
 
 package org.opensearch.client;
 
-import org.elasticsearch.client.RequestOptions;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.DocWriteRequest;
@@ -54,8 +54,8 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.get.GetResult;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.get.GetResult;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.rest.action.document.RestDeleteAction;

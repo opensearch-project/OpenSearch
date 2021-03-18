@@ -19,8 +19,8 @@
 
 package org.opensearch.client;
 
-import org.elasticsearch.client.Cancellable;
-import org.elasticsearch.client.RequestOptions;
+import org.opensearch.client.Cancellable;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -1790,10 +1790,10 @@ public final class IndicesClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
-    public org.elasticsearch.client.core.AcknowledgedResponse deleteAlias(DeleteAliasRequest request,
+    public org.opensearch.client.core.AcknowledgedResponse deleteAlias(DeleteAliasRequest request,
                                                                           RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::deleteAlias, options,
-            org.elasticsearch.client.core.AcknowledgedResponse::fromXContent, emptySet());
+            org.opensearch.client.core.AcknowledgedResponse::fromXContent, emptySet());
     }
 
     /**
@@ -1804,8 +1804,8 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable deleteAliasAsync(DeleteAliasRequest request, RequestOptions options,
-                                                ActionListener<org.elasticsearch.client.core.AcknowledgedResponse> listener) {
+                                                ActionListener<org.opensearch.client.core.AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteAlias, options,
-            org.elasticsearch.client.core.AcknowledgedResponse::fromXContent, listener, emptySet());
+            org.opensearch.client.core.AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 }

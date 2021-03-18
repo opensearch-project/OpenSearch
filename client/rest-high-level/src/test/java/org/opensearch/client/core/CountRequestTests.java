@@ -21,7 +21,7 @@ package org.opensearch.client.core;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.AbstractRequestTestCase;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;

@@ -42,7 +42,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  * The format is pretty horrible as it holds aliases, but at the same time errors can come back through the status and error fields.
  * Such errors are mostly 404 - NOT FOUND for aliases that were specified but not found. In such case the client won't throw exception
  * so it allows to retrieve the returned aliases, while at the same time checking if errors were returned.
- * There's also the case where an exception is returned, like for instance an {@link org.elasticsearch.index.IndexNotFoundException}.
+ * There's also the case where an exception is returned, like for instance an {@link org.opensearch.index.IndexNotFoundException}.
  * We would usually throw such exception, but we configure the client to not throw for 404 to support the case above, hence we also not
  * throw in case an index is not found, although it is a hard error that doesn't come back with aliases.
  */

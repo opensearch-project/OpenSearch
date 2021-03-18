@@ -25,10 +25,6 @@ import org.apache.http.RequestLine;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.WarningFailureException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 

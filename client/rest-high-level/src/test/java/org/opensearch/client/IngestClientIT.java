@@ -32,7 +32,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.ingest.PipelineConfiguration;
+import org.opensearch.ingest.PipelineConfiguration;
 
 import java.io.IOException;
 import java.util.List;
