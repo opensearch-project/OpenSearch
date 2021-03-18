@@ -19,10 +19,6 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
-
 public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
                 Request extends AbstractBulkByScrollRequest<Request>,
                 Response extends BulkByScrollResponse>

@@ -20,10 +20,8 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;

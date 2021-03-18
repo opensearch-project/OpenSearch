@@ -45,7 +45,7 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new MapperExtrasPlugin());
+        return org.opensearch.common.collect.List.of(new MapperExtrasPlugin());
     }
 
     @Override

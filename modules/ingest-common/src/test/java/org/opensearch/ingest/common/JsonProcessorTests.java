@@ -24,7 +24,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.test.OpenSearchTestCase;
 

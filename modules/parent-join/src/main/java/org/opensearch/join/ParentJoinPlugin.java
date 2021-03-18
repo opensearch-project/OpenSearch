@@ -19,7 +19,7 @@
 
 package org.opensearch.join;
 
-import org.elasticsearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
 import org.opensearch.join.aggregations.InternalChildren;
 import org.opensearch.join.aggregations.InternalParent;

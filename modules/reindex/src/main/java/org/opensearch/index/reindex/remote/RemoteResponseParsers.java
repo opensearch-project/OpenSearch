@@ -33,10 +33,10 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentLocation;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.opensearch.index.reindex.ScrollableHitSource.BasicHit;
+import org.opensearch.index.reindex.ScrollableHitSource.Hit;
+import org.opensearch.index.reindex.ScrollableHitSource.Response;
+import org.opensearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.opensearch.search.SearchHits;
 
 import java.io.IOException;

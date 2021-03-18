@@ -20,12 +20,12 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestDocument.Metadata;
+import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestTemplateService;
-import org.elasticsearch.ingest.ValueSource;
+import org.opensearch.ingest.ValueSource;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -190,7 +190,7 @@ public class AppendProcessorTests extends OpenSearchTestCase {
         appendProcessor.execute(ingestDocument);
         List<?> list = ingestDocument.getFieldValue(field, List.class);
         assertThat(list.size(), equalTo(2));
-        assertThat(list, equalTo(org.elasticsearch.common.collect.List.of(originalValue, newValue)));
+        assertThat(list, equalTo(org.opensearch.common.collect.List.of(originalValue, newValue)));
     }
 
     public void testAppendingToListWithDuplicatesDisallowed() throws Exception {

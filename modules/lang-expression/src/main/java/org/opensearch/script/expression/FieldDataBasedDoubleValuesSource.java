@@ -23,7 +23,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData;
 
 import java.util.Objects;
 

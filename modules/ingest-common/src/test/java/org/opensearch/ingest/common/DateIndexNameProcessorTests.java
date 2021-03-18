@@ -19,7 +19,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.common.time.DateFormatter;
-import org.elasticsearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.test.OpenSearchTestCase;
 

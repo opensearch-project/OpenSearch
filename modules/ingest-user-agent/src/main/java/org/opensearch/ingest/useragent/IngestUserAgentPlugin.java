@@ -20,7 +20,7 @@
 package org.opensearch.ingest.useragent;
 
 import org.opensearch.common.settings.Setting;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.Processor;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.Plugin;
 
