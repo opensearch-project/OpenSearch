@@ -1,7 +1,7 @@
 [[modules-plugins]]
 == Plugins
 
-Plugins are a way to enhance the basic Elasticsearch functionality in a
+Plugins are a way to enhance the basic OpenSearch functionality in a
 custom manner. They range from adding custom mapping types, custom
 analyzers (in a more built in fashion), custom script engines, custom discovery
 and more.

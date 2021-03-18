@@ -1,22 +1,23 @@
 [[deb]]
-=== Install Elasticsearch with Debian Package
+=== Install OpenSearch with Debian Package
 
-The Debian package for Elasticsearch can be <<install-deb,downloaded from our website>>
+The Debian package for OpenSearch can be <<install-deb,downloaded from our website>>
 or from our <<deb-repo,APT repository>>. It can be used to install
-Elasticsearch on any Debian-based system such as Debian and Ubuntu.
+OpenSearch on any Debian-based system such as Debian and Ubuntu.
 
 include::license.asciidoc[]
 
-The latest stable version of Elasticsearch can be found on the
-link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
+// TODO(OpenSearch): Correct the links
+The latest stable version of OpenSearch can be found on the
+link:/downloads/elasticsearch[Download OpenSearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
+NOTE: OpenSearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
 [[deb-key]]
-==== Import the Elasticsearch PGP Key
+==== Import the OpenSearch PGP Key
 
 include::key.asciidoc[]
 
@@ -30,7 +31,7 @@ wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+Version {version} of OpenSearch has not yet been released.
 
 endif::[]
 
@@ -83,7 +84,7 @@ These instructions do not use `add-apt-repository` for several reasons:
 
 ==================================================
 
-You can install the Elasticsearch Debian package with:
+You can install the OpenSearch Debian package with:
 
 [source,sh]
 --------------------------------------------------
@@ -92,7 +93,7 @@ sudo apt-get update && sudo apt-get install opensearch
 
 [WARNING]
 ==================================================
-If two entries exist for the same Elasticsearch repository, you will see an error like this during `apt-get update`:
+If two entries exist for the same OpenSearch repository, you will see an error like this during `apt-get update`:
 
 ["literal",subs="attributes,callouts"]
 
@@ -140,13 +141,13 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+Version {version} of OpenSearch has not yet been released.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The Debian package for Elasticsearch v{version} can be downloaded from the website and installed as follows:
+The Debian package for OpenSearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -179,7 +180,7 @@ include::systemd.asciidoc[]
 include::check-running.asciidoc[]
 
 [[deb-configuring]]
-==== Configuring Elasticsearch
+==== Configuring OpenSearch
 
 include::etc-opensearch.asciidoc[]
 
@@ -203,7 +204,7 @@ locations for a Debian-based system:
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `$OPENSEARCH_HOME`
+  | OpenSearch home directory or `$OPENSEARCH_HOME`
   | /usr/share/opensearch
  d|
 
@@ -230,7 +231,7 @@ locations for a Debian-based system:
   | path.data
 
 | jdk
-  | The bundled Java Development Kit used to run Elasticsearch. Can
+  | The bundled Java Development Kit used to run OpenSearch. Can
     be overridden by setting the `JAVA_HOME` environment variable
     in `/etc/default/opensearch`.
   | /usr/share/opensearch/jdk

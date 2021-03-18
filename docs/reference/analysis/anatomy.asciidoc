@@ -7,7 +7,7 @@ _tokenizers_, and _token filters_.
 
 The built-in <<analysis-analyzers,analyzers>> pre-package these building
 blocks into analyzers suitable for different languages and types of text.
-Elasticsearch also exposes the individual building blocks so that they can be
+OpenSearch also exposes the individual building blocks so that they can be
 combined to define new <<analysis-custom-analyzer,`custom`>> analyzers.
 
 [[analyzer-anatomy-character-filters]]

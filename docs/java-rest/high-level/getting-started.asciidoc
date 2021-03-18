@@ -6,25 +6,25 @@ getting the artifact to using it in an application.
 
 [[java-rest-high-compatibility]]
 === Compatibility
-The Java High Level REST Client requires at least Java 1.8 and depends on the Elasticsearch
-core project. The client version is the same as the Elasticsearch version that the
+The Java High Level REST Client requires at least Java 1.8 and depends on the OpenSearch
+core project. The client version is the same as the OpenSearch version that the
 client was developed for. It accepts the same request arguments as the `TransportClient`
 and returns the same response objects. See the <<java-rest-high-level-migration>>
 if you need to migrate an application from `TransportClient` to the new REST client.
 
-The High Level Client is guaranteed to be able to communicate with any Elasticsearch
+The High Level Client is guaranteed to be able to communicate with any OpenSearch
 node running on the same major version and greater or equal minor version. It
-doesn't need to be in the same minor version as the Elasticsearch nodes it
+doesn't need to be in the same minor version as the OpenSearch nodes it
 communicates with, as it is forward compatible meaning that it supports
-communicating with later versions of Elasticsearch than the one it was developed for.
+communicating with later versions of OpenSearch than the one it was developed for.
 
-The 6.0 client is able to communicate with any 6.x Elasticsearch node, while the 6.1
+The 6.0 client is able to communicate with any 6.x OpenSearch node, while the 6.1
 client is for sure able to communicate with 6.1, 6.2 and any later 6.x version, but
-there may be incompatibility issues when communicating with a previous Elasticsearch
+there may be incompatibility issues when communicating with a previous OpenSearch
 node version, for instance between 6.1 and 6.0, in case the 6.1 client supports new
 request body fields for some APIs that are not known by the 6.0 node(s).
 
-It is recommended to upgrade the High Level Client when upgrading the Elasticsearch
+It is recommended to upgrade the High Level Client when upgrading the OpenSearch
 cluster to a new major version, as REST API breaking changes may cause unexpected
 results depending on the node that is hit by the request, and newly added APIs will
 only be supported by the newer version of the client. The client should always be
@@ -44,7 +44,7 @@ https://search.maven.org/search?q=g:org.opensearch.client[Maven
 Central]. The minimum Java version required is `1.8`.
 
 The High Level REST Client is subject to the same release cycle as
-Elasticsearch. Replace the version with the desired client version.
+OpenSearch. Replace the version with the desired client version.
 
 If you are looking for a SNAPSHOT version, you should add our snapshot repository to your Maven config:
 
@@ -168,7 +168,7 @@ will be referenced as `client`.
 === RequestOptions
 
 All APIs in the `RestHighLevelClient` accept a `RequestOptions` which you can
-use to customize the request in ways that won't change how Elasticsearch
+use to customize the request in ways that won't change how OpenSearch
 executes the request. For example, this is the place where you'd specify a
 `NodeSelector` to control which node receives the request. See the
 <<java-rest-low-usage-request-options,low level client documentation>> for
@@ -190,7 +190,7 @@ type of the synchronous method.
 All asynchronous methods return a `Cancellable` object with a `cancel` method that you may call 
 in case you want to abort the request. Cancelling
 no longer needed requests is a good way to avoid putting unnecessary 
-load on Elasticsearch.
+load on OpenSearch.
 
 Using the `Cancellable` instance is optional and you can safely ignore this if you have 
 no need for this. A use case for this would be using this with e.g. Kotlin's `suspendCancellableCoRoutine`. 

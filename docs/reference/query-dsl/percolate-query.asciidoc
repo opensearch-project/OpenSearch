@@ -35,7 +35,7 @@ The `message` field is the field used to preprocess the document defined in
 the `percolator` query before it gets indexed into a temporary index.
 
 The `query` field is used for indexing the query documents. It will hold a
-json object that represents an actual Elasticsearch query. The `query` field
+json object that represents an actual OpenSearch query. The `query` field
 has been configured to use the <<percolator,percolator field type>>. This field
 type understands the query dsl and stores the query in such a way that it can be
 used later on to match documents defined on the `percolate` query.
@@ -134,7 +134,7 @@ The following parameters are required when percolating a document:
          This is an optional parameter.
 `document`:: The source of the document being percolated.
 `documents`:: Like the `document` parameter, but accepts multiple documents via a json array.
-`document_type`:: The type / mapping of the document being percolated. This parameter is deprecated and will be removed in Elasticsearch 8.0.
+`document_type`:: The type / mapping of the document being percolated.
 
 Instead of specifying the source of the document being percolated, the source can also be retrieved from an already
 stored document. The `percolate` query will then internally execute a get request to fetch that document.
@@ -143,7 +143,7 @@ In that case the `document` parameter can be substituted with the following para
 
 [horizontal]
 `index`:: The index the document resides in. This is a required parameter.
-`type`:: The type of the document to fetch. This parameter is deprecated and will be removed in Elasticsearch 8.0.
+`type`:: The type of the document to fetch.
 `id`:: The id of the document to fetch. This is a required parameter.
 `routing`:: Optionally, routing to be used to fetch document to percolate.
 `preference`:: Optionally, preference to be used to fetch document to percolate.

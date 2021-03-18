@@ -1,7 +1,7 @@
 [[mapping-field-meta]]
 === `meta`
 
-Metadata attached to the field. This metadata is opaque to Elasticsearch, it is
+Metadata attached to the field. This metadata is opaque to OpenSearch, it is
 only useful for multiple applications that work on the same indices to share
 meta information about fields such as units
 

@@ -1,5 +1,5 @@
 [[opensearch-reference]]
-= Elasticsearchリファレンス
+= OpenSearchリファレンス
 
 include::../Versions.asciidoc[]
 

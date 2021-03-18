@@ -29,7 +29,7 @@ POST /_aliases
 [[indices-aliases-api-desc]]
 ==== {api-description-title}
 
-APIs in Elasticsearch accept an index name when working against a
+APIs in OpenSearch accept an index name when working against a
 specific index, and several indices when applicable. The index aliases
 API allows aliasing an index with a name, with all APIs automatically
 converting the alias name to the actual index name. An alias can also be

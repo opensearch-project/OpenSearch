@@ -18,7 +18,7 @@ end with the `async` suffix, require a listener argument that is notified
 (on the thread pool managed by the low level client) once a response or an
 error is received.
 
-The Java High Level REST Client depends on the Elasticsearch core project.
+The Java High Level REST Client depends on the OpenSearch core project.
 It accepts the same request arguments as the `TransportClient` and returns
 the same response objects.
 

@@ -1,5 +1,5 @@
 [[opensearch-reference]]
-= Elasticsearch Reference
+= OpenSearch Reference
 
 :opensearch-test-dir:   {OpenSearch-root}/docs/src/test
 :plugins-examples-dir:  {OpenSearch-root}/plugins/examples

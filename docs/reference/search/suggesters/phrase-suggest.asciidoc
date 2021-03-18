@@ -144,7 +144,7 @@ The response contains suggestions scored by the most likely spelling correction 
 `gram_size`::
     Sets max size of the n-grams (shingles) in the `field`.
     If the field doesn't contain n-grams (shingles), this should be omitted
-    or set to `1`. Note that Elasticsearch tries to detect the gram size
+    or set to `1`. Note that OpenSearch tries to detect the gram size
     based on the specified `field`. If the field uses a `shingle` filter, the
     `gram_size` is set to the `max_shingle_size` if not explicitly set.
 

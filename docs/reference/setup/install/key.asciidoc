@@ -1,4 +1,5 @@
-We sign all of our packages with the Elasticsearch Signing Key (PGP key
+// TODO(OpenSearcg): Correct the key
+We sign all of our packages with the OpenSearch Signing Key (PGP key
 https://pgp.mit.edu/pks/lookup?op=vindex&search=0xD27D666CD88E42B4[D88E42B4],
 available from https://pgp.mit.edu) with fingerprint:
 
