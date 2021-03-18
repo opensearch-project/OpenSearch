@@ -15,8 +15,8 @@ POSIX system. You can obtain the PID to send the signal to via various tools (e.
 
 [source,sh]
 --------------------------------------------------
-$ jps | grep Elasticsearch
-14542 Elasticsearch
+$ jps | grep OpenSearch
+14542 OpenSearch
 --------------------------------------------------
 
 From the OpenSearch startup logs:
