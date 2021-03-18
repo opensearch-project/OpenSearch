@@ -19,7 +19,7 @@
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'Lucene expressions integration for OpenSearch'
   classname 'org.opensearch.script.expression.ExpressionPlugin'
 }

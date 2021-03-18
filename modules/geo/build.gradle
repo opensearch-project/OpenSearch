@@ -18,7 +18,7 @@
  */
 apply plugin: 'opensearch.yaml-rest-test'
 
-esplugin {
+opensearchplugin {
   description 'Placeholder plugin for geospatial features in OpenSearch. only registers geo_shape field mapper for now'
   classname 'org.opensearch.geo.GeoPlugin'
 }

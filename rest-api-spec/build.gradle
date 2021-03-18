@@ -1,8 +1,8 @@
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
-apply plugin: 'elasticsearch.rest-resources'
-apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+apply plugin: 'opensearch.rest-resources'
+apply plugin: 'opensearch.validate-rest-spec'
+apply plugin: 'opensearch.yaml-rest-test'
 
 restResources {
   restTests {

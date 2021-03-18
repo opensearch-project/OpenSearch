@@ -2,7 +2,7 @@ plugins {
   id "com.gradle.enterprise" version "3.5"
 }
 
-rootProject.name = "elasticsearch"
+rootProject.name = "OpenSearch"
 
 List projects = [
   'build-tools',
@@ -103,14 +103,14 @@ project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc'
 project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
 
 project(":libs").children.each { libsProject ->
-  libsProject.name = "elasticsearch-${libsProject.name}"
+  libsProject.name = "opensearch-${libsProject.name}"
 }
 
 project(":test:external-modules").children.each { testProject ->
   testProject.name = "test-${testProject.name}"
 }
 
-// look for extra plugins for elasticsearch
+// look for extra plugins for opensearch
 File extraProjects = new File(rootProject.projectDir.parentFile, "${rootProject.projectDir.name}-extra")
 if (extraProjects.exists()) {
   for (File extraProjectDir : extraProjects.listFiles()) {

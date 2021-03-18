@@ -53,7 +53,11 @@ war {
   archiveFileName = 'example-app.war'
 }
 
-elasticsearch_distributions {
+/**
+ * TODO OpenSearch - this task is currently broken and temporarily commented out to
+ * unblock the pre-commit.
+ * Issue URL - https://github.com/opensearch-project/OpenSearch/issues/400
+opensearch_distributions {
   docker {
     type = 'docker'
     architecture = Architecture.current()
@@ -63,9 +67,9 @@ elasticsearch_distributions {
 }
 
 preProcessFixture {
-  dependsOn war, elasticsearch_distributions.docker
+  dependsOn war, opensearch_distributions.docker
 }
-
+*/
 dockerCompose {
   useComposeFiles = ['docker-compose-oss.yml']
 }

@@ -19,7 +19,7 @@
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
-esplugin {
+opensearchplugin {
   description 'This module adds the support parent-child queries and aggregations'
   classname 'org.opensearch.join.ParentJoinPlugin'
   hasClientJar = true
