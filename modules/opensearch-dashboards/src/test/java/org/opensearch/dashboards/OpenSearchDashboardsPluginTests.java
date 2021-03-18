@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.kibana;
+package org.opensearch.dashboards;
 
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
@@ -31,27 +31,27 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
-public class KibanaPluginTests extends OpenSearchTestCase {
+public class OpenSearchDashboardsPluginTests extends OpenSearchTestCase {
 
-    public void testKibanaIndexNames() {
-        assertThat(new KibanaPlugin().getSettings(), contains(KibanaPlugin.KIBANA_INDEX_NAMES_SETTING));
+    public void testOpenSearchDashboardsIndexNames() {
+        assertThat(new OpenSearchDashboardsPlugin().getSettings(), contains(OpenSearchDashboardsPlugin.OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING));
         assertThat(
-            new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY)
+            new OpenSearchDashboardsPlugin().getSystemIndexDescriptors(Settings.EMPTY)
                 .stream()
                 .map(SystemIndexDescriptor::getIndexPattern)
                 .collect(Collectors.toList()),
-            contains(".kibana", ".kibana_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")
+            contains(".opensearch_dashboards", ".opensearch_dashboards_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")
         );
         final List<String> names = Collections.unmodifiableList(Arrays.asList("." + randomAlphaOfLength(4), "." + randomAlphaOfLength(5)));
-        final List<String> namesFromDescriptors = new KibanaPlugin().getSystemIndexDescriptors(
-            Settings.builder().putList(KibanaPlugin.KIBANA_INDEX_NAMES_SETTING.getKey(), names).build()
+        final List<String> namesFromDescriptors = new OpenSearchDashboardsPlugin().getSystemIndexDescriptors(
+            Settings.builder().putList(OpenSearchDashboardsPlugin.OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING.getKey(), names).build()
         ).stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toList());
         assertThat(namesFromDescriptors, is(names));
 
         assertThat(
-            new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY)
+            new OpenSearchDashboardsPlugin().getSystemIndexDescriptors(Settings.EMPTY)
                 .stream()
-                .anyMatch(systemIndexDescriptor -> systemIndexDescriptor.matchesIndexPattern(".kibana-event-log-7-1")),
+                .anyMatch(systemIndexDescriptor -> systemIndexDescriptor.matchesIndexPattern(".opensearch_dashboards-event-log-7-1")),
             is(false)
         );
     }

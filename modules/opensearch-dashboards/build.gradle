@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'opensearch.java-rest-test'
 
 esplugin {
-  description 'Plugin exposing APIs for Kibana system indices'
-  classname 'org.elasticsearch.kibana.KibanaPlugin'
+  description 'Plugin exposing APIs for OpenSearch Dashboards system indices'
+  classname 'org.opensearch.dashboards.OpenSearchDashboardsPlugin'
 }
 
 dependencies {

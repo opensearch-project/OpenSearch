@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.kibana;
+package org.opensearch.dashboards;
 
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -28,7 +28,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.index.reindex.RestDeleteByQueryAction;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.rest.BaseRestHandler;
@@ -62,11 +62,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
-public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
+public class OpenSearchDashboardsPlugin extends Plugin implements SystemIndexPlugin {
 
-    public static final Setting<List<String>> KIBANA_INDEX_NAMES_SETTING = Setting.listSetting(
-        "kibana.system_indices",
-        unmodifiableList(Arrays.asList(".kibana", ".kibana_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")),
+    public static final Setting<List<String>> OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING = Setting.listSetting(
+        "opensearch_dashboards.system_indices",
+        unmodifiableList(Arrays.asList(".opensearch_dashboards", ".opensearch_dashboards_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")),
         Function.identity(),
         Property.NodeScope
     );
@@ -74,9 +74,9 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return unmodifiableList(
-            KIBANA_INDEX_NAMES_SETTING.get(settings)
+            OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING.get(settings)
                 .stream()
-                .map(pattern -> new SystemIndexDescriptor(pattern, "System index used by kibana"))
+                .map(pattern -> new SystemIndexDescriptor(pattern, "System index used by OpenSearch Dashboards"))
                 .collect(Collectors.toList())
         );
     }
@@ -91,35 +91,35 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        // TODO need to figure out what subset of system indices Kibana should have access to via these APIs
+        // TODO need to figure out what subset of system indices OpenSearch Dashboards should have access to via these APIs
         return unmodifiableList(
             Arrays.asList(
                 // Based on https://github.com/elastic/kibana/issues/49764
                 // apis needed to perform migrations... ideally these will go away
-                new KibanaWrappedRestHandler(new RestCreateIndexAction()),
-                new KibanaWrappedRestHandler(new RestGetAliasesAction()),
-                new KibanaWrappedRestHandler(new RestIndexPutAliasAction()),
-                new KibanaWrappedRestHandler(new RestRefreshAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestCreateIndexAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestGetAliasesAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestIndexPutAliasAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestRefreshAction()),
 
                 // apis needed to access saved objects
-                new KibanaWrappedRestHandler(new RestGetAction()),
-                new KibanaWrappedRestHandler(new RestMultiGetAction(settings)),
-                new KibanaWrappedRestHandler(new RestSearchAction()),
-                new KibanaWrappedRestHandler(new RestBulkAction(settings)),
-                new KibanaWrappedRestHandler(new RestDeleteAction()),
-                new KibanaWrappedRestHandler(new RestDeleteByQueryAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestGetAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestMultiGetAction(settings)),
+                new OpenSearchDashboardsWrappedRestHandler(new RestSearchAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestBulkAction(settings)),
+                new OpenSearchDashboardsWrappedRestHandler(new RestDeleteAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestDeleteByQueryAction()),
 
                 // api used for testing
-                new KibanaWrappedRestHandler(new RestUpdateSettingsAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestUpdateSettingsAction()),
 
                 // apis used specifically by reporting
-                new KibanaWrappedRestHandler(new RestGetIndicesAction()),
-                new KibanaWrappedRestHandler(new RestIndexAction()),
-                new KibanaWrappedRestHandler(new CreateHandler()),
-                new KibanaWrappedRestHandler(new AutoIdHandler(nodesInCluster)),
-                new KibanaWrappedRestHandler(new RestUpdateAction()),
-                new KibanaWrappedRestHandler(new RestSearchScrollAction()),
-                new KibanaWrappedRestHandler(new RestClearScrollAction())
+                new OpenSearchDashboardsWrappedRestHandler(new RestGetIndicesAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestIndexAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new CreateHandler()),
+                new OpenSearchDashboardsWrappedRestHandler(new AutoIdHandler(nodesInCluster)),
+                new OpenSearchDashboardsWrappedRestHandler(new RestUpdateAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestSearchScrollAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestClearScrollAction())
             )
         );
 
@@ -127,18 +127,18 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(KIBANA_INDEX_NAMES_SETTING);
+        return Collections.singletonList(OPENSEARCH_DASHBOARDS_INDEX_NAMES_SETTING);
     }
 
-    static class KibanaWrappedRestHandler extends BaseRestHandler.Wrapper {
+    static class OpenSearchDashboardsWrappedRestHandler extends BaseRestHandler.Wrapper {
 
-        KibanaWrappedRestHandler(BaseRestHandler delegate) {
+        OpenSearchDashboardsWrappedRestHandler(BaseRestHandler delegate) {
             super(delegate);
         }
 
         @Override
         public String getName() {
-            return "kibana_" + super.getName();
+            return "opensearch_dashboards_" + super.getName();
         }
 
         @Override
@@ -150,7 +150,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         public List<Route> routes() {
             return unmodifiableList(
                 super.routes().stream()
-                    .map(route -> new Route(route.getMethod(), "/_kibana" + route.getPath()))
+                    .map(route -> new Route(route.getMethod(), "/_opensearch_dashboards" + route.getPath()))
                     .collect(Collectors.toList())
             );
         }
