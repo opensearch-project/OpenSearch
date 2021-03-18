@@ -25,7 +25,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.CheckedFunction;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import java.io.BufferedReader;
 import java.io.CharArrayWriter;
