@@ -21,6 +21,8 @@ package org.elasticsearch.watcher;
 import org.opensearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.watcher.FileChangesListener;
+import org.opensearch.watcher.FileWatcher;
 
 import java.io.BufferedWriter;
 import java.io.IOException;

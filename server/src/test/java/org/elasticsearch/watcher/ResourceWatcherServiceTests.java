@@ -23,6 +23,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.watcher.ResourceWatcher;
+import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.watcher.WatcherHandle;
 
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;

@@ -19,7 +19,7 @@
 
 package org.opensearch.plugins;
 
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
