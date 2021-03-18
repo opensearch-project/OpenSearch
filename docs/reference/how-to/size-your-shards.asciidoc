@@ -25,11 +25,7 @@ account for your infrastructure, use case, and performance expectations.
 
 The best way to create a sharding strategy is to benchmark your production data
 on production hardware using the same queries and indexing loads you'd see in
-production. For our recommended methodology, watch the
-https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[quantitative
-cluster sizing video]. As you test different shard configurations, use {kib}'s
-{kibana-ref}/elasticsearch-metrics.html[{es} monitoring tools] to track your
-cluster's stability and performance.
+production.
 
 The following sections provide some reminders and guidelines you should consider
 when designing your sharding strategy. If your cluster has shard-related
@@ -66,12 +62,16 @@ kept in heap memory.
 
 [discrete]
 [[shard-auto-balance]]
-==== {es} automatically balances shards within a data tier
+==== {es} automatically balances shards across nodes
 
-A cluster's nodes are grouped into <<data-tiers,data tiers>>. Within each tier,
-{es} attempts to spread an index's shards across as many nodes as possible. When
-you add a new node or a node fails, {es} automatically rebalances the index's
-shards across the tier's remaining nodes.
+By default, {es} attempts to spread an index's shards across as many nodes as
+possible. When a node fails or you add a new node, {es} automatically rebalances
+shards across the remaining nodes.
+
+You can use <<shard-allocation-awareness,shard allocation awareness>> to ensure
+shards for particular indices only move to specified nodes. If you use {es} for
+time series data, you can use shard allocation to decrease storage costs by
+assigning shards for older indices to nodes with less expensive hardware.
 
 [discrete]
 [[shard-size-best-practices]]
@@ -91,41 +91,6 @@ document will continue to use resources until it's removed during a periodic
 
 When possible, delete entire indices instead. {es} can immediately remove
 deleted indices directly from the file system and free up resources.
-
-[discrete]
-[[use-ds-ilm-for-time-series]]
-==== Use data streams and {ilm-init} for time series data
-
-<<data-streams,Data streams>> let you store time series data across multiple,
-time-based backing indices. You can use <<index-lifecycle-management,{ilm}
-({ilm-init})>> to automatically manage these backing indices.
-
-[role="screenshot"]
-image:images/ilm/index-lifecycle-policies.png[]
-
-One advantage of this setup is
-<<getting-started-index-lifecycle-management,automatic rollover>>, which creates
-a new write index when the current one meets a defined `max_age`, `max_docs`, or
-`max_size` threshold. You can use these thresholds to create indices based on
-your retention intervals. When an index is no longer needed, you can use
-{ilm-init} to automatically delete it and free up resources.
-
-{ilm-init} also makes it easy to change your sharding strategy over time:
-
-* *Want to decrease the shard count for new indices?* +
-Change the <<index-number-of-shards,`index.number_of_shards`>> setting in the
-data stream's <<data-streams-change-mappings-and-settings,matching index
-template>>.
-
-* *Want larger shards?* +
-Increase your {ilm-init} policy's <<ilm-rollover,rollover threshold>>.
-
-* *Need indices that span shorter intervals?* +
-Offset the increased shard count by deleting older indices sooner. You can do
-this by lowering the `min_age` threshold for your policy's
-<<ilm-index-lifecycle,delete phase>>.
-
-Every new backing index is an opportunity to further tune your strategy.
 
 [discrete]
 [[shard-size-recommendation]]
@@ -199,9 +164,6 @@ For time series data, you can create indices that cover longer time intervals.
 For example, instead of daily indices, you can create indices on a monthly or
 yearly basis.
 
-If you're using {ilm-init}, you can do this by increasing the `max_age`
-threshold for the <<ilm-rollover,rollover action>>.
-
 If your retention policy allows it, you can also create larger indices by
 omitting a `max_age` threshold and using `max_docs` and/or `max_size`
 thresholds instead.
@@ -210,7 +172,7 @@ thresholds instead.
 [[delete-empty-indices]]
 ==== Delete empty or unneeded indices
 
-If you're using {ilm-init} and roll over indices based on a `max_age` threshold,
+If you roll over indices based on a `max_age` threshold,
 you can inadvertently create indices with no documents. These empty indices
 provide no benefit but still consume resources.
 
@@ -259,9 +221,6 @@ If you no longer write to an index, you can use the
 POST /my-index-000001/_shrink/my-shrunken-index-000001
 ----
 // TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
-
-{ilm-init} also has a <<ilm-shrink,shrink action>> for indices in the
-warm phase.
 
 [discrete]
 [[combine-smaller-indices]]
