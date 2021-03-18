@@ -31,9 +31,9 @@ import org.opensearch.common.ssl.SslConfiguration;
 import org.opensearch.common.ssl.SslConfigurationKeys;
 import org.opensearch.common.ssl.SslConfigurationLoader;
 import org.opensearch.env.Environment;
-import org.elasticsearch.watcher.FileChangesListener;
-import org.elasticsearch.watcher.FileWatcher;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.opensearch.watcher.FileChangesListener;
+import org.opensearch.watcher.FileWatcher;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;

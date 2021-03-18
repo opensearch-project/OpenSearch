@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.watcher;
+package org.opensearch.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,8 +36,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
 /**
  * Generic resource watcher service
  *
- * Other elasticsearch services can register their resource watchers with this service using {@link #add(ResourceWatcher)}
- * method. This service will call {@link org.elasticsearch.watcher.ResourceWatcher#checkAndNotify()} method of all
+ * Other opensearch services can register their resource watchers with this service using {@link #add(ResourceWatcher)}
+ * method. This service will call {@link org.opensearch.watcher.ResourceWatcher#checkAndNotify()} method of all
  * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
  * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
  */
