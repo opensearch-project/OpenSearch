@@ -108,7 +108,7 @@ import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.coordination.CoordinationState;
 import org.opensearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.CoordinatorTests;
+import org.opensearch.cluster.coordination.CoordinatorTests;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.coordination.ElectionStrategy;
 import org.opensearch.cluster.coordination.InMemoryPersistedState;
