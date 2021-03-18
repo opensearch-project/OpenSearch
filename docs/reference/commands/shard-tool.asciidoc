@@ -60,7 +60,7 @@ operation that removes corrupted data from the shard.
 $ bin/opensearch-shard remove-corrupted-data --index my-index-000001 --shard-id 0
 
 
-    WARNING: Elasticsearch MUST be stopped before running this tool.
+    WARNING: OpenSearch MUST be stopped before running this tool.
 
   Please make a complete backup of your index before using this tool.
 
