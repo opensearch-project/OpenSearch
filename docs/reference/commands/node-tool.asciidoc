@@ -577,8 +577,8 @@ node$ ./bin/opensearch-node override-version
 
     WARNING: OpenSearch MUST be stopped before running this tool.
 
-This data path was last written by Elasticsearch version [x.x.x] and may no
-longer be compatible with Elasticsearch version [y.y.y]. This tool will bypass
+This data path was last written by OpenSearch version [x.x.x] and may no
+longer be compatible with OpenSearch version [y.y.y]. This tool will bypass
 this compatibility check, allowing a version [y.y.y] node to start on this data
 path, but a version [y.y.y] node may not be able to read this data or may read
 it incorrectly leading to data loss.
