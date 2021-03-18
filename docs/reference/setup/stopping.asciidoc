@@ -15,8 +15,8 @@ POSIX system. You can obtain the PID to send the signal to via various tools (e.
 
 [source,sh]
 --------------------------------------------------
-$ jps | grep Elasticsearch
-14542 Elasticsearch
+$ jps | grep OpenSearch
+14542 OpenSearch
 --------------------------------------------------
 
 From the OpenSearch startup logs:
@@ -30,8 +30,8 @@ Or by specifying a location to write a PID file to on startup (`-p <path>`):
 
 [source,sh]
 --------------------------------------------------
-$ ./bin/elasticsearch -p /tmp/elasticsearch-pid -d
-$ cat /tmp/elasticsearch-pid && echo
+$ ./bin/opensearch -p /tmp/opensearch-pid -d
+$ cat /tmp/opensearch-pid && echo
 15516
 $ kill -SIGTERM 15516
 --------------------------------------------------

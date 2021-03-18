@@ -45,13 +45,13 @@ You may need to install the `apt-transport-https` package on Debian before proce
 sudo apt-get install apt-transport-https
 --------------------------------------------------
 
-Save the repository definition to  +/etc/apt/sources.list.d/elastic-{major-version}.list+:
+Save the repository definition to  +/etc/apt/sources.list.d/opensearch-{major-version}.list+:
 
 ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.opensearch.org/packages/{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.opensearch.org/packages/{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -60,7 +60,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.opensearch.org/packages/{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.opensearch.org/packages/{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -119,7 +119,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.opensearch.org/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.opensearch.org/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -128,7 +128,7 @@ ifeval::["{release-state}"!="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.opensearch.org/packages/oss-{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.opensearch.org/packages/oss-{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-{major-version}.list
 --------------------------------------------------
 
 endif::[]

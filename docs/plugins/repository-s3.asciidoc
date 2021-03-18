@@ -68,10 +68,10 @@ following commands to add these credentials to the keystore:
 
 [source,sh]
 ----
-bin/elasticsearch-keystore add s3.client.default.access_key
-bin/elasticsearch-keystore add s3.client.default.secret_key
+bin/opensearch-keystore add s3.client.default.access_key
+bin/opensearch-keystore add s3.client.default.secret_key
 # a session token is optional so the following command may not be needed
-bin/elasticsearch-keystore add s3.client.default.session_token
+bin/opensearch-keystore add s3.client.default.session_token
 ----
 
 If instead you want to use the instance role or container role to access S3
@@ -81,10 +81,10 @@ removing these settings from the keystore as follows:
 
 [source,sh]
 ----
-bin/elasticsearch-keystore remove s3.client.default.access_key
-bin/elasticsearch-keystore remove s3.client.default.secret_key
+bin/opensearch-keystore remove s3.client.default.access_key
+bin/opensearch-keystore remove s3.client.default.secret_key
 # a session token is optional so the following command may not be needed
-bin/elasticsearch-keystore remove s3.client.default.session_token
+bin/opensearch-keystore remove s3.client.default.session_token
 ----
 
 *All* client secure settings of this plugin are

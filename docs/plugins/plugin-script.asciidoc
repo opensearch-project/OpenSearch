@@ -250,7 +250,7 @@ and `http.proxyPort` (or `https.proxyHost` and `https.proxyPort`):
 
 [source,shell]
 -----------------------------------
-sudo OPENSEARCH_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
+sudo OPENSEARCH_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/opensearch-plugin install analysis-icu
 -----------------------------------
 
 Or on Windows:
