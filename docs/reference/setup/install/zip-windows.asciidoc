@@ -5,8 +5,6 @@ OpenSearch can be installed on Windows using the Windows `.zip` archive.  This
 comes with a `opensearch-service.bat` command which will setup OpenSearch to run as a
 service.
 
-include::license.asciidoc[]
-
 // TODO(Opensearch): Correct the links
 The latest stable version of OpenSearch can be found on the
 link:/downloads/elasticsearch[Download OpenSearch] page.
