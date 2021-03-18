@@ -2,7 +2,7 @@
 ==== Stored Scripts API
 
 The stored script API allows one to interact with scripts and templates
-stored in Elasticsearch. It can be used to create, update, get,
+stored in OpenSearch. It can be used to create, update, get,
 and delete stored scripts and templates.
 
 [source,java]
