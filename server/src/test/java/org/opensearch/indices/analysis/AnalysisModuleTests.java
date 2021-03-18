@@ -122,17 +122,17 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
     }
 
     public void testSimpleConfigurationJson() throws IOException {
-        Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.json");
+        Settings settings = loadFromClasspath("/org/opensearch/index/analysis/test1.json");
         testSimpleConfiguration(settings);
     }
 
     public void testSimpleConfigurationYaml() throws IOException {
-        Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
+        Settings settings = loadFromClasspath("/org/opensearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
     }
 
     public void testVersionedAnalyzers() throws Exception {
-        String yaml = "/org/elasticsearch/index/analysis/test1.yml";
+        String yaml = "/org/opensearch/index/analysis/test1.yml";
         Settings settings2 = Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
