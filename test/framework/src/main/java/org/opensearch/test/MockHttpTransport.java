@@ -25,7 +25,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 
 /**
  * A dummy http transport used by tests when not wanting to actually bind to a real address.

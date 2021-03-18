@@ -19,7 +19,7 @@
 package org.opensearch.test;
 
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
+import org.opensearch.plugins.Plugin;
 
 import java.nio.file.Path;
 import java.util.Collection;
