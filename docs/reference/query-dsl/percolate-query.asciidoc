@@ -123,7 +123,6 @@ TIP: To provide a simple example, this documentation uses one index `my-index-00
 This set-up can work well when there are just a few percolate queries registered. However, with heavier usage it is recommended
 to store queries and documents in separate indices. Please see <<how-it-works, How it Works Under the Hood>> for more details.
 
-// TODO(OpenSearch): Correct the version numbers
 [discrete]
 ==== Parameters
 
@@ -135,7 +134,7 @@ The following parameters are required when percolating a document:
          This is an optional parameter.
 `document`:: The source of the document being percolated.
 `documents`:: Like the `document` parameter, but accepts multiple documents via a json array.
-`document_type`:: The type / mapping of the document being percolated. This parameter is deprecated and will be removed in OpenSearch 8.0.
+`document_type`:: The type / mapping of the document being percolated.
 
 Instead of specifying the source of the document being percolated, the source can also be retrieved from an already
 stored document. The `percolate` query will then internally execute a get request to fetch that document.
@@ -144,7 +143,7 @@ In that case the `document` parameter can be substituted with the following para
 
 [horizontal]
 `index`:: The index the document resides in. This is a required parameter.
-`type`:: The type of the document to fetch. This parameter is deprecated and will be removed in OpenSearch 8.0.
+`type`:: The type of the document to fetch.
 `id`:: The id of the document to fetch. This is a required parameter.
 `routing`:: Optionally, routing to be used to fetch document to percolate.
 `preference`:: Optionally, preference to be used to fetch document to percolate.
