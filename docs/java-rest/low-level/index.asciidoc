@@ -24,11 +24,11 @@ The low-level client's features include:
 
 --
 
-:doc-tests: {opensearch-root}/client/rest/src/test/java/org/opensearch/client/documentation
+:doc-tests: {OpenSearch-root}/client/rest/src/test/java/org/opensearch/client/documentation
 include::usage.asciidoc[]
 include::configuration.asciidoc[]
 
-:doc-tests: {opensearch-root}/client/sniffer/src/test/java/org/opensearch/client/sniff/documentation
+:doc-tests: {OpenSearch-root}/client/sniffer/src/test/java/org/opensearch/client/sniff/documentation
 include::sniffer.asciidoc[]
 
 include::../license.asciidoc[]

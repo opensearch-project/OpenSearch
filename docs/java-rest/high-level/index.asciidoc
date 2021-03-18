@@ -24,8 +24,8 @@ the same response objects.
 
 --
 
-:doc-tests: {opensearch-root}/client/rest-high-level/src/test/java/org/opensearch/client/documentation
-:hlrc-tests: {opensearch-root}/client/rest-high-level/src/test/java/org/opensearch/client
+:doc-tests: {OpenSearch-root}/client/rest-high-level/src/test/java/org/opensearch/client/documentation
+:hlrc-tests: {OpenSearch-root}/client/rest-high-level/src/test/java/org/opensearch/client
 
 include::getting-started.asciidoc[]
 include::supported-apis.asciidoc[]

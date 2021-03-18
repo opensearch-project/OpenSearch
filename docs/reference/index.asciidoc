@@ -1,9 +1,9 @@
 [[opensearch-reference]]
 = Elasticsearch Reference
 
-:opensearch-test-dir:   {opensearch-root}/docs/src/test
-:plugins-examples-dir:  {opensearch-root}/plugins/examples
-:es-repo-dir:           {opensearch-root}/docs/reference
+:opensearch-test-dir:   {OpenSearch-root}/docs/src/test
+:plugins-examples-dir:  {OpenSearch-root}/plugins/examples
+:es-repo-dir:           {OpenSearch-root}/docs/reference
 
 include::../Versions.asciidoc[]
 include::links.asciidoc[]

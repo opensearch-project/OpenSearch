@@ -1,7 +1,7 @@
 [[plugin-authors]]
 == Help for plugin authors
 
-:plugin-properties-files: {opensearch-root}/buildSrc/src/main/resources
+:plugin-properties-files: {OpenSearch-root}/buildSrc/src/main/resources
 
 The Elasticsearch repository contains examples of:
 
