@@ -510,7 +510,7 @@ public final class RepositoryData {
             builder.field(MIN_VERSION, SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION.toString());
             builder.field(INDEX_METADATA_IDENTIFIERS, indexMetaDataGenerations.identifiers);
         } else if (shouldWriteShardGens) {
-            // Add min version field to make it impossible for older ES versions to deserialize this object
+            // Add min version field to make it impossible for older OpenSearch versions to deserialize this object
             builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
         }
         builder.endObject();

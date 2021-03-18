@@ -96,29 +96,29 @@ public class OpenSearchExecutors {
         return NODE_PROCESSORS_SETTING.get(settings);
     }
 
-    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,
-                                                                        ThreadContext contextHolder, ScheduledExecutorService timer) {
-        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
+    public static PrioritizedOpenSearchThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,
+                                                                                ThreadContext contextHolder, ScheduledExecutorService timer) {
+        return new PrioritizedOpenSearchThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
-    public static EsThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit,
-                                                  ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static OpenSearchThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit,
+                                                          ThreadFactory threadFactory, ThreadContext contextHolder) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor =
-            new EsThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
+        OpenSearchThreadPoolExecutor executor =
+            new OpenSearchThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
         queue.executor = executor;
         return executor;
     }
 
-    public static EsThreadPoolExecutor newFixed(String name, int size, int queueCapacity,
-                                                ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static OpenSearchThreadPoolExecutor newFixed(String name, int size, int queueCapacity,
+                                                        ThreadFactory threadFactory, ThreadContext contextHolder) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+        return new OpenSearchThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
             queue, threadFactory, new OpenSearchAbortPolicy(), contextHolder);
     }
 
@@ -131,16 +131,16 @@ public class OpenSearchExecutors {
      * @param maxQueueSize maximum queue size that the queue can be adjusted to
      * @param frameSize number of tasks during which stats are collected before adjusting queue size
      */
-    public static EsThreadPoolExecutor newAutoQueueFixed(String name, int size, int initialQueueCapacity, int minQueueSize,
-                                                         int maxQueueSize, int frameSize, TimeValue targetedResponseTime,
-                                                         ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static OpenSearchThreadPoolExecutor newAutoQueueFixed(String name, int size, int initialQueueCapacity, int minQueueSize,
+                                                                 int maxQueueSize, int frameSize, TimeValue targetedResponseTime,
+                                                                 ThreadFactory threadFactory, ThreadContext contextHolder) {
         if (initialQueueCapacity <= 0) {
             throw new IllegalArgumentException("initial queue capacity for [" + name + "] executor must be positive, got: " +
                             initialQueueCapacity);
         }
         ResizableBlockingQueue<Runnable> queue =
                 new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), initialQueueCapacity);
-        return new QueueResizingEsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+        return new QueueResizingOpenSearchThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
                 queue, minQueueSize, maxQueueSize, TimedRunnable::new, frameSize, targetedResponseTime, threadFactory,
                 new OpenSearchAbortPolicy(), contextHolder);
     }
@@ -249,7 +249,7 @@ public class OpenSearchExecutors {
 
     public static String threadName(final String nodeName, final String namePrefix) {
         // TODO missing node names should only be allowed in tests
-        return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
+        return "opensearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {

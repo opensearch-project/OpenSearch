@@ -46,7 +46,7 @@ import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.mapper.ObjectMapper;
-import org.opensearch.index.search.ESToParentBlockJoinQuery;
+import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.index.search.NestedHelper;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.subphase.InnerHitsContext;
@@ -240,7 +240,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     public static String scoreModeAsString(ScoreMode scoreMode) {
         if (scoreMode == ScoreMode.Total) {
-            // Lucene uses 'total' but 'sum' is more consistent with other elasticsearch APIs
+            // Lucene uses 'total' but 'sum' is more consistent with other opensearch APIs
             return "sum";
         } else {
             return scoreMode.name().toLowerCase(Locale.ROOT);
@@ -306,7 +306,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             innerQuery = Queries.filtered(innerQuery, nestedObjectMapper.nestedTypeFilter());
         }
 
-        return new ESToParentBlockJoinQuery(innerQuery, parentFilter, scoreMode,
+        return new OpenSearchToParentBlockJoinQuery(innerQuery, parentFilter, scoreMode,
                 objectMapper == null ? null : objectMapper.fullPath());
     }
 

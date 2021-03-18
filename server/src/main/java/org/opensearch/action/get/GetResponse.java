@@ -182,7 +182,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
      * doesn't know. But before returning the result it will check that enough information were
      * parsed to return a valid {@link GetResponse} instance and throws a {@link ParsingException}
      * otherwise. This is the case when we get a 404 back, which can be parsed as a normal
-     * {@link GetResponse} with found set to false, or as an elasticsearch exception. The caller
+     * {@link GetResponse} with found set to false, or as an opensearch exception. The caller
      * of this method needs a way to figure out whether we got back a valid get response, which
      * can be done by catching ParsingException.
      *

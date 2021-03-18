@@ -139,7 +139,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Whether or not the lenient flag has been set or not */
     private boolean lenientSet = false;
 
-    /** Further search settings needed by the ES specific query string parser only. */
+    /** Further search settings needed by the OpenSearch specific query string parser only. */
     private Settings settings = new Settings();
 
     /** Construct a new simple query with this query string. */

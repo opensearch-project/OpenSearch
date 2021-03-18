@@ -28,7 +28,7 @@ import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchShardTarget;
@@ -54,7 +54,7 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
 
     private SearchPhaseController searchPhaseController;
     private ThreadPool threadPool;
-    private EsThreadPoolExecutor executor;
+    private OpenSearchThreadPoolExecutor executor;
 
     @Before
     public void setup() {

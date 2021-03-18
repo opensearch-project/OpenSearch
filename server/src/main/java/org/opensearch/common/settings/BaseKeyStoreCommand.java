@@ -51,7 +51,7 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
                     throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found at [" +
                         KeyStoreWrapper.keystorePath(env.configFile()) + "]. Use 'create' command to create one.");
                 } else if (options.has(forceOption) == false) {
-                    if (terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
+                    if (terminal.promptYesNo("The opensearch keystore does not exist. Do you want to create it?", false) == false) {
                         terminal.println("Exiting without creating keystore.");
                         return;
                     }

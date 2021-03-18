@@ -95,7 +95,7 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
         }
 
         // This class extends the DiversifiedTopDocsCollector and provides
-        // a lookup from elasticsearch's ValuesSource
+        // a lookup from opensearch's ValuesSource
         class ValuesDiversifiedTopDocsCollector extends DiversifiedTopDocsCollector {
 
             private SortedBinaryDocValues values;

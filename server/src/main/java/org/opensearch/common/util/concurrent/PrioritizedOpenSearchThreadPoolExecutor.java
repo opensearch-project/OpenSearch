@@ -41,15 +41,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>
  * Note, if two tasks have the same priority, the first to arrive will be executed first (FIFO style).
  */
-public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
+public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoolExecutor {
 
     private static final TimeValue NO_WAIT_TIME_VALUE = TimeValue.timeValueMillis(0);
     private final AtomicLong insertionOrder = new AtomicLong();
     private final Queue<Runnable> current = ConcurrentCollections.newQueue();
     private final ScheduledExecutorService timer;
 
-    public PrioritizedEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                    ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
+    public PrioritizedOpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+                                                   ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<>(), threadFactory, contextHolder);
         this.timer = timer;
     }

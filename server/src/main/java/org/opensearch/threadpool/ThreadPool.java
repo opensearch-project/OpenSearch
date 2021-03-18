@@ -32,8 +32,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.opensearch.common.xcontent.ToXContentFragment;
@@ -606,7 +606,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof EsThreadPoolExecutor || executor == DIRECT_EXECUTOR;
+            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR;
             this.executor = executor;
             this.info = info;
         }

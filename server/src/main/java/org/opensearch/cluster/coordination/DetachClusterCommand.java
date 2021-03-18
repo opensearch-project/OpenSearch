@@ -37,7 +37,7 @@ public class DetachClusterCommand extends OpenSearchNodeCommand {
             "You should only run this tool if you have permanently lost all of the\n" +
             "master-eligible nodes in this cluster and you cannot restore the cluster\n" +
             "from a snapshot, or you have already unsafely bootstrapped a new cluster\n" +
-            "by running `elasticsearch-node unsafe-bootstrap` on a master-eligible\n" +
+            "by running `opensearch-node unsafe-bootstrap` on a master-eligible\n" +
             "node that belonged to the same cluster as this node. This tool can cause\n" +
             "arbitrary data loss and its use should be your last resort.\n" +
             "\n" +

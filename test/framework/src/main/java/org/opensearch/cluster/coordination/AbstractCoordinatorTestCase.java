@@ -59,7 +59,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.env.NodeEnvironment;
@@ -1366,7 +1366,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         }
 
         @Override
-        protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+        protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
             return new MockSinglePrioritizingExecutor(nodeName, deterministicTaskQueue, threadPool);
         }
 

@@ -166,7 +166,7 @@ public abstract class BaseFuture<V> implements Future<V> {
         // call stack, so we rethrow it.
 
         // we want to notify the listeners we have with errors as well, as it breaks
-        // how we work in ES in terms of using assertions
+        // how we work in OpenSearch in terms of using assertions
 //        if (throwable instanceof Error) {
 //            throw (Error) throwable;
 //        }

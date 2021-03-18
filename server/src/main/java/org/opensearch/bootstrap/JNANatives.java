@@ -48,7 +48,7 @@ class JNANatives {
     // Set to true, in case native system call filter install was successful
     static boolean LOCAL_SYSTEM_CALL_FILTER = false;
     // Set to true, in case policy can be applied to all threads of the process (even existing ones)
-    // otherwise they are only inherited for new threads (ES app threads)
+    // otherwise they are only inherited for new threads (OpenSearch app threads)
     static boolean LOCAL_SYSTEM_CALL_FILTER_ALL = false;
     // set to the maximum number of threads that can be created for
     // the user ID that owns the running OpenSearch process

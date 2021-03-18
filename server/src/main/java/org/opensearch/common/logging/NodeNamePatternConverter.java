@@ -32,7 +32,7 @@ import org.apache.lucene.util.SetOnce;
  * Converts {@code %node_name} in log4j patterns into the current node name.
  * We can't use a system property for this because the node name system
  * property is only set if the node name is explicitly defined in
- * elasticsearch.yml.
+ * opensearch.yml.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
 @ConverterKeys({"node_name"})
