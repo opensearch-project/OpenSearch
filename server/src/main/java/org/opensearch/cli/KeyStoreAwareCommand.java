@@ -29,7 +29,7 @@ import java.security.GeneralSecurityException;
 import java.util.Arrays;
 
 /**
- * An {@link org.opensearch.cli.EnvironmentAwareCommand} that needs to access the elasticsearch keystore, possibly
+ * An {@link org.opensearch.cli.EnvironmentAwareCommand} that needs to access the opensearch keystore, possibly
  * decrypting it if it is password protected.
  */
 public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
@@ -52,7 +52,7 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
     protected static SecureString readPassword(Terminal terminal, boolean withVerification) throws UserException {
         final char[] passwordArray;
         if (withVerification) {
-            passwordArray = terminal.readSecret("Enter new password for the elasticsearch keystore (empty for no password): ",
+            passwordArray = terminal.readSecret("Enter new password for the opensearch keystore (empty for no password): ",
                 MAX_PASSPHRASE_LENGTH);
             char[] passwordVerification = terminal.readSecret("Enter same password again: ",
                 MAX_PASSPHRASE_LENGTH);
@@ -61,7 +61,7 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
             }
             Arrays.fill(passwordVerification, '\u0000');
         } else {
-            passwordArray = terminal.readSecret("Enter password for the elasticsearch keystore : ");
+            passwordArray = terminal.readSecret("Enter password for the opensearch keystore : ");
         }
         return new SecureString(passwordArray);
     }

@@ -261,7 +261,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     /**
      * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata
-     * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
+     * will not be created with a newer version of opensearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
      * @see Version#minimumIndexCompatibilityVersion()
      * @throws IllegalStateException if any index is incompatible with the given version

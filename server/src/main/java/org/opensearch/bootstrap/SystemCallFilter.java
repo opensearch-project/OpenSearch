@@ -54,7 +54,7 @@ import java.util.Map;
  * On Linux BPF Filters are installed using either {@code seccomp(2)} (3.17+) or {@code prctl(2)} (3.5+). {@code seccomp(2)}
  * is preferred, as it allows filters to be applied to any existing threads in the process, and one motivation
  * here is to protect against bugs in the JVM. Otherwise, code will fall back to the {@code prctl(2)} method
- * which will at least protect elasticsearch application threads.
+ * which will at least protect opensearch application threads.
  * <p>
  * Linux BPF filters will return {@code EACCES} (Access Denied) for the following system calls:
  * <ul>
@@ -128,7 +128,7 @@ final class SystemCallFilter {
     static final int SECCOMP_SET_MODE_FILTER   =   1;   // since Linux 3.17
     static final int SECCOMP_FILTER_FLAG_TSYNC =   1;   // since Linux 3.17
 
-    /** otherwise, we can use prctl(2), which will at least protect ES application threads */
+    /** otherwise, we can use prctl(2), which will at least protect OpenSearch application threads */
     static final int PR_GET_NO_NEW_PRIVS       =  39;   // since Linux 3.5
     static final int PR_SET_NO_NEW_PRIVS       =  38;   // since Linux 3.5
     static final int PR_GET_SECCOMP            =  21;   // since Linux 2.6.23

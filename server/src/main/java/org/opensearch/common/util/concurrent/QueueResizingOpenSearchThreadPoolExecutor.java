@@ -36,12 +36,12 @@ import java.util.function.Function;
  * An extension to thread pool executor, which automatically adjusts the queue size of the
  * {@code ResizableBlockingQueue} according to Little's Law.
  */
-public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecutor {
+public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchThreadPoolExecutor {
 
     // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
     public static double EWMA_ALPHA = 0.3;
 
-    private static final Logger logger = LogManager.getLogger(QueueResizingEsThreadPoolExecutor.class);
+    private static final Logger logger = LogManager.getLogger(QueueResizingOpenSearchThreadPoolExecutor.class);
     // The amount the queue size is adjusted by for each calcuation
     private static final int QUEUE_ADJUSTMENT_AMOUNT = 50;
 
@@ -58,11 +58,11 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
 
     private long startNs;
 
-    QueueResizingEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                      ResizableBlockingQueue<Runnable> workQueue, int minQueueSize, int maxQueueSize,
-                                      Function<Runnable, WrappedRunnable> runnableWrapper, final int tasksPerFrame,
-                                      TimeValue targetedResponseTime, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
-                                      ThreadContext contextHolder) {
+    QueueResizingOpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+                                              ResizableBlockingQueue<Runnable> workQueue, int minQueueSize, int maxQueueSize,
+                                              Function<Runnable, WrappedRunnable> runnableWrapper, final int tasksPerFrame,
+                                              TimeValue targetedResponseTime, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
+                                              ThreadContext contextHolder) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit,
                 workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;

@@ -324,8 +324,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * Returns one active replica shard for the given shard id or <code>null</code> if
      * no active replica is found.
      *
-     * Since replicas could possibly be on nodes with a older version of ES than
-     * the primary is, this will return replicas on the highest version of ES.
+     * Since replicas could possibly be on nodes with a older version of OpenSearch than
+     * the primary is, this will return replicas on the highest version of OpenSearch.
      *
      */
     public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {

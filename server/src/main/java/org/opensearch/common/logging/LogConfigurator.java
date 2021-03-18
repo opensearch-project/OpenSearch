@@ -138,7 +138,7 @@ public class LogConfigurator {
 
     /**
      * Sets the node name. This is called before logging is configured if the
-     * node name is set in elasticsearch.yml. Otherwise it is called as soon
+     * node name is set in opensearch.yml. Otherwise it is called as soon
      * as the node id is available.
      */
     public static void setNodeName(String nodeName) {

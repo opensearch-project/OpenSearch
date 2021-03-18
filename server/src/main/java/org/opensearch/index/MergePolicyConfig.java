@@ -29,7 +29,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 
 /**
- * A shard in elasticsearch is a Lucene index, and a Lucene index is broken
+ * A shard in opensearch is a Lucene index, and a Lucene index is broken
  * down into segments. Segments are internal storage elements in the index
  * where the index data is stored, and are immutable up to delete markers.
  * Segments are, periodically, merged into larger segments to keep the

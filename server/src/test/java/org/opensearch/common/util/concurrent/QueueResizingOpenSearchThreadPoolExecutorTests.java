@@ -44,8 +44,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         int threads = randomIntBetween(1, 3);
         int measureWindow = 3;
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
+        QueueResizingOpenSearchThreadPoolExecutor executor =
+                new QueueResizingOpenSearchThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 1000, fastWrapper(),
                         measureWindow, TimeValue.timeValueMillis(1), OpenSearchExecutors.daemonThreadFactory("queuetest"),
@@ -75,8 +75,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         int threads = randomIntBetween(1, 10);
         int measureWindow = randomIntBetween(100, 200);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
+        QueueResizingOpenSearchThreadPoolExecutor executor =
+                new QueueResizingOpenSearchThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 3000, fastWrapper(),
                         measureWindow, TimeValue.timeValueMillis(1), OpenSearchExecutors.daemonThreadFactory("queuetest"),
@@ -103,8 +103,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         int threads = randomIntBetween(1, 10);
         int measureWindow = randomIntBetween(100, 200);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
+        QueueResizingOpenSearchThreadPoolExecutor executor =
+                new QueueResizingOpenSearchThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 3000, slowWrapper(), measureWindow, TimeValue.timeValueMillis(1),
                         OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
@@ -131,8 +131,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         int measureWindow = randomIntBetween(10, 100);
         int min = randomIntBetween(4981, 4999);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
+        QueueResizingOpenSearchThreadPoolExecutor executor =
+                new QueueResizingOpenSearchThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, min, 100000, slowWrapper(), measureWindow, TimeValue.timeValueMillis(1),
                         OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
@@ -160,8 +160,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         int measureWindow = randomIntBetween(10, 100);
         int max = randomIntBetween(5010, 5024);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
+        QueueResizingOpenSearchThreadPoolExecutor executor =
+                new QueueResizingOpenSearchThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, max, fastWrapper(), measureWindow, TimeValue.timeValueMillis(1),
                         OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
@@ -185,8 +185,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
                 new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
                         100);
 
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
+        QueueResizingOpenSearchThreadPoolExecutor executor =
+                new QueueResizingOpenSearchThreadPoolExecutor(
                         "test-threadpool", 1, 1, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 200, fastWrapper(), 10, TimeValue.timeValueMillis(1),
                         OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
@@ -226,8 +226,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
             new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
                 100);
 
-        QueueResizingEsThreadPoolExecutor executor =
-            new QueueResizingEsThreadPoolExecutor(
+        QueueResizingOpenSearchThreadPoolExecutor executor =
+            new QueueResizingOpenSearchThreadPoolExecutor(
                 "test-threadpool", 1, 1, 1000,
                 TimeUnit.MILLISECONDS, queue, 10, 200, exceptionalWrapper(), 10, TimeValue.timeValueMillis(1),
                 OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
@@ -258,7 +258,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
     }
 
     /** Execute a blank task {@code times} times for the executor */
-    private void executeTask(QueueResizingEsThreadPoolExecutor executor, int times) {
+    private void executeTask(QueueResizingOpenSearchThreadPoolExecutor executor, int times) {
         logger.info("--> executing a task [{}] times", times);
         for (int i = 0; i < times; i++) {
             executor.execute(() -> {});

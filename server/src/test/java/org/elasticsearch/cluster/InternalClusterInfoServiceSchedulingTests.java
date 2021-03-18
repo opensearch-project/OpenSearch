@@ -39,7 +39,7 @@ import org.opensearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.node.Node;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -72,7 +72,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
 
         final ClusterApplierService clusterApplierService = new ClusterApplierService("test", settings, clusterSettings, threadPool) {
             @Override
-            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+            protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                 return new MockSinglePrioritizingExecutor("mock-executor", deterministicTaskQueue, threadPool);
             }
         };

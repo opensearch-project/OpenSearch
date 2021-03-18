@@ -111,7 +111,7 @@ public class KeyStoreWrapper implements SecureSettings {
         "~!@#$%^&*-_=+?").toCharArray();
 
     /** The name of the keystore file to read and write. */
-    private static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
+    private static final String KEYSTORE_FILENAME = "opensearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
     static final int FORMAT_VERSION = 4;
@@ -517,7 +517,7 @@ public class KeyStoreWrapper implements SecureSettings {
         } catch (final AccessDeniedException e) {
             final String message = String.format(
                 Locale.ROOT,
-                "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
+                "unable to create temporary keystore at [%s], write permissions required for [%s] or run [opensearch-keystore upgrade]",
                 configDir.resolve(tmpFile),
                 configDir);
             throw new UserException(ExitCodes.CONFIG, message, e);

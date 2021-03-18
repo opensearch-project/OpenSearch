@@ -19,7 +19,7 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.common.Priority;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.PrioritizedRunnable;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -29,7 +29,7 @@ public class MockSinglePrioritizingExecutorTests extends OpenSearchTestCase {
 
     public void testPrioritizedEsThreadPoolExecutor() {
         final DeterministicTaskQueue taskQueue = DeterministicTaskQueueTests.newTaskQueue();
-        final PrioritizedEsThreadPoolExecutor executor = new MockSinglePrioritizingExecutor("test", taskQueue, taskQueue.getThreadPool());
+        final PrioritizedOpenSearchThreadPoolExecutor executor = new MockSinglePrioritizingExecutor("test", taskQueue, taskQueue.getThreadPool());
         final AtomicBoolean called1 = new AtomicBoolean();
         final AtomicBoolean called2 = new AtomicBoolean();
         executor.execute(new PrioritizedRunnable(Priority.NORMAL) {
