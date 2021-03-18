@@ -27,9 +27,7 @@ import org.opensearch.gradle.Architecture
 
 apply plugin:'opensearch.internal-distribution-download'
 
-/**
- * TODO OpenSearch - this task is currently broken and temporarily commented out to
- * unblock the pre-commit.
+
 opensearch_distributions {
   local {
     type = 'archive'
@@ -44,4 +42,3 @@ tasks.register('localDistro', Sync) {
     logger.lifecycle("OpenSearch distribution installed to ${destinationDir}.")
   }
 }
-*/

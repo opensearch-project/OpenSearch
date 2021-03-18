@@ -34,6 +34,7 @@ dependencies {
 /**
  * TODO OpenSearch - this task is currently broken and temporarily commented out to
  * unblock the pre-commit.
+ * Issue URL - https://github.com/opensearch-project/OpenSearch/issues/400
 opensearch_distributions {
   docker {
     type = 'docker'

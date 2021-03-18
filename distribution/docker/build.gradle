@@ -130,9 +130,7 @@ def createAndSetWritable(Object... locations) {
   }
 }
 
-/**
- * TODO OpenSearch - this task is currently broken and temporarily commented out to
- * unblock the pre-commit.
+
 opensearch_distributions {
   Architecture.values().each { eachArchitecture ->
     "docker${ eachArchitecture == Architecture.AARCH64 ? '_aarch64' : '' }" {
@@ -158,7 +156,6 @@ tasks.named("preProcessFixture").configure {
     )
   }
 }
-*/
 
 tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
