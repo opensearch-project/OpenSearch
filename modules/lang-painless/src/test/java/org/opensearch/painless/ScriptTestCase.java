@@ -26,7 +26,7 @@ import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.painless.spi.WhitelistLoader;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.hasSize;
  * <p>
  * Typically just asserts the output of {@code exec()}
  */
-public abstract class ScriptTestCase extends ESTestCase {
+public abstract class ScriptTestCase extends OpenSearchTestCase {
     protected PainlessScriptEngine scriptEngine;
 
     @Before

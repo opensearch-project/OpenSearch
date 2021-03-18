@@ -22,7 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.TemplateScript;
 import org.opensearch.search.suggest.DirectSpellcheckerSettings;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;

@@ -50,14 +50,14 @@ import org.opensearch.common.io.Streams;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -90,7 +90,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RemoteScrollableHitSourceTests extends ESTestCase {
+public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     private static final String FAKE_SCROLL_ID = "DnF1ZXJ5VGhlbkZldGNoBQAAAfakescroll";
     private int retries;
     private ThreadPool threadPool;
@@ -103,7 +103,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        final ExecutorService directExecutor = EsExecutors.newDirectExecutorService();
+        final ExecutorService directExecutor = OpenSearchExecutors.newDirectExecutorService();
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {
@@ -254,10 +254,10 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals("test", r.getFailures().get(0).getIndex());
             assertEquals((Integer) 0, r.getFailures().get(0).getShardId());
             assertEquals("87A7NvevQxSrEwMbtRCecg", r.getFailures().get(0).getNodeId());
-            assertThat(r.getFailures().get(0).getReason(), instanceOf(EsRejectedExecutionException.class));
+            assertThat(r.getFailures().get(0).getReason(), instanceOf(OpenSearchRejectedExecutionException.class));
             assertEquals("rejected execution of org.opensearch.transport.TransportService$5@52d06af2 on "
-                    + "EsThreadPoolExecutor[search, queue capacity = 1000, org.opensearch.common.util.concurrent."
-                    + "EsThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, "
+                    + "OpenSearchThreadPoolExecutor[search, queue capacity = 1000, org.opensearch.common.util.concurrent."
+                    + "OpenSearchThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, "
                     + "completed tasks = 4182]]", r.getFailures().get(0).getReason().getMessage());
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());

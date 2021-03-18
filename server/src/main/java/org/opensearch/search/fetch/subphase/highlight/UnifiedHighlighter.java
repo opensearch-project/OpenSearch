@@ -33,11 +33,11 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Strings;
 import org.opensearch.common.text.Text;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 

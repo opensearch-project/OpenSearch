@@ -25,7 +25,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.sort.SortOrder;

@@ -29,14 +29,14 @@ import org.opensearch.common.TriFunction;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.script.ScriptService;
 
 import java.util.AbstractMap;
@@ -108,9 +108,9 @@ public class MetadataIndexUpgradeService {
     }
 
     /**
-     * Elasticsearch v6.0 no longer supports indices created pre v5.0. All indices
+     * The OpenSearch predecessor, Elasticsearch, v6.0 no longer supports indices created pre v5.0. All indices
      * that were created before Elasticsearch v5.0 should be re-indexed in Elasticsearch 5.x
-     * before they can be opened by this version of elasticsearch.
+     * before they can be opened by this version of opensearch.
      */
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         if (indexMetadata.getState() == IndexMetadata.State.OPEN && isSupportedVersion(indexMetadata,
@@ -124,7 +124,7 @@ public class MetadataIndexUpgradeService {
     }
 
     /*
-     * Returns true if this index can be supported by the current version of elasticsearch
+     * Returns true if this index can be supported by the current version of opensearch
      */
     private static boolean isSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         return indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);

@@ -23,7 +23,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -118,8 +118,8 @@ public class SimpleNodesInfoIT extends OpenSearchIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         List<String> nodesIds = internalCluster().startNodes(
-                        Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 3).build(),
-                        Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 6).build()
+                        Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 3).build(),
+                        Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 6).build()
                 );
 
         final String node_1 = nodesIds.get(0);

@@ -27,7 +27,7 @@ import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.Netty4Plugin;
 import org.opensearch.transport.TransportInfo;
 
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * Checks that OpenSearch produces a sane publish_address when it binds to
  * different ports on ipv4 and ipv6.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class Netty4TransportPublishAddressIT extends OpenSearchNetty4IntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

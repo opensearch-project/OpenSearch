@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,7 +33,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class KeyValueProcessorFactoryTests extends ESTestCase {
+public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
 
     public void testCreateWithDefaults() throws Exception {
         KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();

@@ -21,7 +21,7 @@ package org.opensearch.client.core;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.AbstractRequestTestCase;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
@@ -37,7 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 
 // similar to SearchRequestTests as CountRequest inline several members (and functionality) from SearchRequest

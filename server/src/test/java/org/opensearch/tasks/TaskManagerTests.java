@@ -26,7 +26,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.FakeTcpChannel;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
 
-public class TaskManagerTests extends ESTestCase {
+public class TaskManagerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
 
     @Before

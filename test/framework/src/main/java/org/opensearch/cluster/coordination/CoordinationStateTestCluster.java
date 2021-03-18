@@ -38,12 +38,12 @@ import java.util.stream.Collectors;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.lucene.util.LuceneTestCase.random;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.test.ESTestCase.randomLong;
-import static org.elasticsearch.test.ESTestCase.randomLongBetween;
-import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
+import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomLong;
+import static org.opensearch.test.OpenSearchTestCase.randomLongBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomSubsetOf;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
 

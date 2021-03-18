@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -36,7 +36,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class JsonProcessorTests extends ESTestCase {
+public class JsonProcessorTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExecute() throws Exception {

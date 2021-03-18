@@ -32,9 +32,9 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
-import org.elasticsearch.action.support.TransportActions;
+import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.breaker.CircuitBreaker;
@@ -43,35 +43,35 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.InnerHitContextBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.query.InnerHitContextBuilder;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.MatchNoneQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryRewriteContext;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.Rewriteable;
+import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.FieldScript;
 import org.opensearch.script.ScriptService;
@@ -1294,7 +1294,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * This helper class ensures we only execute either the success or the failure path for {@link SearchOperationListener}.
-     * This is crucial for some implementations like {@link org.elasticsearch.index.search.stats.ShardSearchStats}.
+     * This is crucial for some implementations like {@link org.opensearch.index.search.stats.ShardSearchStats}.
      */
     private static final class SearchOperationListenerExecutor implements AutoCloseable {
         private final SearchOperationListener listener;

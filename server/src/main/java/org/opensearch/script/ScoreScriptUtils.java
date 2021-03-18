@@ -28,8 +28,8 @@ import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.mapper.DateFieldMapper;
 
 import java.time.ZoneId;
 

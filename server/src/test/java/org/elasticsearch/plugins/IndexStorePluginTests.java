@@ -27,17 +27,17 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.opensearch.node.MockNode;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
-public class IndexStorePluginTests extends ESTestCase {
+public class IndexStorePluginTests extends OpenSearchTestCase {
 
     public static class BarStorePlugin extends Plugin implements IndexStorePlugin {
 

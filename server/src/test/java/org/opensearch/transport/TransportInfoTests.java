@@ -25,14 +25,14 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Map;
 
-public class TransportInfoTests extends ESTestCase {
+public class TransportInfoTests extends OpenSearchTestCase {
 
     private TransportInfo createTransportInfo(InetAddress address, int port, boolean cnameInPublishAddress) {
         BoundTransportAddress boundAddress = new BoundTransportAddress(

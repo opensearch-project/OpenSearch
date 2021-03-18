@@ -729,7 +729,7 @@ class InjectorImpl implements Injector, Lookups {
 
     <T> Provider<T> getProviderOrThrow(final Key<T> key, Errors errors) throws ErrorsException {
         final InternalFactory<? extends T> factory = getInternalFactory(key, errors);
-        // ES: optimize for a common case of read only instance getting from the parent...
+        // OpenSearch: optimize for a common case of read only instance getting from the parent...
         if (factory instanceof InternalFactory.Instance) {
             return new Provider<T>() {
                 @Override

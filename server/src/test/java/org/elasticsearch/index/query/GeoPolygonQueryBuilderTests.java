@@ -28,9 +28,9 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
+import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.test.geo.RandomShapeGenerator;
+import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
@@ -39,7 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;

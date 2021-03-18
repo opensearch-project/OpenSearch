@@ -29,7 +29,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.CardinalityUpperBound;

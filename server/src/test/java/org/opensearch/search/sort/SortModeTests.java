@@ -19,11 +19,11 @@
 
 package org.opensearch.search.sort;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Locale;
 
-public class SortModeTests extends ESTestCase {
+public class SortModeTests extends OpenSearchTestCase {
 
     public void testSortMode() {
         // we rely on these ordinals in serialization, so changing them breaks bwc.

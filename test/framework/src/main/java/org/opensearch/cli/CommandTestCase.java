@@ -19,13 +19,13 @@
 
 package org.opensearch.cli;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 /**
  * A base test case for cli tools.
  */
-public abstract class CommandTestCase extends ESTestCase {
+public abstract class CommandTestCase extends OpenSearchTestCase {
 
     /** The terminal that execute uses. */
     protected final MockTerminal terminal = new MockTerminal();

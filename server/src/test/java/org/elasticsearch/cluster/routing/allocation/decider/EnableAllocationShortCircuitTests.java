@@ -42,7 +42,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
 import java.util.Collection;

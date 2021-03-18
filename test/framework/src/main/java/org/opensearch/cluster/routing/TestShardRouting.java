@@ -23,18 +23,13 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.elasticsearch.index.shard.ShardId;
-import org.opensearch.cluster.routing.AllocationId;
-import org.opensearch.cluster.routing.RecoverySource;
-import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.ShardRoutingState;
-import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.apache.lucene.util.LuceneTestCase.random;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
 
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
@@ -104,7 +99,7 @@ public class TestShardRouting {
             case UNASSIGNED:
             case INITIALIZING:
                 if (primary) {
-                    return ESTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                    return OpenSearchTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                         RecoverySource.ExistingStoreRecoverySource.INSTANCE);
                 } else {
                     return RecoverySource.PeerRecoverySource.INSTANCE;
@@ -136,7 +131,7 @@ public class TestShardRouting {
         switch (state) {
             case UNASSIGNED:
             case INITIALIZING:
-                return new UnassignedInfo(ESTestCase.randomFrom(UnassignedInfo.Reason.values()), "auto generated for test");
+                return new UnassignedInfo(OpenSearchTestCase.randomFrom(UnassignedInfo.Reason.values()), "auto generated for test");
             case STARTED:
             case RELOCATING:
                 return null;
@@ -146,7 +141,7 @@ public class TestShardRouting {
     }
 
     public static RecoverySource randomRecoverySource() {
-        return ESTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+        return OpenSearchTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             RecoverySource.PeerRecoverySource.INSTANCE,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,

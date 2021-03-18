@@ -24,13 +24,13 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UniqueTokenFilterTests extends ESTestCase {
+public class UniqueTokenFilterTests extends OpenSearchTestCase {
     public void testSimple() throws IOException {
         Analyzer analyzer = new Analyzer() {
             @Override

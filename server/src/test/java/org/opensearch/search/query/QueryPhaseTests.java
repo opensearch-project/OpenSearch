@@ -87,14 +87,14 @@ import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.tasks.TaskCancelledException;
-import org.elasticsearch.test.TestSearchContext;
+import org.opensearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;

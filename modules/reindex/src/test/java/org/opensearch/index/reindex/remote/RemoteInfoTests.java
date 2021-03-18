@@ -21,11 +21,11 @@ package org.opensearch.index.reindex.remote;
 
 import org.opensearch.common.bytes.BytesArray;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static java.util.Collections.emptyMap;
 
-public class RemoteInfoTests extends ESTestCase {
+public class RemoteInfoTests extends OpenSearchTestCase {
     private RemoteInfo newRemoteInfo(String scheme, String prefixPath, String username, String password) {
         return new RemoteInfo(scheme, "testhost", 12344, prefixPath,new BytesArray("{ \"foo\" : \"bar\" }"), username, password,
             emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);

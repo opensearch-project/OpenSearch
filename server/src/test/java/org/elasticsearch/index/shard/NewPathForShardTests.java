@@ -29,8 +29,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
-public class NewPathForShardTests extends ESTestCase {
+public class NewPathForShardTests extends OpenSearchTestCase {
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 

@@ -25,9 +25,7 @@ import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.BitArray;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,7 +36,7 @@ import static org.junit.Assume.assumeThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BitArrayTests extends ESTestCase {
+public class BitArrayTests extends OpenSearchTestCase {
     public void testRandom() {
         try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
             int numBits = randomIntBetween(1000, 10000);

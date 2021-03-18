@@ -28,7 +28,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-public class InboundAggregatorTests extends ESTestCase {
+public class InboundAggregatorTests extends OpenSearchTestCase {
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private final String unBreakableAction = "non_breakable_action";

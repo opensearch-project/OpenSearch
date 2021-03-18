@@ -28,7 +28,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import static java.lang.Math.min;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class TranslogDeletionPolicyTests extends ESTestCase {
+public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
 
     public void testNoRetention() throws IOException {
         long now = System.currentTimeMillis();

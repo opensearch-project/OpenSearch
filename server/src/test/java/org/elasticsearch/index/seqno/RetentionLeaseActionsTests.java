@@ -30,7 +30,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.node.Node;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CountDownLatch;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 
-public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
+public class RetentionLeaseActionsTests extends OpenSearchSingleNodeTestCase {
 
     public void testAddAction() {
         final Settings settings = Settings.builder()

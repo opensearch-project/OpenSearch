@@ -28,7 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -38,7 +38,7 @@ import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROS
 import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
 import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
 
-public class BinaryDocValuesRangeQueryTests extends ESTestCase {
+public class BinaryDocValuesRangeQueryTests extends OpenSearchTestCase {
 
     public void testBasics() throws Exception {
         String fieldName = "long_field";

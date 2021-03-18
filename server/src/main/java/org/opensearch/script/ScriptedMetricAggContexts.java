@@ -23,7 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
@@ -66,7 +66,7 @@ public class ScriptedMetricAggContexts {
     public abstract static class MapScript {
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-        private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+        private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of(
                 "doc", value -> {
                     deprecationLogger.deprecate("map-script_doc",
                             "Accessing variable [doc] via [params.doc] from within an scripted metric agg map script "

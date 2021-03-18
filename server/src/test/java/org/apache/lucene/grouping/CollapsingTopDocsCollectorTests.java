@@ -50,7 +50,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MockFieldMapper;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +60,7 @@ import java.util.List;
 import java.util.Set;
 
 
-public class CollapsingTopDocsCollectorTests extends ESTestCase {
+public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
     private static class SegmentSearcher extends IndexSearcher {
         private final List<LeafReaderContext> ctx;
 

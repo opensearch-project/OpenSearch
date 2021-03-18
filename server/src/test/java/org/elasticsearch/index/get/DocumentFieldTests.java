@@ -29,8 +29,8 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.RandomObjects;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.RandomObjects;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,10 +40,10 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class DocumentFieldTests extends ESTestCase {
+public class DocumentFieldTests extends OpenSearchTestCase {
 
     public void testToXContent() {
         DocumentField documentField = new DocumentField("field", Arrays.asList("value1", "value2"));
@@ -130,7 +130,7 @@ public class DocumentFieldTests extends ESTestCase {
                     DocumentField expected = new DocumentField(fieldName, tuple.v2());
                     return Tuple.tuple(input, expected);
                 case 1:
-                    List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
+                    List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, OpenSearchTestCase::randomInt));
                     DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
                     return Tuple.tuple(listField, listField);
                 case 2:

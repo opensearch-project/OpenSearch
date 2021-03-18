@@ -25,14 +25,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.opensearch.node.NodeRoleSettings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
-import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
 import static org.opensearch.transport.RemoteClusterService.ENABLE_REMOTE_CLUSTERS;
 import static org.opensearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.opensearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
-public class RemoteClusterSettingsTests extends ESTestCase {
+public class RemoteClusterSettingsTests extends OpenSearchTestCase {
 
     public void testConnectionsPerClusterFallback() {
         final int value = randomIntBetween(1, 8);

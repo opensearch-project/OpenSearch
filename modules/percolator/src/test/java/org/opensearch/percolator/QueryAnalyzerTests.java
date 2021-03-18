@@ -64,7 +64,7 @@ import org.opensearch.common.network.InetAddresses;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.opensearch.percolator.QueryAnalyzer.QueryExtraction;
 import org.opensearch.percolator.QueryAnalyzer.Result;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
-public class QueryAnalyzerTests extends ESTestCase {
+public class QueryAnalyzerTests extends OpenSearchTestCase {
 
     public void testExtractQueryMetadata_termQuery() {
         TermQuery termQuery = new TermQuery(new Term("_field", "_term"));

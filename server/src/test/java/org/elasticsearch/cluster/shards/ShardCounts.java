@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.shards;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -48,20 +48,20 @@ public class ShardCounts {
     public static ShardCounts forDataNodeCount(int dataNodes) {
         Assert.assertThat("this method will not work reliably with this many data nodes due to the limit of shards in a single index," +
             "use fewer data nodes or multiple indices", dataNodes, lessThanOrEqualTo(90));
-        int mainIndexReplicas = ESTestCase.between(0, dataNodes - 1);
-        int mainIndexShards = ESTestCase.between(1, 10);
+        int mainIndexReplicas = OpenSearchTestCase.between(0, dataNodes - 1);
+        int mainIndexShards = OpenSearchTestCase.between(1, 10);
         int totalShardsInIndex = (mainIndexReplicas + 1) * mainIndexShards;
         // Sometimes add some headroom to the limit to check that it works even if you're not already right up against the limit
-        int shardsPerNode = (int) Math.ceil((double) totalShardsInIndex / dataNodes) + ESTestCase.between(0, 10);
+        int shardsPerNode = (int) Math.ceil((double) totalShardsInIndex / dataNodes) + OpenSearchTestCase.between(0, 10);
         int totalCap = shardsPerNode * dataNodes;
 
         int failingIndexShards;
         int failingIndexReplicas;
-        if (dataNodes > 1 && ESTestCase.frequently()) {
+        if (dataNodes > 1 && OpenSearchTestCase.frequently()) {
             failingIndexShards = Math.max(1, totalCap - totalShardsInIndex);
-            failingIndexReplicas = ESTestCase.between(1, dataNodes - 1);
+            failingIndexReplicas = OpenSearchTestCase.between(1, dataNodes - 1);
         } else {
-            failingIndexShards = totalCap - totalShardsInIndex + ESTestCase.between(1, 10);
+            failingIndexShards = totalCap - totalShardsInIndex + OpenSearchTestCase.between(1, 10);
             failingIndexReplicas = 0;
         }
 

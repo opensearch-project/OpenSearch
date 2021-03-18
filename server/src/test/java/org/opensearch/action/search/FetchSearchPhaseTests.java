@@ -27,7 +27,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
@@ -51,7 +51,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(OpenSearchExecutors.newDirectExecutorService(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 1, exc  -> {});
         boolean hasHits = randomBoolean();
@@ -96,7 +96,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(OpenSearchExecutors.newDirectExecutorService(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
@@ -158,7 +158,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(OpenSearchExecutors.newDirectExecutorService(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
@@ -223,7 +223,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(OpenSearchExecutors.newDirectExecutorService(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), numHits, exc  -> {});
         for (int i = 0; i < numHits; i++) {
@@ -282,7 +282,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         QueryPhaseResultConsumer results =
-            controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            controller.newSearchPhaseResults(OpenSearchExecutors.newDirectExecutorService(),
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
@@ -341,7 +341,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(OpenSearchExecutors.newDirectExecutorService(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = 1;

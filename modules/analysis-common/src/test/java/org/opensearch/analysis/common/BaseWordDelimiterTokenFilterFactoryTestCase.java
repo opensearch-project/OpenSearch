@@ -23,10 +23,10 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -35,7 +35,7 @@ import java.io.StringReader;
  * Base class to test {@link WordDelimiterTokenFilterFactory} and
  * {@link WordDelimiterGraphTokenFilterFactory}.
  */
-public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESTokenStreamTestCase {
+public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSearchTokenStreamTestCase {
     final String type;
 
     public BaseWordDelimiterTokenFilterFactoryTestCase(String type) {
@@ -43,7 +43,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
     }
 
     public void testDefault() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .put("index.analysis.filter.my_word_delimiter.type", type)
@@ -59,7 +59,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
     }
 
     public void testCatenateWords() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .put("index.analysis.filter.my_word_delimiter.type", type)
@@ -77,7 +77,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
     }
 
     public void testCatenateNumbers() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .put("index.analysis.filter.my_word_delimiter.type", type)
@@ -95,7 +95,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
     }
 
     public void testCatenateAll() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .put("index.analysis.filter.my_word_delimiter.type", type)
@@ -113,7 +113,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
     }
 
     public void testSplitOnCaseChange() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .put("index.analysis.filter.my_word_delimiter.type", type)
@@ -129,7 +129,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
     }
 
     public void testPreserveOriginal() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .put("index.analysis.filter.my_word_delimiter.type", type)
@@ -147,7 +147,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
     }
 
     public void testStemEnglishPossessive() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .put("index.analysis.filter.my_word_delimiter.type", type)

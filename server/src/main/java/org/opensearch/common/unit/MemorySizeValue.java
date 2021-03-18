@@ -19,8 +19,8 @@
 
 package org.opensearch.common.unit;
 
-import org.elasticsearch.OpenSearchParseException;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.util.Objects;
 

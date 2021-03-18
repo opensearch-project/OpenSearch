@@ -25,7 +25,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.LeafBucketCollector;

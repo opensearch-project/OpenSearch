@@ -20,12 +20,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Base64;
 
-public class UidTests extends ESTestCase {
+public class UidTests extends OpenSearchTestCase {
 
     public static BytesRef[] splitUidIntoTypeAndId(BytesRef uid) {
         int loc = -1;

@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,7 +32,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREA
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ObjectMapperMergeTests extends ESTestCase {
+public class ObjectMapperMergeTests extends OpenSearchTestCase {
 
     private final FieldMapper barFieldMapper = createTextFieldMapper("bar");
     private final FieldMapper bazFieldMapper = createTextFieldMapper("baz");

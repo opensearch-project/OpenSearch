@@ -96,7 +96,7 @@ import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
-import org.elasticsearch.test.geo.RandomGeoGenerator;
+import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 import java.net.InetAddress;

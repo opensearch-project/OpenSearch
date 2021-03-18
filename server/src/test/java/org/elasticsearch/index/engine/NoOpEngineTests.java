@@ -39,7 +39,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.index.engine.EngineTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

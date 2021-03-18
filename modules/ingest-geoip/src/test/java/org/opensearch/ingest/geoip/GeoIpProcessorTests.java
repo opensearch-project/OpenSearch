@@ -25,7 +25,7 @@ import org.opensearch.common.io.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GeoIpProcessorTests extends ESTestCase {
+public class GeoIpProcessorTests extends OpenSearchTestCase {
 
     public void testCity() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",

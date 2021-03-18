@@ -19,14 +19,14 @@
 package org.opensearch.common;
 
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 
-public class ParseFieldTests extends ESTestCase {
+public class ParseFieldTests extends OpenSearchTestCase {
     public void testParse() {
         String name = "foo_bar";
         ParseField field = new ParseField(name);

@@ -30,9 +30,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ByteArray;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -45,7 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
+public abstract class AbstractBytesReferenceTestCase extends OpenSearchTestCase {
 
     protected static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
     protected final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
@@ -684,7 +682,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
                 assertEquals(bytesReference.indexOf(value, from), pos);
             }
         });
-        final byte missing = randomValueOtherThanMany(map::containsKey, ESTestCase::randomByte);
+        final byte missing = randomValueOtherThanMany(map::containsKey, OpenSearchTestCase::randomByte);
         assertEquals(-1, bytesReference.indexOf(missing, randomIntBetween(0, Math.max(0, size - 1))));
     }
 }

@@ -19,8 +19,8 @@
 
 package org.opensearch.action.support.replication;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -31,7 +31,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

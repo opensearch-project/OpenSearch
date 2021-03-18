@@ -31,11 +31,11 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class HalfFloatFielddataTests extends ESTestCase {
+public class HalfFloatFielddataTests extends OpenSearchTestCase {
 
     public void testSingleValued() throws IOException {
         Directory dir = newDirectory();

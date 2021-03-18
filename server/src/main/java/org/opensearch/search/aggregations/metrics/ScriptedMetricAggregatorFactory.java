@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.common.Nullable;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptedMetricAggContexts;
 import org.opensearch.search.SearchParseException;

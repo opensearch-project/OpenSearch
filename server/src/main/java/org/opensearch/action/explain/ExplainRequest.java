@@ -28,8 +28,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.AliasFilter;
 

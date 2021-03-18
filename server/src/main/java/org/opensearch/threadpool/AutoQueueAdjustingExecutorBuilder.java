@@ -23,8 +23,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.Node;
 
 import java.util.Arrays;
@@ -160,9 +160,9 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
         int maxQueueSize = settings.maxQueueSize;
         int frameSize = settings.frameSize;
         TimeValue targetedResponseTime = settings.targetedResponseTime;
-        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
+        final ThreadFactory threadFactory = OpenSearchExecutors.daemonThreadFactory(OpenSearchExecutors.threadName(settings.nodeName, name()));
         final ExecutorService executor =
-                EsExecutors.newAutoQueueFixed(
+            OpenSearchExecutors.newAutoQueueFixed(
                         settings.nodeName + "/" + name(),
                         size,
                         initialQueueSize,

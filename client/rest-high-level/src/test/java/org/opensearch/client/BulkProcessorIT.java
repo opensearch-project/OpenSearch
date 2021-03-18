@@ -20,9 +20,6 @@
 package org.opensearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.opensearch.client.Request;
-import org.opensearch.client.RequestOptions;
-import org.opensearch.client.Response;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkProcessor;
 import org.opensearch.action.bulk.BulkRequest;
@@ -57,11 +54,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.fieldFromSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasIndex;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasType;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.fieldFromSource;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasIndex;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasProperty;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasType;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;

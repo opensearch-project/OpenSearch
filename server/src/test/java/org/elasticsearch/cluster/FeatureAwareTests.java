@@ -26,8 +26,8 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.cluster.Diff;
 
 import java.io.IOException;
@@ -37,9 +37,9 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Optional;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.opensearch.test.VersionUtils.randomVersionBetween;
 
-public class FeatureAwareTests extends ESTestCase {
+public class FeatureAwareTests extends OpenSearchTestCase {
 
     abstract static class Custom implements Metadata.Custom {
 

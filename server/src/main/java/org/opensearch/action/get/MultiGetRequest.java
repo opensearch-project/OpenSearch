@@ -19,7 +19,7 @@
 
 package org.opensearch.action.get;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -40,7 +40,7 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.VersionType;
+import org.opensearch.index.VersionType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;

@@ -47,7 +47,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
@@ -60,9 +60,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.Set;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.

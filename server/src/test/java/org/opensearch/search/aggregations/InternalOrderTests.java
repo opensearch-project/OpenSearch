@@ -25,8 +25,8 @@ import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.search.aggregations.InternalOrder.CompoundOrder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

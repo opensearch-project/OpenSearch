@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 
 import java.io.IOException;
 import java.util.Collections;

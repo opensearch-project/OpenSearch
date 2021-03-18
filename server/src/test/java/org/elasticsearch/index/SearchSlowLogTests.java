@@ -37,8 +37,8 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestSearchContext;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.TestSearchContext;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SearchSlowLogTests extends ESSingleNodeTestCase {
+public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
     static MockAppender appender;
     static Logger queryLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     static Logger fetchLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");

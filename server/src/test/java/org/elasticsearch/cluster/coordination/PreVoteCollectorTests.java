@@ -27,9 +27,9 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransport;
+import org.opensearch.monitor.StatusInfo;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportException;
@@ -58,8 +58,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.opensearch.cluster.coordination.PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
-import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
-import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PreVoteCollectorTests extends ESTestCase {
+public class PreVoteCollectorTests extends OpenSearchTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
     private PreVoteCollector preVoteCollector;

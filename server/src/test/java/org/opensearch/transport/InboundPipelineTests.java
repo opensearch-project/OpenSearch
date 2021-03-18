@@ -35,7 +35,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.internal.io.Streams;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class InboundPipelineTests extends ESTestCase {
+public class InboundPipelineTests extends OpenSearchTestCase {
 
     private static final int BYTE_THRESHOLD = 128 * 1024;
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

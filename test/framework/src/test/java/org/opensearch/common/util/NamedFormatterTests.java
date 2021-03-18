@@ -19,10 +19,9 @@
 
 package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
-import org.opensearch.common.util.NamedFormatter;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,7 +29,7 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class NamedFormatterTests extends ESTestCase {
+public class NamedFormatterTests extends OpenSearchTestCase {
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 

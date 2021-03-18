@@ -28,7 +28,7 @@ import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
 import org.opensearch.transport.TransportSettings;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.is;
  * This test checks, if an HTTP look-alike request (starting with an HTTP method and a space)
  * actually returns text response instead of just dropping the connection
  */
-public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
+public class Netty4SizeHeaderFrameDecoderTests extends OpenSearchTestCase {
 
     private final Settings settings = Settings.builder()
         .put("node.name", "NettySizeHeaderFrameDecoderTests")

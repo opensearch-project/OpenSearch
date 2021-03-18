@@ -24,7 +24,7 @@ import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
 import java.util.Objects;
@@ -33,7 +33,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class LongKeyedBucketOrdsTests extends ESTestCase {
+public class LongKeyedBucketOrdsTests extends OpenSearchTestCase {
     private final MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
     public void testExplicitCollectsFromSingleBucket() {
@@ -61,7 +61,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             assertThat(ords.size(), equalTo(2L));
             long[] values = new long[scaledRandomIntBetween(1, 10000)];
             for (int i = 0; i < values.length; i++) {
-                values[i] = randomValueOtherThanMany(seen::contains, ESTestCase::randomLong);
+                values[i] = randomValueOtherThanMany(seen::contains, OpenSearchTestCase::randomLong);
                 seen.add(values[i]);
             }
             for (int i = 0; i < values.length; i++) {

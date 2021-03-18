@@ -21,7 +21,7 @@ package org.opensearch.snapshots;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.regex.Regex;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexNotFoundException;
 
 import java.util.ArrayList;
 import java.util.Arrays;

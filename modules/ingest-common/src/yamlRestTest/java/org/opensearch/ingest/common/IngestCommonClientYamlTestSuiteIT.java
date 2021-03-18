@@ -22,10 +22,10 @@ package org.opensearch.ingest.common;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
-public class IngestCommonClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class IngestCommonClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     public IngestCommonClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -33,7 +33,7 @@ public class IngestCommonClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
 

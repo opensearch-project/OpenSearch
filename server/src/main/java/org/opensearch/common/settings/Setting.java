@@ -65,7 +65,7 @@ import java.util.stream.Stream;
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
  * Some (SettingsProperty.Dynamic) can by modified at run time using the API.
- * All settings inside elasticsearch or in any of the plugins should use this type-safe and generic settings infrastructure
+ * All settings inside opensearch or in any of the plugins should use this type-safe and generic settings infrastructure
  * together with {@link AbstractScopedSettings}. This class contains several utility methods that makes it straight forward
  * to add settings for the majority of the cases. For instance a simple boolean settings can be defined like this:
  * <pre>{@code
@@ -518,7 +518,7 @@ public class Setting<T> implements ToXContentObject {
         SecureSettings secureSettings = settings.getSecureSettings();
         if (secureSettings != null && secureSettings.getSettingNames().contains(getKey())) {
             throw new IllegalArgumentException("Setting [" + getKey() + "] is a non-secure setting" +
-                " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore");
+                " and must be stored inside opensearch.yml, but was found inside the Elasticsearch keystore");
         }
         return settings.get(getKey(), defaultValue.apply(settings));
     }

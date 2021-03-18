@@ -32,7 +32,7 @@ import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.LongUnaryOperator;
 
-public class MissingValuesTests extends ESTestCase {
+public class MissingValuesTests extends OpenSearchTestCase {
 
     public void testMissingBytes() throws IOException {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);

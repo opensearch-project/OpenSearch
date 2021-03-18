@@ -33,9 +33,8 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +45,7 @@ import static org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.loadDocI
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class VersionsTests extends ESTestCase {
+public class VersionsTests extends OpenSearchTestCase {
 
     public static DirectoryReader reopen(DirectoryReader reader) throws IOException {
         return reopen(reader, true);

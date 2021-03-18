@@ -27,7 +27,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.common.xcontent.ToXContent.Params;
 
@@ -40,9 +40,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.Collections;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
-public class RolloverResponseTests extends ESTestCase {
+public class RolloverResponseTests extends OpenSearchTestCase {
 
     private static final List<Supplier<Condition<?>>> conditionSuppliers = new ArrayList<>();
     static {

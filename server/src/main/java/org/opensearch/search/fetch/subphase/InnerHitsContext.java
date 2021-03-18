@@ -32,7 +32,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.index.mapper.Uid;
+import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.SubSearchContext;

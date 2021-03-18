@@ -27,8 +27,8 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.util.Set;
 import java.util.function.LongConsumer;
@@ -37,7 +37,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public abstract class ReplicationTrackerTestCase extends ESTestCase  {
+public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
 
     ReplicationTracker newTracker(
             final AllocationId allocationId,

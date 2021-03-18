@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.opensearch.search.lookup.SourceLookup;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 
-public class FieldFetcherTests extends ESSingleNodeTestCase {
+public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
 
     public void testLeafValues() throws IOException {
         MapperService mapperService = createMapperService();

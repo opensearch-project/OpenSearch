@@ -47,7 +47,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
@@ -86,10 +86,10 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.internal.ReaderContext;
-import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.engine.MockEngineFactory;
+import org.opensearch.test.ClusterServiceUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.engine.MockEngineFactory;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
@@ -112,7 +112,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class IndexModuleTests extends ESTestCase {
+public class IndexModuleTests extends OpenSearchTestCase {
     private Index index;
     private Settings settings;
     private IndexSettings indexSettings;
@@ -432,7 +432,7 @@ public class IndexModuleTests extends ESTestCase {
             return customQueryCache;
         });
         threadPool.shutdown(); // causes index service creation to fail
-        expectThrows(EsRejectedExecutionException.class, () -> newIndexService(module));
+        expectThrows(OpenSearchRejectedExecutionException.class, () -> newIndexService(module));
         assertThat(liveQueryCaches, empty());
     }
 
@@ -476,7 +476,7 @@ public class IndexModuleTests extends ESTestCase {
             singletonMap("test", analysisProvider), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
         IndexModule module = createIndexModule(indexSettings, analysisRegistry);
         threadPool.shutdown(); // causes index service creation to fail
-        expectThrows(EsRejectedExecutionException.class, () -> newIndexService(module));
+        expectThrows(OpenSearchRejectedExecutionException.class, () -> newIndexService(module));
         assertThat(openAnalyzers, empty());
     }
 

@@ -21,13 +21,13 @@ package org.elasticsearch.monitor.os;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class OsStatsTests extends ESTestCase {
+public class OsStatsTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         int numLoadAverages = randomIntBetween(1, 5);

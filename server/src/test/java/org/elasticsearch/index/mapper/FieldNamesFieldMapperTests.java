@@ -26,7 +26,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,7 +36,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
+public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     private static SortedSet<String> extract(String path) {
         SortedSet<String> set = new TreeSet<>();

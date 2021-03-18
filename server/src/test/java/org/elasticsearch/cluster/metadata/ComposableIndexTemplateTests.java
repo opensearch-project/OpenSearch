@@ -24,8 +24,8 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.AbstractDiffableSerializationTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -191,7 +191,7 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
                 return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
                     orig.composedOf(),
-                    randomValueOtherThan(orig.priority(), ESTestCase::randomNonNegativeLong),
+                    randomValueOtherThan(orig.priority(), OpenSearchTestCase::randomNonNegativeLong),
                     orig.version(),
                     orig.metadata(),
                     orig.getDataStreamTemplate());
@@ -200,7 +200,7 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
                     orig.template(),
                     orig.composedOf(),
                     orig.priority(),
-                    randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
+                    randomValueOtherThan(orig.version(), OpenSearchTestCase::randomNonNegativeLong),
                     orig.metadata(),
                     orig.getDataStreamTemplate());
             case 5:

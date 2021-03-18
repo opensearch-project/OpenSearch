@@ -27,20 +27,20 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.http.HttpTransportSettings;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
+import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Map;
 
 import static org.opensearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class Netty4BadRequestIT extends ESRestTestCase {
+public class Netty4BadRequestIT extends OpenSearchRestTestCase {
 
     public void testBadRequest() throws IOException {
         final Response response = client().performRequest(new Request("GET", "/_nodes/settings"));

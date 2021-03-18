@@ -29,7 +29,7 @@ import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import java.util.function.Function;
  * Provides helper methods and classes for use in PipelineAggregation tests,
  * such as creating mock histograms or computing simple metrics
  */
-public class PipelineAggregationHelperTests extends ESTestCase {
+public class PipelineAggregationHelperTests extends OpenSearchTestCase {
 
     /**
      * Generates a mock histogram to use for testing.  Each MockBucket holds a doc count, key and document values

@@ -21,14 +21,14 @@ package org.opensearch.snapshots;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.UUIDs;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class SnapshotShardsServiceTests extends ESTestCase {
+public class SnapshotShardsServiceTests extends OpenSearchTestCase {
 
     public void testSummarizeFailure() {
         final RuntimeException wrapped = new RuntimeException("wrapped");

@@ -27,8 +27,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -36,7 +36,7 @@ import java.io.StringReader;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
-public class WhitespaceTokenizerFactoryTests extends ESTestCase {
+public class WhitespaceTokenizerFactoryTests extends OpenSearchTestCase {
 
     public void testSimpleWhiteSpaceTokenizer() throws IOException {
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();

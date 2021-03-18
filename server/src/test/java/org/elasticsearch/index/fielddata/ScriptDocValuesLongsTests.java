@@ -20,12 +20,12 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 
-public class ScriptDocValuesLongsTests extends ESTestCase {
+public class ScriptDocValuesLongsTests extends OpenSearchTestCase {
     public void testLongs() throws IOException {
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {

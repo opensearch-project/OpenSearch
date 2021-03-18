@@ -38,7 +38,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -48,9 +48,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public abstract class SmoothingModelTestCase extends ESTestCase {
+public abstract class SmoothingModelTestCase extends OpenSearchTestCase {
 
     private static NamedWriteableRegistry namedWriteableRegistry;
 
@@ -147,7 +147,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     }
 
     private SmoothingModel copy(SmoothingModel original) throws IOException {
-        return ESTestCase.copyWriteable(original, namedWriteableRegistry,
+        return OpenSearchTestCase.copyWriteable(original, namedWriteableRegistry,
                 namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()));
     }
 }

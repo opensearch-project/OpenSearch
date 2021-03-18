@@ -33,10 +33,10 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
-import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.RepositoryOperation;
+import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.snapshots.InFlightShardSnapshotStates;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -52,9 +52,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
-
 import static org.opensearch.snapshots.SnapshotInfo.DATA_STREAMS_IN_SNAPSHOT;
+import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
 
 /**
  * Meta data about snapshots that are currently executing

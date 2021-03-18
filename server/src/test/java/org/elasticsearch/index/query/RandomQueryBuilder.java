@@ -25,9 +25,9 @@ import org.opensearch.common.Strings;
 
 import java.util.Random;
 
-import static org.elasticsearch.test.AbstractBuilderTestCase.TEXT_ALIAS_FIELD_NAME;
-import static org.elasticsearch.test.AbstractBuilderTestCase.TEXT_FIELD_NAME;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.opensearch.test.AbstractBuilderTestCase.TEXT_ALIAS_FIELD_NAME;
+import static org.opensearch.test.AbstractBuilderTestCase.TEXT_FIELD_NAME;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 
 /**
  * Utility class for creating random QueryBuilders.

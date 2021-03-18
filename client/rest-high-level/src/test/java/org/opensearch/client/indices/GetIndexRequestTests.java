@@ -21,9 +21,9 @@ package org.opensearch.client.indices;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.indices.GetIndexRequest.Feature;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class GetIndexRequestTests extends ESTestCase {
+public class GetIndexRequestTests extends OpenSearchTestCase {
 
     public void testIndices() {
         String[] indices = generateRandomStringArray(5, 5, false, true);

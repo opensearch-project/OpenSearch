@@ -37,7 +37,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AggregatorBaseTests extends ESSingleNodeTestCase {
+public class AggregatorBaseTests extends OpenSearchSingleNodeTestCase {
 
     class BogusAggregator extends AggregatorBase {
         BogusAggregator(SearchContext searchContext, Aggregator parent) throws IOException {

@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -42,7 +42,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
-public class SortBuilderTests extends ESTestCase {
+public class SortBuilderTests extends OpenSearchTestCase {
     private static final int NUMBER_OF_RUNS = 20;
 
     private static NamedXContentRegistry xContentRegistry;

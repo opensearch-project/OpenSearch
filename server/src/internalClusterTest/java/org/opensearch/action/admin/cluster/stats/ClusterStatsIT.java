@@ -28,7 +28,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.monitor.os.OsStats;
@@ -38,10 +38,6 @@ import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import org.hamcrest.Matchers;
-import org.opensearch.action.admin.cluster.stats.ClusterStatsIndices;
-import org.opensearch.action.admin.cluster.stats.ClusterStatsNodes;
-import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.opensearch.action.admin.cluster.stats.IndexFeatureStats;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -236,7 +232,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         // start one node with 7 processors.
-        internalCluster().startNode(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 7).build());
+        internalCluster().startNode(Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 7).build());
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();

@@ -21,8 +21,8 @@ package org.opensearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.IgnoredFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.IgnoredFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase;
@@ -79,7 +79,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     private Set<String> getIgnoredFields(SearchHit hit) {
         DocumentField field = hit.field(IgnoredFieldMapper.NAME);
         if (field == null) {
-            return org.elasticsearch.common.collect.Set.of();
+            return org.opensearch.common.collect.Set.of();
         }
 
         Set<String> ignoredFields = new HashSet<>();

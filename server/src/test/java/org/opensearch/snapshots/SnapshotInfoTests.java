@@ -21,8 +21,8 @@ package org.opensearch.snapshots;
 
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -87,7 +87,7 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.userMetadata());
             case 2:
                 return new SnapshotInfo(instance.snapshotId(), instance.indices(), instance.dataStreams(),
-                    randomValueOtherThan(instance.startTime(), ESTestCase::randomNonNegativeLong), instance.reason(),
+                    randomValueOtherThan(instance.startTime(), OpenSearchTestCase::randomNonNegativeLong), instance.reason(),
                     instance.endTime(), instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(),
                     instance.userMetadata());
             case 3:
@@ -96,7 +96,7 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(), instance.userMetadata());
             case 4:
                 return new SnapshotInfo(instance.snapshotId(), instance.indices(), instance.dataStreams(),
-                    instance.startTime(), instance.reason(), randomValueOtherThan(instance.endTime(), ESTestCase::randomNonNegativeLong),
+                    instance.startTime(), instance.reason(), randomValueOtherThan(instance.endTime(), OpenSearchTestCase::randomNonNegativeLong),
                     instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(), instance.userMetadata());
             case 5:
                 int totalShards = randomValueOtherThan(instance.totalShards(), () -> randomIntBetween(0, 100));

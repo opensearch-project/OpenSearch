@@ -42,8 +42,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.zen.MembershipAction;
 import org.opensearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.monitor.NodeHealthService;
-import org.elasticsearch.monitor.StatusInfo;
+import org.opensearch.monitor.NodeHealthService;
+import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportChannel;
@@ -71,7 +71,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class JoinHelper {
 

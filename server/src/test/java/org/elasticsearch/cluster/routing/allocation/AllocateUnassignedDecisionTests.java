@@ -27,7 +27,7 @@ import org.opensearch.cluster.routing.allocation.AllocationDecision;
 import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Unit tests for the {@link AllocateUnassignedDecision} class.
  */
-public class AllocateUnassignedDecisionTests extends ESTestCase {
+public class AllocateUnassignedDecisionTests extends OpenSearchTestCase {
 
     private DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
     private DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);

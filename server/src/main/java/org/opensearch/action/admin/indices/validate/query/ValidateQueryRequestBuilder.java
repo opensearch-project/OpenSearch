@@ -41,7 +41,7 @@ public class ValidateQueryRequestBuilder
     /**
      * The query to validate.
      *
-     * @see org.elasticsearch.index.query.QueryBuilders
+     * @see org.opensearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setQuery(QueryBuilder queryBuilder) {
         request.query(queryBuilder);
@@ -51,7 +51,7 @@ public class ValidateQueryRequestBuilder
     /**
      * Indicates if detailed information about the query should be returned.
      *
-     * @see org.elasticsearch.index.query.QueryBuilders
+     * @see org.opensearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setExplain(boolean explain) {
         request.explain(explain);

@@ -27,7 +27,7 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.opensearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;

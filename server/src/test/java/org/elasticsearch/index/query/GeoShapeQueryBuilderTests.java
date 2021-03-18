@@ -39,10 +39,10 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
+import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.test.geo.RandomShapeGenerator;
+import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.junit.After;
 import org.locationtech.jts.geom.Coordinate;
 

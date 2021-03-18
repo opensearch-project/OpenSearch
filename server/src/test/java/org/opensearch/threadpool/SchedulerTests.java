@@ -21,7 +21,7 @@ package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-public class SchedulerTests extends ESTestCase {
+public class SchedulerTests extends OpenSearchTestCase {
 
     public void testCancelOnThreadPool() {
         ThreadPool threadPool = new TestThreadPool("test");

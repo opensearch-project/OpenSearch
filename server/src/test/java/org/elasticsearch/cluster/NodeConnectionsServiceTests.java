@@ -37,9 +37,9 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -75,7 +75,7 @@ import static org.opensearch.common.util.concurrent.ConcurrentCollections.newCon
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
-public class NodeConnectionsServiceTests extends ESTestCase {
+public class NodeConnectionsServiceTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private TransportService transportService;

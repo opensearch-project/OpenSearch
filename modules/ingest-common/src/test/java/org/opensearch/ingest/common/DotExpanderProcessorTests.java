@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.TestTemplateService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,7 +31,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DotExpanderProcessorTests extends ESTestCase {
+public class DotExpanderProcessorTests extends OpenSearchTestCase {
 
     public void testEscapeFields() throws Exception {
         Map<String, Object> source = new HashMap<>();

@@ -31,6 +31,8 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.mapper.MapperServiceTestCase;
+import org.opensearch.index.mapper.MockFieldMapper;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -43,8 +45,8 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

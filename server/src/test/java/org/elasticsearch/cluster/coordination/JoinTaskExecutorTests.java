@@ -31,25 +31,25 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.List;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.cluster.coordination.JoinTaskExecutor;
 
 import java.util.HashSet;
 
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.incompatibleFutureVersion;
-import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
-import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.opensearch.test.VersionUtils.getPreviousVersion;
+import static org.opensearch.test.VersionUtils.incompatibleFutureVersion;
+import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
+import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
+import static org.opensearch.test.VersionUtils.randomVersion;
+import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class JoinTaskExecutorTests extends ESTestCase {
+public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();

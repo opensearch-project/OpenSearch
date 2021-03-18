@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,7 +32,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class JoinProcessorTests extends ESTestCase {
+public class JoinProcessorTests extends OpenSearchTestCase {
 
     private static final String[] SEPARATORS = new String[]{"-", "_", "."};
 

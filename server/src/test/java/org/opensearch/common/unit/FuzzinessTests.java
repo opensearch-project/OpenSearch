@@ -22,8 +22,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -32,7 +31,7 @@ import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
 
-public class FuzzinessTests extends ESTestCase {
+public class FuzzinessTests extends OpenSearchTestCase {
     public void testNumerics() {
         String[] options = new String[]{"1.0", "1", "1.000000"};
         assertThat(Fuzziness.build(randomFrom(options)).asFloat(), equalTo(1f));

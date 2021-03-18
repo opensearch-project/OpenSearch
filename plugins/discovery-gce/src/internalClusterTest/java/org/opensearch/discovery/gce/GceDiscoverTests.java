@@ -29,7 +29,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportService;
 
 import org.junit.After;
@@ -45,8 +45,8 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
-@ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 0, numClientNodes = 0)
-public class GceDiscoverTests extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 0, numClientNodes = 0)
+public class GceDiscoverTests extends OpenSearchIntegTestCase {
 
     /** Holds a list of the current discovery nodes started in tests **/
     private static final Map<String, DiscoveryNode> nodes = new ConcurrentHashMap<>();

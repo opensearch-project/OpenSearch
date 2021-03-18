@@ -38,7 +38,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.SuggestBuilders;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -53,11 +53,11 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.containsString;
 
-public class RatedRequestsTests extends ESTestCase {
+public class RatedRequestsTests extends OpenSearchTestCase {
 
     private static NamedXContentRegistry xContentRegistry;
 
@@ -157,7 +157,7 @@ public class RatedRequestsTests extends ESTestCase {
     private static RatedRequest copy(RatedRequest original) throws IOException {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
-        return ESTestCase.copyWriteable(original, new NamedWriteableRegistry(namedWriteables), RatedRequest::new);
+        return OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(namedWriteables), RatedRequest::new);
     }
 
     public void testEqualsAndHash() throws IOException {

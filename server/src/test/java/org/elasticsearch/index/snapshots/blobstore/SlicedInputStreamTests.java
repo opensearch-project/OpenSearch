@@ -19,7 +19,7 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -30,7 +30,7 @@ import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SlicedInputStreamTests extends ESTestCase {
+public class SlicedInputStreamTests extends OpenSearchTestCase {
     public void testReadRandom() throws IOException {
         int parts = randomIntBetween(1, 20);
         ByteArrayOutputStream stream = new ByteArrayOutputStream();

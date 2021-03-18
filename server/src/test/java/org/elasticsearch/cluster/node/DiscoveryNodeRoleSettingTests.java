@@ -21,20 +21,20 @@ package org.elasticsearch.cluster.node;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 
 import java.util.Collections;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.test.NodeRoles.onlyRole;
-import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.opensearch.test.NodeRoles.onlyRole;
+import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DiscoveryNodeRoleSettingTests extends ESTestCase {
+public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
 
     public void testIsDataNode() {
         runRoleTest(DiscoveryNode::isDataNode, DiscoveryNodeRole.DATA_ROLE);

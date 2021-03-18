@@ -25,14 +25,14 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
+public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
     public void testMergeMultiField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping1.json");
         MapperService mapperService = createIndex("test").mapperService();

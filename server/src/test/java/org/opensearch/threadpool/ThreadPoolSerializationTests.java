@@ -28,7 +28,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ThreadPoolSerializationTests extends ESTestCase {
+public class ThreadPoolSerializationTests extends OpenSearchTestCase {
     private final BytesStreamOutput output = new BytesStreamOutput();
     private ThreadPool.ThreadPoolType threadPoolType;
 

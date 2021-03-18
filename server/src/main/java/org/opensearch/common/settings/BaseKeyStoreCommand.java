@@ -25,7 +25,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.KeyStoreAwareCommand;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import java.nio.file.Path;
 
@@ -51,7 +51,7 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
                     throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found at [" +
                         KeyStoreWrapper.keystorePath(env.configFile()) + "]. Use 'create' command to create one.");
                 } else if (options.has(forceOption) == false) {
-                    if (terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
+                    if (terminal.promptYesNo("The opensearch keystore does not exist. Do you want to create it?", false) == false) {
                         terminal.println("Exiting without creating keystore.");
                         return;
                     }

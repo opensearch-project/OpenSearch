@@ -24,7 +24,7 @@ import org.opensearch.dissect.DissectException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.CoreMatchers;
 
 import java.util.Collections;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Basic tests for the {@link DissectProcessor}. See the {@link org.opensearch.dissect.DissectParser} test suite for a comprehensive
  * set of dissect tests.
  */
-public class DissectProcessorTests extends ESTestCase {
+public class DissectProcessorTests extends OpenSearchTestCase {
 
     public void testMatch() {
         IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null,

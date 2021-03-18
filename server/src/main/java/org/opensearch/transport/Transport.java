@@ -261,7 +261,7 @@ public interface Transport extends LifecycleComponent {
         }
 
         // TODO: Only visible for testing. Perhaps move StubbableTransport from
-        //  org.elasticsearch.test.transport to org.elasticsearch.transport
+        //  org.opensearch.test.transport to org.opensearch.transport
         public synchronized <Request extends TransportRequest> void forceRegister(RequestHandlerRegistry<Request> reg) {
             requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
         }

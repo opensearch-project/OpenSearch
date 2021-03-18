@@ -21,14 +21,14 @@ package org.opensearch;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.Netty4Plugin;
 import org.opensearch.transport.netty4.Netty4Transport;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public abstract class OpenSearchNetty4IntegTestCase extends ESIntegTestCase {
+public abstract class OpenSearchNetty4IntegTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean ignoreExternalCluster() {

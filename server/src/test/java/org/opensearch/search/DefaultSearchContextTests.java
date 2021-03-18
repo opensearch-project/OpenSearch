@@ -58,7 +58,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -75,7 +75,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DefaultSearchContextTests extends ESTestCase {
+public class DefaultSearchContextTests extends OpenSearchTestCase {
 
     public void testPreProcess() throws Exception {
         TimeValue timeout = new TimeValue(randomIntBetween(1, 100));

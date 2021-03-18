@@ -24,12 +24,12 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoTileGridParserTests extends ESTestCase {
+public class GeoTileGridParserTests extends OpenSearchTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,

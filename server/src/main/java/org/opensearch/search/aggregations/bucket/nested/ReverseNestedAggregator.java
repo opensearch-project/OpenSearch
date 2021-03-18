@@ -19,7 +19,6 @@
 package org.opensearch.search.aggregations.bucket.nested;
 
 import com.carrotsearch.hppc.LongIntHashMap;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
@@ -27,7 +26,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
@@ -62,7 +61,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
+        // In OpenSearch if parent is deleted, then also the children are deleted, so the child docs this agg receives
         // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
         final BitSet parentDocs = parentBitsetProducer.getBitSet(ctx);
         if (parentDocs == null) {

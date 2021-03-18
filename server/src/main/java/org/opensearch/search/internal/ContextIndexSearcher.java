@@ -50,7 +50,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.Timer;
@@ -183,7 +183,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         TopFieldDocs mergedTopDocs = (TopFieldDocs) manager.reduce(collectors);
         // Lucene sets shards indexes during merging of topDocs from different collectors
-        // We need to reset shard index; ES will set shard index later during reduce stage
+        // We need to reset shard index; OpenSearch will set shard index later during reduce stage
         for (ScoreDoc scoreDoc : mergedTopDocs.scoreDocs) {
             scoreDoc.shardIndex = -1;
         }

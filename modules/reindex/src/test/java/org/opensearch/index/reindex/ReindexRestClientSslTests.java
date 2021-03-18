@@ -36,7 +36,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.mocksocket.MockHttpServer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -70,7 +70,7 @@ import static org.mockito.Mockito.mock;
  * right SSL keys + trust settings.
  */
 @SuppressForbidden(reason = "use http server")
-public class ReindexRestClientSslTests extends ESTestCase {
+public class ReindexRestClientSslTests extends OpenSearchTestCase {
 
     private static HttpsServer server;
     private static Consumer<HttpsExchange> handler = ignore -> {

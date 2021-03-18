@@ -54,7 +54,7 @@ import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.plugins.ClusterPlugin;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;

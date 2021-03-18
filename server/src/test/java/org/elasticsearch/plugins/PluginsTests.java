@@ -20,11 +20,11 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Locale;
 
-public class PluginsTests extends ESTestCase {
+public class PluginsTests extends OpenSearchTestCase {
 
     public void testMakePlatformName() {
         final String platformName = Platforms.platformName(Constants.OS_NAME, Constants.OS_ARCH);

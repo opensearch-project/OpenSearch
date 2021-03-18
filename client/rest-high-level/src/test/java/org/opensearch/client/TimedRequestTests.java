@@ -20,9 +20,9 @@
 package org.opensearch.client;
 
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class TimedRequestTests extends ESTestCase {
+public class TimedRequestTests extends OpenSearchTestCase {
 
     public void testDefaults() {
         TimedRequest timedRequest = new TimedRequest(){};

@@ -38,7 +38,7 @@ import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.ingest.PipelineConfiguration;
+import org.opensearch.ingest.PipelineConfiguration;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

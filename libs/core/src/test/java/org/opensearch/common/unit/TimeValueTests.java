@@ -19,7 +19,7 @@
 
 package org.opensearch.common.unit;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class TimeValueTests extends ESTestCase {
+public class TimeValueTests extends OpenSearchTestCase {
 
     public void testSimple() {
         assertThat(TimeUnit.MILLISECONDS.toMillis(10), equalTo(new TimeValue(10, TimeUnit.MILLISECONDS).millis()));
@@ -216,7 +216,7 @@ public class TimeValueTests extends ESTestCase {
 
     public void testCompareValue() {
         long firstRandom = randomNonNegativeLong();
-        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomNonNegativeLong);
+        long secondRandom = randomValueOtherThan(firstRandom, OpenSearchTestCase::randomNonNegativeLong);
         TimeUnit unit = randomFrom(TimeUnit.values());
         TimeValue firstValue = new TimeValue(firstRandom, unit);
         TimeValue secondValue = new TimeValue(secondRandom, unit);

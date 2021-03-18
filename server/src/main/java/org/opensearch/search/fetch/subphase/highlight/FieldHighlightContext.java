@@ -19,7 +19,7 @@
 package org.opensearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase;
 

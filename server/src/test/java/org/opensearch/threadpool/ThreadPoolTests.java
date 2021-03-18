@@ -21,9 +21,9 @@ package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -32,7 +32,7 @@ import static org.opensearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTI
 import static org.opensearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ThreadPoolTests extends ESTestCase {
+public class ThreadPoolTests extends OpenSearchTestCase {
 
     public void testBoundedByBelowMin() {
         int min = randomIntBetween(0, 32);
@@ -100,7 +100,7 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(factorialForked(1, threadPool.generic()), equalTo(1));
         assertThat(factorialForked(10, threadPool.generic()), equalTo(3628800));
         assertThat(expectThrows(AssertionError.class,
-            () -> factorialForked(between(2, 10), EsExecutors.newDirectExecutorService())).getMessage(),
+            () -> factorialForked(between(2, 10), OpenSearchExecutors.newDirectExecutorService())).getMessage(),
             equalTo("org.opensearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
         terminate(threadPool);
     }

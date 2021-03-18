@@ -21,8 +21,7 @@ package org.opensearch.common.util;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.common.util.SetBackedScalingCuckooFilter;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.HashSet;

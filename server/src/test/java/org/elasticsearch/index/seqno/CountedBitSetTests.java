@@ -20,7 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CountedBitSetTests extends ESTestCase {
+public class CountedBitSetTests extends OpenSearchTestCase {
 
     public void testCompareToFixedBitset() {
         int numBits = (short) randomIntBetween(8, 4096);

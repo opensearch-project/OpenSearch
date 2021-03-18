@@ -21,8 +21,8 @@ package org.opensearch.search.fetch.subphase.highlight;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.lookup.SourceLookup;
 

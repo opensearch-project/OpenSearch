@@ -51,6 +51,7 @@ import org.opensearch.index.analysis.LowercaseNormalizer;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.index.mapper.FieldTypeTestCase;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 

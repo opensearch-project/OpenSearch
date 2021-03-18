@@ -28,7 +28,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHitTests;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.search.suggest.completion.CompletionSuggestion.Entry.Option;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,10 +39,10 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class CompletionSuggestionOptionTests extends ESTestCase {
+public class CompletionSuggestionOptionTests extends OpenSearchTestCase {
 
     public static Option createTestItem() {
         Text text = new Text(randomAlphaOfLengthBetween(5, 15));

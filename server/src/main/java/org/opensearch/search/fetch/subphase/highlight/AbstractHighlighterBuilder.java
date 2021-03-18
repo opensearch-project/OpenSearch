@@ -31,8 +31,8 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.Rewriteable;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.Rewriteable;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 
@@ -44,7 +44,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static org.opensearch.common.xcontent.ObjectParser.fromList;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 /**
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}

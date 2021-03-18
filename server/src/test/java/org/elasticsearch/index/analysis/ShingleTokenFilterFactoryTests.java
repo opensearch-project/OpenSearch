@@ -28,8 +28,9 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -37,11 +38,11 @@ import java.io.StringReader;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ThreadLeakScope(Scope.NONE)
-public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
+public class ShingleTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase {
     private static final String RESOURCE = "/org/elasticsearch/index/analysis/shingle_analysis.json";
 
     public void testDefault() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle");
         String source = "the quick brown fox";
         String[] expected = new String[]{"the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox"};
@@ -51,7 +52,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testInverseMapping() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick brown fox";
@@ -62,7 +63,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testInverseMappingNoShingles() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick";
@@ -73,7 +74,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testFillerToken() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle_filler");
         String source = "simon the sorcerer";
         String[] expected = new String[]{"simon FILLER", "simon FILLER sorcerer", "FILLER sorcerer"};
@@ -84,7 +85,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testDisableGraph() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory shingleFiller = analysis.tokenFilter.get("shingle_filler");
         TokenFilterFactory shingleInverse = analysis.tokenFilter.get("shingle_inverse");
 
@@ -113,7 +114,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         int maxAllowedShingleDiff = 3;
         int shingleDiff = 8;
         try {
-            ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE2);
+            OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE2);
             analysis.tokenFilter.get("shingle");
             fail();
         } catch (IllegalArgumentException ex) {

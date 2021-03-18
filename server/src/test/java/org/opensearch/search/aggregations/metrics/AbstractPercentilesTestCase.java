@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregation.CommonFields;
 import org.opensearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

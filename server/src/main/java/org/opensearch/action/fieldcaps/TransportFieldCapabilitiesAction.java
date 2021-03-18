@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.fieldcaps;
+package org.opensearch.action.fieldcaps;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;

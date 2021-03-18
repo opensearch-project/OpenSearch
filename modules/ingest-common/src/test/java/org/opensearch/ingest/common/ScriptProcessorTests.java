@@ -28,7 +28,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -38,7 +38,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.core.Is.is;
 
-public class ScriptProcessorTests extends ESTestCase {
+public class ScriptProcessorTests extends OpenSearchTestCase {
 
     private ScriptService scriptService;
     private Script script;

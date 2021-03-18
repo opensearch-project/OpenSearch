@@ -20,11 +20,11 @@ package org.opensearch.common;
 
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ReleasablesTests extends ESTestCase {
+public class ReleasablesTests extends OpenSearchTestCase {
 
     public void testReleaseOnce() {
         AtomicInteger count = new AtomicInteger(0);

@@ -18,17 +18,17 @@
  */
 package org.opensearch.script;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
+import java.util.Map;
+
 /**
  * A script implementation of a query filter.
- * See {@link org.elasticsearch.index.query.ScriptQueryBuilder}.
+ * See {@link org.opensearch.index.query.ScriptQueryBuilder}.
  */
 public abstract class FilterScript {
 

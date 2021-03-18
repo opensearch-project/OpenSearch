@@ -19,14 +19,12 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.RunOnce;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class RunOnceTests extends ESTestCase {
+public class RunOnceTests extends OpenSearchTestCase {
 
     public void testRunOnce() {
         final AtomicInteger counter = new AtomicInteger(0);

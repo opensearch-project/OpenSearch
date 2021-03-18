@@ -19,14 +19,14 @@
 
 package org.opensearch.nio;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntFunction;
 
-public class InboundChannelBufferTests extends ESTestCase {
+public class InboundChannelBufferTests extends OpenSearchTestCase {
 
     private IntFunction<Page> defaultPageAllocator;
 

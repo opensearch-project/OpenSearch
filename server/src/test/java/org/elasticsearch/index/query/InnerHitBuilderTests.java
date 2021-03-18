@@ -39,7 +39,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -54,12 +54,12 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class InnerHitBuilderTests extends ESTestCase {
+public class InnerHitBuilderTests extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
@@ -291,7 +291,7 @@ public class InnerHitBuilderTests extends ESTestCase {
     }
 
     private static InnerHitBuilder serializedCopy(InnerHitBuilder original) throws IOException {
-        return ESTestCase.copyWriteable(original, namedWriteableRegistry, InnerHitBuilder::new);
+        return OpenSearchTestCase.copyWriteable(original, namedWriteableRegistry, InnerHitBuilder::new);
     }
 
     public void testSetDocValueFormat() {

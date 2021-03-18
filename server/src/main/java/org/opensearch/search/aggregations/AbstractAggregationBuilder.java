@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collections;

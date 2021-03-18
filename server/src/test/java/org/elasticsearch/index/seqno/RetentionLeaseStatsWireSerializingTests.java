@@ -20,7 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;

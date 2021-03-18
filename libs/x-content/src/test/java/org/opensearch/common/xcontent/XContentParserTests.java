@@ -24,7 +24,7 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
-public class XContentParserTests extends ESTestCase {
+public class XContentParserTests extends OpenSearchTestCase {
 
     public void testFloat() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());

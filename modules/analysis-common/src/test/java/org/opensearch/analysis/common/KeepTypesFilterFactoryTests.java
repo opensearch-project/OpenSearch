@@ -23,17 +23,17 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
+public class KeepTypesFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
     private static final String BASE_SETTING = "index.analysis.filter.keep_numbers";
 
@@ -47,7 +47,7 @@ public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
                     KeepTypesFilterFactory.KeepTypesMode.INCLUDE);
         }
         Settings settings = settingsBuilder.build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep_numbers");
         assertThat(tokenFilter, instanceOf(KeepTypesFilterFactory.class));
         String source = "Hello 123 world";
@@ -62,7 +62,7 @@ public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
                 .put(BASE_SETTING + ".type", "keep_types")
                 .putList(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_KEY, new String[] { "<NUM>", "<SOMETHINGELSE>" })
                 .put(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_MODE_KEY, KeepTypesFilterFactory.KeepTypesMode.EXCLUDE).build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep_numbers");
         assertThat(tokenFilter, instanceOf(KeepTypesFilterFactory.class));
         String source = "Hello 123 world";

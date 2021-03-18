@@ -34,7 +34,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.discovery.Discovery;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.cluster.coordination.CoordinationState;
@@ -75,7 +75,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PublicationTests extends ESTestCase {
+public class PublicationTests extends OpenSearchTestCase {
 
     class MockNode {
 

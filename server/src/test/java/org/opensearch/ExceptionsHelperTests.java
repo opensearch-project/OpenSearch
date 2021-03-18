@@ -27,13 +27,13 @@ import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class ExceptionsHelperTests extends ESTestCase {
+public class ExceptionsHelperTests extends OpenSearchTestCase {
 
     public void testMaybeError() {
         final Error outOfMemoryError = new OutOfMemoryError();
@@ -97,7 +97,7 @@ public class ExceptionsHelperTests extends ESTestCase {
     public void testStatus() {
         assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new EsRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(ExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testGroupBy() {

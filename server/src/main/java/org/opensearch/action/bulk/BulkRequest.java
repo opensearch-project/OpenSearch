@@ -29,7 +29,7 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
@@ -39,7 +39,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;

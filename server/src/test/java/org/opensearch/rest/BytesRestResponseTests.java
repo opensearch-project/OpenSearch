@@ -33,10 +33,10 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.RemoteTransportException;
 
 import java.io.FileNotFoundException;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class BytesRestResponseTests extends ESTestCase {
+public class BytesRestResponseTests extends OpenSearchTestCase {
 
     class UnknownException extends Exception {
         UnknownException(final String message, final Throwable cause) {

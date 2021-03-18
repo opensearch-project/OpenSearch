@@ -18,7 +18,7 @@
  */
 package org.opensearch.action.support;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;

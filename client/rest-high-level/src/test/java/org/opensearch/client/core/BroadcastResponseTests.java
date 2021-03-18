@@ -23,7 +23,7 @@ import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
+import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -27,7 +27,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
@@ -39,7 +39,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
 
-public class NettyTransportMultiPortTests extends ESTestCase {
+public class NettyTransportMultiPortTests extends OpenSearchTestCase {
 
     private String host;
 

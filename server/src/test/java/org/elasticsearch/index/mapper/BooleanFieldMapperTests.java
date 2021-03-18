@@ -32,6 +32,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.mapper.MapperTestCase;
 
 import java.io.IOException;
 

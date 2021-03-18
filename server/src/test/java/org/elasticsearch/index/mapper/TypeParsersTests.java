@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_Q
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TypeParsersTests extends ESTestCase {
+public class TypeParsersTests extends OpenSearchTestCase {
 
     private static Map<String, NamedAnalyzer> defaultAnalyzers() {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();

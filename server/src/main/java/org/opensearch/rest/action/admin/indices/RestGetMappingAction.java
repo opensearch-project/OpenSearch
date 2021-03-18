@@ -20,10 +20,9 @@
 package org.opensearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.OpenSearchTimeoutException;
+import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -32,10 +31,10 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.indices.TypeMissingException;
 import org.opensearch.rest.BaseRestHandler;

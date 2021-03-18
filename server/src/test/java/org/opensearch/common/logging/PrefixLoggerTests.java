@@ -19,12 +19,11 @@
 
 package org.opensearch.common.logging;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.logging.PrefixLogger;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class PrefixLoggerTests extends ESTestCase {
+public class PrefixLoggerTests extends OpenSearchTestCase {
     public void testNullPrefix() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> new PrefixLogger(logger, null));
         assertThat(e.getMessage(), containsString("use a regular logger"));

@@ -35,7 +35,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.index.Index;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;

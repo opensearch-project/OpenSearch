@@ -29,11 +29,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 
-public class LegacyMapperServiceTests extends ESSingleNodeTestCase {
+public class LegacyMapperServiceTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

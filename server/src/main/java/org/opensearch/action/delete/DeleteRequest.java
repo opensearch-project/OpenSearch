@@ -20,7 +20,7 @@
 package org.opensearch.action.delete;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.DocWriteRequest;
@@ -30,15 +30,15 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * A request to delete a document from an index based on its type and id. Best created using
@@ -249,7 +249,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     /**
      * If set, only perform this delete request if the document was last modification was assigned this sequence number.
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifSeqNo() {
         return ifSeqNo;
@@ -259,7 +259,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * If set, only perform this delete request if the document was last modification was assigned this primary term.
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifPrimaryTerm() {
         return ifPrimaryTerm;
@@ -270,7 +270,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public DeleteRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
@@ -285,7 +285,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different primary term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public DeleteRequest setIfPrimaryTerm(long term) {
         if (term < 0) {

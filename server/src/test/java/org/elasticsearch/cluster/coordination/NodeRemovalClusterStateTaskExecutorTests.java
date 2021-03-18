@@ -26,7 +26,7 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
+public class NodeRemovalClusterStateTaskExecutorTests extends OpenSearchTestCase {
 
     public void testRemovingNonExistentNodes() throws Exception {
         final NodeRemovalClusterStateTaskExecutor executor =

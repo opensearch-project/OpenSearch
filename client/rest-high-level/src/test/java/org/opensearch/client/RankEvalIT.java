@@ -19,25 +19,24 @@
 
 package org.opensearch.client;
 
+import org.junit.Before;
 import org.opensearch.action.search.SearchRequest;
-import org.elasticsearch.client.Request;
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.rankeval.DiscountedCumulativeGain;
 import org.opensearch.index.rankeval.EvalQueryQuality;
 import org.opensearch.index.rankeval.EvaluationMetric;
 import org.opensearch.index.rankeval.ExpectedReciprocalRank;
 import org.opensearch.index.rankeval.MeanReciprocalRank;
 import org.opensearch.index.rankeval.PrecisionAtK;
-import org.opensearch.index.rankeval.RecallAtK;
 import org.opensearch.index.rankeval.RankEvalRequest;
 import org.opensearch.index.rankeval.RankEvalResponse;
 import org.opensearch.index.rankeval.RankEvalSpec;
 import org.opensearch.index.rankeval.RatedDocument;
 import org.opensearch.index.rankeval.RatedRequest;
 import org.opensearch.index.rankeval.RatedSearchHit;
+import org.opensearch.index.rankeval.RecallAtK;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;

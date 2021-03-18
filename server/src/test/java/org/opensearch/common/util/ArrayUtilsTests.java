@@ -19,8 +19,7 @@
 
 package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +27,7 @@ import java.util.BitSet;
 
 import static org.hamcrest.Matchers.is;
 
-public class ArrayUtilsTests extends ESTestCase {
+public class ArrayUtilsTests extends OpenSearchTestCase {
     public void testBinarySearch() throws Exception {
         for (int j = 0; j < 100; j++) {
             int index = randomIntBetween(0, 9);

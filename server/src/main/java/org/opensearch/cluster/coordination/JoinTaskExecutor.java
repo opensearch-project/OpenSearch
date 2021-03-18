@@ -29,12 +29,12 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.RerouteService;
+import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.opensearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -261,7 +261,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     /**
      * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata
-     * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
+     * will not be created with a newer version of opensearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
      * @see Version#minimumIndexCompatibilityVersion()
      * @throws IllegalStateException if any index is incompatible with the given version

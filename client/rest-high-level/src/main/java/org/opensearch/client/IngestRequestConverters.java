@@ -27,7 +27,7 @@ import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
-import org.elasticsearch.client.Request;
+import org.opensearch.client.Request;
 
 import java.io.IOException;
 

@@ -33,7 +33,7 @@ import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.test.geo.RandomGeoGenerator;
+import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 import java.util.Arrays;

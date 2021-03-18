@@ -26,13 +26,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
-import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
+import static org.opensearch.test.OpenSearchTestCase.createTestAnalysis;
 import static org.hamcrest.Matchers.containsString;
 
-public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
+public class PatternCaptureTokenFilterTests extends OpenSearchTokenStreamTestCase {
     public void testPatternCaptureTokenFilter() throws Exception {
         String json = "/org/opensearch/analysis/common/pattern_capture.json";
         Settings settings = Settings.builder()

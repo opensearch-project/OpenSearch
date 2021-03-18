@@ -26,7 +26,7 @@ import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class HyperLogLogPlusPlusTests extends ESTestCase {
+public class HyperLogLogPlusPlusTests extends OpenSearchTestCase {
     public void testEncodeDecode() {
         final int iters = scaledRandomIntBetween(100000, 500000);
         // random hashes

@@ -19,7 +19,7 @@
 
 package org.opensearch.painless;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static java.util.Collections.singletonMap;
 
@@ -136,7 +136,7 @@ public class EqualsTests extends ScriptTestCase {
     public void testEqualsDefAndPrimitive() {
         /* This test needs an Integer that isn't cached by Integer.valueOf so we draw one randomly. We can't use any fixed integer because
          * we can never be sure that the JVM hasn't configured itself to cache that Integer. It is sneaky like that. */
-        int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), ESTestCase::randomInt);
+        int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), OpenSearchTestCase::randomInt);
         assertEquals(true, exec("def x = params.i; int y = params.i; return x == y;", singletonMap("i", uncachedAutoboxedInt), true));
         assertEquals(false, exec("def x = params.i; int y = params.i; return x === y;", singletonMap("i", uncachedAutoboxedInt), true));
         assertEquals(true, exec("def x = params.i; int y = params.i; return y == x;", singletonMap("i", uncachedAutoboxedInt), true));
@@ -165,7 +165,7 @@ public class EqualsTests extends ScriptTestCase {
     public void testNotEqualsDefAndPrimitive() {
         /* This test needs an Integer that isn't cached by Integer.valueOf so we draw one randomly. We can't use any fixed integer because
          * we can never be sure that the JVM hasn't configured itself to cache that Integer. It is sneaky like that. */
-        int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), ESTestCase::randomInt);
+        int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), OpenSearchTestCase::randomInt);
         assertEquals(false, exec("def x = params.i; int y = params.i; return x != y;", singletonMap("i", uncachedAutoboxedInt), true));
         assertEquals(true,  exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", uncachedAutoboxedInt), true));
         assertEquals(false, exec("def x = params.i; int y = params.i; return y != x;", singletonMap("i", uncachedAutoboxedInt), true));

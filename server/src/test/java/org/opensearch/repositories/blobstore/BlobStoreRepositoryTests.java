@@ -43,8 +43,8 @@ import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Tests for the {@link BlobStoreRepository} and its subclasses.
  */
-public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
+public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
 
     static final String REPO_TYPE = "fsLike";
 
@@ -88,7 +88,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     public void testRetrieveSnapshots() throws Exception {
         final Client client = client();
-        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
+        final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
         logger.info("-->  creating repository");
@@ -134,7 +134,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2);
 
-        List<SnapshotId> snapshotIds = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getSnapshotIds().stream()
+        List<SnapshotId> snapshotIds = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getSnapshotIds().stream()
             .sorted((s1, s2) -> s1.getName().compareTo(s2.getName())).collect(Collectors.toList());
         assertThat(snapshotIds, equalTo(originalSnapshots));
     }
@@ -143,10 +143,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final BlobStoreRepository repository = setupRepo();
         final long pendingGeneration = repository.metadata.pendingGeneration();
         // write to and read from a index file with no entries
-        assertThat(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getSnapshotIds().size(), equalTo(0));
+        assertThat(OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getSnapshotIds().size(), equalTo(0));
         final RepositoryData emptyData = RepositoryData.EMPTY;
         writeIndexGen(repository, emptyData, emptyData.getGenId());
-        RepositoryData repoData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        RepositoryData repoData = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
         assertEquals(repoData, emptyData);
         assertEquals(repoData.getIndices().size(), 0);
         assertEquals(repoData.getSnapshotIds().size(), 0);
@@ -155,40 +155,40 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write to and read from an index file with snapshots but no indices
         repoData = addRandomSnapshotsToRepoData(repoData, false);
         writeIndexGen(repository, repoData, repoData.getGenId());
-        assertEquals(repoData, ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository));
+        assertEquals(repoData, OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository));
 
         // write to and read from a index file with random repository data
-        repoData = addRandomSnapshotsToRepoData(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), true);
+        repoData = addRandomSnapshotsToRepoData(OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), true);
         writeIndexGen(repository, repoData, repoData.getGenId());
-        assertEquals(repoData, ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository));
+        assertEquals(repoData, OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository));
     }
 
     public void testIndexGenerationalFiles() throws Exception {
         final BlobStoreRepository repository = setupRepo();
-        assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), RepositoryData.EMPTY);
+        assertEquals(OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), RepositoryData.EMPTY);
 
         final long pendingGeneration = repository.metadata.pendingGeneration();
 
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
         writeIndexGen(repository, repositoryData, RepositoryData.EMPTY_REPO_GEN);
-        assertThat(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), equalTo(repositoryData));
+        assertThat(OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), equalTo(repositoryData));
         final long expectedGeneration = pendingGeneration + 1L;
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration));
 
         // adding more and writing to a new index generational file
-        repositoryData = addRandomSnapshotsToRepoData(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), true);
+        repositoryData = addRandomSnapshotsToRepoData(OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), true);
         writeIndexGen(repository, repositoryData, repositoryData.getGenId());
-        assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
+        assertEquals(OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration + 1L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 1L));
 
         // removing a snapshot and writing to a new index generational file
-        repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).removeSnapshots(
+        repositoryData = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).removeSnapshots(
             Collections.singleton(repositoryData.getSnapshotIds().iterator().next()), ShardGenerations.EMPTY);
         writeIndexGen(repository, repositoryData, repositoryData.getGenId());
-        assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
+        assertEquals(OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration + 2L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 2L));
     }
@@ -210,7 +210,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     public void testBadChunksize() throws Exception {
         final Client client = client();
-        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
+        final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
         expectThrows(RepositoryException.class, () ->
@@ -223,7 +223,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     public void testFsRepositoryCompressDeprecated() {
-        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
+        final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final Settings settings = Settings.builder().put(node().settings()).put("location", location).build();
         final RepositoryMetadata metadata = new RepositoryMetadata("test-repo", REPO_TYPE, settings);
 
@@ -247,7 +247,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     private BlobStoreRepository setupRepo() {
         final Client client = client();
-        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
+        final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
         AcknowledgedResponse putRepositoryResponse =

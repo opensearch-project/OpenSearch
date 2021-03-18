@@ -20,7 +20,7 @@ package org.opensearch.search.suggest.phrase;
 
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -31,12 +31,12 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.analysis.AnalyzerComponentsProvider;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.analysis.ShingleTokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.TemplateScript;

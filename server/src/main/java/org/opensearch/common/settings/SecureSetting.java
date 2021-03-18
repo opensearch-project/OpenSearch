@@ -19,13 +19,13 @@
 
 package org.opensearch.common.settings;
 
+import org.opensearch.common.Booleans;
+import org.opensearch.common.util.ArrayUtils;
+
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.EnumSet;
 import java.util.Set;
-
-import org.opensearch.common.Booleans;
-import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * A secure setting.
@@ -86,7 +86,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
         if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
             if (super.exists(settings)) {
                 throw new IllegalArgumentException("Setting [" + getKey() + "] is a secure setting" +
-                    " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml");
+                    " and must be stored inside the Elasticsearch keystore, but was found inside opensearch.yml");
             }
             return getFallback(settings);
         }

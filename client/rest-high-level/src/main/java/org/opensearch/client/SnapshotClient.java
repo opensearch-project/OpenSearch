@@ -19,8 +19,8 @@
 
 package org.opensearch.client;
 
-import org.elasticsearch.client.Cancellable;
-import org.elasticsearch.client.RequestOptions;
+import org.opensearch.client.Cancellable;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;

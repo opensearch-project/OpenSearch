@@ -27,7 +27,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,7 +39,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
+public class FsBlobStoreRepositoryIT extends OpenSearchBlobStoreRepositoryIntegTestCase {
 
     @Override
     protected String repositoryType() {

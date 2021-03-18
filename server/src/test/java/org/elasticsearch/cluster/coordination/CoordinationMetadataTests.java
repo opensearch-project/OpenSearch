@@ -28,9 +28,9 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,7 +39,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CoordinationMetadataTests extends ESTestCase {
+public class CoordinationMetadataTests extends OpenSearchTestCase {
 
     public void testVotingConfiguration() {
         VotingConfiguration config0 = new VotingConfiguration(Sets.newHashSet());
@@ -88,7 +88,7 @@ public class CoordinationMetadataTests extends ESTestCase {
         VotingConfiguration initialConfig = randomVotingConfig();
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialConfig,
-                (CopyFunction<VotingConfiguration>) orig -> ESTestCase.copyWriteable(orig,
+                (CopyFunction<VotingConfiguration>) orig -> OpenSearchTestCase.copyWriteable(orig,
                         new NamedWriteableRegistry(Collections.emptyList()), VotingConfiguration::new),
                 cfg -> randomlyChangeVotingConfiguration(cfg));
     }
@@ -101,7 +101,7 @@ public class CoordinationMetadataTests extends ESTestCase {
         VotingConfigExclusion tombstone = new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10));
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(tombstone,
-                (CopyFunction<VotingConfigExclusion>) orig -> ESTestCase.copyWriteable(orig,
+                (CopyFunction<VotingConfigExclusion>) orig -> OpenSearchTestCase.copyWriteable(orig,
                         new NamedWriteableRegistry(Collections.emptyList()), VotingConfigExclusion::new),
                 orig -> randomlyChangeVotingTombstone(orig));
     }
@@ -156,13 +156,13 @@ public class CoordinationMetadataTests extends ESTestCase {
                 randomVotingTombstones());
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialMetadata,
-                (CopyFunction<CoordinationMetadata>) orig -> ESTestCase.copyWriteable(orig,
+                (CopyFunction<CoordinationMetadata>) orig -> OpenSearchTestCase.copyWriteable(orig,
                         new NamedWriteableRegistry(Collections.emptyList()), CoordinationMetadata::new),
             meta -> {
                 CoordinationMetadata.Builder builder = CoordinationMetadata.builder(meta);
                 switch (randomInt(3)) {
                     case 0:
-                        builder.term(randomValueOtherThan(meta.term(), ESTestCase::randomNonNegativeLong));
+                        builder.term(randomValueOtherThan(meta.term(), OpenSearchTestCase::randomNonNegativeLong));
                         break;
                     case 1:
                         builder.lastCommittedConfiguration(randomlyChangeVotingConfiguration(meta.getLastCommittedConfiguration()));

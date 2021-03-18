@@ -38,9 +38,9 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class OsProbeTests extends ESTestCase {
+public class OsProbeTests extends OpenSearchTestCase {
 
     public void testOsInfo() throws IOException {
         final int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());

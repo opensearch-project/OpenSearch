@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -36,7 +36,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
+public class IpRangeFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     private IndexService indexService;
     private DocumentMapperParser parser;

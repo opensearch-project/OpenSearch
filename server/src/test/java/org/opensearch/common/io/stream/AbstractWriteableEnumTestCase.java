@@ -19,11 +19,7 @@
 
 package org.opensearch.common.io.stream;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -32,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Abstract class offering base functionality for testing @{link Writeable} enums.
  */
-public abstract class AbstractWriteableEnumTestCase extends ESTestCase {
+public abstract class AbstractWriteableEnumTestCase extends OpenSearchTestCase {
     private final Writeable.Reader<?> reader;
 
     public AbstractWriteableEnumTestCase(Writeable.Reader<?> reader) {

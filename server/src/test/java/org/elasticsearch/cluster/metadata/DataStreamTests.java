@@ -22,7 +22,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.cluster.metadata.DataStream;
 
 import java.io.IOException;

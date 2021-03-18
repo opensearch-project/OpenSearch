@@ -20,7 +20,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.client.Request;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasEntry;
  * sure that we don't change the default behavior of touching <strong>all</strong>
  * documents in the request.
  */
-public class ManyDocumentsIT extends ESRestTestCase {
+public class ManyDocumentsIT extends OpenSearchRestTestCase {
     private final int count = between(150, 2000);
 
     @Before

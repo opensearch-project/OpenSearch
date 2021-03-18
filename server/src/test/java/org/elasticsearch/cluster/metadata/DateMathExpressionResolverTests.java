@@ -25,7 +25,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class DateMathExpressionResolverTests extends ESTestCase {
+public class DateMathExpressionResolverTests extends OpenSearchTestCase {
 
     private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver();
     private final Context context = new Context(

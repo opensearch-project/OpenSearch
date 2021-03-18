@@ -45,7 +45,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 

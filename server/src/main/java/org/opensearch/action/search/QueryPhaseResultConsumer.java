@@ -27,7 +27,7 @@ import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;

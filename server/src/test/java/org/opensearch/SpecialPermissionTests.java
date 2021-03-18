@@ -19,12 +19,12 @@
 
 package org.opensearch;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.security.AllPermission;
 
 /** Very simple sanity checks for {@link SpecialPermission} */
-public class SpecialPermissionTests extends ESTestCase {
+public class SpecialPermissionTests extends OpenSearchTestCase {
 
     public void testEquals() {
         assertEquals(new SpecialPermission(), new SpecialPermission());

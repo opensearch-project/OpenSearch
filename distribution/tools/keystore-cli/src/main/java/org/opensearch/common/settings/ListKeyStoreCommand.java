@@ -25,7 +25,7 @@ import java.util.List;
 
 import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 /**
  * A subcommand for the keystore cli to list all settings in the keystore.
