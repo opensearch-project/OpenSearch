@@ -18,5 +18,5 @@
  */
 
 subprojects {
-  group = 'org.elasticsearch.test'
+  group = 'org.opensearch.test'
 }
