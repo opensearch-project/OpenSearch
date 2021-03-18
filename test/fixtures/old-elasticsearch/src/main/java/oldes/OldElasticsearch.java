@@ -37,13 +37,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Starts a version of OpenSearch that has been unzipped into an empty directory,
+ * Starts a version of Elasticsearch that has been unzipped into an empty directory,
  * instructing it to ask the OS for an unused port, grepping the logs for the port
  * it actually got, and writing a {@code ports} file with the port. This is only
- * required for versions of OpenSearch before 5.0 because they do not support
+ * required for versions of Elasticsearch before 5.0 because they do not support
  * writing a "ports" file.
  */
-public class OldOpenSearch {
+public class OldElasticsearch {
     public static void main(String[] args) throws IOException {
         Path baseDir = Paths.get(args[0]);
         Path unzipDir = Paths.get(args[1]);
@@ -65,22 +65,22 @@ public class OldOpenSearch {
 
         Iterator<Path> children = Files.list(unzipDir).iterator();
         if (false == children.hasNext()) {
-            System.err.println("expected the opensearch directory to contain a single child directory but contained none.");
+            System.err.println("expected the es directory to contain a single child directory but contained none.");
             System.exit(1);
         }
-        Path opensearchDir= children.next();
+        Path esDir= children.next();
         if (children.hasNext()) {
-            System.err.println("expected the opensearch directory to contains a single child directory but contained [" + opensearchDir+ "] and ["
+            System.err.println("expected the es directory to contains a single child directory but contained [" + esDir+ "] and ["
                     + children.next() + "].");
             System.exit(1);
         }
-        if (false == Files.isDirectory(opensearchDir)) {
-            System.err.println("expected the opensearch directory to contains a single child directory but contained a single child file.");
+        if (false == Files.isDirectory(esDir)) {
+            System.err.println("expected the es directory to contains a single child directory but contained a single child file.");
             System.exit(1);
         }
 
-        Path bin = opensearchDir.resolve("bin").resolve("opensearch" + (Constants.WINDOWS ? ".bat" : ""));
-        Path config = opensearchDir.resolve("config").resolve("opensearch.yml");
+        Path bin = esDir.resolve("bin").resolve("elasticsearch" + (Constants.WINDOWS ? ".bat" : ""));
+        Path config = esDir.resolve("config").resolve("elasticsearch.yml");
 
         Files.write(config, Arrays.asList("http.port: 0", "transport.tcp.port: 0", "network.host: 127.0.0.1"), StandardCharsets.UTF_8);
 
