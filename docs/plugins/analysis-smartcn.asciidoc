@@ -57,7 +57,7 @@ This filter only supports the predefined `_smartcn_` stopwords list.
 If you want to use a different predefined list, then use the
 {ref}/analysis-stop-tokenfilter.html[`stop` token filter] instead.
 
-// TODO: Replace the example for OpenSearch
+// TODO(OpenSearch): Replace the example
 [source,console]
 --------------------------------------------------
 PUT smartcn_example
@@ -79,7 +79,7 @@ PUT smartcn_example
             "type": "smartcn_stop",
             "stopwords": [
               "_smartcn_",
-              "stack",
+              "project",
               "的"
             ]
           }
@@ -92,7 +92,7 @@ PUT smartcn_example
 GET smartcn_example/_analyze
 {
   "analyzer": "smartcn_with_stop",
-  "text": "哈喽，我们是 Elastic   我们是 Elastic Stack（Elasticsearch、Kibana、Beats 和 Logstash）的开发公司。从股票行情到 Twitter 消息流，从 Apache 日志到 WordPress 博文，我们可以帮助人们体验搜索的强大力量，帮助他们以截然不同的方式探索和分析数据"
+  "text": "哈喽，我们是 OpenSearch Project（OpenSearch 和 OpenSearch Dashboards）的开发者。从股票行情到 Twitter 消息流，从 Apache 日志到 WordPress 博文，我们可以帮助人们体验搜索的强大力量，帮助他们以截然不同的方式探索和分析数据"
 }
 --------------------------------------------------
 
@@ -131,53 +131,18 @@ The above request returns:
       "position": 4
     },
     {
-      "token": "elast",
+      "token": "opensearch",
       "start_offset": 7,
       "end_offset": 14,
       "type": "word",
       "position": 5
     },
     {
-      "token": "我们",
-      "start_offset": 17,
-      "end_offset": 19,
-      "type": "word",
-      "position": 6
-    },
-    {
-      "token": "是",
-      "start_offset": 19,
-      "end_offset": 20,
-      "type": "word",
-      "position": 7
-    },
-    {
-      "token": "elast",
-      "start_offset": 21,
-      "end_offset": 28,
-      "type": "word",
-      "position": 8
-    },
-    {
-      "token": "elasticsearch",
+      "token": "opensearch",
       "start_offset": 35,
       "end_offset": 48,
       "type": "word",
       "position": 11
-    },
-    {
-      "token": "kibana",
-      "start_offset": 49,
-      "end_offset": 55,
-      "type": "word",
-      "position": 13
-    },
-    {
-      "token": "beat",
-      "start_offset": 56,
-      "end_offset": 61,
-      "type": "word",
-      "position": 15
     },
     {
       "token": "和",
@@ -187,7 +152,14 @@ The above request returns:
       "position": 16
     },
     {
-      "token": "logstash",
+      "token": "opensearch",
+      "start_offset": 64,
+      "end_offset": 72,
+      "type": "word",
+      "position": 17
+    },
+    {
+      "token": "dashboards",
       "start_offset": 64,
       "end_offset": 72,
       "type": "word",
@@ -201,7 +173,7 @@ The above request returns:
       "position": 20
     },
     {
-      "token": "公司",
+      "token": "者",
       "start_offset": 76,
       "end_offset": 78,
       "type": "word",
