@@ -239,7 +239,7 @@ public class OsProbe {
 
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
     // respect to /proc/self/cgroup; for Docker containers this should be set to "/"
-    private static final String CONTROL_GROUPS_HIERARCHY_OVERRIDE = System.getProperty("es.cgroups.hierarchy.override");
+    private static final String CONTROL_GROUPS_HIERARCHY_OVERRIDE = System.getProperty("opensearch.cgroups.hierarchy.override");
 
     /**
      * A map of the control groups to which the OpenSearch process belongs. Note that this is a map because the control groups can vary

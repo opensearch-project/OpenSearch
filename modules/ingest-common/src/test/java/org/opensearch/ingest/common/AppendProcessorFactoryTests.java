@@ -101,6 +101,6 @@ public class AppendProcessorFactoryTests extends OpenSearchTestCase {
         OpenSearchException exception = expectThrows(OpenSearchException.class,
             () -> factory.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
-        assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
+        assertThat(exception.getMetadata("opensearch.processor_tag").get(0), equalTo(processorTag));
     }
 }

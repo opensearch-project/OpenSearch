@@ -46,7 +46,7 @@ public class ESJsonLayoutTests extends OpenSearchTestCase {
                 "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
                 "\"level\": \"%p\", " +
                 "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
                 "\"node.name\": \"%node_name\", " +
                 "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
                 "%notEmpty{, %node_and_cluster_id }" +
@@ -66,7 +66,7 @@ public class ESJsonLayoutTests extends OpenSearchTestCase {
                 "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
                 "\"level\": \"%p\", " +
                 "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
                 "\"node.name\": \"%node_name\", " +
                 "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
                 "%notEmpty{, \"x-opaque-id\": \"%ESMessageField{x-opaque-id}\"}" +
@@ -88,7 +88,7 @@ public class ESJsonLayoutTests extends OpenSearchTestCase {
                 "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
                 "\"level\": \"%p\", " +
                 "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
                 "\"node.name\": \"%node_name\"" +
                 "%notEmpty{, \"message\": \"%ESMessageField{message}\"}" +
                 "%notEmpty{, %node_and_cluster_id }" +

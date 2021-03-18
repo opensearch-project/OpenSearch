@@ -124,7 +124,7 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
         assertNotNull(parsedException);
         assertThat(parsedException.getHeaderKeys(), hasSize(0));
         assertThat(parsedException.getMetadataKeys(), hasSize(1));
-        assertThat(parsedException.getMetadata("es.phase"), hasItem(phase));
+        assertThat(parsedException.getMetadata("opensearch.phase"), hasItem(phase));
         // SearchPhaseExecutionException has no cause field
         assertNull(parsedException.getCause());
     }

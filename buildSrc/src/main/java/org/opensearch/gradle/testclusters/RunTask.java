@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 public class RunTask extends DefaultTestClustersTask {
 
     private static final Logger logger = Logging.getLogger(RunTask.class);
-    public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
+    public static final String CUSTOM_SETTINGS_PREFIX = "tests.opensearch.";
 
     private Boolean debug = false;
 

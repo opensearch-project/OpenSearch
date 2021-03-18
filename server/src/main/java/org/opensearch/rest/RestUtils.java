@@ -34,7 +34,7 @@ public class RestUtils {
     /**
      * Sets whether we decode a '+' in an url as a space or not.
      */
-    private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
+    private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("opensearch.rest.url_plus_as_space", "false"));
 
     public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
         @Override

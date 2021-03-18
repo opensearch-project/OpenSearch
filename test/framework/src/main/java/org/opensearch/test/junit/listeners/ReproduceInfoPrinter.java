@@ -158,7 +158,7 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         private ReproduceErrorMessageBuilder appendESProperties() {
-            appendProperties("tests.es.logger.level");
+            appendProperties("tests.opensearch.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests
                 appendProperties(OpenSearchIntegTestCase.TESTS_ENABLE_MOCK_MODULES);

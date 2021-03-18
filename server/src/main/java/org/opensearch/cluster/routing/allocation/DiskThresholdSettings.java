@@ -75,7 +75,7 @@ public class DiskThresholdSettings {
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
     private static final boolean autoReleaseIndexEnabled;
-    public static final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
+    public static final String AUTO_RELEASE_INDEX_ENABLED_KEY = "opensearch.disk.auto_release_flood_stage_block";
 
     static {
         final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);

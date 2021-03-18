@@ -48,7 +48,7 @@ test {
    * same JVM randomize processors and will step on each other if we allow them to
    * set the number of available processors as it's set-once in Netty.
    */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
 
 dependencies {

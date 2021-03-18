@@ -58,9 +58,9 @@ public class ConvertProcessorFactoryTests extends OpenSearchTestCase {
             fail("factory create should have failed");
         } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), Matchers.equalTo("[type] type [" + type + "] not supported, cannot convert field."));
-            assertThat(e.getMetadata("es.processor_type").get(0), equalTo(ConvertProcessor.TYPE));
-            assertThat(e.getMetadata("es.property_name").get(0), equalTo("type"));
-            assertThat(e.getMetadata("es.processor_tag"), nullValue());
+            assertThat(e.getMetadata("opensearch.processor_type").get(0), equalTo(ConvertProcessor.TYPE));
+            assertThat(e.getMetadata("opensearch.property_name").get(0), equalTo("type"));
+            assertThat(e.getMetadata("opensearch.processor_tag"), nullValue());
         }
     }
 

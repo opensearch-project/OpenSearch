@@ -282,8 +282,8 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
                 expected.addHeader("foo", "bar", "baz");
             }
             if (randomBoolean()) {
-                originalException.addMetadata("es.metadata_0", "0");
-                expected.addMetadata("es.metadata_0", "0");
+                originalException.addMetadata("opensearch.metadata_0", "0");
+                expected.addMetadata("opensearch.metadata_0", "0");
             }
             if (randomBoolean()) {
                 String resourceType = randomAlphaOfLength(5);
@@ -336,7 +336,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
             super("");
             this.addHeader("n1", "v11", "v12");
             this.addHeader("n2", "v21", "v22");
-            this.addMetadata("es.test", "value1", "value2");
+            this.addMetadata("opensearch.test", "value1", "value2");
         }
     }
 
