@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.grok.MatcherWatchdog;
-import org.elasticsearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.test.OpenSearchTestCase;
 

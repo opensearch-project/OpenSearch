@@ -20,7 +20,7 @@
 package org.opensearch.script.expression;
 
 import org.apache.lucene.search.DoubleValuesSource;
-import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.search.MultiValueMode;
 
 import java.util.Calendar;

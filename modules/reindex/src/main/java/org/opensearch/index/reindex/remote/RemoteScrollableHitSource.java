@@ -107,7 +107,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     protected void clearScroll(String scrollId, Runnable onCompletion) {
         client.performRequestAsync(RemoteRequestBuilders.clearScroll(scrollId, remoteVersion), new ResponseListener() {
             @Override
-            public void onSuccess(org.elasticsearch.client.Response response) {
+            public void onSuccess(org.opensearch.client.Response response) {
                 logger.debug("Successfully cleared [{}]", scrollId);
                 onCompletion.run();
             }
@@ -158,7 +158,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         try {
             client.performRequestAsync(request, new ResponseListener() {
                 @Override
-                public void onSuccess(org.elasticsearch.client.Response response) {
+                public void onSuccess(org.opensearch.client.Response response) {
                     // Restore the thread context to get the precious headers
                     try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
                         assert ctx != null; // eliminates compiler warning

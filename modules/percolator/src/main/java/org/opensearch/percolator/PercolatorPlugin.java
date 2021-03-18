@@ -20,10 +20,10 @@
 package org.opensearch.percolator;
 
 import org.opensearch.common.settings.Setting;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.fetch.FetchSubPhase;
 
 import java.util.Arrays;

@@ -20,8 +20,8 @@
 package org.opensearch.painless;
 
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.script.NumberSortScript;
 import org.opensearch.script.ScriptContext;

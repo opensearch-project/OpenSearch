@@ -20,9 +20,9 @@
 package org.opensearch.ingest.useragent;
 
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.AbstractProcessor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.useragent.UserAgentParser.Details;
 import org.opensearch.ingest.useragent.UserAgentParser.VersionedName;
 
@@ -36,10 +36,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
-import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
-import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.opensearch.ingest.ConfigurationUtils.readBooleanProperty;
+import static org.opensearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.opensearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
 

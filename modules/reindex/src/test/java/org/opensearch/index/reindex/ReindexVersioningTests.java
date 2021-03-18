@@ -20,12 +20,10 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.get.GetResponse;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 
 import static org.opensearch.action.DocWriteRequest.OpType.CREATE;
-import static org.elasticsearch.index.VersionType.EXTERNAL;
-import static org.elasticsearch.index.VersionType.INTERNAL;
+import static org.opensearch.index.VersionType.EXTERNAL;
+import static org.opensearch.index.VersionType.INTERNAL;
 
 
 public class ReindexVersioningTests extends ReindexTestCase {

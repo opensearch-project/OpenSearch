@@ -22,9 +22,9 @@ package org.opensearch.analysis.common;
 import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.Token;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
 

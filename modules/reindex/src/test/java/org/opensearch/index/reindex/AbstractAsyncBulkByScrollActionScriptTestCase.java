@@ -19,17 +19,14 @@
 
 package org.opensearch.index.reindex;
 
+import org.junit.Before;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
-import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.opensearch.index.reindex.AbstractAsyncBulkByScrollAction.OpType;
 import org.opensearch.index.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.UpdateScript;
-import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Map;

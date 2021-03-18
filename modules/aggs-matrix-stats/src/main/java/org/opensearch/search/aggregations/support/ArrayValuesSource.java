@@ -19,7 +19,7 @@
 package org.opensearch.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSource;
 

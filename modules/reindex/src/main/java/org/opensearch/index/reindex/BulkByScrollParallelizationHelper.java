@@ -19,19 +19,15 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
+import org.opensearch.index.Index;
+import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.tasks.TaskId;

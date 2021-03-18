@@ -24,9 +24,9 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.opensearch.join.ParentJoinPlugin;
 import org.opensearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.opensearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.util.ArrayList;

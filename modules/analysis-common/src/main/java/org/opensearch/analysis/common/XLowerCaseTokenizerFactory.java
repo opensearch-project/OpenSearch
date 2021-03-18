@@ -22,8 +22,8 @@ package org.opensearch.analysis.common;
 import org.apache.lucene.analysis.Tokenizer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AbstractTokenizerFactory;
 
 @Deprecated
 // NORELEASE we should prevent the usage on indices created after 7.0 in order to be able to remove in 8
