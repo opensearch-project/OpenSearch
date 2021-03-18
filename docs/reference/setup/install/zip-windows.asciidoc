@@ -7,6 +7,7 @@ service.
 
 include::license.asciidoc[]
 
+// TODO(OpenSearch): Correct the website url in this page
 The latest stable version of OpenSearch can be found on the
 link:/downloads/opensearch[Download OpenSearch] page.
 Other versions can be found on the
@@ -27,7 +28,6 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-// TODO(OpenSearch): Correct the website url in this page
 Download the `.zip` archive for OpenSearch v{version} from: https://artifacts.opensearch.org/downloads/opensearch/opensearch-{version}-windows-x86_64.zip
 
 Alternatively, you can download the following package, which contains only 

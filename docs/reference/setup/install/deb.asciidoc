@@ -7,7 +7,7 @@ OpenSearch on any Debian-based system such as Debian and Ubuntu.
 
 include::license.asciidoc[]
 
-// TODO(OpenSearch): Correct the links
+// TODO(OpenSearch): Correct the website url in this page
 The latest stable version of OpenSearch can be found on the
 link:/downloads/opensearch[Download OpenSearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].

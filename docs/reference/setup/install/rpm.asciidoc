@@ -11,6 +11,7 @@ such as SLES 11 and CentOS 5.  Please see <<targz>> instead.
 
 include::license.asciidoc[]
 
+// TODO(OpenSearch): Correct the website url in this page
 The latest stable version of OpenSearch can be found on the
 link:/downloads/opensearch[Download OpenSearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
@@ -24,7 +25,6 @@ see the <<jvm-version, JVM version requirements>>
 
 include::key.asciidoc[]
 
-// TODO(OpenSearch): Correct the website url in this page
 [source,sh]
 -------------------------
 rpm --import https://artifacts.opensearch.org/GPG-KEY-opensearch
