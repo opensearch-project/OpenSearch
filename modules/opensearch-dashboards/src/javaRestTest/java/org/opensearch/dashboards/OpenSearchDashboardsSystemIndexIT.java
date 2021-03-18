@@ -76,7 +76,7 @@ public class OpenSearchDashboardsSystemIndexIT extends OpenSearchRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), containsString(".opensearch_dashboards"));
     }
 
-    public void testBulkToopensearchdashboardsIndex() throws IOException {
+    public void testBulkToOpenSearchDashboardsIndex() throws IOException {
         Request request = new Request("POST", "/_opensearch_dashboards/_bulk");
         request.setJsonEntity("{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
         Response response = client().performRequest(request);
