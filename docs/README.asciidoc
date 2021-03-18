@@ -1,7 +1,6 @@
-The OpenSearch docs are in AsciiDoc format and can be built using the
-OpenSearch documentation build process.
+The Elasticsearch docs are in AsciiDoc format and can be built using the
+Elasticsearch documentation build process.
 
-// TODO: Correct the build guide
 See: https://github.com/elastic/docs
 
 === Backporting doc fixes
