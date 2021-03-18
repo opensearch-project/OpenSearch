@@ -1,18 +1,19 @@
 [[zip-windows]]
-=== Install Elasticsearch with `.zip` on Windows
+=== Install OpenSearch with `.zip` on Windows
 
-Elasticsearch can be installed on Windows using the Windows `.zip` archive.  This
-comes with a `opensearch-service.bat` command which will setup Elasticsearch to run as a
+OpenSearch can be installed on Windows using the Windows `.zip` archive.  This
+comes with a `opensearch-service.bat` command which will setup OpenSearch to run as a
 service.
 
 include::license.asciidoc[]
 
-The latest stable version of Elasticsearch can be found on the
-link:/downloads/elasticsearch[Download Elasticsearch] page.
+// TODO(Opensearch): Correct the links
+The latest stable version of OpenSearch can be found on the
+link:/downloads/elasticsearch[Download OpenSearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
+NOTE: OpenSearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
@@ -21,13 +22,13 @@ see the <<jvm-version, JVM version requirements>>
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+Version {version} of OpenSearch has not yet been released.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
+Download the `.zip` archive for OpenSearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
 
 Alternatively, you can download the following package, which contains only 
 features that are available under the Apache 2.0 license: 
@@ -48,9 +49,9 @@ endif::[]
 include::zip-windows-start.asciidoc[]
 
 [[windows-configuring]]
-==== Configuring Elasticsearch on the command line
+==== Configuring OpenSearch on the command line
 
-Elasticsearch loads its configuration from the `%OPENSEARCH_HOME%\config\opensearch.yml`
+OpenSearch loads its configuration from the `%OPENSEARCH_HOME%\config\opensearch.yml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -71,9 +72,9 @@ such as `node.name` could be specified on the command line.
 include::check-running.asciidoc[]
 
 [[windows-service]]
-==== Installing Elasticsearch as a Service on Windows
+==== Installing OpenSearch as a Service on Windows
 
-Elasticsearch can be installed as a service to run in the background or start
+OpenSearch can be installed as a service to run in the background or start
 automatically at boot time without any user interaction. This can be achieved
 through the `opensearch-service.bat` script in the `bin\` folder which allows one to
 install, remove, manage or configure the service and potentially start and
@@ -88,18 +89,18 @@ Usage: opensearch-service.bat install|remove|start|stop|manager [SERVICE_ID]
 
 The script requires one parameter (the command to execute) followed by an
 optional one indicating the service id (useful when installing multiple
-Elasticsearch services).
+OpenSearch services).
 
 The commands available are:
 
 [horizontal]
-`install`:: Install Elasticsearch as a service
+`install`:: Install OpenSearch as a service
 
-`remove`:: Remove the installed Elasticsearch service (and stop the service if started)
+`remove`:: Remove the installed OpenSearch service (and stop the service if started)
 
-`start`:: Start the Elasticsearch service (if installed)
+`start`:: Start the OpenSearch service (if installed)
 
-`stop`:: Stop the Elasticsearch service (if started)
+`stop`:: Stop the OpenSearch service (if started)
 
 `manager`:: Start a GUI for managing the installed service
 
@@ -113,7 +114,7 @@ Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
 The service 'opensearch-service-x64' has been installed.
 --------------------------------------------------
 
-NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
+NOTE: While a JRE can be used for the OpenSearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
 
 NOTE: The system environment variable `JAVA_HOME` should be set to the path to
 the JDK installation that you want the service to use. If you upgrade the JDK,
@@ -126,7 +127,7 @@ supported, and does require the service to be reinstalled.
 [discrete]
 === Customizing service settings
 
-The Elasticsearch service can be configured prior to installation by setting the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the `System Properties->Environment Variables` GUI).
+The OpenSearch service can be configured prior to installation by setting the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the `System Properties->Environment Variables` GUI).
 
 [horizontal]
 `SERVICE_ID`::
@@ -157,7 +158,7 @@ The Elasticsearch service can be configured prior to installation by setting the
 `SERVICE_LOG_DIR`::
 
     Service log directory, defaults to `%OPENSEARCH_HOME%\logs`. Note that this does
-    not control the path for the Elasticsearch logs; the path for these is set
+    not control the path for the OpenSearch logs; the path for these is set
     via the setting `path.logs` in the `opensearch.yml` configuration file,
     or on the command line.
 
@@ -183,13 +184,13 @@ NOTE: At its core, `opensearch-service.bat` relies on https://commons.apache.org
 to install the service. Environment variables set prior to the service installation are copied and will be used during the service lifecycle. This means any changes made to them after the installation will not be picked up unless the service is reinstalled.
 
 NOTE: On Windows, the <<heap-size,heap size>> can be configured as for
-any other Elasticsearch installation when running Elasticsearch from the
-command line, or when installing Elasticsearch as a service for the
+any other OpenSearch installation when running OpenSearch from the
+command line, or when installing OpenSearch as a service for the
 first time. To adjust the heap size for an already installed service,
 use the service manager: `bin\opensearch-service.bat manager`.
 
 NOTE: The service automatically configures a private temporary directory for use
-by Elasticsearch when it is running. This private temporary directory is
+by OpenSearch when it is running. This private temporary directory is
 configured as a sub-directory of the private temporary directory for the user
 running the installation. If the service will run under a different user, you
 can configure the location of the temporary directory that the service should
@@ -212,7 +213,7 @@ by default, contained within `%OPENSEARCH_HOME%` -- the directory created when
 unpacking the archive.
 
 This is very convenient because you don't have to create any directories to
-start using Elasticsearch, and uninstalling Elasticsearch is as easy as
+start using OpenSearch, and uninstalling OpenSearch is as easy as
 removing the `%OPENSEARCH_HOME%` directory.  However, it is advisable to change the
 default locations of the config directory, the data directory, and the logs
 directory so that you do not delete important data later on.
@@ -222,7 +223,7 @@ directory so that you do not delete important data later on.
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `%OPENSEARCH_HOME%`
+  | OpenSearch home directory or `%OPENSEARCH_HOME%`
  d| Directory created by unpacking the archive
   |
 

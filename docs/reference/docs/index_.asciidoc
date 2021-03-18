@@ -385,7 +385,7 @@ and isn't able to compare it against the new source.
 There isn't a hard and fast rule about when noop updates aren't acceptable.
 It's a combination of lots of factors like how frequently your data source
 sends updates that are actually noops and how many queries per second
-Elasticsearch runs on the shard receiving the updates.
+OpenSearch runs on the shard receiving the updates.
 
 [discrete]
 [[timeout]]
@@ -455,7 +455,7 @@ and result in a conflict (409 http status code).
 A nice side effect is that there is no need to maintain strict ordering
 of async indexing operations executed as a result of changes to a source
 database, as long as version numbers from the source database are used.
-Even the simple case of updating the Elasticsearch index using data from
+Even the simple case of updating the OpenSearch index using data from
 a database is simplified if external versioning is used, as only the
 latest version will be used if the index operations arrive out of order for
 whatever reason.
@@ -464,7 +464,7 @@ whatever reason.
 [[index-version-types]]
 ===== Version types
 
-In addition to the `external` version type, Elasticsearch
+In addition to the `external` version type, OpenSearch
 also supports other types for specific use cases:
 
 [[_version_types]]

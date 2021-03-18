@@ -98,7 +98,7 @@ indices.
 [[index-soft-deletes]]
 // tag::index-soft-deletes-tag[]
 `index.soft_deletes.enabled`::
-deprecated:[7.6.0, Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.]
+deprecated:[7.6.0, Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions.]
 Indicates whether soft deletes are enabled on the index. Soft deletes can only
 be configured at index creation and only on indices created on or after
 {opensearch} 6.5.0. Defaults to `true`.

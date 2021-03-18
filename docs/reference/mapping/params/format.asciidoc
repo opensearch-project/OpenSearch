@@ -1,7 +1,7 @@
 [[mapping-date-format]]
 === `format`
 
-In JSON documents, dates are represented as strings. Elasticsearch uses a set
+In JSON documents, dates are represented as strings. OpenSearch uses a set
 of preconfigured formats to recognize and parse these strings into a long
 value representing _milliseconds-since-the-epoch_ in UTC.
 

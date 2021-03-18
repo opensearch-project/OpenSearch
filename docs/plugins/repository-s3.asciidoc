@@ -362,7 +362,7 @@ This sets up a repository that uses all client settings from the client
 [[repository-s3-permissions]]
 ===== Recommended S3 Permissions
 
-In order to restrict the Elasticsearch snapshot process to the minimum required
+In order to restrict the OpenSearch snapshot process to the minimum required
 resources, we recommend using Amazon IAM in conjunction with pre-existing S3
 buckets. Here is an example policy which will allow the snapshot access to an S3
 bucket named "snaps.example.com". This may be configured through the AWS IAM
@@ -456,7 +456,7 @@ create the bucket then the repository registration will fail.
 [discrete]
 ==== AWS VPC Bandwidth Settings
 
-AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch
+AWS instances resolve S3 endpoints to a public IP. If the OpenSearch
 instances reside in a private subnet in an AWS VPC then all traffic to S3 will
 go through the VPC's NAT instance. If your VPC's NAT instance is a smaller
 instance size (e.g. a t2.micro) or is handling a high volume of network traffic

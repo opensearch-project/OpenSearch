@@ -88,7 +88,7 @@ snapshot in time. Subsequent changes to documents (index, update or delete)
 will only affect later search requests.
 
 In order to use scrolling, the initial search request should specify the
-`scroll` parameter in the query string, which tells Elasticsearch how long it
+`scroll` parameter in the query string, which tells OpenSearch how long it
 should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?scroll=1m`.
 
 [source,console]
@@ -121,7 +121,7 @@ POST /_search/scroll                                                            
 
 <1> `GET` or `POST` can be used and the URL should not include the `index`
     name -- this is specified in the original `search` request instead.
-<2> The `scroll` parameter tells Elasticsearch to keep the search context open
+<2> The `scroll` parameter tells OpenSearch to keep the search context open
     for another `1m`.
 <3> The `scroll_id` parameter
 
@@ -163,7 +163,7 @@ that {opensearch} needs to return the correct documents. The search context is c
 by the initial request and kept alive by subsequent requests.
 
 The `scroll` parameter (passed to the `search` request and to every `scroll`
-request) tells Elasticsearch how long it should keep the search context alive.
+request) tells OpenSearch how long it should keep the search context alive.
 Its value (e.g. `1m`, see <<time-units>>) does not need to be long enough to
 process all data -- it just needs to be long enough to process the previous
 batch of results. Each `scroll` request (with the `scroll` parameter) sets a

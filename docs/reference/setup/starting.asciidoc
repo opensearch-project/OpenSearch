@@ -1,5 +1,5 @@
 [[starting-elasticsearch]]
-== Starting Elasticsearch
+== Starting OpenSearch
 
 The method for starting {opensearch} varies depending on how you installed it. 
 

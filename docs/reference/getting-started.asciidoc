@@ -171,7 +171,7 @@ some data is unavailable.
 Most of the examples in this guide enable you to copy the appropriate cURL
 command and submit the request to your local {opensearch} instance from the command line.
 
-A request to Elasticsearch consists of the same parts as any HTTP request:
+A request to OpenSearch consists of the same parts as any HTTP request:
 
 [source,sh]
 --------------------------------------------------
