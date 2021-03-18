@@ -36,7 +36,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 /**
  * Generic resource watcher service
  *
- * Other elasticsearch services can register their resource watchers with this service using {@link #add(ResourceWatcher)}
+ * Other opensearch services can register their resource watchers with this service using {@link #add(ResourceWatcher)}
  * method. This service will call {@link ResourceWatcher#checkAndNotify()} method of all
  * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
  * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
