@@ -50,7 +50,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.zen.PublishClusterStateStats;
 import org.opensearch.gateway.GatewayService;
-import org.elasticsearch.monitor.StatusInfo;
+import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.cluster.coordination.DetachClusterCommand;
 import org.opensearch.cluster.coordination.FollowersChecker;

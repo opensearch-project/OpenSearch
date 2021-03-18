@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.indices.InvalidAliasNameException;
+import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.metadata.AliasValidator;
 

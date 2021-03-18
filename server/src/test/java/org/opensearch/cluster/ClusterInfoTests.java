@@ -23,10 +23,8 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.ClusterInfo;
-import org.opensearch.cluster.DiskUsage;
 
 public class ClusterInfoTests extends OpenSearchTestCase {
 
