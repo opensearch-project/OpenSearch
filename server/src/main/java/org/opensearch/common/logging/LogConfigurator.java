@@ -282,13 +282,13 @@ public class LogConfigurator {
      * properties here:
      * <ul>
      * <li>
-     * {@code es.logs.base_path} the base path containing the log files
+     * {@code opensearch.logs.base_path} the base path containing the log files
      * </li>
      * <li>
-     * {@code es.logs.cluster_name} the cluster name, used as the prefix of log filenames in the default configuration
+     * {@code opensearch.logs.cluster_name} the cluster name, used as the prefix of log filenames in the default configuration
      * </li>
      * <li>
-     * {@code es.logs.node_name} the node name, can be used as part of log filenames
+     * {@code opensearch.logs.node_name} the node name, can be used as part of log filenames
      * </li>
      * </ul>
      *
@@ -297,9 +297,9 @@ public class LogConfigurator {
      */
     @SuppressForbidden(reason = "sets system property for logging configuration")
     private static void setLogConfigurationSystemProperty(final Path logsPath, final Settings settings) {
-        System.setProperty("es.logs.base_path", logsPath.toString());
-        System.setProperty("es.logs.cluster_name", ClusterName.CLUSTER_NAME_SETTING.get(settings).value());
-        System.setProperty("es.logs.node_name", Node.NODE_NAME_SETTING.get(settings));
+        System.setProperty("opensearch.logs.base_path", logsPath.toString());
+        System.setProperty("opensearch.logs.cluster_name", ClusterName.CLUSTER_NAME_SETTING.get(settings).value());
+        System.setProperty("opensearch.logs.node_name", Node.NODE_NAME_SETTING.get(settings));
     }
 
 }

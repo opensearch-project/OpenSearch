@@ -66,7 +66,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
     static {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             // required for client settings overwriting when running in IDE
-            System.setProperty("es.allow_insecure_settings", "true");
+            System.setProperty("opensearch.allow_insecure_settings", "true");
             return null;
         });
     }

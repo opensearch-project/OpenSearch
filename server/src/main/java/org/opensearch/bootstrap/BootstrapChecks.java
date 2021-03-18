@@ -57,7 +57,7 @@ import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_
 
 /**
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
- * es.enforce.bootstrap.checks} is set to {@true}. In this case we assume the node is running in production and all bootstrap checks must
+ * opensearch.enforce.bootstrap.checks} is set to {@true}. In this case we assume the node is running in production and all bootstrap checks must
  * pass.
  */
 final class BootstrapChecks {
@@ -65,11 +65,11 @@ final class BootstrapChecks {
     private BootstrapChecks() {
     }
 
-    static final String ES_ENFORCE_BOOTSTRAP_CHECKS = "es.enforce.bootstrap.checks";
+    static final String OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS = "opensearch.enforce.bootstrap.checks";
 
     /**
      * Executes the bootstrap checks if the node has the transport protocol bound to a non-loopback interface. If the system property
-     * {@code es.enforce.bootstrap.checks} is set to {@code true} then the bootstrap checks will be enforced regardless of whether or not
+     * {@code opensearch.enforce.bootstrap.checks} is set to {@code true} then the bootstrap checks will be enforced regardless of whether or not
      * the transport protocol is bound to a non-loopback interface.
      *
      * @param context              the current node bootstrap context
@@ -87,7 +87,7 @@ final class BootstrapChecks {
 
     /**
      * Executes the provided checks and fails the node if {@code enforceLimits} is {@code true}, otherwise logs warnings. If the system
-     * property {@code es.enforce.bootstrap.checks} is set to {@code true} then the bootstrap checks will be enforced regardless of whether
+     * property {@code opensearch.enforce.bootstrap.checks} is set to {@code true} then the bootstrap checks will be enforced regardless of whether
      * or not the transport protocol is bound to a non-loopback interface.
      *
      * @param context        the current node boostrap context
@@ -103,7 +103,7 @@ final class BootstrapChecks {
 
     /**
      * Executes the provided checks and fails the node if {@code enforceLimits} is {@code true}, otherwise logs warnings. If the system
-     * property {@code es.enforce.bootstrap.checks }is set to {@code true} then the bootstrap checks will be enforced regardless of whether
+     * property {@code opensearch.enforce.bootstrap.checks }is set to {@code true} then the bootstrap checks will be enforced regardless of whether
      * or not the transport protocol is bound to a non-loopback interface.
      *
      * @param context the current node boostrap context
@@ -119,7 +119,7 @@ final class BootstrapChecks {
         final List<String> errors = new ArrayList<>();
         final List<String> ignoredErrors = new ArrayList<>();
 
-        final String esEnforceBootstrapChecks = System.getProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
+        final String esEnforceBootstrapChecks = System.getProperty(OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS);
         final boolean enforceBootstrapChecks;
         if (esEnforceBootstrapChecks == null) {
             enforceBootstrapChecks = false;
@@ -130,7 +130,7 @@ final class BootstrapChecks {
                     String.format(
                             Locale.ROOT,
                             "[%s] must be [true] but was [%s]",
-                            ES_ENFORCE_BOOTSTRAP_CHECKS,
+                        OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS,
                             esEnforceBootstrapChecks);
             throw new IllegalArgumentException(message);
         }

@@ -160,7 +160,7 @@ public final class EngineConfig {
         // Add an escape hatch in case this change proves problematic - it used
         // to be a fixed amound of RAM: 256 MB.
         // TODO: Remove this escape hatch in 8.x
-        final String escapeHatchProperty = "es.index.memory.max_index_buffer_size";
+        final String escapeHatchProperty = "opensearch.index.memory.max_index_buffer_size";
         String maxBufferSize = System.getProperty(escapeHatchProperty);
         if (maxBufferSize != null) {
             indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);

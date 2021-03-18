@@ -24,18 +24,18 @@ import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.settings.Settings;
 
 /**
- * Holder class for method to configure logging without Elasticsearch configuration files for use in CLI tools that will not read such
+ * Holder class for method to configure logging without OpenSearch configuration files for use in CLI tools that will not read such
  * files.
  */
 public final class CommandLoggingConfigurator {
 
     /**
-     * Configures logging without Elasticsearch configuration files based on the system property "es.logger.level" only. As such, any
+     * Configures logging without OpenSearch configuration files based on the system property "opensearch.logger.level" only. As such, any
      * logging will be written to the console.
      */
     public static void configureLoggingWithoutConfig() {
         // initialize default for es.logger.level because we will not read the log4j2.properties
-        final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
+        final String loggerLevel = System.getProperty("opensearch.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
         LogConfigurator.configureWithoutConfig(settings);
     }

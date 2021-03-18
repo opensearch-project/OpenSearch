@@ -78,11 +78,11 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
     public static final boolean REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT = true;
     private static final boolean REST_EXCEPTION_SKIP_CAUSE_DEFAULT = false;
-    private static final String INDEX_METADATA_KEY = "es.index";
-    private static final String INDEX_METADATA_KEY_UUID = "es.index_uuid";
-    private static final String SHARD_METADATA_KEY = "es.shard";
-    private static final String RESOURCE_METADATA_TYPE_KEY = "es.resource.type";
-    private static final String RESOURCE_METADATA_ID_KEY = "es.resource.id";
+    private static final String INDEX_METADATA_KEY = "opensearch.index";
+    private static final String INDEX_METADATA_KEY_UUID = "opensearch.index_uuid";
+    private static final String SHARD_METADATA_KEY = "opensearch.shard";
+    private static final String RESOURCE_METADATA_TYPE_KEY = "opensearch.resource.type";
+    private static final String RESOURCE_METADATA_ID_KEY = "opensearch.resource.id";
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
@@ -153,9 +153,9 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
      * If the provided key is already present, the corresponding metadata will be replaced
      */
     public void addMetadata(String key, List<String> values) {
-        //we need to enforce this otherwise bw comp doesn't work properly, as "es." was the previous criteria to split headers in two sets
-        if (key.startsWith("es.") == false) {
-            throw new IllegalArgumentException("exception metadata must start with [es.], found [" + key + "] instead");
+        //we need to enforce this otherwise bw comp doesn't work properly, as "opensearch." was the previous criteria to split headers in two sets
+        if (key.startsWith("opensearch.") == false) {
+            throw new IllegalArgumentException("exception metadata must start with [opensearch.], found [" + key + "] instead");
         }
         this.metadata.put(key, values);
     }
@@ -184,9 +184,9 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
      * This method will replace existing header if a header with the same key already exists
      */
     public void addHeader(String key, List<String> value) {
-        //we need to enforce this otherwise bw comp doesn't work properly, as "es." was the previous criteria to split headers in two sets
-        if (key.startsWith("es.")) {
-            throw new IllegalArgumentException("exception headers must not start with [es.], found [" + key + "] instead");
+        //we need to enforce this otherwise bw comp doesn't work properly, as "opensearch." was the previous criteria to split headers in two sets
+        if (key.startsWith("opensearch.")) {
+            throw new IllegalArgumentException("exception headers must not start with [opensearch.], found [" + key + "] instead");
         }
         this.headers.put(key, value);
     }
@@ -333,7 +333,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         builder.field(REASON, message);
 
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
-            headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());
+            headerToXContent(builder, entry.getKey().substring("opensearch.".length()), entry.getValue());
         }
 
         if (throwable instanceof OpenSearchException) {
@@ -497,11 +497,11 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             //subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
             //parsed back and become part of this metadata set, while objects and arrays are not supported when parsing back.
-            //Those key-value pairs become part of the metadata set and inherit the "es." prefix as that is currently required
+            //Those key-value pairs become part of the metadata set and inherit the "opensearch." prefix as that is currently required
             //by addMetadata. The prefix will get stripped out when printing metadata out so it will be effectively invisible.
             //TODO move subclasses that print out simple metadata to using addMetadata directly and support also numbers and booleans.
             //TODO rename metadataToXContent and have only SearchPhaseExecutionException use it, which prints out complex objects
-            e.addMetadata("es." + entry.getKey(), entry.getValue());
+            e.addMetadata("opensearch." + entry.getKey(), entry.getValue());
         }
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             e.addHeader(header.getKey(), header.getValue());

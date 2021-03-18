@@ -79,7 +79,7 @@ bundlePlugin {
 
 task testRepositoryCreds(type: Test) {
   include '**/RepositoryCredentialsTests.class'
-  systemProperty 'es.allow_insecure_settings', 'true'
+  systemProperty 'opensearch.allow_insecure_settings', 'true'
 }
 check.dependsOn(testRepositoryCreds)
 

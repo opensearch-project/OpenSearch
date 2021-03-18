@@ -100,7 +100,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
     static Map<String, DatabaseReaderLazyLoader> loadDatabaseReaders(Path geoIpDirectory, Path geoIpConfigDirectory) throws IOException {
         assertDatabaseExistence(geoIpDirectory, true);
         assertDatabaseExistence(geoIpConfigDirectory, false);
-        final boolean loadDatabaseOnHeap = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
+        final boolean loadDatabaseOnHeap = Booleans.parseBoolean(System.getProperty("opensearch.geoip.load_db_on_heap", "false"));
         final Map<String, DatabaseReaderLazyLoader> databaseReaders = new HashMap<>();
 
         // load the default databases

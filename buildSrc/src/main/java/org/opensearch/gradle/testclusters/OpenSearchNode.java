@@ -191,9 +191,9 @@ public class OpenSearchNode implements TestClusterConfiguration {
         confPathLogs = workingDir.resolve("logs");
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
-        esStdoutFile = confPathLogs.resolve("es.stdout.log");
-        esStderrFile = confPathLogs.resolve("es.stderr.log");
-        esStdinFile = workingDir.resolve("es.stdin");
+        esStdoutFile = confPathLogs.resolve("opensearch.stdout.log");
+        esStderrFile = confPathLogs.resolve("opensearch.stderr.log");
+        esStdinFile = workingDir.resolve("opensearch.stdin");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
 

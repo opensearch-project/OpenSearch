@@ -28,7 +28,7 @@ import java.util.Arrays;
 public class DiskIoBufferPool {
 
     public static final int BUFFER_SIZE = StrictMath.toIntExact(ByteSizeValue.parseBytesSizeValue(
-        System.getProperty("es.disk_io.direct.buffer.size", "64KB"), "es.disk_io.direct.buffer.size").getBytes());
+        System.getProperty("opensearch.disk_io.direct.buffer.size", "64KB"), "opensearch.disk_io.direct.buffer.size").getBytes());
     public static final int HEAP_BUFFER_SIZE = 8 * 1024;
 
     private static final ThreadLocal<ByteBuffer> ioBufferPool = ThreadLocal.withInitial(() -> {

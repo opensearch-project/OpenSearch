@@ -820,7 +820,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(),
             equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
-        assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
+        assertThat(exception.getMetadata("opensearch.index"), hasItem(nonExistentIndex));
 
         createIndex(index, Settings.EMPTY);
         IndicesAliasesRequest mixedRequest = new IndicesAliasesRequest();
@@ -831,8 +831,8 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(),
             equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
-        assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
-        assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
+        assertThat(exception.getMetadata("opensearch.index"), hasItem(nonExistentIndex));
+        assertThat(exception.getMetadata("opensearch.index"), not(hasItem(index)));
         assertThat(aliasExists(index, alias), equalTo(false));
         assertThat(aliasExists(alias), equalTo(false));
 
@@ -844,8 +844,8 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(),
             equalTo("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
-        assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
-        assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
+        assertThat(exception.getMetadata("opensearch.index"), hasItem(nonExistentIndex));
+        assertThat(exception.getMetadata("opensearch.index"), not(hasItem(index)));
         assertThat(aliasExists(index, alias), equalTo(false));
         assertThat(aliasExists(alias), equalTo(false));
     }

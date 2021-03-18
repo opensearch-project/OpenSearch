@@ -381,13 +381,13 @@ public final class ConfigurationUtils {
     private static void addMetadataToException(OpenSearchException exception, String processorType,
                                                String processorTag, String propertyName) {
         if (processorType != null) {
-            exception.addMetadata("es.processor_type", processorType);
+            exception.addMetadata("opensearch.processor_type", processorType);
         }
         if (processorTag != null) {
-            exception.addMetadata("es.processor_tag", processorTag);
+            exception.addMetadata("opensearch.processor_tag", processorTag);
         }
         if (propertyName != null) {
-            exception.addMetadata("es.property_name", propertyName);
+            exception.addMetadata("opensearch.property_name", propertyName);
         }
     }
 

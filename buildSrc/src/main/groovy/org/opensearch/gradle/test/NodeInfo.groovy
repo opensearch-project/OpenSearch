@@ -124,7 +124,7 @@ class NodeInfo {
             clusterName = project.path.replace(':', '_').substring(1) + '_' + prefix
         }
         baseDir = new File(project.buildDir, "cluster/${prefix} node${nodeNum}")
-        pidFile = new File(baseDir, 'es.pid')
+        pidFile = new File(baseDir, 'opensearch.pid')
         this.nodeVersion = Version.fromString(nodeVersion)
         this.isBwcNode = this.nodeVersion.before(VersionProperties.opensearch)
         homeDir = new File(baseDir, "opensearch-${nodeVersion}")
@@ -187,9 +187,9 @@ class NodeInfo {
         env = [:]
         env.putAll(config.environmentVariables)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
-            if (property.key.startsWith('tests.es.')) {
+            if (property.key.startsWith('tests.opensearch.')) {
                 args.add("-E")
-                args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
+                args.add("${property.key.substring('tests.opensearch.'.size())}=${property.value}")
             }
         }
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -202,7 +202,7 @@ class NodeInfo {
         else {
             env.put('ES_PATH_CONF', pathConf)
         }
-        if (!System.properties.containsKey("tests.es.path.data")) {
+        if (!System.properties.containsKey("tests.opensearch.path.data")) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 /*
                  * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to

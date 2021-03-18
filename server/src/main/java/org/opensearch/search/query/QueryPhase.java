@@ -95,7 +95,7 @@ import static org.opensearch.search.query.TopDocsCollectorContext.shortcutTotalH
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
     // TODO: remove this property
-    public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("es.search.rewrite_sort", "true"));
+    public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("opensearch.search.rewrite_sort", "true"));
 
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
