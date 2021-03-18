@@ -19,11 +19,11 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.WrappingProcessor;
+import org.opensearch.ingest.AbstractProcessor;
+import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
+import org.opensearch.ingest.WrappingProcessor;
 import org.opensearch.script.ScriptService;
 
 import java.util.ArrayList;
@@ -33,10 +33,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
-import static org.elasticsearch.ingest.ConfigurationUtils.readMap;
-import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.opensearch.ingest.ConfigurationUtils.readBooleanProperty;
+import static org.opensearch.ingest.ConfigurationUtils.readMap;
+import static org.opensearch.ingest.ConfigurationUtils.readStringProperty;
 
 /**
  * A processor that for each value in a list executes a one or more processors.

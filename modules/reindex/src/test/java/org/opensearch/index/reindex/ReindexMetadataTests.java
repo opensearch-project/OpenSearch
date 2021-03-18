@@ -19,9 +19,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+import org.opensearch.index.reindex.ScrollableHitSource.Hit;
 import org.opensearch.action.index.IndexRequest;
 
 /**

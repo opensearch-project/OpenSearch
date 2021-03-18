@@ -21,9 +21,7 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.ClusterState;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.opensearch.index.reindex.ScrollableHitSource.Hit;
 
 public class UpdateByQueryMetadataTests
     extends AbstractAsyncBulkByScrollActionMetadataTestCase<UpdateByQueryRequest, BulkByScrollResponse> {

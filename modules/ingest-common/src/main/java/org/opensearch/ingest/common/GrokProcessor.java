@@ -23,16 +23,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.grok.Grok;
 import org.opensearch.grok.MatcherWatchdog;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.AbstractProcessor;
+import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
 
 public final class GrokProcessor extends AbstractProcessor {
 

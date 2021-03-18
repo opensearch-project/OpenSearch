@@ -25,13 +25,7 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.DeleteByQueryAction;
-import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.tasks.TaskId;
 
 import java.util.ArrayList;

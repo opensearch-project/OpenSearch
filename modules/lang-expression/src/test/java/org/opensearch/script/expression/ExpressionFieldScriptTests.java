@@ -19,11 +19,11 @@
 
 package org.opensearch.script.expression;
 
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.LeafNumericFieldData;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.script.FieldScript;
 import org.opensearch.script.ScriptException;
 import org.opensearch.search.lookup.SearchLookup;

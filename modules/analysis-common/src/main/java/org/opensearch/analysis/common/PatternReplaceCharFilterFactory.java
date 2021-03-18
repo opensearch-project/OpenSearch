@@ -23,9 +23,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
-import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AbstractCharFilterFactory;
+import org.opensearch.index.analysis.NormalizingCharFilterFactory;
 
 import java.io.Reader;
 import java.util.regex.Pattern;
