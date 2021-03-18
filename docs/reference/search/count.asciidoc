@@ -50,46 +50,46 @@ To search all indices in a cluster, omit this parameter or use
 [[search-count-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
 `min_score`::
 (Optional, float)
   Sets the minimum `_score` value that documents must have to be included in the
   result.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
 
 [[search-count-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 
 
 [[search-count-api-example]]

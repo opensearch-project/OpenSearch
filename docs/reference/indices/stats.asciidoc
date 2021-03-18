@@ -60,34 +60,34 @@ the request. Wildcard expressions (`*`) are supported.
 To target all indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-metric]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=index-metric]
 
 
 [[index-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
 `forbid_closed_indices`::
 (Optional, Boolean)
 If `true`, statistics are *not* collected from closed indices.
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+include::{opensearch-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 
 [[index-stats-api-example]]

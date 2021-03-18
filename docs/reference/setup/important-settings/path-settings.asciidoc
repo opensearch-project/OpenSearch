@@ -15,9 +15,9 @@ installations write data and log to locations outside of `$OPENSEARCH_HOME` by d
 
 Supported `path.data` and `path.logs` values vary by platform:
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/code.asciidoc[]
 
-include::{es-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
 
 If needed, you can specify multiple paths in `path.data`. {es} stores the node's
 data across all provided paths but keeps each shard's data on the same path.
@@ -29,4 +29,4 @@ the node, even if the node’s other paths have available disk space. If you nee
 additional disk space, we recommend you add a new node rather than additional
 data paths. 
 
-include::{es-repo-dir}/tab-widgets/multi-data-path-widget.asciidoc[]
+include::{opensearch-repo-dir}/tab-widgets/multi-data-path-widget.asciidoc[]
