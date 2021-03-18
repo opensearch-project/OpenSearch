@@ -38,7 +38,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.elasticsearch.test.geo.RandomGeoGenerator;
+import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.util.ArrayList;
 import java.util.List;

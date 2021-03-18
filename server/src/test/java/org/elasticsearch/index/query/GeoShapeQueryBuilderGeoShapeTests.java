@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 import org.opensearch.Version;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.opensearch.test.geo.RandomShapeGenerator;
 
 public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTests {
 
