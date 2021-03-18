@@ -33,7 +33,7 @@ PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
-    "taken_by": "Elastic Machine",
+    "taken_by": "OpenSearch Machine",
     "taken_because": "backup testing"
   }
 }

@@ -17,7 +17,7 @@ Windows installations support DOS paths with escaped backslashes:
 [source,yaml]
 ----
 path:
-  data: "C:\\Elastic\\Elasticsearch\\data"
-  logs: "C:\\Elastic\\Elasticsearch\\logs"
+  data: "C:\\OpenSearch\\OpenSearch\\data"
+  logs: "C:\\OpenSearch\\OpenSearch\\logs"
 ----
 // end::win[]
