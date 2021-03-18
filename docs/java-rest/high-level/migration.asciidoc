@@ -1,7 +1,6 @@
 [[java-rest-high-level-migration]]
 == Migration Guide
 
-
 This section describes how to migrate existing code from the `TransportClient`
 to the Java High Level REST Client released with the version 5.6.0
 of Elasticsearch.
