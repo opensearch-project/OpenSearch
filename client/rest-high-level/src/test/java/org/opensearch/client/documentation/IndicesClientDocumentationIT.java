@@ -99,9 +99,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -3052,7 +3052,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             // end::delete-alias-request-masterTimeout
 
             // tag::delete-alias-execute
-            org.elasticsearch.client.core.AcknowledgedResponse deleteAliasResponse =
+            org.opensearch.client.core.AcknowledgedResponse deleteAliasResponse =
                 client.indices().deleteAlias(request, RequestOptions.DEFAULT);
             // end::delete-alias-execute
 
@@ -3066,10 +3066,10 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             DeleteAliasRequest request = new DeleteAliasRequest("index1", "alias2"); // <1>
 
             // tag::delete-alias-execute-listener
-            ActionListener<org.elasticsearch.client.core.AcknowledgedResponse> listener =
-                new ActionListener<org.elasticsearch.client.core.AcknowledgedResponse>() {
+            ActionListener<org.opensearch.client.core.AcknowledgedResponse> listener =
+                new ActionListener<org.opensearch.client.core.AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(org.elasticsearch.client.core.AcknowledgedResponse deleteAliasResponse) {
+                    public void onResponse(org.opensearch.client.core.AcknowledgedResponse deleteAliasResponse) {
                         // <1>
                     }
 

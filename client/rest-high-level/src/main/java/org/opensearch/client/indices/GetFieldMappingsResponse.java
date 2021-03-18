@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.Mapper;
 
 import java.io.IOException;
 import java.util.HashMap;

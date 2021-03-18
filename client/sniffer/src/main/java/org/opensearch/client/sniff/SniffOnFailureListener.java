@@ -26,7 +26,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * {@link org.elasticsearch.client.RestClient.FailureListener} implementation that allows to perform
+ * {@link org.opensearch.client.RestClient.FailureListener} implementation that allows to perform
  * sniffing on failure. Gets notified whenever a failure happens and uses a {@link Sniffer} instance
  * to manually reload hosts and sets them back to the {@link RestClient}. The {@link Sniffer} instance
  * needs to be lazily set through {@link #setSniffer(Sniffer)}.

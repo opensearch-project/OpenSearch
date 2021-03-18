@@ -60,7 +60,7 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.opense
         assertThat(clientInstance.getInfos().size(), equalTo(serverTestInstance.getInfos().size()));
         Map<String, RemoteConnectionInfo> serverInfos = serverTestInstance.getInfos().stream()
                 .collect(toMap(RemoteConnectionInfo::getClusterAlias, identity()));
-        for (org.elasticsearch.client.cluster.RemoteConnectionInfo clientRemoteInfo : clientInstance.getInfos()) {
+        for (org.opensearch.client.cluster.RemoteConnectionInfo clientRemoteInfo : clientInstance.getInfos()) {
             RemoteConnectionInfo serverRemoteInfo = serverInfos.get(clientRemoteInfo.getClusterAlias());
             assertThat(clientRemoteInfo.getClusterAlias(), equalTo(serverRemoteInfo.getClusterAlias()));
             assertThat(clientRemoteInfo.getInitialConnectionTimeoutString(),

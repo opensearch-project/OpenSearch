@@ -21,7 +21,6 @@ package org.opensearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.client.Request;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.client.RequestConverters.EndpointBuilder;
 import org.opensearch.client.tasks.CancelTasksRequest;

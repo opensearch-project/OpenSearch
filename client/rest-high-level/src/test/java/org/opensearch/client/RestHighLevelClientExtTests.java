@@ -22,12 +22,11 @@ package org.opensearch.client;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
-import org.elasticsearch.client.RestClient;
+import org.junit.Before;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -19,8 +19,6 @@
 
 package org.opensearch.client;
 
-import org.elasticsearch.client.Cancellable;
-import org.elasticsearch.client.RequestOptions;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
