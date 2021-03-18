@@ -19,8 +19,8 @@
 
 package org.opensearch.cluster.routing;
 
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 

@@ -21,7 +21,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlock;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 
 import java.util.Map;

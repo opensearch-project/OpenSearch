@@ -42,7 +42,7 @@ import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Collections;

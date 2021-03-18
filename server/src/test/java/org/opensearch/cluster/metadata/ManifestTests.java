@@ -25,7 +25,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.metadata.Manifest;
 

@@ -54,10 +54,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.opensearch.index.Index;routing/allocation/AllocationPriorityTests.javarouting/allocation/AllocationPriorityTests.java
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Arrays;
