@@ -1856,7 +1856,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         if (rarely()) {
             // Sometimes adjust the minimum search thread pool size, causing
-            // QueueResizingEsThreadPoolExecutor to be used instead of a regular
+            // QueueResizingOpenSearchThreadPoolExecutor to be used instead of a regular
             // fixed thread pool
             builder.put("thread_pool.search.min_queue_size", 100);
         }

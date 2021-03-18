@@ -296,7 +296,7 @@ final class BootstrapChecks {
             if (maxFileDescriptorCount != -1 && maxFileDescriptorCount < limit) {
                 final String message = String.format(
                         Locale.ROOT,
-                        "max file descriptors [%d] for elasticsearch process is too low, increase to at least [%d]",
+                        "max file descriptors [%d] for opensearch process is too low, increase to at least [%d]",
                         getMaxFileDescriptorCount(),
                         limit);
                 return BootstrapCheckResult.failure(message);
@@ -317,7 +317,7 @@ final class BootstrapChecks {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
             if (BootstrapSettings.MEMORY_LOCK_SETTING.get(context.settings()) && !isMemoryLocked()) {
-                return BootstrapCheckResult.failure("memory locking requested for elasticsearch process but memory is not locked");
+                return BootstrapCheckResult.failure("memory locking requested for opensearch process but memory is not locked");
             } else {
                 return BootstrapCheckResult.success();
             }

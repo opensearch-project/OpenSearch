@@ -86,8 +86,8 @@ public final class NestedHelper {
                         .map(BooleanClause::getQuery)
                         .anyMatch(this::mightMatchNestedDocs);
             }
-        } else if (query instanceof ESToParentBlockJoinQuery) {
-            return ((ESToParentBlockJoinQuery) query).getPath() != null;
+        } else if (query instanceof OpenSearchToParentBlockJoinQuery) {
+            return ((OpenSearchToParentBlockJoinQuery) query).getPath() != null;
         } else {
             return true;
         }

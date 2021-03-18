@@ -51,7 +51,7 @@ import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.FutureUtils;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.node.Node;
@@ -89,7 +89,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected final ThreadPool threadPool;
 
-    private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
+    private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
@@ -121,7 +121,7 @@ public class MasterService extends AbstractLifecycleComponent {
         taskBatcher = new Batcher(logger, threadPoolExecutor);
     }
 
-    protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+    protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
         return OpenSearchExecutors.newSinglePrioritizing(
                 nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
                 daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
@@ -132,7 +132,7 @@ public class MasterService extends AbstractLifecycleComponent {
     @SuppressWarnings("unchecked")
     class Batcher extends TaskBatcher {
 
-        Batcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
+        Batcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor) {
             super(logger, threadExecutor);
         }
 

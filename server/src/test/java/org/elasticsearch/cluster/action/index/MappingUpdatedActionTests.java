@@ -35,12 +35,12 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.opensearch.index.Index;
+import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.Mapping;
+import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;

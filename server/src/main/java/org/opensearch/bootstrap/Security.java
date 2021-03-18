@@ -66,7 +66,7 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * between security and ease of use:
  * <ul>
  *   <li>Assigns file permissions to user-configurable paths that can
- *       be specified from the command-line or {@code elasticsearch.yml}.</li>
+ *       be specified from the command-line or {@code opensearch.yml}.</li>
  *   <li>Allows for some contained usage of native code that would not
  *       otherwise be permitted.</li>
  * </ul>
@@ -85,7 +85,7 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * permission, but there are extenuating circumstances.
  * <p>
  * Scripts (groovy) are assigned minimal permissions. This does not provide adequate
- * sandboxing, as these scripts still have access to ES classes, and could
+ * sandboxing, as these scripts still have access to OpenSearch classes, and could
  * modify members, etc that would cause bad things to happen later on their
  * behalf (no package protections are yet in place, this would need some
  * cleanups to the scripting apis). But still it can provide some defense for users
@@ -94,7 +94,7 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * <h2>Debugging Security</h2>
  * A good place to start when there is a problem is to turn on security debugging:
  * <pre>
- * ES_JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
+ * ES_JAVA_OPTS="-Djava.security.debug=access,failure" bin/opensearch
  * </pre>
  * <p>
  * When running tests you have to pass it to the test runner like this:
@@ -134,7 +134,7 @@ final class Security {
     }
 
     /**
-     * Return a map from codebase name to codebase url of jar codebases used by ES core.
+     * Return a map from codebase name to codebase url of jar codebases used by OpenSearch core.
      */
     @SuppressForbidden(reason = "find URL path")
     static Map<String, URL> getCodebaseJarMap(Set<URL> urls) {

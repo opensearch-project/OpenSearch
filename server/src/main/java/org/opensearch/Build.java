@@ -95,12 +95,12 @@ public class Build {
         // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
         type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
 
-        final String esPrefix = "elasticsearch-" + Version.CURRENT;
+        final String opensearchPrefix = "opensearch-" + Version.CURRENT;
         final URL url = getOpenSearchCodeSourceLocation();
         final String urlStr = url == null ? "" : url.toString();
         if (urlStr.startsWith("file:/") && (
-            urlStr.endsWith(esPrefix + ".jar") ||
-            urlStr.matches("(.*)" + esPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar")
+            urlStr.endsWith(opensearchPrefix + ".jar") ||
+            urlStr.matches("(.*)" + opensearchPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar")
         )) {
             try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
@@ -112,7 +112,7 @@ public class Build {
                 throw new RuntimeException(e);
             }
         } else {
-            // not running from the official elasticsearch jar file (unit tests, IDE, uber client jar, shadiness)
+            // not running from the official opensearch jar file (unit tests, IDE, uber client jar, shadiness)
             hash = "unknown";
             date = "unknown";
             version = Version.CURRENT.toString();

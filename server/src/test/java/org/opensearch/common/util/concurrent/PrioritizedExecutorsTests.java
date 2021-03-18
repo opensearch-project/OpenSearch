@@ -190,7 +190,7 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
 
     public void testTimeout() throws Exception {
         ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(OpenSearchExecutors.daemonThreadFactory(getTestName()));
-        PrioritizedEsThreadPoolExecutor executor =
+        PrioritizedOpenSearchThreadPoolExecutor executor =
                 OpenSearchExecutors.newSinglePrioritizing(getName(), OpenSearchExecutors.daemonThreadFactory(getTestName()), holder, timer);
         final CountDownLatch invoked = new CountDownLatch(1);
         final CountDownLatch block = new CountDownLatch(1);
@@ -211,7 +211,7 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
             }
         });
         invoked.await();
-        PrioritizedEsThreadPoolExecutor.Pending[] pending = executor.getPending();
+        PrioritizedOpenSearchThreadPoolExecutor.Pending[] pending = executor.getPending();
         assertThat(pending.length, equalTo(1));
         assertThat(pending[0].task.toString(), equalTo("the blocking"));
         assertThat(pending[0].executing, equalTo(true));
@@ -254,7 +254,7 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
         ThreadPool threadPool = new TestThreadPool("test");
         final ScheduledThreadPoolExecutor timer = (ScheduledThreadPoolExecutor) threadPool.scheduler();
         final AtomicBoolean timeoutCalled = new AtomicBoolean();
-        PrioritizedEsThreadPoolExecutor executor =
+        PrioritizedOpenSearchThreadPoolExecutor executor =
                 OpenSearchExecutors.newSinglePrioritizing(getName(), OpenSearchExecutors.daemonThreadFactory(getTestName()), holder, timer);
         final CountDownLatch invoked = new CountDownLatch(1);
         executor.execute(new Runnable() {

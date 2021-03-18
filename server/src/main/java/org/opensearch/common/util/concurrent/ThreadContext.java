@@ -62,7 +62,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING
  * have out of the box support for {@link ThreadContext} and all threads spawned will inherit the {@link ThreadContext} from the thread
  * that it is forking from.". Network calls will also preserve the senders headers automatically.
  * <p>
- * Consumers of ThreadContext usually don't need to interact with adding or stashing contexts. Every elasticsearch thread is managed by
+ * Consumers of ThreadContext usually don't need to interact with adding or stashing contexts. Every opensearch thread is managed by
  * a thread pool or executor being responsible for stashing and restoring the threads context. For instance if a network request is
  * received, all headers are deserialized from the network and directly added as the headers of the threads {@link ThreadContext}
  * (see {@link #readHeaders(StreamInput)}. In order to not modify the context that is currently active on this thread the network code

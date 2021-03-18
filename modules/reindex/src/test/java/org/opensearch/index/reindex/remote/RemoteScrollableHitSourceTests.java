@@ -256,8 +256,8 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
             assertEquals("87A7NvevQxSrEwMbtRCecg", r.getFailures().get(0).getNodeId());
             assertThat(r.getFailures().get(0).getReason(), instanceOf(OpenSearchRejectedExecutionException.class));
             assertEquals("rejected execution of org.opensearch.transport.TransportService$5@52d06af2 on "
-                    + "EsThreadPoolExecutor[search, queue capacity = 1000, org.opensearch.common.util.concurrent."
-                    + "EsThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, "
+                    + "OpenSearchThreadPoolExecutor[search, queue capacity = 1000, org.opensearch.common.util.concurrent."
+                    + "OpenSearchThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, "
                     + "completed tasks = 4182]]", r.getFailures().get(0).getReason().getMessage());
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
