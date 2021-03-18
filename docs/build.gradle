@@ -409,12 +409,12 @@ for (int i = 0; i < 100; i++) {
 for (int i = 0; i < 20; i++) {
   buildRestTests.setups['news'] += """
             {"index":{}}
-            {"source": "partially_relevant_$i", "content": "elasticsearch dupFiller dupFiller dupFiller dupFiller pozmantier"}"""
+            {"source": "partially_relevant_$i", "content": "<keyword> dupFiller dupFiller dupFiller dupFiller pozmantier"}"""
 }
 for (int i = 0; i < 10; i++) {
   buildRestTests.setups['news'] += """
             {"index":{}}
-            {"source": "partially_relevant_$i", "content": "elasticsearch logstash kibana"}"""
+            {"source": "partially_relevant_$i", "content": "<keyword> <keyword> <keyword>"}"""
 }
 buildRestTests.setups['news'] += """
 """
