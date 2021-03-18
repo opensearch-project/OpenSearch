@@ -45,7 +45,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.mock.orig.Mockito;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -53,7 +53,7 @@ import java.util.Collections;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class QueryBuilderStoreTests extends ESTestCase {
+public class QueryBuilderStoreTests extends OpenSearchTestCase {
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {

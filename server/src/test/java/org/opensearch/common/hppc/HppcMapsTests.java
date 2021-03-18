@@ -21,14 +21,14 @@ package org.opensearch.common.hppc;
 import com.carrotsearch.hppc.ObjectHashSet;
 import org.opensearch.Assertions;
 import org.opensearch.common.collect.HppcMaps;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class HppcMapsTests extends ESTestCase {
+public class HppcMapsTests extends OpenSearchTestCase {
     public void testIntersection() throws Exception {
         assumeTrue("assertions enabled", Assertions.ENABLED);
         ObjectHashSet<String> set1 = ObjectHashSet.from("1", "2", "3");

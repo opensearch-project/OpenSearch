@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class AllocationIdTests extends ESTestCase {
+public class AllocationIdTests extends OpenSearchTestCase {
     public void testShardToStarted() {
         logger.info("-- create unassigned shard");
         ShardRouting shard = ShardRouting.newUnassigned(new ShardId("test","_na_", 0), true,

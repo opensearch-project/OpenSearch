@@ -28,7 +28,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
 import org.hamcrest.Matchers;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 

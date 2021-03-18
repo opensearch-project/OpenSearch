@@ -24,13 +24,13 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DeDuplicatingTokenFilterTests extends ESTestCase {
+public class DeDuplicatingTokenFilterTests extends OpenSearchTestCase {
     public void testSimple() throws IOException {
         DuplicateByteSequenceSpotter bytesDeDuper = new DuplicateByteSequenceSpotter();
         Analyzer analyzer = new Analyzer() {

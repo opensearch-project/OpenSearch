@@ -97,7 +97,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -118,7 +118,7 @@ import static org.opensearch.common.network.InetAddresses.forString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CandidateQueryTests extends ESSingleNodeTestCase {
+public class CandidateQueryTests extends OpenSearchSingleNodeTestCase {
 
     private Directory directory;
     private IndexWriter indexWriter;

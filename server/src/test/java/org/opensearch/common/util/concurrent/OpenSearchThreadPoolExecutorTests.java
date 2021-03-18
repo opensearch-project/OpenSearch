@@ -20,8 +20,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CountDownLatch;
@@ -30,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
-public class OpenSearchThreadPoolExecutorTests extends ESSingleNodeTestCase {
+public class OpenSearchThreadPoolExecutorTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {

@@ -29,15 +29,15 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-import static org.opensearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
+import static org.opensearch.common.util.concurrent.OpenSearchExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.opensearch.index.MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING;
 import static org.opensearch.index.MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING;
 import static org.hamcrest.core.StringContains.containsString;
 
-public class MergeSchedulerSettingsTests extends ESTestCase {
+public class MergeSchedulerSettingsTests extends OpenSearchTestCase {
     private static class MockAppender extends AbstractAppender {
         public boolean sawUpdateMaxThreadCount;
         public boolean sawUpdateAutoThrottle;

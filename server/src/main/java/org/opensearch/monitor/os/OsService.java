@@ -26,7 +26,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.SingleObjectCache;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ public class OsService implements ReportingService<OsInfo> {
     public OsService(Settings settings) throws IOException {
         this.probe = OsProbe.getInstance();
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.allocatedProcessors(settings));
+        this.info = probe.osInfo(refreshInterval.millis(), OpenSearchExecutors.allocatedProcessors(settings));
         this.osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }

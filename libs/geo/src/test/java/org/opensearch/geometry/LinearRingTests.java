@@ -23,9 +23,9 @@ import org.opensearch.geometry.utils.GeographyValidator;
 import org.opensearch.geometry.utils.GeometryValidator;
 import org.opensearch.geometry.utils.StandardValidator;
 import org.opensearch.geometry.utils.WellKnownText;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class LinearRingTests extends ESTestCase {
+public class LinearRingTests extends OpenSearchTestCase {
 
     public void testBasicSerialization() {
         UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class,

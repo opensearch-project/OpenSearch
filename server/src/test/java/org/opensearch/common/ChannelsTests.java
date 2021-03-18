@@ -22,7 +22,7 @@ package org.opensearch.common;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Channels;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -40,7 +40,7 @@ import java.nio.file.StandardOpenOption;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ChannelsTests extends ESTestCase {
+public class ChannelsTests extends OpenSearchTestCase {
 
     byte[] randomBytes;
     FileChannel fileChannel;

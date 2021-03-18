@@ -22,7 +22,7 @@ package org.opensearch.index.reindex;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ import static org.opensearch.index.reindex.ReindexValidator.checkRemoteWhitelist
 /**
  * Tests the reindex-from-remote whitelist of remotes.
  */
-public class ReindexFromRemoteWhitelistTests extends ESTestCase {
+public class ReindexFromRemoteWhitelistTests extends OpenSearchTestCase {
 
     private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
 

@@ -27,11 +27,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class ProfileScorerTests extends ESTestCase {
+public class ProfileScorerTests extends OpenSearchTestCase {
 
     private static class FakeScorer extends Scorer {
 

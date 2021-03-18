@@ -23,14 +23,13 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class GeoUtilTests extends ESTestCase {
+public class GeoUtilTests extends OpenSearchTestCase {
 
     public void testPrecisionParser() throws IOException {
         assertEquals(10, parsePrecision(builder -> builder.field("test", 10)));

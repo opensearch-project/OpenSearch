@@ -21,7 +21,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Set;

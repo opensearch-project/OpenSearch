@@ -24,7 +24,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +35,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
 
-public class BulkByScrollTaskTests extends ESTestCase {
+public class BulkByScrollTaskTests extends OpenSearchTestCase {
     public void testStatusHatesNegatives() {
         checkStatusNegatives(-1  ,  0, 0, 0, 0, 0, 0, 0, 0, 0, "sliceId");
         checkStatusNegatives(null, -1, 0, 0, 0, 0, 0, 0, 0, 0, "total");

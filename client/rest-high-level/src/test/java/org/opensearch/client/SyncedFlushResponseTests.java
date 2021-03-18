@@ -32,7 +32,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class SyncedFlushResponseTests extends ESTestCase {
+public class SyncedFlushResponseTests extends OpenSearchTestCase {
 
     public void testXContentSerialization() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());

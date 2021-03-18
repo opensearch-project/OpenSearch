@@ -23,13 +23,13 @@ import org.opensearch.cluster.coordination.LinearizabilityChecker.History;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.KeyedSpec;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LinearizabilityCheckerTests extends ESTestCase {
+public class LinearizabilityCheckerTests extends OpenSearchTestCase {
 
     final LinearizabilityChecker checker = new LinearizabilityChecker();
 

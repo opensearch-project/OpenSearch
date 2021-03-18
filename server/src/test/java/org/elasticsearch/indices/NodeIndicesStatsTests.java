@@ -20,14 +20,14 @@
 package org.elasticsearch.indices;
 
 import org.opensearch.common.xcontent.ToXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class NodeIndicesStatsTests extends ESTestCase {
+public class NodeIndicesStatsTests extends OpenSearchTestCase {
 
     public void testInvalidLevel() {
         final NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap());

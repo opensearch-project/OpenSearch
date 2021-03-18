@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LoggersTests extends ESTestCase {
+public class LoggersTests extends OpenSearchTestCase {
 
     public void testParameterizedMessageLambda() throws Exception {
         final MockAppender appender = new MockAppender("trace_appender");

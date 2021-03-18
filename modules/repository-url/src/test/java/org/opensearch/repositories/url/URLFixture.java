@@ -18,7 +18,7 @@
  */
 package org.opensearch.repositories.url;
 
-import org.elasticsearch.test.fixture.AbstractHttpFixture;
+import org.opensearch.test.fixture.AbstractHttpFixture;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.rest.RestStatus;
 

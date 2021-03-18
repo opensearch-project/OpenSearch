@@ -20,11 +20,11 @@
 package org.elasticsearch.index;
 
 import org.opensearch.common.lucene.uid.Versions;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class VersionTypeTests extends ESTestCase {
+public class VersionTypeTests extends OpenSearchTestCase {
     public void testInternalVersionConflict() throws Exception {
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_ANY, randomBoolean()));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(10, Versions.MATCH_ANY));

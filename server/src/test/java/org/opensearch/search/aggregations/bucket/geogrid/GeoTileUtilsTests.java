@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
 import static org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoTileUtilsTests extends ESTestCase {
+public class GeoTileUtilsTests extends OpenSearchTestCase {
 
     private static final double GEOTILE_TOLERANCE = 1E-5D;
 

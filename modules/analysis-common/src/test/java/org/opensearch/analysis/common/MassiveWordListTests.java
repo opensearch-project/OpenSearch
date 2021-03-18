@@ -21,12 +21,12 @@ package org.opensearch.analysis.common;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public class MassiveWordListTests extends ESSingleNodeTestCase {
+public class MassiveWordListTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

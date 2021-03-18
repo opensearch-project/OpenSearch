@@ -30,7 +30,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.plugin.analysis.nori.AnalysisNoriPlugin;
 import org.opensearch.test.OpenSearchTestCase.TestAnalysis;
-import org.opensearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,7 +41,7 @@ import java.nio.file.Path;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class NoriAnalysisTests extends ESTokenStreamTestCase {
+public class NoriAnalysisTests extends OpenSearchTokenStreamTestCase {
     public void testDefaultsNoriAnalysis() throws IOException {
         TestAnalysis analysis = createTestAnalysis(Settings.EMPTY);
 

@@ -21,13 +21,13 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.ResponseException;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class ReindexWithoutContentIT extends ESRestTestCase {
+public class ReindexWithoutContentIT extends OpenSearchRestTestCase {
 
     public void testReindexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(

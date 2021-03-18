@@ -28,7 +28,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -49,7 +49,7 @@ import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class TransportRethrottleActionTests extends ESTestCase {
+public class TransportRethrottleActionTests extends OpenSearchTestCase {
     private int slices;
     private BulkByScrollTask task;
 

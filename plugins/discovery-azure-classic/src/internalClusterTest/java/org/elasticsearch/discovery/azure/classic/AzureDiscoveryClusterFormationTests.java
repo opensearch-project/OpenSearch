@@ -37,7 +37,7 @@ import org.opensearch.mocksocket.MockHttpServer;
 import org.opensearch.node.Node;
 import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -70,9 +70,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
-public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
+public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase {
 
     public static class TestPlugin extends Plugin {
         @Override

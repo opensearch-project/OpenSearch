@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.coordination.NoMasterBlockService;
 
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
@@ -31,7 +31,7 @@ import static org.opensearch.cluster.coordination.NoMasterBlockService.LEGACY_NO
 import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class NoMasterBlockServiceTests extends ESTestCase {
+public class NoMasterBlockServiceTests extends OpenSearchTestCase {
 
     private NoMasterBlockService noMasterBlockService;
     private ClusterSettings clusterSettings;

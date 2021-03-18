@@ -28,8 +28,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -43,7 +43,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RemoteClusterAwareClientTests extends ESTestCase {
+public class RemoteClusterAwareClientTests extends OpenSearchTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 

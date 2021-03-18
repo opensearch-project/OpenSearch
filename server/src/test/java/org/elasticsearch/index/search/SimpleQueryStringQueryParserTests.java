@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.search;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class SimpleQueryStringQueryParserTests extends ESTestCase {
+public class SimpleQueryStringQueryParserTests extends OpenSearchTestCase {
 
     public void testEqualsSettings() {
         SimpleQueryStringQueryParser.Settings settings1 = new SimpleQueryStringQueryParser.Settings();

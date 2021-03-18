@@ -20,6 +20,8 @@ package org.elasticsearch.test.rest.yaml.restspec;
 
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.AbstractClientYamlTestFragmentParserTestCase;
+import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
+import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApiParser;
 
 import java.util.Iterator;
 

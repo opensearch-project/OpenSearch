@@ -70,7 +70,7 @@ import org.opensearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.HashMap;

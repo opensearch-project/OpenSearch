@@ -53,7 +53,7 @@ import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4Plugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -72,7 +72,7 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.index.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.containsString;
 
-public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
+public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase {
     private TransportAddress address;
 
     @Override

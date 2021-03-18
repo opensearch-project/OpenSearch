@@ -31,14 +31,14 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.script.NumberSortScript;
 import org.opensearch.script.ScriptException;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ExpressionNumberSortScriptTests extends ESTestCase {
+public class ExpressionNumberSortScriptTests extends OpenSearchTestCase {
     private ExpressionScriptEngine service;
     private SearchLookup lookup;
 

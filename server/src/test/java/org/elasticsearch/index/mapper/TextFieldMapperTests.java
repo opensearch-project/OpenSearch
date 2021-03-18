@@ -68,6 +68,7 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.MatchQuery;
+import org.opensearch.index.mapper.MapperTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

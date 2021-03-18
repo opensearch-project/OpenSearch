@@ -34,7 +34,7 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class XContentParserUtilsTests extends ESTestCase {
+public class XContentParserUtilsTests extends OpenSearchTestCase {
 
     public void testEnsureExpectedToken() throws IOException {
         final XContentParser.Token randomToken = randomFrom(XContentParser.Token.values());

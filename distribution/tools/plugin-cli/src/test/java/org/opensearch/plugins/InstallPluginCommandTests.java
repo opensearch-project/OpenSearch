@@ -56,8 +56,8 @@ import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PosixPermissionsResetter;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.PosixPermissionsResetter;
 import org.junit.After;
 import org.junit.Before;
 
@@ -107,7 +107,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -118,7 +118,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class InstallPluginCommandTests extends ESTestCase {
+public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     private InstallPluginCommand skipJarHellCommand;
     private InstallPluginCommand defaultCommand;
@@ -990,7 +990,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testOfficialPlugin() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
@@ -998,7 +998,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testOfficialPluginSnapshot() throws Exception {
         String url = String.format(
             Locale.ROOT,
@@ -1009,7 +1009,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testInstallReleaseBuildOfPluginOnSnapshotBuild() {
         String url = String.format(
             Locale.ROOT,
@@ -1025,11 +1025,11 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
         assertThat(
             e,
-            hasToString(containsString("attempted to install release build of official plugin on snapshot build of Elasticsearch"))
+            hasToString(containsString("attempted to install release build of official plugin on snapshot build of OpenSearch"))
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testOfficialPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/"
             + Version.CURRENT
@@ -1039,7 +1039,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testOfficialPlatformPlugin() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Platforms.PLATFORM_NAME
@@ -1049,7 +1049,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testOfficialPlatformPluginSnapshot() throws Exception {
         String url = String.format(
             Locale.ROOT,
@@ -1061,7 +1061,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, "abc123", true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testOfficialPlatformPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/"
             + Version.CURRENT
@@ -1106,7 +1106,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testOfficialChecksumWithoutFilename() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
@@ -1130,7 +1130,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertThat(e.getMessage(), startsWith("Invalid checksum file"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testOfficialShaMissing() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
@@ -1174,7 +1174,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertEquals("Plugin checksum missing: " + url + ".sha1", e.getMessage());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testInvalidShaFileMissingFilename() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
@@ -1198,7 +1198,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testInvalidShaFileMismatchFilename() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
@@ -1222,7 +1222,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertThat(e, hasToString(matches("checksum file at \\[.*\\] is not for this plugin")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testInvalidShaFileContainingExtraLine() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
@@ -1246,7 +1246,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().startsWith("Invalid checksum file"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testSha512Mismatch() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.CURRENT.getQualifiedVersion()
@@ -1289,7 +1289,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("SHA-1 mismatch, expected foobar"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testPublicKeyIdMismatchToExpectedPublicKeyId() throws Exception {
         final String icu = "analysis-icu";
         final String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/"
@@ -1325,7 +1325,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertThat(e, hasToString(containsString("key id [" + actualID + "] does not match expected key id [" + expectedID + "]")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opendistro-for-elasticsearch/search/issues/100")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/100")
     public void testFailedSignatureVerification() throws Exception {
         final String icu = "analysis-icu";
         final String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/"
@@ -1341,7 +1341,7 @@ public class InstallPluginCommandTests extends ESTestCase {
          */
         final BiFunction<byte[], PGPSecretKey, String> signature = (b, p) -> {
             final byte[] bytes = Arrays.copyOf(b, b.length);
-            bytes[0] = randomValueOtherThan(b[0], ESTestCase::randomByte);
+            bytes[0] = randomValueOtherThan(b[0], OpenSearchTestCase::randomByte);
             return signature(bytes, p);
         };
         final IllegalStateException e = expectThrows(

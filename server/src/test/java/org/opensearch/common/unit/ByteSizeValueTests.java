@@ -21,10 +21,8 @@ package org.opensearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 

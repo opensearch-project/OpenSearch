@@ -21,11 +21,11 @@ package org.elasticsearch.index.refresh;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class RefreshStatsTests extends ESTestCase {
+public class RefreshStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
         RefreshStats stats = new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),

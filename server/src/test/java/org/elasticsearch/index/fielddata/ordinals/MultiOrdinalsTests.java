@@ -23,7 +23,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.packed.PackedInts;
 import org.opensearch.search.MultiValueMode;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiOrdinalsTests extends ESTestCase {
+public class MultiOrdinalsTests extends OpenSearchTestCase {
 
     protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
         return builder.build();

@@ -21,13 +21,13 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.ResponseException;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class SearchTemplateWithoutContentIT extends ESRestTestCase {
+public class SearchTemplateWithoutContentIT extends OpenSearchRestTestCase {
 
     public void testSearchTemplateMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(

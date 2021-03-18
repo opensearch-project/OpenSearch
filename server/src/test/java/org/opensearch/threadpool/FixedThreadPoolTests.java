@@ -20,8 +20,8 @@
 package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.ThreadPool.Names;
 
 import java.util.concurrent.CountDownLatch;
@@ -34,7 +34,7 @@ public class FixedThreadPoolTests extends OpenSearchThreadPoolTestCase {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.FIXED);
         // some of the fixed thread pool are bound by the number of
         // cores so we can not exceed that
-        final int size = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY));
+        final int size = randomIntBetween(1, OpenSearchExecutors.allocatedProcessors(Settings.EMPTY));
         final int queueSize = randomIntBetween(1, 16);
         final long rejections = randomIntBetween(1, 16);
 
@@ -77,7 +77,7 @@ public class FixedThreadPoolTests extends OpenSearchThreadPoolTestCase {
             for (int i = 0; i < rejections; i++) {
                 try {
                     threadPool.executor(threadPoolName).execute(() -> {});
-                } catch (EsRejectedExecutionException e) {
+                } catch (OpenSearchRejectedExecutionException e) {
                     counter++;
                 }
             }

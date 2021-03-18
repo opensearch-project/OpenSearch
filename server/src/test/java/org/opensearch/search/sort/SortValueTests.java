@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.opensearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;
 import java.time.ZoneId;

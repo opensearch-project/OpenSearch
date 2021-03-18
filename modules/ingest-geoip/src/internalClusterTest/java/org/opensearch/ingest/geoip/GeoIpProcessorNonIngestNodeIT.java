@@ -32,9 +32,9 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.NodeRoles;
-import org.elasticsearch.test.StreamsUtils;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.NodeRoles;
+import org.opensearch.test.StreamsUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -46,11 +46,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.NodeRoles.nonIngestNode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.NodeRoles.nonIngestNode;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoIpProcessorNonIngestNodeIT extends ESIntegTestCase {
+public class GeoIpProcessorNonIngestNodeIT extends OpenSearchIntegTestCase {
 
     public static class IngestGeoIpSettingsPlugin extends Plugin {
 

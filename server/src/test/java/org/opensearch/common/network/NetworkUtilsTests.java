@@ -19,9 +19,8 @@
 
 package org.opensearch.common.network;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.OptionalMatchers;
-import org.opensearch.common.network.NetworkUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.hamcrest.OptionalMatchers;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for network utils. Please avoid using any methods that cause DNS lookups!
  */
-public class NetworkUtilsTests extends ESTestCase {
+public class NetworkUtilsTests extends OpenSearchTestCase {
 
     /**
      * test sort key order respects PREFER_IPV4

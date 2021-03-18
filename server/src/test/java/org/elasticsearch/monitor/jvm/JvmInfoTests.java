@@ -21,9 +21,9 @@ package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.bootstrap.JavaVersion;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class JvmInfoTests extends ESTestCase {
+public class JvmInfoTests extends OpenSearchTestCase {
 
     public void testUseG1GC() {
         // if we are running on HotSpot, and the test JVM was started

@@ -32,8 +32,8 @@ import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
-import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.AbstractDiffableWireSerializationTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;

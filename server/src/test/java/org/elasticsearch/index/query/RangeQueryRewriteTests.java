@@ -29,12 +29,12 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 // The purpose of this test case is to test RangeQueryBuilder.getRelation()
 // Whether it should return INTERSECT/DISJOINT/WITHIN is already tested in
 // RangeQueryBuilderTests
-public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
+public class RangeQueryRewriteTests extends OpenSearchSingleNodeTestCase {
 
     public void testRewriteMissingField() throws Exception {
         IndexService indexService = createIndex("test");

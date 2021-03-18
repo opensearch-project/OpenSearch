@@ -19,7 +19,7 @@
 
 package org.opensearch.nio;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import java.util.function.Consumer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class ChannelContextTests extends ESTestCase {
+public class ChannelContextTests extends OpenSearchTestCase {
 
     private TestChannelContext context;
     private Consumer<Exception> exceptionHandler;

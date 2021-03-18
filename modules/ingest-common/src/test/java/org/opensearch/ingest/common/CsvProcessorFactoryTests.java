@@ -19,7 +19,7 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class CsvProcessorFactoryTests extends ESTestCase {
+public class CsvProcessorFactoryTests extends OpenSearchTestCase {
 
     public void testProcessorIsCreated() {
         CsvProcessor.Factory factory = new CsvProcessor.Factory();

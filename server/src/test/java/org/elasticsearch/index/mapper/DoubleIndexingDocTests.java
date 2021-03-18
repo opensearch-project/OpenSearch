@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;

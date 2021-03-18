@@ -50,7 +50,7 @@ import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryInt
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
 
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);

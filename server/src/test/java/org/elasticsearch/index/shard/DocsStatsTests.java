@@ -22,11 +22,11 @@ package org.elasticsearch.index.shard;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DocsStatsTests extends ESTestCase {
+public class DocsStatsTests extends OpenSearchTestCase {
 
     public void testCalculateAverageDocSize() throws Exception {
         DocsStats stats = new DocsStats(10, 2, 120);

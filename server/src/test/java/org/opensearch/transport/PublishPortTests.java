@@ -21,7 +21,7 @@ package org.opensearch.transport;
 
 import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -34,7 +34,7 @@ import static org.opensearch.transport.TcpTransport.resolvePublishPort;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PublishPortTests extends ESTestCase {
+public class PublishPortTests extends OpenSearchTestCase {
 
     public void testPublishPort() throws Exception {
         int boundPort = randomIntBetween(9000, 9100);

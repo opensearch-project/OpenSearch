@@ -21,13 +21,13 @@ package org.elasticsearch.cluster.coordination;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.coordination.DiscoveryUpgradeService;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 
-public class DiscoveryUpgradeServiceTests extends ESTestCase {
+public class DiscoveryUpgradeServiceTests extends OpenSearchTestCase {
     public void testCreateDiscoveryNodeWithImpossiblyHighId() {
         final DiscoveryNode discoveryNode
             = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);

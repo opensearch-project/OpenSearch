@@ -22,14 +22,14 @@ package org.opensearch.index.store;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.plugin.store.smb.SMBStorePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 
-public abstract  class AbstractAzureFsTestCase extends ESIntegTestCase {
+public abstract  class AbstractAzureFsTestCase extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(SMBStorePlugin.class);

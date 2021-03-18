@@ -21,14 +21,14 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class JsonProcessorFactoryTests extends ESTestCase {
+public class JsonProcessorFactoryTests extends OpenSearchTestCase {
 
     private static final JsonProcessor.Factory FACTORY = new JsonProcessor.Factory();
 

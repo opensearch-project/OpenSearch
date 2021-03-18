@@ -19,15 +19,14 @@
 package org.opensearch.common;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.Priority;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class PriorityTests extends ESTestCase {
+public class PriorityTests extends OpenSearchTestCase {
 
     public void testValueOf() {
         for (Priority p : Priority.values()) {

@@ -30,12 +30,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.opensearch.common.lucene.Lucene;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiPhrasePrefixQueryTests extends ESTestCase {
+public class MultiPhrasePrefixQueryTests extends OpenSearchTestCase {
     public void testSimple() throws Exception {
         IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         Document doc = new Document();

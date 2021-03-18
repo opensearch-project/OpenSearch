@@ -22,7 +22,7 @@ package org.opensearch.nio;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -49,7 +49,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class NioSelectorTests extends ESTestCase {
+public class NioSelectorTests extends OpenSearchTestCase {
 
     private NioSelector selector;
     private EventHandler eventHandler;

@@ -27,14 +27,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FieldNamesFieldTypeTests extends ESTestCase {
+public class FieldNamesFieldTypeTests extends OpenSearchTestCase {
 
     public void testTermQuery() {
 

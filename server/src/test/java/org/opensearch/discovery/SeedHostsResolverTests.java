@@ -31,7 +31,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
@@ -96,9 +96,9 @@ public class SeedHostsResolverTests extends OpenSearchTestCase {
         seedHostsResolver = new SeedHostsResolver("test_node", Settings.EMPTY, transportService, hostsResolver -> transportAddresses);
         seedHostsResolver.start();
 
-        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + getClass().getName() + "]");
+        final ThreadFactory threadFactory = OpenSearchExecutors.daemonThreadFactory("[" + getClass().getName() + "]");
         executorService =
-            EsExecutors.newScaling(
+            OpenSearchExecutors.newScaling(
                 getClass().getName() + "/" + getTestName(), 0, 2, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
         closeables = new Stack<>();
     }

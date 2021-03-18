@@ -19,12 +19,12 @@
 
 package org.opensearch.search.aggregations;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class CardinalityUpperBoundTests extends ESTestCase {
+public class CardinalityUpperBoundTests extends OpenSearchTestCase {
     public void testNoneMultiply() {
         assertThat(CardinalityUpperBound.NONE.multiply(randomInt()), sameInstance(CardinalityUpperBound.NONE));
     }

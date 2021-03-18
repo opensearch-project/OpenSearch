@@ -66,7 +66,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
@@ -863,7 +863,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 String reason = randomFrom(rejected, circuit, network);
                 if (reason.equals(rejected)) {
                     logger.info("--> preventing {} response by throwing exception", actionName);
-                    throw new EsRejectedExecutionException();
+                    throw new OpenSearchRejectedExecutionException();
                 } else if (reason.equals(circuit)) {
                     logger.info("--> preventing {} response by throwing exception", actionName);
                     throw new CircuitBreakingException("Broken", CircuitBreaker.Durability.PERMANENT);

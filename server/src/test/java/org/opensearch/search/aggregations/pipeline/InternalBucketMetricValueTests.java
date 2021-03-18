@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;

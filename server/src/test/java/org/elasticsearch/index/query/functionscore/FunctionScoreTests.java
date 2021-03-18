@@ -66,7 +66,7 @@ import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -79,7 +79,7 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNot.not;
 
-public class FunctionScoreTests extends ESTestCase {
+public class FunctionScoreTests extends OpenSearchTestCase {
 
     private static final String UNSUPPORTED = "Method not implemented. This is just a stub for testing.";
 
@@ -441,7 +441,7 @@ public class FunctionScoreTests extends ESTestCase {
     private static double[] randomPositiveDoubles(int size) {
         double[] values = new double[size];
         for (int i = 0; i < values.length; i++) {
-            double rand = randomValueOtherThanMany((d) -> Double.compare(d, 0) < 0, ESTestCase::randomDouble);
+            double rand = randomValueOtherThanMany((d) -> Double.compare(d, 0) < 0, OpenSearchTestCase::randomDouble);
             values[i] = rand * randomInt(100) + 1.e-5d;
         }
         return values;

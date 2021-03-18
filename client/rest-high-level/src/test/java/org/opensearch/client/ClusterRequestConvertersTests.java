@@ -31,7 +31,7 @@ import org.opensearch.client.cluster.RemoteInfoRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.util.CollectionUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 
@@ -44,7 +44,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ClusterRequestConvertersTests extends ESTestCase {
+public class ClusterRequestConvertersTests extends OpenSearchTestCase {
 
     public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
@@ -62,7 +62,7 @@ public class ClusterRequestConvertersTests extends ESTestCase {
         ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
-        request.includeDefaults(ESTestCase.randomBoolean());
+        request.includeDefaults(OpenSearchTestCase.randomBoolean());
         if (request.includeDefaults()) {
             expectedParams.put("include_defaults", String.valueOf(true));
         }
@@ -77,9 +77,9 @@ public class ClusterRequestConvertersTests extends ESTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest();
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomLocal(healthRequest::local, expectedParams);
-        String timeoutType = ESTestCase.randomFrom("timeout", "masterTimeout", "both", "none");
-        String timeout = ESTestCase.randomTimeValue();
-        String masterTimeout = ESTestCase.randomTimeValue();
+        String timeoutType = OpenSearchTestCase.randomFrom("timeout", "masterTimeout", "both", "none");
+        String timeout = OpenSearchTestCase.randomTimeValue();
+        String masterTimeout = OpenSearchTestCase.randomTimeValue();
         switch (timeoutType) {
             case "timeout":
                 healthRequest.timeout(timeout);
@@ -106,38 +106,38 @@ public class ClusterRequestConvertersTests extends ESTestCase {
                 throw new UnsupportedOperationException();
         }
         RequestConvertersTests.setRandomWaitForActiveShards(healthRequest::waitForActiveShards, ActiveShardCount.NONE, expectedParams);
-        if (ESTestCase.randomBoolean()) {
-            ClusterHealthRequest.Level level = ESTestCase.randomFrom(ClusterHealthRequest.Level.values());
+        if (OpenSearchTestCase.randomBoolean()) {
+            ClusterHealthRequest.Level level = OpenSearchTestCase.randomFrom(ClusterHealthRequest.Level.values());
             healthRequest.level(level);
             expectedParams.put("level", level.name().toLowerCase(Locale.ROOT));
         } else {
             expectedParams.put("level", "cluster");
         }
-        if (ESTestCase.randomBoolean()) {
-            Priority priority = ESTestCase.randomFrom(Priority.values());
+        if (OpenSearchTestCase.randomBoolean()) {
+            Priority priority = OpenSearchTestCase.randomFrom(Priority.values());
             healthRequest.waitForEvents(priority);
             expectedParams.put("wait_for_events", priority.name().toLowerCase(Locale.ROOT));
         }
-        if (ESTestCase.randomBoolean()) {
-            ClusterHealthStatus status = ESTestCase.randomFrom(ClusterHealthStatus.values());
+        if (OpenSearchTestCase.randomBoolean()) {
+            ClusterHealthStatus status = OpenSearchTestCase.randomFrom(ClusterHealthStatus.values());
             healthRequest.waitForStatus(status);
             expectedParams.put("wait_for_status", status.name().toLowerCase(Locale.ROOT));
         }
-        if (ESTestCase.randomBoolean()) {
-            boolean waitForNoInitializingShards = ESTestCase.randomBoolean();
+        if (OpenSearchTestCase.randomBoolean()) {
+            boolean waitForNoInitializingShards = OpenSearchTestCase.randomBoolean();
             healthRequest.waitForNoInitializingShards(waitForNoInitializingShards);
             if (waitForNoInitializingShards) {
                 expectedParams.put("wait_for_no_initializing_shards", Boolean.TRUE.toString());
             }
         }
-        if (ESTestCase.randomBoolean()) {
-            boolean waitForNoRelocatingShards = ESTestCase.randomBoolean();
+        if (OpenSearchTestCase.randomBoolean()) {
+            boolean waitForNoRelocatingShards = OpenSearchTestCase.randomBoolean();
             healthRequest.waitForNoRelocatingShards(waitForNoRelocatingShards);
             if (waitForNoRelocatingShards) {
                 expectedParams.put("wait_for_no_relocating_shards", Boolean.TRUE.toString());
             }
         }
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         healthRequest.indices(indices);
 
         Request request = ClusterRequestConverters.clusterHealth(healthRequest);

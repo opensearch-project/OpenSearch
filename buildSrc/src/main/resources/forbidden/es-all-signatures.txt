@@ -51,7 +51,7 @@ java.lang.Boolean#getBoolean(java.lang.String)
 
 org.apache.lucene.util.IOUtils @ use @org.opensearch.core.internal.io instead
 
-@defaultMessage use executors from org.opensearch.common.util.concurrent.EsExecutors instead which will properly bubble up Errors
+@defaultMessage use executors from org.opensearch.common.util.concurrent.OpenSearchExecutors instead which will properly bubble up Errors
 java.util.concurrent.AbstractExecutorService#<init>()
 java.util.concurrent.ThreadPoolExecutor#<init>(int, int, long, java.util.concurrent.TimeUnit, java.util.concurrent.BlockingQueue)
 java.util.concurrent.ThreadPoolExecutor#<init>(int, int, long, java.util.concurrent.TimeUnit, java.util.concurrent.BlockingQueue, java.util.concurrent.ThreadFactory)

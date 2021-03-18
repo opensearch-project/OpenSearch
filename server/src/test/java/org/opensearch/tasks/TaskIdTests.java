@@ -23,11 +23,11 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class TaskIdTests extends ESTestCase {
+public class TaskIdTests extends OpenSearchTestCase {
     private static final int ROUNDS = 30;
 
     public void testSerialization() throws IOException {

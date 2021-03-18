@@ -20,32 +20,32 @@
 package org.opensearch.index.reindex.remote;
 
 import org.opensearch.action.search.ShardSearchFailure;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class RemoteResponseParsersTests extends ESTestCase {
+public class RemoteResponseParsersTests extends OpenSearchTestCase {
 
     /**
      * Check that we can parse shard search failures without index information.
      */
     public void testFailureWithoutIndex() throws IOException {
-        ShardSearchFailure failure = new ShardSearchFailure(new EsRejectedExecutionException("exhausted"));
+        ShardSearchFailure failure = new ShardSearchFailure(new OpenSearchRejectedExecutionException("exhausted"));
         XContentBuilder builder = jsonBuilder();
         failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
         try (XContentParser parser = createParser(builder)) {
             ScrollableHitSource.SearchFailure parsed = RemoteResponseParsers.SEARCH_FAILURE_PARSER.parse(parser, null);
             assertNotNull(parsed.getReason());
             assertThat(parsed.getReason().getMessage(), Matchers.containsString("exhausted"));
-            assertThat(parsed.getReason(), Matchers.instanceOf(EsRejectedExecutionException.class));
+            assertThat(parsed.getReason(), Matchers.instanceOf(OpenSearchRejectedExecutionException.class));
         }
     }
 }

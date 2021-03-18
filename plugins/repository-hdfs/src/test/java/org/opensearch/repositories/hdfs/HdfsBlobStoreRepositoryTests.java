@@ -21,16 +21,16 @@ package org.opensearch.repositories.hdfs;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
 
 @ThreadLeakFilters(filters = HdfsClientThreadLeakFilter.class)
 // Ony using a single node here since the TestingFs only supports the single-node case
-@ESIntegTestCase.ClusterScope(numDataNodes = 1, supportsDedicatedMasters = false)
-public class HdfsBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 1, supportsDedicatedMasters = false)
+public class HdfsBlobStoreRepositoryTests extends OpenSearchBlobStoreRepositoryIntegTestCase {
 
     @Override
     protected String repositoryType() {

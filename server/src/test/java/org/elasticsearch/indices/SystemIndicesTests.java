@@ -20,7 +20,7 @@
 package org.elasticsearch.indices;
 
 import org.opensearch.tasks.TaskResultsService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SystemIndicesTests extends ESTestCase {
+public class SystemIndicesTests extends OpenSearchTestCase {
 
     public void testBasicOverlappingPatterns() {
         SystemIndexDescriptor broadPattern = new SystemIndexDescriptor(".a*c*", "test");

@@ -19,13 +19,13 @@
 
 package org.opensearch.nio;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 
-public class TaskSchedulerTests extends ESTestCase {
+public class TaskSchedulerTests extends OpenSearchTestCase {
 
     private TaskScheduler scheduler = new TaskScheduler();
 

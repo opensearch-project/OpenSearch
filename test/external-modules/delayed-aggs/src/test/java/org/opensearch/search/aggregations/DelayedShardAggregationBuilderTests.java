@@ -20,7 +20,7 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;

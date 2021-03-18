@@ -20,13 +20,13 @@
 package org.opensearch.client.tasks;
 
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
-public class TaskSubmissionResponseTests extends ESTestCase {
+public class TaskSubmissionResponseTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws IOException {
         xContentTester(

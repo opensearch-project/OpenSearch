@@ -21,8 +21,8 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
 
-public class RestResizeHandlerTests extends ESTestCase {
+public class RestResizeHandlerTests extends OpenSearchTestCase {
 
     public void testShrinkCopySettingsDeprecated() throws IOException {
         final RestResizeHandler.RestShrinkIndexAction handler =

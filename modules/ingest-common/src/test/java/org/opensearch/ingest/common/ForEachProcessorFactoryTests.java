@@ -23,7 +23,7 @@ import org.opensearch.OpenSearchParseException;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.TestProcessor;
 import org.opensearch.script.ScriptService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Collections;
@@ -34,7 +34,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class ForEachProcessorFactoryTests extends ESTestCase {
+public class ForEachProcessorFactoryTests extends OpenSearchTestCase {
 
     private final ScriptService scriptService = mock(ScriptService.class);
     private final Consumer<Runnable> genericExecutor = Runnable::run;

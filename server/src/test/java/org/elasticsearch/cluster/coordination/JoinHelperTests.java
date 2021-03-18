@@ -31,10 +31,10 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.zen.MembershipAction;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.CapturingTransport;
-import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
-import org.elasticsearch.test.transport.MockTransport;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.CapturingTransport;
+import org.opensearch.test.transport.CapturingTransport.CapturedRequest;
+import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
-public class JoinHelperTests extends ESTestCase {
+public class JoinHelperTests extends OpenSearchTestCase {
 
     public void testJoinDeduplication() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(

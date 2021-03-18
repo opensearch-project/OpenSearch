@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;

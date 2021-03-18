@@ -44,7 +44,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -67,7 +67,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test and demonstrates how {@link RestHighLevelClient} can be extended to support custom endpoints.
  */
-public class CustomRestHighLevelClientTests extends ESTestCase {
+public class CustomRestHighLevelClientTests extends OpenSearchTestCase {
 
     private static final String ENDPOINT = "/_custom";
 

@@ -22,7 +22,7 @@ package org.opensearch.search.aggregations.support;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -30,7 +30,7 @@ import java.util.Collections;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ValuesSourceRegistryTests extends ESTestCase {
+public class ValuesSourceRegistryTests extends OpenSearchTestCase {
 
     public void testAggregatorNotFoundException() {
         final QueryShardContext queryShardContext = mock(QueryShardContext.class);

@@ -23,7 +23,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.index.mapper.MockFieldMapper;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,7 +33,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 
-public class FieldAliasMapperValidationTests extends ESTestCase {
+public class FieldAliasMapperValidationTests extends OpenSearchTestCase {
 
     public void testDuplicateFieldAliasAndObject() {
         ObjectMapper objectMapper = createObjectMapper("some.path");

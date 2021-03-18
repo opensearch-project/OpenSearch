@@ -29,8 +29,8 @@ import org.opensearch.index.mapper.MapperExtrasPlugin;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.RankFeatureQueryBuilder.ScoreFunction;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;

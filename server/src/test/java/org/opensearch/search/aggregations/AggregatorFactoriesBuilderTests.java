@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 import org.opensearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;

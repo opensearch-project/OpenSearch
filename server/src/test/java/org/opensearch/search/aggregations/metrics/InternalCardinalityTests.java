@@ -26,7 +26,7 @@ import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         p = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
     }
 
-    @After //we force @After to have it run before ESTestCase#after otherwise it fails
+    @After //we force @After to have it run before OpenSearchTestCase#after otherwise it fails
     @Override
     public void tearDown() throws Exception {
         super.tearDown();

@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.painless.spi.Whitelist;
 import org.opensearch.script.NumberSortScript;
 import org.opensearch.script.ScriptContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,7 +36,7 @@ import java.util.Map;
  * Test that needsScores() is reported correctly depending on whether _score is used
  */
 // TODO: can we test this better? this is a port of the ExpressionsTests method.
-public class NeedsScoreTests extends ESSingleNodeTestCase {
+public class NeedsScoreTests extends OpenSearchSingleNodeTestCase {
 
     public void testNeedsScores() {
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");

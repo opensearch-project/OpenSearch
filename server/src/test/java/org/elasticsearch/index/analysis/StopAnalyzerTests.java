@@ -24,12 +24,12 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
-import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
+import static org.opensearch.test.OpenSearchTestCase.createTestAnalysis;
 
-public class StopAnalyzerTests extends ESTokenStreamTestCase {
+public class StopAnalyzerTests extends OpenSearchTokenStreamTestCase {
     public void testDefaultsCompoundAnalysis() throws Exception {
         String json = "/org/elasticsearch/index/analysis/stop.json";
         Settings settings = Settings.builder()

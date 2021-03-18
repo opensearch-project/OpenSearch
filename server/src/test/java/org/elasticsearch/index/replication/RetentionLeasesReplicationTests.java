@@ -27,13 +27,14 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseSyncAction;
-import org.elasticsearch.index.seqno.RetentionLeaseUtils;
+import org.opensearch.index.seqno.RetentionLeaseUtils;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +44,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTestCase {
+public class RetentionLeasesReplicationTests extends OpenSearchIndexLevelReplicationTestCase {
 
     public void testSimpleSyncRetentionLeases() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();

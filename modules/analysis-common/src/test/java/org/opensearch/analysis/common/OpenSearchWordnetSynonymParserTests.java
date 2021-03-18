@@ -27,7 +27,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -35,7 +35,7 @@ import java.text.ParseException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class OpenSearchWordnetSynonymParserTests extends ESTokenStreamTestCase {
+public class OpenSearchWordnetSynonymParserTests extends OpenSearchTokenStreamTestCase {
 
     public void testLenientParser() throws IOException, ParseException {
         OpenSearchWordnetSynonymParser parser = new OpenSearchWordnetSynonymParser(true, false, true, new StandardAnalyzer());

@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -34,7 +34,7 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class DateFormatTests extends ESTestCase {
+public class DateFormatTests extends OpenSearchTestCase {
 
     public void testParseJava() {
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction("MMM dd HH:mm:ss Z",

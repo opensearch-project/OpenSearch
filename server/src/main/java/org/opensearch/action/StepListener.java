@@ -20,7 +20,7 @@
 package org.opensearch.action;
 
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 
@@ -75,7 +75,7 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      * @param onFailure  is called when this step is completed with a failure
      */
     public void whenComplete(CheckedConsumer<Response, Exception> onResponse, Consumer<Exception> onFailure) {
-        delegate.addListener(ActionListener.wrap(onResponse, onFailure), EsExecutors.newDirectExecutorService(), null);
+        delegate.addListener(ActionListener.wrap(onResponse, onFailure), OpenSearchExecutors.newDirectExecutorService(), null);
     }
 
     /**

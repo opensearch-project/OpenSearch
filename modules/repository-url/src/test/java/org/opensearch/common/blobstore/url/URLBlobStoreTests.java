@@ -25,7 +25,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockHttpServer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -40,7 +40,7 @@ import java.net.URL;
 import java.nio.file.NoSuchFileException;
 
 @SuppressForbidden(reason = "use http server")
-public class URLBlobStoreTests extends ESTestCase {
+public class URLBlobStoreTests extends OpenSearchTestCase {
 
     private static HttpServer httpServer;
     private static String blobName;

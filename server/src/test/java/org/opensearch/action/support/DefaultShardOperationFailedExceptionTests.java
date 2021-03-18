@@ -30,14 +30,13 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -170,7 +169,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             () -> new LockObtainFailedException(randomAlphaOfLengthBetween(1, 5), randomExceptionOrNull()),
             () -> new InterruptedException(randomAlphaOfLengthBetween(1, 5)),
             () -> new IOException(randomAlphaOfLengthBetween(1, 5), randomExceptionOrNull()),
-            () -> new EsRejectedExecutionException(randomAlphaOfLengthBetween(1, 5), randomBoolean()),
+            () -> new OpenSearchRejectedExecutionException(randomAlphaOfLengthBetween(1, 5), randomBoolean()),
             () -> new IndexFormatTooNewException(randomAlphaOfLengthBetween(1, 10), randomInt(), randomInt(), randomInt()),
             () -> new IndexFormatTooOldException(randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5))
         );

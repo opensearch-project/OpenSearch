@@ -65,7 +65,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     public void addListener(ActionListener<V> listener, ExecutorService executor, ThreadContext threadContext) {
         if (done) {
             // run the callback directly, we don't hold the lock and don't need to fork!
-            notifyListener(listener, EsExecutors.newDirectExecutorService());
+            notifyListener(listener, OpenSearchExecutors.newDirectExecutorService());
         } else {
             final boolean run;
             // check done under lock since it could have been modified and protect modifications
@@ -87,7 +87,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
             if (run) {
                 // run the callback directly, we don't hold the lock and don't need to fork!
-                notifyListener(listener, EsExecutors.newDirectExecutorService());
+                notifyListener(listener, OpenSearchExecutors.newDirectExecutorService());
             }
         }
     }

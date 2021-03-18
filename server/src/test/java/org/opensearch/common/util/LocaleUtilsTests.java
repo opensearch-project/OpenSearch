@@ -19,13 +19,12 @@
 
 package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
-import org.opensearch.common.util.LocaleUtils;
 
 import java.util.Locale;
 
-public class LocaleUtilsTests extends ESTestCase {
+public class LocaleUtilsTests extends OpenSearchTestCase {
 
     public void testIllegalLang() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

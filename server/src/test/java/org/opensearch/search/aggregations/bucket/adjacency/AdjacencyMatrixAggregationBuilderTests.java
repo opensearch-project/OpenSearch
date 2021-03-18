@@ -29,8 +29,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestSearchContext;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
+public class AdjacencyMatrixAggregationBuilderTests extends OpenSearchTestCase {
 
     public void testFilterSizeLimitation() throws Exception {
         // filter size grater than max size should thrown a exception

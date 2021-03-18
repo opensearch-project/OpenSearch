@@ -25,12 +25,12 @@ import org.opensearch.common.io.stream.BytesStream;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;
 
-public class CompressibleBytesOutputStreamTests extends ESTestCase {
+public class CompressibleBytesOutputStreamTests extends OpenSearchTestCase {
 
     public void testStreamWithoutCompression() throws IOException {
         BytesStream bStream = new ZeroOutOnCloseStream();

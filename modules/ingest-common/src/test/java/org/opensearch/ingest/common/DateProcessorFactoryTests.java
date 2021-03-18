@@ -21,7 +21,7 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ingest.TestTemplateService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.time.ZoneId;
@@ -34,7 +34,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateProcessorFactoryTests extends ESTestCase {
+public class DateProcessorFactoryTests extends OpenSearchTestCase {
 
     private DateProcessor.Factory factory;
 

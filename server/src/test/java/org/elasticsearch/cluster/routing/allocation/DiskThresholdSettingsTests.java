@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 
 import java.util.Locale;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class DiskThresholdSettingsTests extends ESTestCase {
+public class DiskThresholdSettingsTests extends OpenSearchTestCase {
 
     public void testDefaults() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);

@@ -41,7 +41,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.contains;
 /**
  * This test just tests, if he pipelining works in general with out any connection the OpenSearch handler
  */
-public class Netty4HttpServerPipeliningTests extends ESTestCase {
+public class Netty4HttpServerPipeliningTests extends OpenSearchTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;

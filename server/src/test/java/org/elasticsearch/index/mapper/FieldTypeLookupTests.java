@@ -20,7 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.opensearch.common.collect.Set;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.index.mapper.MockFieldMapper;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -30,7 +31,7 @@ import java.util.Iterator;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
-public class FieldTypeLookupTests extends ESTestCase {
+public class FieldTypeLookupTests extends OpenSearchTestCase {
 
     public void testEmpty() {
         FieldTypeLookup lookup = new FieldTypeLookup();

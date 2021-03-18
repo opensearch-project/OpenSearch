@@ -21,7 +21,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.Collections;

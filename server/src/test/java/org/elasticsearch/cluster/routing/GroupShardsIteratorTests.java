@@ -24,7 +24,7 @@ import org.elasticsearch.action.OriginalIndicesTests;
 import org.opensearch.action.search.SearchShardIterator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.PlainShardIterator;
 import org.opensearch.cluster.routing.ShardIterator;
@@ -38,7 +38,7 @@ import java.util.List;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 
-public class GroupShardsIteratorTests extends ESTestCase {
+public class GroupShardsIteratorTests extends OpenSearchTestCase {
 
     public static List<ShardRouting> randomShardRoutings(ShardId shardId) {
         return randomShardRoutings(shardId, randomIntBetween(0, 2));

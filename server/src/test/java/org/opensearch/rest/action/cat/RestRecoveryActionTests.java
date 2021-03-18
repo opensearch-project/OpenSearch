@@ -32,7 +32,7 @@ import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,7 +46,7 @@ import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class RestRecoveryActionTests extends ESTestCase {
+public class RestRecoveryActionTests extends OpenSearchTestCase {
 
     public void testRestRecoveryAction() {
         final RestCatRecoveryAction action = new RestCatRecoveryAction();

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.test.test;
 
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.TestCluster;
 
 import java.io.IOException;
 
@@ -29,8 +29,8 @@ import static org.hamcrest.Matchers.equalTo;
  * This test ensures that the cluster initializion for TEST scope is not influencing
  * the tests random sequence due to initializtion using the same random instance.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class TestScopeClusterIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+public class TestScopeClusterIT extends OpenSearchIntegTestCase {
     private static int ITER = 0;
     private static long[] SEQUENCE = new long[100];
     private static Long CLUSTER_SEED = null;

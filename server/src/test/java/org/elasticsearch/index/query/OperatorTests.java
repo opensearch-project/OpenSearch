@@ -23,11 +23,11 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class OperatorTests extends ESTestCase {
+public class OperatorTests extends OpenSearchTestCase {
 
     public void testValidOrdinals() {
         assertThat(Operator.OR.ordinal(), equalTo(0));

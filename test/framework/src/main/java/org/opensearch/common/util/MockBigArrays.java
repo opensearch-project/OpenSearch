@@ -39,7 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.junit.Assert.assertTrue;
 
 public class MockBigArrays extends BigArrays {

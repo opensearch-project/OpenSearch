@@ -26,7 +26,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +35,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class KibanaSystemIndexIT extends ESRestTestCase {
+public class KibanaSystemIndexIT extends OpenSearchRestTestCase {
 
     private final String indexName;
 

@@ -25,7 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.NioIntegTestCase;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
@@ -34,7 +34,7 @@ import org.opensearch.transport.TransportLogger;
 
 import java.io.IOException;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 2, scope = ESIntegTestCase.Scope.TEST)
+@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 2, scope = OpenSearchIntegTestCase.Scope.TEST)
 public class NioTransportLoggingIT extends NioIntegTestCase {
 
     private MockLogAppender appender;

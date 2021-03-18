@@ -24,10 +24,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
-public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class MultiClusterSearchYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

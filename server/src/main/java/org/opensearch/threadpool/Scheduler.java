@@ -24,8 +24,8 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.EsAbortPolicy;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchAbortPolicy;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 
 import java.util.concurrent.Delayed;
@@ -53,7 +53,7 @@ public interface Scheduler {
      */
     static ScheduledThreadPoolExecutor initScheduler(Settings settings) {
         final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(1,
-                EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
+                OpenSearchExecutors.daemonThreadFactory(settings, "scheduler"), new OpenSearchAbortPolicy());
         scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         scheduler.setRemoveOnCancelPolicy(true);
@@ -252,17 +252,17 @@ public interface Scheduler {
      */
     class SafeScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor {
 
-        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        @SuppressForbidden(reason = "properly rethrowing errors, see OpenSearchExecutors.rethrowErrors")
         public SafeScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
             super(corePoolSize, threadFactory, handler);
         }
 
-        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        @SuppressForbidden(reason = "properly rethrowing errors, see OpenSearchExecutors.rethrowErrors")
         public SafeScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory) {
             super(corePoolSize, threadFactory);
         }
 
-        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        @SuppressForbidden(reason = "properly rethrowing errors, see OpenSearchExecutors.rethrowErrors")
         public SafeScheduledThreadPoolExecutor(int corePoolSize) {
             super(corePoolSize);
         }
@@ -275,7 +275,7 @@ public interface Scheduler {
             if (r instanceof RunnableFuture && ((RunnableFuture<?>) r).isDone()) {
                 // only check this if task is done, which it always is except for periodic tasks. Periodic tasks will hang on
                 // RunnableFuture.get()
-                ExceptionsHelper.reThrowIfNotNull(EsExecutors.rethrowErrors(r));
+                ExceptionsHelper.reThrowIfNotNull(OpenSearchExecutors.rethrowErrors(r));
             }
         }
     }

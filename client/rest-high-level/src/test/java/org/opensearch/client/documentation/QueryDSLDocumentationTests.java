@@ -32,7 +32,7 @@ import org.opensearch.join.query.JoinQueryBuilders;
 import org.elasticsearch.index.query.RankFeatureQueryBuilders;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,7 +87,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
  * compile and don't throw weird runtime exceptions. Assertions and example data would be nice, but
  * that is secondary.
  */
-public class QueryDSLDocumentationTests extends ESTestCase {
+public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     public void testBool() {
         // tag::bool
         boolQuery()

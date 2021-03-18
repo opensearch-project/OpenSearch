@@ -38,12 +38,12 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class NestedHelperTests extends ESSingleNodeTestCase {
+public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
 
     IndexService indexService;
     MapperService mapperService;

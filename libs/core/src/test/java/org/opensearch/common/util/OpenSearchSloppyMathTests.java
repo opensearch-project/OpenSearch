@@ -19,12 +19,12 @@
 
 package org.opensearch.common.util;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.common.util.OpenSearchSloppyMath.atan;
 import static org.opensearch.common.util.OpenSearchSloppyMath.sinh;
 
-public class OpenSearchSloppyMathTests extends ESTestCase {
+public class OpenSearchSloppyMathTests extends OpenSearchTestCase {
 
     // accuracy for atan(x)
     static double ATAN_DELTA = 1E-15;

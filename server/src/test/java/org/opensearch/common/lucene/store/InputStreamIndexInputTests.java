@@ -24,15 +24,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.lucene.store.InputStreamIndexInput;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class InputStreamIndexInputTests extends ESTestCase {
+public class InputStreamIndexInputTests extends OpenSearchTestCase {
     public void testSingleReadSingleByteLimit() throws IOException {
         Directory dir = new ByteBuffersDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);

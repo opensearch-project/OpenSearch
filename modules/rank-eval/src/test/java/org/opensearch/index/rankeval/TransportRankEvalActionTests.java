@@ -31,7 +31,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
-public class TransportRankEvalActionTests extends ESTestCase {
+public class TransportRankEvalActionTests extends OpenSearchTestCase {
 
     private Settings settings = Settings.builder().put("path.home", createTempDir().toString()).put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();

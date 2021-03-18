@@ -19,12 +19,11 @@
 
 package org.opensearch.common.blobstore;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.is;
 
-public class BlobPathTests extends ESTestCase {
+public class BlobPathTests extends OpenSearchTestCase {
 
     public void testBuildAsString() {
         BlobPath path = new BlobPath();

@@ -40,13 +40,13 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchAfterSortedDocQueryTests extends ESTestCase {
+public class SearchAfterSortedDocQueryTests extends OpenSearchTestCase {
 
     public void testBasics() {
         Sort sort1 = new Sort(

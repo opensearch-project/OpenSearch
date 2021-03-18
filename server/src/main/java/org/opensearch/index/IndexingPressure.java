@@ -25,7 +25,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.stats.IndexingPressureStats;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -82,7 +82,7 @@ public class IndexingPressure {
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.coordinatingRejections.getAndIncrement();
-            throw new EsRejectedExecutionException("rejected execution of coordinating operation [" +
+            throw new OpenSearchRejectedExecutionException("rejected execution of coordinating operation [" +
                 "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
                 "replica_bytes=" + replicaWriteBytes + ", " +
                 "all_bytes=" + totalBytesWithoutOperation + ", " +
@@ -113,7 +113,7 @@ public class IndexingPressure {
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.primaryRejections.getAndIncrement();
-            throw new EsRejectedExecutionException("rejected execution of primary operation [" +
+            throw new OpenSearchRejectedExecutionException("rejected execution of primary operation [" +
                 "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
                 "replica_bytes=" + replicaWriteBytes + ", " +
                 "all_bytes=" + totalBytesWithoutOperation + ", " +
@@ -135,7 +135,7 @@ public class IndexingPressure {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
             this.currentReplicaBytes.getAndAdd(-bytes);
             this.replicaRejections.getAndIncrement();
-            throw new EsRejectedExecutionException("rejected execution of replica operation [" +
+            throw new OpenSearchRejectedExecutionException("rejected execution of replica operation [" +
                 "replica_bytes=" + replicaBytesWithoutOperation + ", " +
                 "replica_operation_bytes=" + bytes + ", " +
                 "max_replica_bytes=" + replicaLimits + "]", false);

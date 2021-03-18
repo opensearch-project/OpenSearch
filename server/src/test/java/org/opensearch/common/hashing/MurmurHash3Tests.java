@@ -20,12 +20,12 @@
 package org.opensearch.common.hashing;
 
 import org.opensearch.common.hash.MurmurHash3;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 
-public class MurmurHash3Tests extends ESTestCase {
+public class MurmurHash3Tests extends OpenSearchTestCase {
     public void testKnownValues() throws UnsupportedEncodingException {
         assertHash(0x629942693e10f867L, 0x92db0b82baeb5347L, "hell", 0);
         assertHash(0xa78ddff5adae8d10L, 0x128900ef20900135L, "hello", 1);

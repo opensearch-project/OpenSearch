@@ -19,7 +19,8 @@
 package org.elasticsearch.test.disruption;
 
 import org.opensearch.common.Nullable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.disruption.LongGCDisruption;
 
 import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class LongGCDisruptionTests extends ESTestCase {
+public class LongGCDisruptionTests extends OpenSearchTestCase {
 
     static class LockedExecutor {
         ReentrantLock lock = new ReentrantLock();

@@ -19,7 +19,7 @@
 
 package org.opensearch.rest;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RestUtilsTests extends ESTestCase {
+public class RestUtilsTests extends OpenSearchTestCase {
 
     static char randomDelimiter() {
         return randomBoolean() ? '&' : ';';
