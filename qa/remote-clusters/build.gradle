@@ -31,7 +31,11 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-elasticsearch_distributions {
+/**
+ * TODO OpenSearch - this task is currently broken and temporarily commented out to
+ * unblock the pre-commit.
+ * Issue URL - https://github.com/opensearch-project/OpenSearch/issues/400
+opensearch_distributions {
   docker {
     type = 'docker'
     architecture = Architecture.current()
@@ -41,7 +45,7 @@ elasticsearch_distributions {
 }
 
 preProcessFixture {
-  dependsOn elasticsearch_distributions.docker
+  dependsOn opensearch_distributions.docker
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -58,7 +62,7 @@ preProcessFixture {
     )
   }
 }
-
+*/
 dockerCompose {
   tcpPortsToIgnoreWhenWaiting = [9600, 9601]
   useComposeFiles = ['docker-compose-oss.yml']

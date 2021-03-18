@@ -1,11 +1,11 @@
 
-import org.elasticsearch.gradle.info.BuildParams;
+import org.opensearch.gradle.info.BuildParams;
 
 subprojects {
-  apply plugin: 'opensearch.esplugin'
+  apply plugin: 'opensearch.opensearchplugin'
   apply plugin: 'opensearch.yaml-rest-test'
 
-  esplugin {
+  opensearchplugin {
     name it.name
     licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     noticeFile rootProject.file('NOTICE.txt')

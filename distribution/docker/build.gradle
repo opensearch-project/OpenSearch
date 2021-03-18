@@ -39,7 +39,7 @@ ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
     classifier = "linux-\$(arch)"
   }
 
-  final String opensearch = "opensearch-oss-${VersionProperties.opensearch}-${classifier}.tar.gz"
+  final String opensearch = "opensearch-oss-${VersionProperties.getOpenSearch()}-${classifier}.tar.gz"
 
   /* Both the following Dockerfile commands put the resulting artifact at
    * the same location, regardless of classifier, so that the commands that
@@ -52,7 +52,7 @@ ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
     //TODO - replace the URL for OpenSearch when available
     sourceOpenSearch = """
 RUN curl --retry 8 -S -L \\
-      --output /opt/elasticsearch.tar.gz \\
+      --output /opt/opensearch.tar.gz \\
       https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/$elasticsearch
 """
   }
@@ -65,7 +65,7 @@ RUN curl --retry 8 -S -L \\
     'package_manager'     : 'yum',
     'source_opensearch'   : sourceOpenSearch,
     'docker_base'         : base.name().toLowerCase(),
-    'version'             : VersionProperties.opensearch
+    'version'             : VersionProperties.getOpenSearch()
   ]
 }
 
@@ -130,6 +130,7 @@ def createAndSetWritable(Object... locations) {
   }
 }
 
+
 opensearch_distributions {
   Architecture.values().each { eachArchitecture ->
     "docker${ eachArchitecture == Architecture.AARCH64 ? '_aarch64' : '' }" {
@@ -179,7 +180,7 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
     baseImages = [ base.getImage() ]
 
-    String version = VersionProperties.opensearch
+    String version = VersionProperties.getOpenSearch()
       tags = [
         //TODO remove the tag and replace with OpenSearch docker tag
         "docker.elastic.co/elasticsearch/elasticsearch-oss:${version}",
@@ -226,7 +227,7 @@ subprojects { Project subProject ->
 
     final String exportTaskName = taskName("export", architecture, base, "DockerImage")
     final String buildTaskName = taskName("build", architecture, base, "DockerImage")
-    final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.opensearch}.${extension}"
+    final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.getOpenSearch()}.${extension}"
 
     tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")

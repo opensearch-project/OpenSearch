@@ -47,8 +47,8 @@ class DocsTestPlugin implements Plugin<Project> {
                  * the values may differ. In particular {version} needs to resolve
                  * to the version being built for testing but needs to resolve to
                  * the last released version for docs. */
-            '\\{version\\}': Version.fromString(VersionProperties.opensearch).toString(),
-            '\\{version_qualified\\}': VersionProperties.opensearch,
+            '\\{version\\}': Version.fromString(VersionProperties.getOpenSearch()).toString(),
+            '\\{version_qualified\\}': VersionProperties.getOpenSearch(),
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
             '\\{build_type\\}' : OS.conditionalString().onWindows({"zip"}).onUnix({"tar"}).supply(),
         ]
