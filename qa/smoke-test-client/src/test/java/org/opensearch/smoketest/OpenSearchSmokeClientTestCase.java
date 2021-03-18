@@ -61,14 +61,14 @@ import static org.hamcrest.Matchers.notNullValue;
  * then run JUnit. If you changed the default port, set "-Dtests.cluster=localhost:PORT" when running your test.
  */
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-public abstract class ESSmokeClientTestCase extends LuceneTestCase {
+public abstract class OpenSearchSmokeClientTestCase extends LuceneTestCase {
 
     /**
      * Key used to eventually switch to using an external cluster and provide its transport addresses
      */
     public static final String TESTS_CLUSTER = "tests.cluster";
 
-    protected static final Logger logger = LogManager.getLogger(ESSmokeClientTestCase.class);
+    protected static final Logger logger = LogManager.getLogger(OpenSearchSmokeClientTestCase.class);
 
     private static final AtomicInteger counter = new AtomicInteger();
     private static Client client;

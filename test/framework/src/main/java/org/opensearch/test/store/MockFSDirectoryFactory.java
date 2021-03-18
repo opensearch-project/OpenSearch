@@ -31,9 +31,9 @@ import org.apache.lucene.util.TestRuleMarkFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
@@ -114,7 +114,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         random.nextInt(shardId.getId() + 1); // some randomness per shard
         MockDirectoryWrapper.Throttling throttle = MockDirectoryWrapper.Throttling.NEVER;
         boolean crashIndex = CRASH_INDEX_SETTING.get(indexSettings);
-        final ElasticsearchMockDirectoryWrapper w = new ElasticsearchMockDirectoryWrapper(random, dir, crashIndex);
+        final OpenSearchMockDirectoryWrapper w = new OpenSearchMockDirectoryWrapper(random, dir, crashIndex);
         w.setRandomIOExceptionRate(randomIOExceptionRate);
         w.setRandomIOExceptionRateOnOpen(randomIOExceptionRateOnOpen);
         w.setThrottling(throttle);
@@ -139,11 +139,11 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         return new FsDirectoryFactory().newDirectory(newIndexSettings, path);
     }
 
-    public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {
+    public static final class OpenSearchMockDirectoryWrapper extends MockDirectoryWrapper {
 
         private final boolean crash;
 
-        public ElasticsearchMockDirectoryWrapper(Random random, Directory delegate, boolean crash) {
+        public OpenSearchMockDirectoryWrapper(Random random, Directory delegate, boolean crash) {
             super(random, delegate);
             this.crash = crash;
         }
