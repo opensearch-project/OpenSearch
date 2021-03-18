@@ -18,22 +18,21 @@
  */
 package org.opensearch.client.tasks;
 
-import org.opensearch.OpenSearchException;
-import org.elasticsearch.client.AbstractResponseTestCase;
+import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class OpenSearchExceptionTests extends AbstractResponseTestCase<OpenSearchException,
+public class OpenSearchExceptionTests extends AbstractResponseTestCase<org.opensearch.OpenSearchException,
     org.opensearch.client.tasks.OpenSearchException> {
 
     @Override
-    protected OpenSearchException createServerTestInstance(XContentType xContentType) {
+    protected org.opensearch.OpenSearchException createServerTestInstance(XContentType xContentType) {
         IllegalStateException ies = new IllegalStateException("illegal_state");
         IllegalArgumentException iae = new IllegalArgumentException("argument", ies);
-        OpenSearchException exception = new OpenSearchException("elastic_exception", iae);
+        org.opensearch.OpenSearchException exception = new org.opensearch.OpenSearchException("elastic_exception", iae);
         exception.addHeader("key","value");
         exception.addMetadata("es.meta","data");
         exception.addSuppressed(new NumberFormatException("3/0"));
@@ -47,16 +46,16 @@ public class OpenSearchExceptionTests extends AbstractResponseTestCase<OpenSearc
     }
 
     @Override
-    protected void assertInstances(OpenSearchException serverTestInstance, ElasticsearchException clientInstance) {
+    protected void assertInstances(org.opensearch.OpenSearchException serverTestInstance, OpenSearchException clientInstance) {
 
         IllegalArgumentException sCauseLevel1 = (IllegalArgumentException) serverTestInstance.getCause();
-        ElasticsearchException cCauseLevel1 = clientInstance.getCause();
+        OpenSearchException cCauseLevel1 = clientInstance.getCause();
 
         assertTrue(sCauseLevel1 !=null);
         assertTrue(cCauseLevel1 !=null);
 
         IllegalStateException causeLevel2 = (IllegalStateException) serverTestInstance.getCause().getCause();
-        ElasticsearchException cCauseLevel2 = clientInstance.getCause().getCause();
+        OpenSearchException cCauseLevel2 = clientInstance.getCause().getCause();
         assertTrue(causeLevel2 !=null);
         assertTrue(cCauseLevel2 !=null);
 

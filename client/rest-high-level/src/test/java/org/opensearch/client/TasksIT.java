@@ -19,7 +19,7 @@
 
 package org.opensearch.client;
 
-import org.elasticsearch.client.RequestOptions;
+import org.opensearch.index.reindex.ReindexRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -34,7 +34,6 @@ import org.opensearch.client.tasks.TaskId;
 import org.opensearch.client.tasks.TaskSubmissionResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.reindex.ReindexRequest;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

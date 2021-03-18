@@ -22,10 +22,6 @@ package org.opensearch.client;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -113,11 +109,11 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.flush.SyncedFlushService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.opensearch.rest.action.admin.indices.RestGetFieldMappingAction;
@@ -136,10 +132,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.common.xcontent.support.XContentMapValues.extractRawValues;
-import static org.opensearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -155,6 +147,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.common.xcontent.support.XContentMapValues.extractRawValues;
+import static org.opensearch.common.xcontent.support.XContentMapValues.extractValue;
 
 public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
 
@@ -933,7 +929,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
     public void testCloseEmptyOrNullIndex() {
         String[] indices = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
-        org.elasticsearch.client.ValidationException exception = expectThrows(org.elasticsearch.client.ValidationException.class,
+        org.opensearch.client.ValidationException exception = expectThrows(org.opensearch.client.ValidationException.class,
             () -> execute(closeIndexRequest, highLevelClient().indices()::close, highLevelClient().indices()::closeAsync));
         assertThat(exception.validationErrors().get(0), equalTo("index is missing"));
     }
@@ -1998,7 +1994,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(aliasExists(index, alias2), equalTo(true));
 
         DeleteAliasRequest request = new DeleteAliasRequest(index, alias);
-        org.elasticsearch.client.core.AcknowledgedResponse aliasDeleteResponse = execute(request,
+        org.opensearch.client.core.AcknowledgedResponse aliasDeleteResponse = execute(request,
             highLevelClient().indices()::deleteAlias,
             highLevelClient().indices()::deleteAliasAsync);
 
