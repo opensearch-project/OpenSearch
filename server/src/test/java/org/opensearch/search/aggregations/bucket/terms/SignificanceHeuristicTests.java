@@ -44,8 +44,8 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformati
 import org.opensearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -61,7 +61,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.opensearch.search.aggregations.AggregationBuilders.significantTerms;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class SignificanceHeuristicTests extends ESTestCase {
+public class SignificanceHeuristicTests extends OpenSearchTestCase {
 
     // test that stream output can actually be read - does not replace bwc test
     public void testStreamResponse() throws Exception {

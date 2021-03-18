@@ -36,10 +36,10 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ReplicationGroup;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ReplicationGroup;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
@@ -254,7 +254,7 @@ public class ReplicationOperation<
             public boolean shouldRetry(Exception e) {
                 final Throwable cause = ExceptionsHelper.unwrapCause(e);
                 return cause instanceof CircuitBreakingException ||
-                    cause instanceof EsRejectedExecutionException ||
+                    cause instanceof OpenSearchRejectedExecutionException ||
                     cause instanceof ConnectTransportException;
             }
         };

@@ -23,11 +23,11 @@ import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportWriteAction;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.replication.TransportWriteAction;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.translog.Translog;
 
 import java.util.Arrays;
 

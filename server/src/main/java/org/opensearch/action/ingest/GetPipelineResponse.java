@@ -28,15 +28,15 @@ import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.ingest.PipelineConfiguration;
+import org.opensearch.ingest.PipelineConfiguration;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 

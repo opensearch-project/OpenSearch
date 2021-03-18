@@ -20,7 +20,7 @@
 package org.opensearch.dissect;
 
 import org.opensearch.common.collect.MapBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DissectMatchTests extends ESTestCase {
+public class DissectMatchTests extends OpenSearchTestCase {
 
     public void testIllegalArgs() {
         expectThrows(IllegalArgumentException.class, () -> new DissectMatch("", 0, 1, 0, 0));

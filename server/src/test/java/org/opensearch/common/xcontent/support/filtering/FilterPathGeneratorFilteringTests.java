@@ -24,13 +24,13 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FilterPathGeneratorFilteringTests extends ESTestCase {
+public class FilterPathGeneratorFilteringTests extends OpenSearchTestCase {
 
     private final JsonFactory JSON_FACTORY = new JsonFactory();
 

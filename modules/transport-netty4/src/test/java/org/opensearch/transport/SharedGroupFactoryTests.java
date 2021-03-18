@@ -21,9 +21,9 @@ package org.opensearch.transport;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public final class SharedGroupFactoryTests extends ESTestCase {
+public final class SharedGroupFactoryTests extends OpenSearchTestCase {
 
     public void testSharedEventLoops() throws Exception {
         SharedGroupFactory sharedGroupFactory = new SharedGroupFactory(Settings.EMPTY);

@@ -26,7 +26,7 @@ import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 
 import java.util.HashMap;
 import java.util.HashSet;

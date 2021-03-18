@@ -19,14 +19,14 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class SnapshotUtilsTests extends ESTestCase {
+public class SnapshotUtilsTests extends OpenSearchTestCase {
     public void testIndexNameFiltering() {
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{}, new String[]{"foo", "bar", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"*"}, new String[]{"foo", "bar", "baz"});

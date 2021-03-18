@@ -20,7 +20,6 @@
 package org.opensearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -36,8 +35,8 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;

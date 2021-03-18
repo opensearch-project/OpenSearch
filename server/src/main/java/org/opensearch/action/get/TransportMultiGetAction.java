@@ -29,7 +29,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 

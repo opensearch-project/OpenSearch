@@ -30,8 +30,9 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreStats;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.StoreStats;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -84,7 +85,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             reservedSpaceMap = in.readMap(NodeAndPath::new, ReservedSpace::new);
         } else {
-            reservedSpaceMap = org.elasticsearch.common.collect.Map.of();
+            reservedSpaceMap = org.opensearch.common.collect.Map.of();
         }
 
         ImmutableOpenMap.Builder<String, DiskUsage> leastBuilder = ImmutableOpenMap.builder();

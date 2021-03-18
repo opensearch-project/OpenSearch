@@ -19,7 +19,7 @@
 
 package org.opensearch.common.ssl;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import javax.net.ssl.TrustManagerFactory;
@@ -38,7 +38,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StoreTrustConfigTests extends ESTestCase {
+public class StoreTrustConfigTests extends OpenSearchTestCase {
 
     private static final char[] P12_PASS = "p12-pass".toCharArray();
     private static final char[] JKS_PASS = "jks-pass".toCharArray();

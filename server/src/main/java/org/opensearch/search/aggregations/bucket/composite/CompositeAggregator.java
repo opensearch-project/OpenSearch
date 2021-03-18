@@ -45,7 +45,7 @@ import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.index.IndexSortConfig;
+import org.opensearch.index.IndexSortConfig;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;

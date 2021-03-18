@@ -34,7 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.monitor.fs.FsInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiskUsage;
@@ -49,7 +49,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DiskUsageTests extends ESTestCase {
+public class DiskUsageTests extends OpenSearchTestCase {
     public void testDiskUsageCalc() {
         DiskUsage du = new DiskUsage("node1", "n1", "random", 100, 40);
         assertThat(du.getFreeDiskAsPercentage(), equalTo(40.0));

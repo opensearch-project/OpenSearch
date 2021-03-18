@@ -20,14 +20,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.network.InetAddresses;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singleton;
 
-public class BinaryRangeUtilTests extends ESTestCase {
+public class BinaryRangeUtilTests extends OpenSearchTestCase {
 
     public void testBasics() {
         BytesRef encoded1 = new BytesRef(BinaryRangeUtil.encodeLong(Long.MIN_VALUE));
@@ -187,7 +187,7 @@ public class BinaryRangeUtilTests extends ESTestCase {
         int iters = randomIntBetween(32, 1024);
         for (int i = 0; i < iters; i++) {
             float start = randomFloat();
-            // for some reason, ESTestCase doesn't provide randomFloatBetween
+            // for some reason, OpenSearchTestCase doesn't provide randomFloatBetween
             float end = randomFloat();
             if (start > end) {
                 float temp = start;

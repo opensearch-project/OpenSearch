@@ -29,9 +29,9 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class GeoHashGridParserTests extends ESTestCase {
+public class GeoHashGridParserTests extends OpenSearchTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,

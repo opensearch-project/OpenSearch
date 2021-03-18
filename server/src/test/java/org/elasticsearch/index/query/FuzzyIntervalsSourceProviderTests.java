@@ -23,7 +23,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.IntervalsSourceProvider.Fuzzy;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 

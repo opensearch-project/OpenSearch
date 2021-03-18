@@ -26,7 +26,7 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.client.Client;
 import org.opensearch.client.transport.TransportClient;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Future;

@@ -27,7 +27,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
-import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
+import org.opensearch.index.fielddata.AbstractNumericDocValues;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
@@ -90,7 +90,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
         }
 
         // This class extends the DiversifiedTopDocsCollector and provides
-        // a lookup from elasticsearch's ValuesSource
+        // a lookup from opensearch's ValuesSource
         class ValuesDiversifiedTopDocsCollector extends DiversifiedTopDocsCollector {
 
 

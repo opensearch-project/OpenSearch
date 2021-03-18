@@ -19,15 +19,14 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.concurrent.FutureUtils;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.Future;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class FutureUtilsTests extends ESTestCase {
+public class FutureUtilsTests extends OpenSearchTestCase {
 
     public void testCancellingNullFutureOkay() {
         FutureUtils.cancel(null);

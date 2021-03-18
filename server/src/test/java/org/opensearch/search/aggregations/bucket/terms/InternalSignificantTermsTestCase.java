@@ -26,7 +26,7 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.GND;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.JLHScore;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;

@@ -51,7 +51,7 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.QueueResizingOpenSearchThreadPoolExecutor;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -303,8 +303,8 @@ public class QueryPhase {
                 }
 
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                if (executor instanceof QueueResizingEsThreadPoolExecutor) {
-                    QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
+                if (executor instanceof QueueResizingOpenSearchThreadPoolExecutor) {
+                    QueueResizingOpenSearchThreadPoolExecutor rExecutor = (QueueResizingOpenSearchThreadPoolExecutor) executor;
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }

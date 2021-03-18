@@ -32,7 +32,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.discovery.PeerFinder.TransportAddressConnector;
 import org.opensearch.transport.ConnectTransportException;

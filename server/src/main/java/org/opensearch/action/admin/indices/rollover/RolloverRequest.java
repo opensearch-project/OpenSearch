@@ -21,7 +21,7 @@ package org.opensearch.action.admin.indices.rollover;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.ParseField;
@@ -33,7 +33,7 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashMap;

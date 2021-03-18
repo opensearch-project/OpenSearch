@@ -33,7 +33,7 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Collections;

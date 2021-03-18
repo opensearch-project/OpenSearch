@@ -21,12 +21,12 @@ package org.opensearch.analysis.common;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 
-public class ElisionFilterFactoryTests extends ESTokenStreamTestCase {
+public class ElisionFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
     public void testElisionFilterWithNoArticles() throws IOException {
         Settings settings = Settings.builder()

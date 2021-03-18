@@ -43,7 +43,7 @@ import org.opensearch.cli.UserException;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -138,7 +138,7 @@ public class LogConfigurator {
 
     /**
      * Sets the node name. This is called before logging is configured if the
-     * node name is set in elasticsearch.yml. Otherwise it is called as soon
+     * node name is set in opensearch.yml. Otherwise it is called as soon
      * as the node id is available.
      */
     public static void setNodeName(String nodeName) {

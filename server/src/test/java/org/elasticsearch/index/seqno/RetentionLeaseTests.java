@@ -21,7 +21,7 @@ package org.elasticsearch.index.seqno;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class RetentionLeaseTests extends ESTestCase {
+public class RetentionLeaseTests extends OpenSearchTestCase {
 
     public void testEmptyId() {
         final IllegalArgumentException e = expectThrows(

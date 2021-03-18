@@ -19,11 +19,10 @@
 
 package org.opensearch.common;
 
-import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.DateTimeUnit;
 import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 public class RoundingWireTests extends AbstractWireSerializingTestCase<Rounding> {
     @Override

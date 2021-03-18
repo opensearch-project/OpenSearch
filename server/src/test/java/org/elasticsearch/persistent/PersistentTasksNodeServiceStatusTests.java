@@ -19,7 +19,7 @@
 package org.elasticsearch.persistent;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.persistent.PersistentTasksNodeService.Status;
 
 import static org.hamcrest.Matchers.containsString;

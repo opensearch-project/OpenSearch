@@ -23,7 +23,7 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashMap;

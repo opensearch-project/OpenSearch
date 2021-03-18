@@ -21,8 +21,8 @@ package org.opensearch.rest.action.document;
 
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 public class RestDeleteActionTests extends RestActionTestCase {

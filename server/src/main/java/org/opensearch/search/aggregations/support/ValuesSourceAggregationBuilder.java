@@ -27,7 +27,7 @@ import org.opensearch.common.xcontent.AbstractObjectParser;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
 import org.opensearch.search.aggregations.AggregationInitializationException;

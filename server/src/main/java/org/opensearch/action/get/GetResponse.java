@@ -19,7 +19,7 @@
 
 package org.opensearch.action.get;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -30,7 +30,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.get.GetResult;
+import org.opensearch.index.get.GetResult;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -182,7 +182,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
      * doesn't know. But before returning the result it will check that enough information were
      * parsed to return a valid {@link GetResponse} instance and throws a {@link ParsingException}
      * otherwise. This is the case when we get a 404 back, which can be parsed as a normal
-     * {@link GetResponse} with found set to false, or as an elasticsearch exception. The caller
+     * {@link GetResponse} with found set to false, or as an opensearch exception. The caller
      * of this method needs a way to figure out whether we got back a valid get response, which
      * can be done by catching ParsingException.
      *

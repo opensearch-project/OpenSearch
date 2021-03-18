@@ -21,8 +21,8 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.Collection;

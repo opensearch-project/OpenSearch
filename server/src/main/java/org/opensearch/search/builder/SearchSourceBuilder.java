@@ -355,7 +355,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Sets the search query for this request.
      *
-     * @see org.elasticsearch.index.query.QueryBuilders
+     * @see org.opensearch.index.query.QueryBuilders
      */
     public SearchSourceBuilder query(QueryBuilder query) {
         this.queryBuilder = query;

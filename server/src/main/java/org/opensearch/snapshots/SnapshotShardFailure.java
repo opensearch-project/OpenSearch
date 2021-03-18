@@ -19,7 +19,7 @@
 
 package org.opensearch.snapshots;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
@@ -29,8 +29,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

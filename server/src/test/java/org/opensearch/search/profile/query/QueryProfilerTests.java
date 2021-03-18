@@ -47,7 +47,7 @@ import org.apache.lucene.util.TestUtil;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.ProfileResult;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -60,7 +60,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class QueryProfilerTests extends ESTestCase {
+public class QueryProfilerTests extends OpenSearchTestCase {
 
     static Directory dir;
     static IndexReader reader;

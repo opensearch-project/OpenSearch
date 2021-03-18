@@ -29,9 +29,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.SystemIndices;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.List;

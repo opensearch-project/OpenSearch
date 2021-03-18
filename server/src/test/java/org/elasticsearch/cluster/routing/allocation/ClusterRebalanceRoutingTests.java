@@ -35,7 +35,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 

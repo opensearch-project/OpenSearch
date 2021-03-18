@@ -19,13 +19,13 @@
 
 package org.opensearch.common;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.is;
 
-public class CharArraysTests extends ESTestCase {
+public class CharArraysTests extends OpenSearchTestCase {
 
     public void testCharsToBytes() {
         final String originalValue = randomUnicodeOfCodepointLengthBetween(0, 32);

@@ -25,8 +25,8 @@ import org.opensearch.client.RestClient;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.XContentTestUtils;
 
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.is;
  *
  * @see org.opensearch.action.admin.indices.dangling
  */
-@ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST, autoManageMasterNodes = false)
+@ClusterScope(numDataNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST, autoManageMasterNodes = false)
 public class DanglingIndicesRestIT extends HttpSmokeTestCase {
     private static final String INDEX_NAME = "test-idx-1";
     private static final String OTHER_INDEX_NAME = INDEX_NAME + "-other";

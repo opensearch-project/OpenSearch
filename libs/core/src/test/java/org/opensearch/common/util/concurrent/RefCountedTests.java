@@ -18,7 +18,7 @@
  */
 package org.opensearch.common.util.concurrent;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class RefCountedTests extends ESTestCase {
+public class RefCountedTests extends OpenSearchTestCase {
     public void testRefCount() throws IOException {
         MyRefCounted counted = new MyRefCounted();
 

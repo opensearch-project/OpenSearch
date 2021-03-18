@@ -26,7 +26,7 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 import org.junit.After;
 
 import java.io.IOException;

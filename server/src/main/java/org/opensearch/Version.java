@@ -29,7 +29,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -545,7 +545,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     /**
      * Returns true iff this version is an alpha version
-     * Note: This has been introduced in elasticsearch version 5. Previous versions will never
+     * Note: This has been introduced in version 5 of the OpenSearch predecessor. Previous versions will never
      * have an alpha version.
      */
     public boolean isAlpha() {

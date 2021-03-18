@@ -24,7 +24,7 @@ import org.opensearch.common.rounding.DateTimeUnit;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class RoundingTests extends ESTestCase {
+public class RoundingTests extends OpenSearchTestCase {
 
     public void testUTCTimeUnitRounding() {
         Rounding tzRounding = Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build();

@@ -20,10 +20,10 @@ package org.opensearch.search.collapse;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.InnerHitBuilder;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.query.InnerHitBuilder;
 
 import java.util.List;
 

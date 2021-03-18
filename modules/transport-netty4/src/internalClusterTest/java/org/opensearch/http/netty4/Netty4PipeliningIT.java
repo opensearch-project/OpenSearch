@@ -24,8 +24,8 @@ import io.netty.util.ReferenceCounted;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.http.HttpServerTransport;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.Collection;
 import java.util.Locale;

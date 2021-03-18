@@ -27,11 +27,11 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
 
 import java.util.ArrayList;

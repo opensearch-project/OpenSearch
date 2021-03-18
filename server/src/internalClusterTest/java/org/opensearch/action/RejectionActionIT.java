@@ -25,7 +25,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -99,7 +99,7 @@ public class RejectionActionIT extends OpenSearchIntegTestCase {
                         assertThat(failure.reason().toLowerCase(Locale.ENGLISH),
                             anyOf(containsString("cancelled"), containsString("rejected")));
                     }
-                } else if ((unwrap instanceof EsRejectedExecutionException) == false) {
+                } else if ((unwrap instanceof OpenSearchRejectedExecutionException) == false) {
                     throw new AssertionError("unexpected failure", (Throwable) response);
                 }
             }

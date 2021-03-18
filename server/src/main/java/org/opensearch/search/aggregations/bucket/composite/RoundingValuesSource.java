@@ -22,8 +22,8 @@ package org.opensearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.opensearch.common.Rounding;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;

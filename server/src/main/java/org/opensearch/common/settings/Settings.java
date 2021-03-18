@@ -317,7 +317,7 @@ public final class Settings implements ToXContentFragment {
     /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
      * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
-     * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
+     * {@link Setting} object constructed in, for example, {@link org.opensearch.env.Environment}.
      */
     static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Settings.class);

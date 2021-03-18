@@ -23,7 +23,7 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotReques
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -32,7 +32,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 /**
  * Tests for the {@link Snapshot} class.
  */
-public class SnapshotTests extends ESTestCase {
+public class SnapshotTests extends OpenSearchTestCase {
 
     public void testSnapshotEquals() {
         final SnapshotId snapshotId = new SnapshotId("snap", UUIDs.randomBase64UUID());

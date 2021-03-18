@@ -18,7 +18,7 @@
  */
 package org.opensearch.client;
 
-import org.elasticsearch.client.RequestOptions;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;

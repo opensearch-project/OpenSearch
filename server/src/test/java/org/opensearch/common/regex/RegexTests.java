@@ -18,8 +18,7 @@
  */
 package org.opensearch.common.regex;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.regex.Regex;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Locale;
 import java.util.Random;
@@ -27,7 +26,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RegexTests extends ESTestCase {
+public class RegexTests extends OpenSearchTestCase {
     public void testFlags() {
         String[] supportedFlags = new String[]{"CASE_INSENSITIVE", "MULTILINE", "DOTALL", "UNICODE_CASE", "CANON_EQ", "UNIX_LINES",
                 "LITERAL", "COMMENTS", "UNICODE_CHAR_CLASS", "UNICODE_CHARACTER_CLASS"};

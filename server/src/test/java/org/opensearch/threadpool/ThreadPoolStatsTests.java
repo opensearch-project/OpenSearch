@@ -25,7 +25,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +35,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ThreadPoolStatsTests extends ESTestCase {
+public class ThreadPoolStatsTests extends OpenSearchTestCase {
     public void testThreadPoolStatsSort() throws IOException {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
         stats.add(new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L));

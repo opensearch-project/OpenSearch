@@ -17,7 +17,7 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.java'
+apply plugin: 'opensearch.java'
 
 dependencies {
   api "org.apache.hadoop:hadoop-minicluster:2.8.5"

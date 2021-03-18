@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class IndexTests extends ESTestCase {
+public class IndexTests extends OpenSearchTestCase {
     public void testToString() {
         assertEquals("[name/uuid]", new Index("name", "uuid").toString());
         assertEquals("[name]", new Index("name", ClusterState.UNKNOWN_UUID).toString());

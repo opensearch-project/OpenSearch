@@ -23,7 +23,7 @@ import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class BuildTests extends ESTestCase {
+public class BuildTests extends OpenSearchTestCase {
 
     /** Asking for the jar metadata should not throw exception in tests, no matter how configured */
     public void testJarMetadata() throws IOException {

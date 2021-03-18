@@ -32,8 +32,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -42,7 +42,7 @@ import java.util.Collections;
 import static org.elasticsearch.index.mapper.IdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.containsString;
 
-public class IdFieldMapperTests extends ESSingleNodeTestCase {
+public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

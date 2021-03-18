@@ -27,7 +27,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.index.seqno.RetentionLeaseUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,7 +37,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RetentionLeaseStatsTests extends ESSingleNodeTestCase {
+public class RetentionLeaseStatsTests extends OpenSearchSingleNodeTestCase {
 
     public void testRetentionLeaseStats() throws InterruptedException {
         final Settings settings = Settings.builder()

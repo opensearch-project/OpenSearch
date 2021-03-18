@@ -35,7 +35,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -44,7 +44,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.hamcrest.Matchers.equalTo;
 
-public class LongBoundsTests extends ESTestCase {
+public class LongBoundsTests extends OpenSearchTestCase {
     /**
      * Construct a random {@link LongBounds}.
      */

@@ -23,11 +23,11 @@ import org.opensearch.common.FieldMemoryStatsTests;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class CompletionsStatsTests extends ESTestCase {
+public class CompletionsStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();

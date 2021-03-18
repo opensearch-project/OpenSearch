@@ -144,7 +144,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -185,8 +185,8 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.disruption.DisruptableMockTransport;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportInterceptor;
@@ -236,7 +236,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-public class SnapshotResiliencyTests extends ESTestCase {
+public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
 
@@ -1414,7 +1414,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 clusterService = new ClusterService(settings, clusterSettings, masterService,
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
-                        protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                        protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
                         }
 

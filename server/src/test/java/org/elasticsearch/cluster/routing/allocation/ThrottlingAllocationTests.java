@@ -53,7 +53,7 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.opensearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
 import java.util.Collections;

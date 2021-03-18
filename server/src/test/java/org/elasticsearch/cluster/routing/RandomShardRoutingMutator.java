@@ -24,9 +24,9 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 
 import java.util.Set;
 
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
+import static org.opensearch.test.OpenSearchTestCase.randomInt;
 
 /**
  * Utility class the makes random modifications to ShardRouting

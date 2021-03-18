@@ -21,15 +21,14 @@ package org.opensearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.store.StoreStats;
+import org.opensearch.index.cache.query.QueryCacheStats;
+import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.fielddata.FieldDataStats;
+import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.store.StoreStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;

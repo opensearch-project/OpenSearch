@@ -20,8 +20,8 @@
 package org.opensearch.client;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
+import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -53,7 +53,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.SniffConnectionStrategy;
@@ -65,7 +65,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;

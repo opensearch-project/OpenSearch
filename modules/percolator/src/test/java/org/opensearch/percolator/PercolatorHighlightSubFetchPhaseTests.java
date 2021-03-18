@@ -30,7 +30,7 @@ import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.RandomScoreFunction;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
-public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
+public class PercolatorHighlightSubFetchPhaseTests extends OpenSearchTestCase {
 
     public void testHitsExecutionNeeded() {
         PercolateQuery percolateQuery = new PercolateQuery("_name", ctx -> null, Collections.singletonList(new BytesArray("{}")),

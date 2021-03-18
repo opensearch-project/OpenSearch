@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 
 import java.util.Arrays;
@@ -26,7 +26,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClusterStateTaskExecutorTests extends ESTestCase {
+public class ClusterStateTaskExecutorTests extends OpenSearchTestCase {
 
     private class TestTask {
         private final String description;

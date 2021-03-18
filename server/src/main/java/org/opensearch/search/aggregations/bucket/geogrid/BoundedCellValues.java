@@ -19,8 +19,7 @@
 package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.index.fielddata.MultiGeoPointValues;
 
 /**
  * Class representing {@link CellValues} whose values are filtered

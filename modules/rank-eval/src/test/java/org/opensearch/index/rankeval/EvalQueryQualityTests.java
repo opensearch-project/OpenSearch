@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,11 +37,11 @@ import java.util.function.Predicate;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class EvalQueryQualityTests extends ESTestCase {
+public class EvalQueryQualityTests extends OpenSearchTestCase {
 
     private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalPlugin().getNamedWriteables());
 
@@ -121,7 +121,7 @@ public class EvalQueryQualityTests extends ESTestCase {
     }
 
     private static EvalQueryQuality copy(EvalQueryQuality original) throws IOException {
-        return ESTestCase.copyWriteable(original, namedWritableRegistry, EvalQueryQuality::new);
+        return OpenSearchTestCase.copyWriteable(original, namedWritableRegistry, EvalQueryQuality::new);
     }
 
     public void testEqualsAndHash() throws IOException {

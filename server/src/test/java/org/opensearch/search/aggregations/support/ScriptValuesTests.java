@@ -31,7 +31,7 @@ import org.opensearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.opensearch.search.aggregations.support.values.ScriptLongValues;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,7 +39,7 @@ import java.util.Arrays;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ScriptValuesTests extends ESTestCase {
+public class ScriptValuesTests extends OpenSearchTestCase {
 
     private static class FakeAggregationScript extends AggregationScript {
 

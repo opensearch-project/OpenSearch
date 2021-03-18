@@ -28,7 +28,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -40,7 +40,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class ResponseCollectorServiceTests extends ESTestCase {
+public class ResponseCollectorServiceTests extends OpenSearchTestCase {
 
     private ClusterService clusterService;
     private ResponseCollectorService collector;

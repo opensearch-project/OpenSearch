@@ -26,7 +26,7 @@ import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.term.TermSuggestion;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.ServiceLoader;
 import java.util.function.Predicate;
 
-public class NamedXContentProviderTests extends ESTestCase {
+public class NamedXContentProviderTests extends OpenSearchTestCase {
 
     public void testSpiFileExists() throws IOException {
         String serviceFile = "/META-INF/services/" + NamedXContentProvider.class.getName();

@@ -19,14 +19,14 @@
 
 package org.opensearch.common;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BooleansTests extends ESTestCase {
+public class BooleansTests extends OpenSearchTestCase {
     private static final String[] NON_BOOLEANS = new String[]{"11", "00", "sdfsdfsf", "F", "T", "on", "off", "yes", "no", "0", "1",
         "True", "False"};
     private static final String[] BOOLEANS = new String[]{"true", "false"};

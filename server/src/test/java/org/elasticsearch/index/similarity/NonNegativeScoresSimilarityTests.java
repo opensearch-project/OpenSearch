@@ -24,10 +24,10 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
-public class NonNegativeScoresSimilarityTests extends ESTestCase {
+public class NonNegativeScoresSimilarityTests extends OpenSearchTestCase {
 
     public void testBasics() {
         Similarity negativeScoresSim = new Similarity() {

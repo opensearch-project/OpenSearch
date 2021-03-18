@@ -31,7 +31,7 @@ import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.List;

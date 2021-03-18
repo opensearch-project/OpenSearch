@@ -29,7 +29,7 @@ import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.geometry.LinearRing;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Polygon;
@@ -39,16 +39,16 @@ import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Rectangle;
 import org.locationtech.spatial4j.shape.impl.PointImpl;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertPolygon;
+import static org.opensearch.test.hamcrest.OpenSearchGeoAssertions.assertMultiLineString;
+import static org.opensearch.test.hamcrest.OpenSearchGeoAssertions.assertMultiPolygon;
+import static org.opensearch.test.hamcrest.OpenSearchGeoAssertions.assertPolygon;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for {@link ShapeBuilder}
  */
-public class ShapeBuilderTests extends ESTestCase {
+public class ShapeBuilderTests extends OpenSearchTestCase {
 
     public void testNewPoint() {
         PointBuilder pb = new PointBuilder().coordinate(-100, 45);

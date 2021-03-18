@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 
 import java.io.IOException;

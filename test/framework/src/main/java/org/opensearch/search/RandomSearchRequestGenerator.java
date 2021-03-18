@@ -48,7 +48,7 @@ import org.opensearch.search.sort.ScriptSortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,21 +56,21 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.test.ESTestCase.between;
-import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
-import static org.elasticsearch.test.ESTestCase.mockScript;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomByte;
-import static org.elasticsearch.test.ESTestCase.randomDouble;
-import static org.elasticsearch.test.ESTestCase.randomFloat;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomInt;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.test.ESTestCase.randomLong;
-import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
-import static org.elasticsearch.test.ESTestCase.randomShort;
-import static org.elasticsearch.test.ESTestCase.randomTimeValue;
+import static org.opensearch.test.OpenSearchTestCase.between;
+import static org.opensearch.test.OpenSearchTestCase.generateRandomStringArray;
+import static org.opensearch.test.OpenSearchTestCase.mockScript;
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLengthBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
+import static org.opensearch.test.OpenSearchTestCase.randomByte;
+import static org.opensearch.test.OpenSearchTestCase.randomDouble;
+import static org.opensearch.test.OpenSearchTestCase.randomFloat;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
+import static org.opensearch.test.OpenSearchTestCase.randomInt;
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
+import static org.opensearch.test.OpenSearchTestCase.randomLong;
+import static org.opensearch.test.OpenSearchTestCase.randomPositiveTimeValue;
+import static org.opensearch.test.OpenSearchTestCase.randomShort;
+import static org.opensearch.test.OpenSearchTestCase.randomTimeValue;
 
 /**
  * Builds random search requests.

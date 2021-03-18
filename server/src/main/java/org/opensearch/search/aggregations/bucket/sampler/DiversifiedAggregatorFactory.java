@@ -19,7 +19,7 @@
 
 package org.opensearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
@@ -41,7 +41,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(
+            org.opensearch.common.collect.List.of(
                 CoreValuesSourceType.NUMERIC,
                 CoreValuesSourceType.DATE,
                 CoreValuesSourceType.BOOLEAN),

@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.opensearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,7 +33,7 @@ import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class GrokProcessorTests extends ESTestCase {
+public class GrokProcessorTests extends OpenSearchTestCase {
 
     public void testMatch() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());

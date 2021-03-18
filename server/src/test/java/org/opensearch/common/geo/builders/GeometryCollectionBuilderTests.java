@@ -19,7 +19,7 @@
 
 package org.opensearch.common.geo.builders;
 
-import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.opensearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
 

@@ -19,8 +19,7 @@
 
 package org.opensearch.common.collect;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.collect.Iterators;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,7 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class IteratorsTests extends ESTestCase {
+public class IteratorsTests extends OpenSearchTestCase {
     public void testConcatentation() {
         List<Integer> threeTwoOne = Arrays.asList(3, 2, 1);
         List<Integer> fourFiveSix = Arrays.asList(4, 5, 6);

@@ -34,7 +34,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.NameOrDefinition;
+import org.opensearch.index.analysis.NameOrDefinition;
 
 import java.io.IOException;
 import java.util.ArrayList;

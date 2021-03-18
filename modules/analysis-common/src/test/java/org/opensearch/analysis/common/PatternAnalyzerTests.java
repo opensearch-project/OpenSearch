@@ -22,7 +22,7 @@ package org.opensearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 /**
  * Verifies the behavior of PatternAnalyzer.
  */
-public class PatternAnalyzerTests extends ESTokenStreamTestCase {
+public class PatternAnalyzerTests extends OpenSearchTokenStreamTestCase {
 
   /**
    * Test PatternAnalyzer when it is configured with a non-word pattern.

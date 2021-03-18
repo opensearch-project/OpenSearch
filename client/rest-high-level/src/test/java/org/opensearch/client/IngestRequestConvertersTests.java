@@ -27,11 +27,10 @@ import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
-import org.elasticsearch.client.Request;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -40,7 +39,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.StringJoiner;
 
-public class IngestRequestConvertersTests extends ESTestCase {
+public class IngestRequestConvertersTests extends OpenSearchTestCase {
 
     public void testPutPipeline() throws IOException {
         String pipelineId = "some_pipeline_id";
@@ -92,8 +91,8 @@ public class IngestRequestConvertersTests extends ESTestCase {
     }
 
     public void testSimulatePipeline() throws IOException {
-        String pipelineId = ESTestCase.randomBoolean() ? "some_pipeline_id" : null;
-        boolean verbose = ESTestCase.randomBoolean();
+        String pipelineId = OpenSearchTestCase.randomBoolean() ? "some_pipeline_id" : null;
+        boolean verbose = OpenSearchTestCase.randomBoolean();
         String json = "{"
             + "  \"pipeline\": {"
             + "    \"description\": \"_description\","

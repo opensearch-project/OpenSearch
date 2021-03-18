@@ -26,8 +26,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -35,7 +35,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 
-public class TransportActionProxyTests extends ESTestCase {
+public class TransportActionProxyTests extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");

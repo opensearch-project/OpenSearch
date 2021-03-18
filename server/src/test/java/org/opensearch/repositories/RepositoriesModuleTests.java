@@ -25,7 +25,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.RepositoryPlugin;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -36,7 +36,7 @@ import java.util.List;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RepositoriesModuleTests extends ESTestCase {
+public class RepositoriesModuleTests extends OpenSearchTestCase {
 
     private Environment environment;
     private NamedXContentRegistry contentRegistry;

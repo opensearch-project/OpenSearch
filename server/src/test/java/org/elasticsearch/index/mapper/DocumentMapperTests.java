@@ -28,6 +28,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

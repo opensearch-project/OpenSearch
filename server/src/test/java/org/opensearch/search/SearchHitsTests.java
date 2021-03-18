@@ -36,7 +36,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

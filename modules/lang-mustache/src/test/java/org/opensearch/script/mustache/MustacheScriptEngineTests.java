@@ -24,7 +24,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.script.TemplateScript;
 import org.opensearch.script.Script;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Mustache based templating test
  */
-public class MustacheScriptEngineTests extends ESTestCase {
+public class MustacheScriptEngineTests extends OpenSearchTestCase {
     private MustacheScriptEngine qe;
     private MustacheFactory factory;
 

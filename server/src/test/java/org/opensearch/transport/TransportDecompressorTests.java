@@ -30,12 +30,12 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class TransportDecompressorTests extends ESTestCase {
+public class TransportDecompressorTests extends OpenSearchTestCase {
 
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {

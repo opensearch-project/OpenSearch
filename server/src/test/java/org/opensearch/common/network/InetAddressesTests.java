@@ -17,16 +17,15 @@
 package org.opensearch.common.network;
 
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
-import org.opensearch.common.network.InetAddresses;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.Enumeration;
 
-public class InetAddressesTests extends ESTestCase {
+public class InetAddressesTests extends OpenSearchTestCase {
     public void testForStringBogusInput() {
         String[] bogusInputs = {
                 "",

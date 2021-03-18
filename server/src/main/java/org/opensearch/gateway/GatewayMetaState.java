@@ -45,8 +45,8 @@ import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.NodeMetadata;
@@ -69,7 +69,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
-import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
@@ -334,7 +334,7 @@ public class GatewayMetaState implements Closeable {
 
         static final String THREAD_NAME = "AsyncLucenePersistedState#updateTask";
 
-        private final EsThreadPoolExecutor threadPoolExecutor;
+        private final OpenSearchThreadPoolExecutor threadPoolExecutor;
         private final PersistedState persistedState;
 
         boolean newCurrentTermQueued = false;
@@ -345,7 +345,7 @@ public class GatewayMetaState implements Closeable {
         AsyncLucenePersistedState(Settings settings, ThreadPool threadPool, PersistedState persistedState) {
             super(persistedState.getCurrentTerm(), persistedState.getLastAcceptedState());
             final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
-            threadPoolExecutor = EsExecutors.newFixed(
+            threadPoolExecutor = OpenSearchExecutors.newFixed(
                 nodeName + "/" + THREAD_NAME,
                 1, 1,
                 daemonThreadFactory(nodeName, THREAD_NAME),

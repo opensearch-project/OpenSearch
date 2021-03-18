@@ -19,8 +19,8 @@
 
 package org.opensearch.common.ssl;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class SslConfigurationTests extends ESTestCase {
+public class SslConfigurationTests extends OpenSearchTestCase {
 
     static final String[] VALID_PROTOCOLS = { "TLSv1.2", "TLSv1.1", "TLSv1", "SSLv3", "SSLv2Hello", "SSLv2" };
 

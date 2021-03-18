@@ -36,14 +36,14 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -63,7 +63,7 @@ import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ClientScrollableHitSourceTests extends ESTestCase {
+public class ClientScrollableHitSourceTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
 
@@ -98,7 +98,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         ExpectedException ex = expectThrows(ExpectedException.class, () -> {
             dotestBasicsWithRetry(retries, retries+1, retries+1, e -> { throw new ExpectedException(e); });
         });
-        assertThat(ex.getCause(), instanceOf(EsRejectedExecutionException.class));
+        assertThat(ex.getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
     }
 
     private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures,
@@ -115,7 +115,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
         hitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-            client.fail(SearchAction.INSTANCE, new EsRejectedExecutionException());
+            client.fail(SearchAction.INSTANCE, new OpenSearchRejectedExecutionException());
             client.awaitOperation();
             ++expectedSearchRetries;
         }
@@ -131,7 +131,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             asyncResponse.done(TimeValue.ZERO);
 
             for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-                client.fail(SearchScrollAction.INSTANCE, new EsRejectedExecutionException());
+                client.fail(SearchScrollAction.INSTANCE, new OpenSearchRejectedExecutionException());
                 client.awaitOperation();
                 ++expectedSearchRetries;
             }

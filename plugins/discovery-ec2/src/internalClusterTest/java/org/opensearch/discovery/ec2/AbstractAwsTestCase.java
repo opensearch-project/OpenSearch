@@ -25,8 +25,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
-import org.opensearch.test.ESIntegTestCase.ThirdParty;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ThirdParty;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,7 +39,7 @@ import java.util.Collection;
  * in order to run these tests.
  */
 @ThirdParty
-public abstract class AbstractAwsTestCase extends ESIntegTestCase {
+public abstract class AbstractAwsTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

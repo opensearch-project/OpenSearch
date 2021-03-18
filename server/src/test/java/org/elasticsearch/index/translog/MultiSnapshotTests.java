@@ -22,7 +22,7 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.opensearch.common.Randomness;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,7 +31,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class MultiSnapshotTests extends ESTestCase {
+public class MultiSnapshotTests extends OpenSearchTestCase {
 
     public void testTrackSeqNoSimpleRange() throws Exception {
         final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();

@@ -72,7 +72,7 @@ public class XContentOpenSearchExtension implements XContentBuilderExtension {
     public Map<Class<?>, XContentBuilder.Writer> getXContentWriters() {
         Map<Class<?>, XContentBuilder.Writer> writers = new HashMap<>();
 
-        // Fully-qualified here to reduce ambiguity around our (ES') Version class
+        // Fully-qualified here to reduce ambiguity around our (OpenSearch') Version class
         writers.put(org.apache.lucene.util.Version.class, (b, v) -> b.value(Objects.toString(v)));
         writers.put(DateTimeZone.class, (b, v) -> b.value(Objects.toString(v)));
         writers.put(CachedDateTimeZone.class, (b, v) -> b.value(Objects.toString(v)));

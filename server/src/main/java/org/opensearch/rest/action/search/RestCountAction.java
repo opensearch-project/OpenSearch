@@ -26,7 +26,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;

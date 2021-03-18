@@ -23,7 +23,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -33,7 +33,7 @@ import java.util.Objects;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexAbstractionTests extends ESTestCase {
+public class IndexAbstractionTests extends OpenSearchTestCase {
 
     public void testHiddenAliasValidation() {
         final String hiddenAliasName = "hidden_alias";

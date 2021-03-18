@@ -26,7 +26,7 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

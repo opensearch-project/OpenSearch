@@ -233,7 +233,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.setSlop(slop);
         /*
          * Lucene SpanNearQuery throws exceptions for certain use cases like adding gap to a
-         * unordered SpanNearQuery. Should ES have the same checks or wrap those thrown exceptions?
+         * unordered SpanNearQuery. Should OpenSearch have the same checks or wrap those thrown exceptions?
          */
         if (isGap) {
             int gap = ((SpanGapQueryBuilder) queryBuilder).width();

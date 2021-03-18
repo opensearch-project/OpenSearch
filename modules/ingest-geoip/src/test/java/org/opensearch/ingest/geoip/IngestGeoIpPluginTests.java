@@ -22,11 +22,11 @@ package org.opensearch.ingest.geoip;
 import com.maxmind.geoip2.model.AbstractResponse;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
 
-public class IngestGeoIpPluginTests extends ESTestCase {
+public class IngestGeoIpPluginTests extends OpenSearchTestCase {
 
     public void testCachesAndEvictsResults() {
         GeoIpCache cache = new GeoIpCache(1);

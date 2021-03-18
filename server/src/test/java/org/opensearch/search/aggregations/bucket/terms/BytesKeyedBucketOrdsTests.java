@@ -25,7 +25,7 @@ import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
 import java.util.Objects;
@@ -33,7 +33,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BytesKeyedBucketOrdsTests extends ESTestCase {
+public class BytesKeyedBucketOrdsTests extends OpenSearchTestCase {
     private static final BytesRef SHIP_1 = new BytesRef("Just Read The Instructions");
     private static final BytesRef SHIP_2 = new BytesRef("Of Course I Still Love You");
 

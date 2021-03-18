@@ -21,7 +21,7 @@ package org.opensearch.transport;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
 
-public class TransportRequestDeduplicatorTests extends ESTestCase {
+public class TransportRequestDeduplicatorTests extends OpenSearchTestCase {
 
     public void testRequestDeduplication() throws Exception {
         AtomicInteger successCount = new AtomicInteger();

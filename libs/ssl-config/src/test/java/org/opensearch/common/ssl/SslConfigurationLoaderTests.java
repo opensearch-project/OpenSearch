@@ -22,7 +22,7 @@ package org.opensearch.common.ssl;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SslConfigurationLoaderTests extends ESTestCase {
+public class SslConfigurationLoaderTests extends OpenSearchTestCase {
 
     private final Path certRoot = getDataPath("/certs/ca1/ca.crt").getParent().getParent();
 

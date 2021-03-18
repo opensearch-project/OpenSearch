@@ -19,7 +19,7 @@
 package org.opensearch.action.admin.indices.exists.types;
 
 import org.opensearch.action.ActionListener;
-import org.elasticsearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.TransportMasterNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;

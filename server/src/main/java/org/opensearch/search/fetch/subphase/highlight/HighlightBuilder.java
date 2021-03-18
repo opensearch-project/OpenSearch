@@ -29,10 +29,10 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.Rewriteable;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryRewriteContext;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.Rewriteable;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
 
 import java.io.IOException;

@@ -21,7 +21,7 @@ package org.opensearch.ingest.common;
 import org.opensearch.common.time.DateFormatter;
 import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.TestTemplateService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -33,7 +33,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class DateIndexNameProcessorTests extends ESTestCase {
+public class DateIndexNameProcessorTests extends OpenSearchTestCase {
 
     public void testJavaPattern() throws Exception {
         Function<String, ZonedDateTime> function = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSXX", ZoneOffset.UTC, Locale.ROOT);

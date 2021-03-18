@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.opensearch.index.mapper.MapperServiceTestCase;
+
 public class DocumentMapperParserTests extends MapperServiceTestCase {
 
     public void testFieldNameWithDots() throws Exception {

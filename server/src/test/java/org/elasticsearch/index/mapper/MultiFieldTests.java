@@ -33,7 +33,7 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,13 +42,13 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MultiFieldTests extends ESSingleNodeTestCase {
+public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
 
     public void testMultiFieldMultiFields() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-fields.json");

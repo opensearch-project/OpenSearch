@@ -22,8 +22,8 @@ package org.opensearch.systemd;
 import org.opensearch.Build;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.OptionalMatchers;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.hamcrest.OptionalMatchers;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class SystemdPluginTests extends ESTestCase {
+public class SystemdPluginTests extends OpenSearchTestCase {
 
     private final Build.Type randomPackageBuildType = randomFrom(Build.Type.DEB, Build.Type.RPM);
     private final Build.Type randomNonPackageBuildType =

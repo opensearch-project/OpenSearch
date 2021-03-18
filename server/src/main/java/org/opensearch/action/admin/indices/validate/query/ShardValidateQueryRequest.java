@@ -23,8 +23,8 @@ import org.opensearch.action.support.broadcast.BroadcastShardRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;

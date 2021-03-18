@@ -71,7 +71,7 @@ import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeLimit;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;

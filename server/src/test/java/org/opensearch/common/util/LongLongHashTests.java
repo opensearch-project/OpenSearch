@@ -23,11 +23,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.LongLongHash;
-import org.opensearch.common.util.MockBigArrays;
-import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,7 +32,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LongLongHashTests extends ESTestCase {
+public class LongLongHashTests extends OpenSearchTestCase {
     private BigArrays randombigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }

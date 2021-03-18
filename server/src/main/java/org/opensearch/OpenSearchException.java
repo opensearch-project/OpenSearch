@@ -844,7 +844,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 org.opensearch.indices.IndexTemplateMissingException::new, 57, UNKNOWN_VERSION_ADDED),
         SEND_REQUEST_TRANSPORT_EXCEPTION(org.opensearch.transport.SendRequestTransportException.class,
                 org.opensearch.transport.SendRequestTransportException::new, 58, UNKNOWN_VERSION_ADDED),
-        // 59 used to be EsRejectedExecutionException
+        // 59 used to be OpenSearchRejectedExecutionException
         // 60 used to be for EarlyTerminationException
         // 61 used to be for RoutingValidationException
         NOT_SERIALIZABLE_EXCEPTION_WRAPPER(org.opensearch.common.io.stream.NotSerializableExceptionWrapper.class,
@@ -962,7 +962,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
                 TcpTransport.HttpRequestOnTransportException::new, 125, UNKNOWN_VERSION_ADDED),
         MAPPER_PARSING_EXCEPTION(org.opensearch.index.mapper.MapperParsingException.class,
                 org.opensearch.index.mapper.MapperParsingException::new, 126, UNKNOWN_VERSION_ADDED),
-        // 127 used to be org.elasticsearch.search.SearchContextException
+        // 127 used to be org.opensearch.search.SearchContextException
         SEARCH_SOURCE_BUILDER_EXCEPTION(org.opensearch.search.builder.SearchSourceBuilderException.class,
                 org.opensearch.search.builder.SearchSourceBuilderException::new, 128, UNKNOWN_VERSION_ADDED),
         // 129 was EngineClosedException

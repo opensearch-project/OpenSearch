@@ -42,7 +42,7 @@ import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDeci
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;

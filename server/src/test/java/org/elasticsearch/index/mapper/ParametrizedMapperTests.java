@@ -32,6 +32,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.mapper.MapperServiceTestCase;
 import org.opensearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;

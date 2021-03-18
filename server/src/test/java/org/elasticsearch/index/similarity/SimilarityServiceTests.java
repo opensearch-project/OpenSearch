@@ -27,15 +27,15 @@ import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SimilarityServiceTests extends ESTestCase {
+public class SimilarityServiceTests extends OpenSearchTestCase {
     public void testDefaultSimilarity() {
         Settings settings = Settings.builder().build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);

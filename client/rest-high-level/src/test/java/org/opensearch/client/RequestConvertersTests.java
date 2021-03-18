@@ -27,7 +27,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.util.EntityUtils;
-import org.opensearch.client.Request;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -104,8 +103,8 @@ import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.RandomObjects;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.RandomObjects;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -130,13 +129,13 @@ import static org.opensearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.opensearch.client.RequestConverters.enforceSameContentType;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.RandomSearchRequestGenerator.randomSearchRequest;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RequestConvertersTests extends ESTestCase {
+public class RequestConvertersTests extends OpenSearchTestCase {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RequestConvertersTests.class);
 

@@ -30,7 +30,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
-import org.elasticsearch.index.engine.Segment;
+import org.opensearch.index.engine.Segment;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;

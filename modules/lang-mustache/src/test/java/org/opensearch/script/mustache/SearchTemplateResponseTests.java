@@ -32,13 +32,13 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class SearchTemplateResponseTests extends AbstractXContentTestCase<SearchTemplateResponse> {
 

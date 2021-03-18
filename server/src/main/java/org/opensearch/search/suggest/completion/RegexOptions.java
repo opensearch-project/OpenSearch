@@ -21,7 +21,7 @@ package org.opensearch.search.suggest.completion;
 
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.RegexpFlag;
+import org.opensearch.index.query.RegexpFlag;
 
 import java.io.IOException;
 

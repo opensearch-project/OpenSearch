@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -37,7 +37,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
+public class JvmGcMonitorServiceSettingsTests extends OpenSearchTestCase {
 
     public void testEmptySettingsAreOkay() throws InterruptedException {
         AtomicBoolean scheduled = new AtomicBoolean();

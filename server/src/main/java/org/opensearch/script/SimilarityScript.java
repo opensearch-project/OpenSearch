@@ -19,7 +19,7 @@
 
 package org.opensearch.script;
 
-import org.elasticsearch.index.similarity.ScriptedSimilarity;
+import org.opensearch.index.similarity.ScriptedSimilarity;
 
 /** A script that is used to build {@link ScriptedSimilarity} instances. */
 public abstract class SimilarityScript {

@@ -21,13 +21,13 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.mapper.RangeFieldMapper;
+import org.opensearch.index.mapper.RangeType;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
-import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.support.ValuesSource;

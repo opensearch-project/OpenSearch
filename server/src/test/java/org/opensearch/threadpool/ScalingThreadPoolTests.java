@@ -21,7 +21,7 @@ package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -79,23 +79,23 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
 
         runScalingThreadPoolTest(builder.build(), (clusterSettings, threadPool) -> {
             final Executor executor = threadPool.executor(threadPoolName);
-            assertThat(executor, instanceOf(EsThreadPoolExecutor.class));
-            final EsThreadPoolExecutor esThreadPoolExecutor = (EsThreadPoolExecutor)executor;
+            assertThat(executor, instanceOf(OpenSearchThreadPoolExecutor.class));
+            final OpenSearchThreadPoolExecutor openSearchThreadPoolExecutor = (OpenSearchThreadPoolExecutor)executor;
             final ThreadPool.Info info = info(threadPool, threadPoolName);
 
             assertThat(info.getName(), equalTo(threadPoolName));
             assertThat(info.getThreadPoolType(), equalTo(ThreadPool.ThreadPoolType.SCALING));
 
             assertThat(info.getKeepAlive().seconds(), equalTo(keepAlive));
-            assertThat(esThreadPoolExecutor.getKeepAliveTime(TimeUnit.SECONDS), equalTo(keepAlive));
+            assertThat(openSearchThreadPoolExecutor.getKeepAliveTime(TimeUnit.SECONDS), equalTo(keepAlive));
 
             assertNull(info.getQueueSize());
-            assertThat(esThreadPoolExecutor.getQueue().remainingCapacity(), equalTo(Integer.MAX_VALUE));
+            assertThat(openSearchThreadPoolExecutor.getQueue().remainingCapacity(), equalTo(Integer.MAX_VALUE));
 
             assertThat(info.getMin(), equalTo(core));
-            assertThat(esThreadPoolExecutor.getCorePoolSize(), equalTo(core));
+            assertThat(openSearchThreadPoolExecutor.getCorePoolSize(), equalTo(core));
             assertThat(info.getMax(), equalTo(expectedMax));
-            assertThat(esThreadPoolExecutor.getMaximumPoolSize(), equalTo(expectedMax));
+            assertThat(openSearchThreadPoolExecutor.getMaximumPoolSize(), equalTo(expectedMax));
         });
 
         if (processorsUsed > availableProcessors) {

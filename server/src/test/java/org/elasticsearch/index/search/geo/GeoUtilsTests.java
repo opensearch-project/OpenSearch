@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.geometry.utils.Geohash;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.locationtech.spatial4j.context.SpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;
 
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-public class GeoUtilsTests extends ESTestCase {
+public class GeoUtilsTests extends OpenSearchTestCase {
     private static final char[] BASE_32 = {'0', '1', '2', '3', '4', '5', '6',
         '7', '8', '9', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'm', 'n',
         'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};

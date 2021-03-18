@@ -31,21 +31,21 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.opensearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.opensearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
-import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
-import org.elasticsearch.cluster.service.MasterService;
+import org.opensearch.cluster.routing.RerouteService;
+import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterApplier;
+import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -58,8 +58,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.discovery.Discovery;
@@ -1468,7 +1468,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                     publishListener.onFailure(exception);
                 }
-            }, EsExecutors.newDirectExecutorService(), transportService.getThreadPool().getThreadContext());
+            }, OpenSearchExecutors.newDirectExecutorService(), transportService.getThreadPool().getThreadContext());
         }
 
         private void cancelTimeoutHandlers() {

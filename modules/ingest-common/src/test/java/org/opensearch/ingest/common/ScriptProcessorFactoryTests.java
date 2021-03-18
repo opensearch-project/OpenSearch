@@ -29,7 +29,7 @@ import org.opensearch.script.ScriptException;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -43,7 +43,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ScriptProcessorFactoryTests extends ESTestCase {
+public class ScriptProcessorFactoryTests extends OpenSearchTestCase {
 
     private ScriptProcessor.Factory factory;
     private static final Map<String, String> ingestScriptParamToType;

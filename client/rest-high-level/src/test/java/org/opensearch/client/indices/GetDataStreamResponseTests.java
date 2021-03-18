@@ -27,7 +27,7 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
+import org.opensearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;

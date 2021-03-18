@@ -19,7 +19,7 @@
 
 package org.opensearch.action.termvectors;
 
-import org.elasticsearch.OpenSearchParseException;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
@@ -29,7 +29,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;

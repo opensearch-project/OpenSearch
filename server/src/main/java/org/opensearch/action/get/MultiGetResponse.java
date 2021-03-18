@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.get.GetResult;
+import org.opensearch.index.get.GetResult;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -28,7 +28,7 @@ import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -39,7 +39,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.uid.Versions;
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -619,7 +619,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public IndexRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
@@ -634,7 +634,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public IndexRequest setIfPrimaryTerm(long term) {
         if (term < 0) {
@@ -647,7 +647,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * If set, only perform this indexing request if the document was last modification was assigned this sequence number.
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifSeqNo() {
         return ifSeqNo;
@@ -657,7 +657,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * If set, only perform this indexing request if the document was last modification was assigned this primary term.
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public long ifPrimaryTerm() {
         return ifPrimaryTerm;

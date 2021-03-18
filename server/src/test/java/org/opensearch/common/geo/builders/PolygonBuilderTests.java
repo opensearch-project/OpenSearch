@@ -21,8 +21,8 @@ package org.opensearch.common.geo.builders;
 
 import org.locationtech.jts.geom.Coordinate;
 import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
+import org.opensearch.test.geo.RandomShapeGenerator;
+import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;

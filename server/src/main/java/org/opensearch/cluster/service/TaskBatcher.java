@@ -23,8 +23,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,22 +38,22 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Batching support for {@link PrioritizedEsThreadPoolExecutor}
+ * Batching support for {@link PrioritizedOpenSearchThreadPoolExecutor}
  * Tasks that share the same batching key are batched (see {@link BatchedTask#batchingKey})
  */
 public abstract class TaskBatcher {
 
     private final Logger logger;
-    private final PrioritizedEsThreadPoolExecutor threadExecutor;
+    private final PrioritizedOpenSearchThreadPoolExecutor threadExecutor;
     // package visible for tests
     final Map<Object, LinkedHashSet<BatchedTask>> tasksPerBatchingKey = new HashMap<>();
 
-    public TaskBatcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
+    public TaskBatcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor) {
         this.logger = logger;
         this.threadExecutor = threadExecutor;
     }
 
-    public void submitTasks(List<? extends BatchedTask> tasks, @Nullable TimeValue timeout) throws EsRejectedExecutionException {
+    public void submitTasks(List<? extends BatchedTask> tasks, @Nullable TimeValue timeout) throws OpenSearchRejectedExecutionException {
         if (tasks.isEmpty()) {
             return;
         }

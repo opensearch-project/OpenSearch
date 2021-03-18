@@ -41,7 +41,7 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Collections;
 

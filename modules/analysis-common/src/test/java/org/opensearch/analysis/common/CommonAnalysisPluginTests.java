@@ -29,14 +29,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class CommonAnalysisPluginTests extends ESTestCase {
+public class CommonAnalysisPluginTests extends OpenSearchTestCase {
 
     /**
      * Check that the deprecated name "nGram" issues a deprecation warning for indices created since 6.0.0

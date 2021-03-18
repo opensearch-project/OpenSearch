@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -40,7 +40,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
-public class AnalysisTests extends ESTestCase {
+public class AnalysisTests extends OpenSearchTestCase {
     public void testParseStemExclusion() {
         /* Comma separated list */
         Settings settings = Settings.builder().put("stem_exclusion", "foo,bar").build();

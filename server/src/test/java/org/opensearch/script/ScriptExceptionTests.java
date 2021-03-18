@@ -23,7 +23,7 @@ import org.opensearch.common.io.stream.DataOutputStreamOutput;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -34,7 +34,7 @@ import java.util.Collections;
 import java.util.List;
 
 /** Simple tests for {@link ScriptException} */
-public class ScriptExceptionTests extends ESTestCase {
+public class ScriptExceptionTests extends OpenSearchTestCase {
 
     /** ensure we can round trip in serialization */
     public void testRoundTrip() throws IOException {

@@ -32,8 +32,8 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.utils.GeographyValidator;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -50,7 +50,7 @@ import static org.opensearch.geo.GeometryTestUtils.randomPoint;
 import static org.opensearch.geo.GeometryTestUtils.randomPolygon;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoJsonSerializationTests extends ESTestCase {
+public class GeoJsonSerializationTests extends OpenSearchTestCase {
 
     private static class GeometryWrapper implements ToXContentObject {
 

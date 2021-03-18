@@ -20,12 +20,12 @@ package org.opensearch.geometry.utils;
 
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.geometry.Rectangle;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 /**
  * Tests for {@link Geohash}
  */
-public class GeoHashTests extends ESTestCase {
+public class GeoHashTests extends OpenSearchTestCase {
     public void testGeohashAsLongRoutines() {
         final GeoPoint expected = new GeoPoint();
         final GeoPoint actual = new GeoPoint();

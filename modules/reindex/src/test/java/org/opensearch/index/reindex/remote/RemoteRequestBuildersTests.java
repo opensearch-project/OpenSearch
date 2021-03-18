@@ -29,7 +29,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.not;
  * for versions like {@code 2000099} for {@code 2.0.0-alpha1}. Do not drop support for
  * features from this file just because the version constants have been removed.
  */
-public class RemoteRequestBuildersTests extends ESTestCase {
+public class RemoteRequestBuildersTests extends OpenSearchTestCase {
     public void testIntialSearchPath() {
         Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
         BytesReference query = new BytesArray("{}");

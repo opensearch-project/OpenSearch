@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ingest.TestTemplateService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -31,7 +31,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SetProcessorFactoryTests extends ESTestCase {
+public class SetProcessorFactoryTests extends OpenSearchTestCase {
 
     private SetProcessor.Factory factory;
 

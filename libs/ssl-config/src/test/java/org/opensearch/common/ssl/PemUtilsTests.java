@@ -19,7 +19,7 @@
 
 package org.opensearch.common.ssl;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.StringContains.containsString;
 
-public class PemUtilsTests extends ESTestCase {
+public class PemUtilsTests extends OpenSearchTestCase {
 
     private static final Supplier<char[]> EMPTY_PASSWORD = () -> new char[0];
     private static final Supplier<char[]> TESTNODE_PASSWORD = "testnode"::toCharArray;

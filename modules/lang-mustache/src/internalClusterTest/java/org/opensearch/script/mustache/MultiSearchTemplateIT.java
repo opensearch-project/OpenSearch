@@ -25,7 +25,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -34,14 +34,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
-public class MultiSearchTemplateIT extends ESIntegTestCase {
+public class MultiSearchTemplateIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

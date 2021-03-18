@@ -36,7 +36,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 

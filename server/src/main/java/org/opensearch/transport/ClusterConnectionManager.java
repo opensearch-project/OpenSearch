@@ -24,10 +24,10 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.ListenableFuture;
+import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.core.internal.io.IOUtils;
 
 import java.util.Collections;
@@ -126,14 +126,14 @@ public class ClusterConnectionManager implements ConnectionManager {
         if (existingListener != null) {
             try {
                 // wait on previous entry to complete connection attempt
-                existingListener.addListener(listener, EsExecutors.newDirectExecutorService());
+                existingListener.addListener(listener, OpenSearchExecutors.newDirectExecutorService());
             } finally {
                 connectingRefCounter.decRef();
             }
             return;
         }
 
-        currentListener.addListener(listener, EsExecutors.newDirectExecutorService());
+        currentListener.addListener(listener, OpenSearchExecutors.newDirectExecutorService());
 
         final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);
         internalOpenConnection(node, resolvedProfile, ActionListener.wrap(conn -> {

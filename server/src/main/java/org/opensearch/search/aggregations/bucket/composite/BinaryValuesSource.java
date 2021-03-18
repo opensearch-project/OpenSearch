@@ -29,9 +29,9 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.StringFieldType;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.StringFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 

@@ -29,11 +29,11 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.store.Store;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 

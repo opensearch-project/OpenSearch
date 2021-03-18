@@ -19,12 +19,12 @@
 
 package org.opensearch.threadpool;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public abstract class OpenSearchThreadPoolTestCase extends ESTestCase {
+public abstract class OpenSearchThreadPoolTestCase extends OpenSearchTestCase {
 
     protected final ThreadPool.Info info(final ThreadPool threadPool, final String name) {
         for (final ThreadPool.Info info : threadPool.info()) {

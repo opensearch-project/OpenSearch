@@ -36,7 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,7 +45,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermsSliceQueryTests extends ESTestCase {
+public class TermsSliceQueryTests extends OpenSearchTestCase {
     public void testBasics() {
         TermsSliceQuery query1 =
             new TermsSliceQuery("field1", 1, 10);

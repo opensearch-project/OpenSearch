@@ -27,7 +27,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.opensearch.cluster.coordination.Reconfigurator;
 
@@ -43,7 +43,7 @@ import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SH
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ReconfiguratorTests extends ESTestCase {
+public class ReconfiguratorTests extends OpenSearchTestCase {
 
     @Before
     public void resetPortCounterBeforeTest() {

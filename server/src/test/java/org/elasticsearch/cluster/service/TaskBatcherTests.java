@@ -26,7 +26,7 @@ import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.junit.Before;
 import org.opensearch.cluster.service.TaskBatcher;
 
@@ -61,7 +61,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
     class TestTaskBatcher extends TaskBatcher {
 
-        TestTaskBatcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
+        TestTaskBatcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor) {
             super(logger, threadExecutor);
         }
 

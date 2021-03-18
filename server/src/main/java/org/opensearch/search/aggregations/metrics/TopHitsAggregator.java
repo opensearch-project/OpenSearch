@@ -21,7 +21,6 @@ package org.opensearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
@@ -39,8 +38,8 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.MaxScoreCollector;
 import org.opensearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.LongObjectPagedHashMap;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;

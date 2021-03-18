@@ -44,14 +44,14 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.NullInfoStream;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
+public class RecoverySourcePruneMergePolicyTests extends OpenSearchTestCase {
 
     public void testPruneAll() throws IOException {
         try (Directory dir = newDirectory()) {

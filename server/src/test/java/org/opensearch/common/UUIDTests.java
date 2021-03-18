@@ -34,14 +34,14 @@ import org.apache.lucene.util.TestUtil;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 
-public class UUIDTests extends ESTestCase {
+public class UUIDTests extends OpenSearchTestCase {
 
     static UUIDGenerator timeUUIDGen = new TimeBasedUUIDGenerator();
     static UUIDGenerator randomUUIDGen = new RandomBasedUUIDGenerator();

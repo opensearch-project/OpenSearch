@@ -27,15 +27,15 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Locale;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Generic interface to group ActionRequest, which perform writes to a single document
@@ -132,7 +132,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
      *
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     T setIfSeqNo(long seqNo);
 
@@ -141,14 +141,14 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     T setIfPrimaryTerm(long term);
 
     /**
      * If set, only perform this request if the document was last modification was assigned this sequence number.
      * If the document last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
      long ifSeqNo();
 
@@ -156,7 +156,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * If set, only perform this request if the document was last modification was assigned this primary term.
      *
      * If the document last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     long ifPrimaryTerm();
 

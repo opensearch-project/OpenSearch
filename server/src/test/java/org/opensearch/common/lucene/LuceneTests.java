@@ -68,9 +68,8 @@ import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorS
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.search.MultiValueMode;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.opensearch.common.lucene.Lucene;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -84,7 +83,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LuceneTests extends ESTestCase {
+public class LuceneTests extends OpenSearchTestCase {
     private static final NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(Collections.emptyList());
 
     public void testWaitForIndex() throws Exception {

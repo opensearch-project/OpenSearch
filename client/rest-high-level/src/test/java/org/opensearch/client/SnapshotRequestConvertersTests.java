@@ -23,7 +23,6 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.client.Request;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -38,7 +37,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.fs.FsRepository;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -51,7 +50,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SnapshotRequestConvertersTests extends ESTestCase {
+public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
 
     public void testGetRepositories() {
         Map<String, String> expectedParams = new HashMap<>();

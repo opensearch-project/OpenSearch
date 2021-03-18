@@ -19,7 +19,6 @@
 
 package org.opensearch.test.rest;
 
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class NodeRestUsageIT extends ESRestTestCase {
+public class NodeRestUsageIT extends OpenSearchRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testWithRestUsage() throws IOException {

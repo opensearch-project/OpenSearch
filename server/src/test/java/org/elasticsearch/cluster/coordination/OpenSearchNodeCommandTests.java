@@ -33,7 +33,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-public class OpenSearchNodeCommandTests extends ESTestCase {
+public class OpenSearchNodeCommandTests extends OpenSearchTestCase {
 
     public void testLoadStateWithoutMissingCustoms() throws IOException {
         runLoadStateTest(false, false);

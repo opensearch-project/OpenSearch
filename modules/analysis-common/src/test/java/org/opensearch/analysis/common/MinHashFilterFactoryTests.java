@@ -23,15 +23,15 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
+public class MinHashFilterFactoryTests extends OpenSearchTokenStreamTestCase {
     public void testDefault() throws IOException {
         int default_hash_count = 1;
         int default_bucket_size = 512;
@@ -39,7 +39,7 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("min_hash");
         String source = "the quick brown fox";
         Tokenizer tokenizer = new WhitespaceTokenizer();
@@ -60,7 +60,7 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
             .put("index.analysis.filter.test_min_hash.with_rotation", false)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("test_min_hash");
         String source = "sushi";
         Tokenizer tokenizer = new WhitespaceTokenizer();

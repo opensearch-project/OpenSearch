@@ -22,16 +22,16 @@ package org.opensearch.index.reindex;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
-public class ReindexClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class ReindexClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
     public ReindexClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }

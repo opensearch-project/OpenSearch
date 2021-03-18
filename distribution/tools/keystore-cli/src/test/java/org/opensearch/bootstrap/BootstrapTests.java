@@ -25,7 +25,7 @@ import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BootstrapTests extends ESTestCase {
+public class BootstrapTests extends OpenSearchTestCase {
     Environment env;
     List<FileSystem> fileSystems = new ArrayList<>();
 

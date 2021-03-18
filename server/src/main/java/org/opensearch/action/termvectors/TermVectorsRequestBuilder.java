@@ -22,7 +22,7 @@ package org.opensearch.action.termvectors;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.VersionType;
+import org.opensearch.index.VersionType;
 
 import java.util.Map;
 
@@ -167,7 +167,7 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
     }
 
     /*
-     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     * Sets the versioning type. Defaults to {@link org.opensearch.index.VersionType#INTERNAL}.
      */
     public TermVectorsRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);

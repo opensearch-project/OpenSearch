@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -32,7 +32,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class CsvProcessorTests extends ESTestCase {
+public class CsvProcessorTests extends OpenSearchTestCase {
 
     private static final Character[] SEPARATORS = new Character[]{',', ';', '|', '.', '\t'};
     private static final String[] QUOTES = new String[]{"'", "\"", ""};

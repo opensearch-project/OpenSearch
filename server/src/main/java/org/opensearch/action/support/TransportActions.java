@@ -23,9 +23,9 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.UnavailableShardsException;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.shard.IllegalIndexShardStateException;
+import org.opensearch.index.shard.ShardNotFoundException;
 
 public class TransportActions {
 

@@ -21,10 +21,10 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.InnerHitBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchPhaseResult;

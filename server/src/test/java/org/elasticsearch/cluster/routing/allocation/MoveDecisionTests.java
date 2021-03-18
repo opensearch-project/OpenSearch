@@ -27,7 +27,7 @@ import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import static java.util.Collections.emptySet;
 /**
  * Unit tests for the {@link MoveDecision} class.
  */
-public class MoveDecisionTests extends ESTestCase {
+public class MoveDecisionTests extends OpenSearchTestCase {
 
     public void testCachedDecisions() {
         // cached stay decision

@@ -29,7 +29,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.shard.ShardId;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.IndexSettingsModule;
 import org.junit.Before;
 
 import java.util.Collections;

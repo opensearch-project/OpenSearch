@@ -23,10 +23,10 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
@@ -35,12 +35,12 @@ import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Locale;
 
-public class StemmerOverrideTokenFilterFactoryTests extends ESTokenStreamTestCase {
+public class StemmerOverrideTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
     public static TokenFilterFactory create(String... rules) throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder()
                 .put("index.analysis.filter.my_stemmer_override.type", "stemmer_override")
                 .putList("index.analysis.filter.my_stemmer_override.rules", rules)

@@ -40,9 +40,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.search.SearchHit.NestedIdentity;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.fetch.subphase.highlight.HighlightFieldTests;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.RandomObjects;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.RandomObjects;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,8 +53,8 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

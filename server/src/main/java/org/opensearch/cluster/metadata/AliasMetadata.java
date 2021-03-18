@@ -19,7 +19,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.elasticsearch.OpenSearchGenerationException;
+import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
