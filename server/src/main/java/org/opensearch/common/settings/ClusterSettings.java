@@ -19,7 +19,7 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.TransportSearchAction;

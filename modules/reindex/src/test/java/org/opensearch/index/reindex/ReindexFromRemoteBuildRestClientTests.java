@@ -28,7 +28,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
