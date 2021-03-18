@@ -23,8 +23,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.util.CharTokenizer;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.test.IndexSettingsModule;
 

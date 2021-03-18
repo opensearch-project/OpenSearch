@@ -21,8 +21,6 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 
 import java.util.ArrayList;
 import java.util.List;

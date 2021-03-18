@@ -23,9 +23,9 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.da.DanishAnalyzer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
-import org.elasticsearch.index.analysis.Analysis;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.opensearch.index.analysis.Analysis;
 
 public class DanishAnalyzerProvider extends AbstractIndexAnalyzerProvider<DanishAnalyzer> {
 

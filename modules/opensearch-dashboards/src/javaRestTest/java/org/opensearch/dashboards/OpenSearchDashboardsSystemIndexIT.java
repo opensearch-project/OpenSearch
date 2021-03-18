@@ -25,7 +25,7 @@ import org.apache.http.util.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;

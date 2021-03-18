@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
 

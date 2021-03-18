@@ -21,9 +21,9 @@ package org.opensearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.LeafGeoPointFieldData;
+import org.opensearch.index.fielddata.MultiGeoPointValues;
 
 import java.io.IOException;
 

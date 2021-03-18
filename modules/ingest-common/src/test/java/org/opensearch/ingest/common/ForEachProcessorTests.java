@@ -19,9 +19,9 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.ingest.CompoundProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.CompoundProcessor;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.TestProcessor;
 import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.script.TemplateScript;
@@ -206,9 +206,9 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
 
         ForEachProcessor processor = new ForEachProcessor(
                 "_tag", null, "values", new CompoundProcessor(false,
-                org.elasticsearch.common.collect.List.of(
+                org.opensearch.common.collect.List.of(
                     new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")),
-                org.elasticsearch.common.collect.List.of(
+                org.opensearch.common.collect.List.of(
                     new AppendProcessor("_tag", null, template, (model) -> (Collections.singletonList("added")), true))
         ), false);
         processor.execute(ingestDocument, (result, e) -> {});

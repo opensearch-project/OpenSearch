@@ -19,10 +19,10 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.AbstractProcessor;
+import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 
 import java.util.ArrayList;
 import java.util.Collections;

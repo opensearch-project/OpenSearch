@@ -37,8 +37,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.elasticsearch.index.reindex.ClientScrollableHitSource;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;

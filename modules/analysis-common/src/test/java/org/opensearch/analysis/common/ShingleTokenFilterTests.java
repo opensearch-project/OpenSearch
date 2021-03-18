@@ -24,9 +24,9 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
 

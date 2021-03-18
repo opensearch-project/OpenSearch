@@ -22,8 +22,8 @@ package org.opensearch.ingest.common;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.opensearch.ingest.ConfigurationUtils.readStringProperty;
 
 /**
  * Processor that allows to search for patterns in field content and replace them with corresponding string replacement.

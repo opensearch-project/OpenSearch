@@ -25,16 +25,16 @@ import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.AbstractProcessor;
+import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
 
 /**
  * Processor that serializes a string-valued field into a

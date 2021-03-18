@@ -24,10 +24,10 @@ import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AbstractTokenFilterFactory;
+import org.opensearch.index.analysis.NormalizingTokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
 
 /**
  * Factory for ASCIIFoldingFilter.

@@ -47,15 +47,8 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.reindex.remote.RemoteScrollableHitSource;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
@@ -74,7 +67,7 @@ import java.util.function.BiFunction;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.index.VersionType.INTERNAL;
+import static org.opensearch.index.VersionType.INTERNAL;
 
 public class Reindexer {
 

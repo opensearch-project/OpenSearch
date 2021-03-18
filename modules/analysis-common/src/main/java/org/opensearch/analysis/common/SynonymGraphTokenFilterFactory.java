@@ -25,11 +25,11 @@ import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisMode;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AnalysisMode;
+import org.opensearch.index.analysis.CharFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenizerFactory;
 
 import java.util.List;
 import java.util.function.Function;

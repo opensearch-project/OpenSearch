@@ -24,11 +24,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.Analysis;
-import org.elasticsearch.index.analysis.StopTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AbstractTokenFilterFactory;
+import org.opensearch.index.analysis.Analysis;
+import org.opensearch.index.analysis.StopTokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
 
 import java.util.List;
 
