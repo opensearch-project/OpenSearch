@@ -78,7 +78,7 @@ public final class RemoteConnectionInfo {
 
     private final ModeInfo modeInfo;
     // TODO: deprecate and remove this field in favor of initialConnectionTimeout field that is of type TimeValue.
-    // When rest api versioning exists then change org.elasticsearch.transport.RemoteConnectionInfo to properly serialize
+    // When rest api versioning exists then change org.opensearch.transport.RemoteConnectionInfo to properly serialize
     // the initialConnectionTimeout field so that we can properly parse initialConnectionTimeout as TimeValue
     private final String initialConnectionTimeoutString;
     private final String clusterAlias;
