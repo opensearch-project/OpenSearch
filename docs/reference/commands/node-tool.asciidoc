@@ -409,7 +409,7 @@ you can run the following commands to remove one or more cluster settings.
 // TODO(OpenSearch): Add new example to replace <setting_name>
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node remove-settings <setting_name>
+node$ ./bin/opensearch-node remove-settings <setting_name>
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
@@ -431,7 +431,7 @@ You can also use wildcards to remove multiple settings, for example using
 
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node remove-settings <setting_name>
+node$ ./bin/opensearch-node remove-settings <setting_name>
 ----
 
 [discrete]
@@ -444,7 +444,7 @@ commands to remove this custom metadata.
 // TODO(OpenSearch): Add new example to replace <custom-metadata>
 [source,txt]
 ----
-node$ ./bin/elasticsearch-node remove-customs <custom-metadata>
+node$ ./bin/opensearch-node remove-customs <custom-metadata>
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 

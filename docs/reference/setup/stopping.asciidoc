@@ -30,8 +30,8 @@ Or by specifying a location to write a PID file to on startup (`-p <path>`):
 
 [source,sh]
 --------------------------------------------------
-$ ./bin/elasticsearch -p /tmp/elasticsearch-pid -d
-$ cat /tmp/elasticsearch-pid && echo
+$ ./bin/opensearch -p /tmp/opensearch-pid -d
+$ cat /tmp/opensearch-pid && echo
 15516
 $ kill -SIGTERM 15516
 --------------------------------------------------
