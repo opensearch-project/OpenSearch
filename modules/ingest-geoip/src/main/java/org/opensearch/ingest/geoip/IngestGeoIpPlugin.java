@@ -31,7 +31,7 @@ import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.Processor;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.Plugin;
 

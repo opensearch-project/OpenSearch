@@ -21,7 +21,6 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.index.reindex.RemoteInfo;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.UnknownHostException;

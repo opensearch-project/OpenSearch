@@ -18,7 +18,7 @@
  */
 package org.opensearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;

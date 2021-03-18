@@ -19,8 +19,8 @@
 
 package org.opensearch.ingest.common;
 
-import org.elasticsearch.ingest.CompoundProcessor;
-import org.elasticsearch.ingest.IngestDocument;
+import org.opensearch.ingest.CompoundProcessor;
+import org.opensearch.ingest.IngestDocument;
 
 /**
  * Exception class thrown by {@link FailProcessor}.

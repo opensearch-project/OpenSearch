@@ -20,7 +20,7 @@
 package org.opensearch.join.query;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 
 public abstract class JoinQueryBuilders {
     /**

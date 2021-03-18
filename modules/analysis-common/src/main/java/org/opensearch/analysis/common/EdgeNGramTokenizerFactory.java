@@ -24,8 +24,8 @@ import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AbstractTokenizerFactory;
 
 import static org.opensearch.analysis.common.NGramTokenizerFactory.parseTokenChars;
 

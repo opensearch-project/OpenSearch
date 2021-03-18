@@ -12,7 +12,7 @@
       "node" : "87A7NvevQxSrEwMbtRCecg",
       "reason" : {
         "type" : "es_rejected_execution_exception",
-        "reason" : "rejected execution of org.elasticsearch.transport.TransportService$5@52d06af2 on EsThreadPoolExecutor[search, queue capacity = 1000, org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, completed tasks = 4182]]"
+        "reason" : "rejected execution of org.opensearch.transport.TransportService$5@52d06af2 on EsThreadPoolExecutor[search, queue capacity = 1000, org.opensearch.common.util.concurrent.EsThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, completed tasks = 4182]]"
       }
     } ]
   },

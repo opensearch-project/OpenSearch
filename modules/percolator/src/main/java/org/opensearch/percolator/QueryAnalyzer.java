@@ -42,7 +42,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
+import org.opensearch.index.query.DateRangeIncludingNowQuery;
 
 import java.util.ArrayList;
 import java.util.Arrays;

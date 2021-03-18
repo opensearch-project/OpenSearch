@@ -19,8 +19,8 @@
 
 package org.opensearch.geo;
 
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.GeoShapeFieldMapper;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 

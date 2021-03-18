@@ -19,7 +19,6 @@
 
 package org.opensearch.index.reindex;
 
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;

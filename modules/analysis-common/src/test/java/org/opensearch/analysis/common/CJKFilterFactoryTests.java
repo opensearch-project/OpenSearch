@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.junit.Before;

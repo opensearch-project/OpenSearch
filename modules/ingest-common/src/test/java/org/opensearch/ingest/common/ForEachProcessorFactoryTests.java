@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.ingest.Processor;
+import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.TestProcessor;
 import org.opensearch.script.ScriptService;
 import org.opensearch.test.OpenSearchTestCase;

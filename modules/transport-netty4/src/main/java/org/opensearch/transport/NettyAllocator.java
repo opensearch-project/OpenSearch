@@ -31,7 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 

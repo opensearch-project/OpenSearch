@@ -115,20 +115,20 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         SearchAsYouTypeFieldType fieldType = createFieldType();
         fieldType.setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
 
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(fieldType, "value"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(fieldType, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(fieldType, true));
+        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(fieldType, 42L));
+        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(fieldType, true));
 
         SearchAsYouTypeFieldMapper.PrefixFieldType prefixFieldType = new SearchAsYouTypeFieldMapper.PrefixFieldType(
             fieldType.name(), fieldType.getTextSearchInfo(), 2, 10);
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(prefixFieldType, "value"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(prefixFieldType, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(prefixFieldType, true));
+        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(prefixFieldType, "value"));
+        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(prefixFieldType, 42L));
+        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(prefixFieldType, true));
 
         SearchAsYouTypeFieldMapper.ShingleFieldType shingleFieldType = new SearchAsYouTypeFieldMapper.ShingleFieldType(
             fieldType.name(), 5, fieldType.getTextSearchInfo());
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(shingleFieldType, "value"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(shingleFieldType, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(shingleFieldType, true));
+        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(shingleFieldType, "value"));
+        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(shingleFieldType, 42L));
+        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(shingleFieldType, true));
     }
 }

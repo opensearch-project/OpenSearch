@@ -20,7 +20,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.ingest.IngestDocument;
+import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.script.IngestScript;
 import org.opensearch.script.MockScriptEngine;

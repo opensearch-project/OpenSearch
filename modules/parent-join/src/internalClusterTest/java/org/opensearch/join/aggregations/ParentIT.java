@@ -34,7 +34,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.join.aggregations.JoinAggregationBuilders.parent;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.aggregations.AggregationBuilders.topHits;
