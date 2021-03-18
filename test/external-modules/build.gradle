@@ -2,8 +2,8 @@
 import org.elasticsearch.gradle.info.BuildParams;
 
 subprojects {
-  apply plugin: 'elasticsearch.esplugin'
-  apply plugin: 'elasticsearch.yaml-rest-test'
+  apply plugin: 'opensearch.esplugin'
+  apply plugin: 'opensearch.yaml-rest-test'
 
   esplugin {
     name it.name
