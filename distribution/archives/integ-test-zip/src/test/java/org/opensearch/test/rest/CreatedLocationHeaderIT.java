@@ -19,7 +19,6 @@
 
 package org.opensearch.test.rest;
 
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -32,7 +31,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests for the "Location" header returned when returning {@code 201 CREATED}.
  */
-public class CreatedLocationHeaderIT extends ESRestTestCase {
+public class CreatedLocationHeaderIT extends OpenSearchRestTestCase {
 
     public void testCreate() throws IOException {
         locationTestCase("PUT", "test/_doc/1");

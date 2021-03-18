@@ -23,8 +23,8 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import org.opensearch.NioIntegTestCase;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.test.ESIntegTestCase.ClusterScope;
-import org.opensearch.test.ESIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.Collection;
 import java.util.Locale;

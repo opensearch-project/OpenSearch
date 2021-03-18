@@ -30,7 +30,7 @@ import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
     static {
         try {
-            Class.forName("org.elasticsearch.test.ESTestCase");
+            Class.forName("org.opensearch.test.OpenSearchTestCase");
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
         }

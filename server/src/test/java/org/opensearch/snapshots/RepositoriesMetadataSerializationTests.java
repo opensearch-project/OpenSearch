@@ -28,7 +28,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.opensearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

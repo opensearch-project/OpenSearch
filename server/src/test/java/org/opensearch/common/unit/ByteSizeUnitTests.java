@@ -21,9 +21,7 @@ package org.opensearch.common.unit;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -36,7 +34,7 @@ import static org.opensearch.common.unit.ByteSizeUnit.TB;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ByteSizeUnitTests extends ESTestCase {
+public class ByteSizeUnitTests extends OpenSearchTestCase {
 
     public void testBytes() {
         assertThat(BYTES.toBytes(1), equalTo(1L));

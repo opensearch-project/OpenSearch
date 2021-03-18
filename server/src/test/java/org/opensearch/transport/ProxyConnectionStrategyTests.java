@@ -29,8 +29,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class ProxyConnectionStrategyTests extends ESTestCase {
+public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
 
     private final String clusterAlias = "cluster-alias";
     private final String modeKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();

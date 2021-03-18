@@ -29,8 +29,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.MockTransport;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 
-public class TransportServiceDeserializationFailureTests extends ESTestCase {
+public class TransportServiceDeserializationFailureTests extends OpenSearchTestCase {
 
     public void testDeserializationFailureLogIdentifiesListener() {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);

@@ -26,9 +26,9 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.client.NoOpNodeClient;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class RestAnalyzeActionTests extends ESTestCase {
+public class RestAnalyzeActionTests extends OpenSearchTestCase {
 
     public void testParseXContentForAnalyzeRequest() throws Exception {
         try (XContentParser content = createParser(XContentFactory.jsonBuilder()

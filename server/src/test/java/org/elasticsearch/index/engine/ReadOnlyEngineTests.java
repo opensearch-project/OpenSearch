@@ -30,6 +30,9 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.opensearch.index.engine.DocIdSeqNoAndSource;
+import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.engine.TranslogHandler;
 
 import java.io.IOException;
 import java.util.List;

@@ -21,11 +21,11 @@ package org.opensearch.geo;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
 /** Runs yaml rest tests */
-public class GeoClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class GeoClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     public GeoClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -33,6 +33,6 @@ public class GeoClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }

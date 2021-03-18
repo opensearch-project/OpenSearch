@@ -19,7 +19,7 @@
 
 package org.apache.lucene.search.uhighlight;
 
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.text.BreakIterator;
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class BoundedBreakIteratorScannerTests extends ESTestCase {
+public class BoundedBreakIteratorScannerTests extends OpenSearchTestCase {
     private static final String[] WORD_BOUNDARIES =
         new String[] { " ", "  ",  "\t", "#", "\n" };
     private static final String[] SENTENCE_BOUNDARIES =

@@ -30,7 +30,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
+public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
 
     public void testThreadedUpdatesToChildBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);

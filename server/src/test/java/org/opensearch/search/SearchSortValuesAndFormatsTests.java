@@ -23,7 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;

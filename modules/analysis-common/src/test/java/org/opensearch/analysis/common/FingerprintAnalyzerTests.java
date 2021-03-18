@@ -21,9 +21,9 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
-public class FingerprintAnalyzerTests extends ESTokenStreamTestCase {
+public class FingerprintAnalyzerTests extends OpenSearchTokenStreamTestCase {
 
     public void testFingerprint() throws Exception {
         Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255);

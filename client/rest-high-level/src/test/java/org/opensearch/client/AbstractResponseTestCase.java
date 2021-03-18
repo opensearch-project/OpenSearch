@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -39,7 +39,7 @@ import java.io.IOException;
  * @param <S> The class representing the response on the server side.
  * @param <C> The class representing the response on the client side.
  */
-public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends ESTestCase {
+public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends OpenSearchTestCase {
 
     public final void testFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());

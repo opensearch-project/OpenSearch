@@ -21,12 +21,11 @@ package org.opensearch.common;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.FieldMemoryStats;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class FieldMemoryStatsTests extends ESTestCase {
+public class FieldMemoryStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats stats = randomFieldMemoryStats();

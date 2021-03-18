@@ -26,14 +26,14 @@ import org.opensearch.env.Environment;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockHttpTransport;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.MockHttpTransport;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MockNodeTests extends ESTestCase {
+public class MockNodeTests extends OpenSearchTestCase {
     /**
      * Test that we add the appropriate mock services when their plugins are added. This is a very heavy test for a testing component but
      * we've broken it in the past so it is important.

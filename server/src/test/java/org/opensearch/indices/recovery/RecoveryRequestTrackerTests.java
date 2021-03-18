@@ -23,7 +23,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 
 import java.util.Collection;
@@ -31,7 +31,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
-public class RecoveryRequestTrackerTests extends ESTestCase {
+public class RecoveryRequestTrackerTests extends OpenSearchTestCase {
 
 
     private TestThreadPool threadPool;

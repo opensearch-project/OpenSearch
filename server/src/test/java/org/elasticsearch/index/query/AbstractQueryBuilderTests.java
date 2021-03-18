@@ -25,7 +25,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -34,7 +34,7 @@ import java.io.IOException;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class AbstractQueryBuilderTests extends ESTestCase {
+public class AbstractQueryBuilderTests extends OpenSearchTestCase {
 
     private static NamedXContentRegistry xContentRegistry;
 

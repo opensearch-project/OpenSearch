@@ -57,7 +57,7 @@ import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.search.lookup.LeafDocLookup;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,7 +76,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class QueryShardContextTests extends ESTestCase {
+public class QueryShardContextTests extends OpenSearchTestCase {
 
     public void testFailIfFieldMappingNotFound() {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);

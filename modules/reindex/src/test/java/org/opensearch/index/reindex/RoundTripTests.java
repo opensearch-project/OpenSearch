@@ -38,7 +38,7 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,7 +51,7 @@ import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 /**
  * Round trip tests for all {@link Writeable} things declared in this plugin.
  */
-public class RoundTripTests extends ESTestCase {
+public class RoundTripTests extends OpenSearchTestCase {
     public void testReindexRequest() throws IOException {
         ReindexRequest reindex = new ReindexRequest();
         randomRequest(reindex);

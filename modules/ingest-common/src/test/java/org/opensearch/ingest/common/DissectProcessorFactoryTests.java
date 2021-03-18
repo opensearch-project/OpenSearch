@@ -22,7 +22,7 @@ package org.opensearch.ingest.common;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.dissect.DissectException;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.HashMap;
@@ -32,7 +32,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.is;
 
-public class DissectProcessorFactoryTests extends ESTestCase {
+public class DissectProcessorFactoryTests extends OpenSearchTestCase {
 
     public void testCreate() {
         DissectProcessor.Factory factory = new DissectProcessor.Factory();

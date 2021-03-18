@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.opensearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
 

@@ -38,7 +38,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.tasks.TaskCancelledException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchCancellationTests extends ESTestCase {
+public class SearchCancellationTests extends OpenSearchTestCase {
 
     private static final String STRING_FIELD_NAME = "foo";
     private static final String POINT_FIELD_NAME = "point";

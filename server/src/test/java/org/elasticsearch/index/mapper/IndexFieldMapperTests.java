@@ -25,8 +25,8 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 import java.io.IOException;
 import java.util.Collection;
 
-public class IndexFieldMapperTests extends ESSingleNodeTestCase {
+public class IndexFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

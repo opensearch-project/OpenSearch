@@ -26,8 +26,8 @@ import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.util.HashMap;

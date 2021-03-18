@@ -20,7 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

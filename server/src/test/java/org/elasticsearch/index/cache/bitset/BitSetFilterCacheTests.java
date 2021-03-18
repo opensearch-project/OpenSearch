@@ -42,8 +42,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BitSetFilterCacheTests extends ESTestCase {
+public class BitSetFilterCacheTests extends OpenSearchTestCase {
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
 

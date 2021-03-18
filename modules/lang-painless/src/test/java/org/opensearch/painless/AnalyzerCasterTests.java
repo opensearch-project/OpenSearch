@@ -20,9 +20,9 @@
 package org.opensearch.painless;
 
 import org.opensearch.painless.lookup.PainlessCast;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class AnalyzerCasterTests extends ESTestCase {
+public class AnalyzerCasterTests extends OpenSearchTestCase {
 
     private static void assertCast(Class<?> actual, Class<?> expected, boolean mustBeExplicit) {
         Location location = new Location("dummy", 0);

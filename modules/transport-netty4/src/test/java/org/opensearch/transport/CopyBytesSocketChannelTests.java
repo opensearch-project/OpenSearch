@@ -31,7 +31,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.opensearch.common.SuppressForbidden;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class CopyBytesSocketChannelTests extends ESTestCase {
+public class CopyBytesSocketChannelTests extends OpenSearchTestCase {
 
     private final UnpooledByteBufAllocator alloc = new UnpooledByteBufAllocator(false);
     private final AtomicReference<CopyBytesSocketChannel> accepted = new AtomicReference<>();

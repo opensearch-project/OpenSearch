@@ -20,11 +20,10 @@
 package org.opensearch.common;
 
 import org.opensearch.bootstrap.JavaVersion;
-import org.opensearch.common.LocalTimeOffset;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
 import org.opensearch.common.time.DateFormatter;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class LocalTimeOffsetTests extends ESTestCase {
+public class LocalTimeOffsetTests extends OpenSearchTestCase {
     public void testRangeTooLarge() {
         ZoneId zone = ZoneId.of("America/New_York");
         assertThat(LocalTimeOffset.lookup(zone, Long.MIN_VALUE, Long.MAX_VALUE), nullValue());
@@ -70,7 +69,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(lookup.anyMoveBackToPreviousDay(), equalTo(false));
 
         long min = randomLong();
-        long max = randomValueOtherThan(min, ESTestCase::randomLong);
+        long max = randomValueOtherThan(min, OpenSearchTestCase::randomLong);
         if (min > max) {
             long s = min;
             min = max;

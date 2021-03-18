@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.routing.RecoverySource;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class RecoverySourceTests extends ESTestCase {
+public class RecoverySourceTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         RecoverySource recoverySource = TestShardRouting.randomRecoverySource();

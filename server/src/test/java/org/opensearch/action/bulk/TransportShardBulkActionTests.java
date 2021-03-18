@@ -40,7 +40,7 @@ import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
@@ -57,13 +57,6 @@ import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
-import org.opensearch.action.bulk.BulkItemRequest;
-import org.opensearch.action.bulk.BulkItemResponse;
-import org.opensearch.action.bulk.BulkPrimaryExecutionContext;
-import org.opensearch.action.bulk.BulkShardRequest;
-import org.opensearch.action.bulk.BulkShardResponse;
-import org.opensearch.action.bulk.MappingUpdatePerformer;
-import org.opensearch.action.bulk.TransportShardBulkAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -875,7 +868,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             when(shard.shardId()).thenReturn(shardId);
             when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
                 .thenReturn(success1, mappingUpdate, success2);
-            when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong())).thenCallRealMethod();
+            when(shard.getFailedIndexResult(any(OpenSearchRejectedExecutionException.class), anyLong())).thenCallRealMethod();
             when(shard.mapperService()).thenReturn(mock(MapperService.class));
 
             randomlySetIgnoredPrimaryResponse(items[0]);
@@ -924,7 +917,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             assertTrue(primaryResponse2.isFailed());
             assertNull(primaryResponse2.getResponse());
             assertEquals(primaryResponse2.status(), RestStatus.TOO_MANY_REQUESTS);
-            assertThat(primaryResponse2.getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
+            assertThat(primaryResponse2.getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
 
             closeShards(shard);
         } finally {

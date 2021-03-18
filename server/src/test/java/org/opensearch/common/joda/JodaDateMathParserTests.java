@@ -20,11 +20,9 @@
 package org.opensearch.common.joda;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.joda.Joda;
-import org.opensearch.common.joda.JodaDateMathParser;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
@@ -36,7 +34,7 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class JodaDateMathParserTests extends ESTestCase {
+public class JodaDateMathParserTests extends OpenSearchTestCase {
 
     DateFormatter formatter = Joda.forPattern("date_optional_time||epoch_millis");
     DateMathParser parser = formatter.toDateMathParser();

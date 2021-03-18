@@ -22,7 +22,7 @@ package org.opensearch;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class VersionTests extends ESTestCase {
+public class VersionTests extends OpenSearchTestCase {
 
     public void testVersionComparison() throws Exception {
         assertThat(V_6_3_0.before(V_7_0_0), is(true));

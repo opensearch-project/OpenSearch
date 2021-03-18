@@ -21,8 +21,8 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,7 +31,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 import static org.mockito.Mockito.mock;
 
-public class RestIndicesStatsActionTests extends ESTestCase {
+public class RestIndicesStatsActionTests extends OpenSearchTestCase {
 
     private RestIndicesStatsAction action;
 

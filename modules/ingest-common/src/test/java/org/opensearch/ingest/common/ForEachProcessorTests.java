@@ -25,7 +25,7 @@ import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.TestProcessor;
 import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.script.TemplateScript;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,7 +41,7 @@ import java.util.stream.IntStream;
 import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ForEachProcessorTests extends ESTestCase {
+public class ForEachProcessorTests extends OpenSearchTestCase {
 
     public void testExecuteWithAsyncProcessor() throws Exception {
         List<String> values = new ArrayList<>();

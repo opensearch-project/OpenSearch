@@ -63,7 +63,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -77,8 +77,8 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.client.NoOpClient;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -124,7 +124,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class AsyncBulkByScrollActionTests extends ESTestCase {
+public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
     private MyMockClient client;
     private DummyAbstractBulkByScrollRequest testRequest;
     private SearchRequest firstSearchRequest;
@@ -203,7 +203,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.searchAttempts.get()));
         assertBusy(() -> assertTrue(listener.isDone()));
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
-        assertThat(ExceptionsHelper.stackTrace(e), containsString(EsRejectedExecutionException.class.getSimpleName()));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString(OpenSearchRejectedExecutionException.class.getSimpleName()));
         assertNull("There shouldn't be a search attempt pending that we didn't reject", client.lastSearch.get());
         assertEquals(testRequest.getMaxRetries(), testTask.getStatus().getSearchRetries());
     }
@@ -233,7 +233,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertExactlyOnce(
             onFail -> {
                 Consumer<Exception> validingOnFail = e -> {
-                    assertNotNull(ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class));
+                    assertNotNull(ExceptionsHelper.unwrap(e, OpenSearchRejectedExecutionException.class));
                     onFail.run();
                 };
                 ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, buildTestBackoffPolicy(),
@@ -344,7 +344,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 // While we're here we can check that the sleep made it through
                 assertThat(delay.nanos(), greaterThan(0L));
                 assertThat(delay.seconds(), lessThanOrEqualTo(10L));
-                final EsRejectedExecutionException exception = new EsRejectedExecutionException("test");
+                final OpenSearchRejectedExecutionException exception = new OpenSearchRejectedExecutionException("test");
                 if (command instanceof AbstractRunnable) {
                     ((AbstractRunnable) command).onRejection(exception);
                     return null;
@@ -356,7 +356,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), null);
         simulateScrollResponse(new DummyAsyncBulkByScrollAction(), System.nanoTime(), 10, response);
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
-        assertThat(e.getCause(), instanceOf(EsRejectedExecutionException.class));
+        assertThat(e.getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
         assertThat(e.getCause(), hasToString(containsString("test")));
         assertThat(client.scrollsCleared, contains(scrollId));
 
@@ -902,7 +902,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     }
                     if (i == toReject) {
                         responses[i] = new BulkItemResponse(i, item.opType(),
-                                new Failure(response.getIndex(), response.getType(), response.getId(), new EsRejectedExecutionException()));
+                                new Failure(response.getIndex(), response.getType(), response.getId(), new OpenSearchRejectedExecutionException()));
                     } else {
                         responses[i] = new BulkItemResponse(i, item.opType(), response);
                     }
@@ -914,7 +914,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         private Exception wrappedRejectedException() {
-            Exception e = new EsRejectedExecutionException();
+            Exception e = new OpenSearchRejectedExecutionException();
             int wraps = randomIntBetween(0, 4);
             for (int i = 0; i < wraps; i++) {
                 switch (randomIntBetween(0, 2)) {

@@ -68,9 +68,9 @@ import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
-import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.DummyShardLock;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -90,7 +90,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -103,7 +103,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StoreTests extends ESTestCase {
+public class StoreTests extends OpenSearchTestCase {
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build());

@@ -27,7 +27,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -39,11 +39,11 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.MockHttpTransport;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.nio.file.Path;
@@ -55,10 +55,10 @@ import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIA
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
-import static org.elasticsearch.test.NodeRoles.dataNode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.NodeRoles.dataNode;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-public class IndicesServiceCloseTests extends ESTestCase {
+public class IndicesServiceCloseTests extends OpenSearchTestCase {
 
     private Node startNode() throws NodeValidationException {
         final Path tempDir = createTempDir();
@@ -69,7 +69,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
-            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
+            .put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
             .put(dataNode())
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
@@ -149,7 +149,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
         assertAcked(node.client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         node.client().prepareIndex("test", "_doc", "1").setSource(Collections.emptyMap()).get();
-        ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
+        OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
 
@@ -175,7 +175,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)));
         node.client().prepareIndex("test", "_doc", "1").setSource(Collections.singletonMap("foo", 3L)).get();
-        ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
+        OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
 
@@ -210,7 +210,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)));
         node.client().prepareIndex("test", "_doc", "1").setSource(Collections.singletonMap("foo", 3L)).get();
-        ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
+        OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
 
@@ -244,7 +244,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)));
         node.client().prepareIndex("test", "_doc", "1").setSource(Collections.singletonMap("foo", 3L)).get();
-        ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
+        OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
 

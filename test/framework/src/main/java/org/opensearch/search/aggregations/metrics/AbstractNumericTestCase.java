@@ -19,15 +19,15 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
-@ESIntegTestCase.SuiteScopeTestCase
-public abstract class AbstractNumericTestCase extends ESIntegTestCase {
+@OpenSearchIntegTestCase.SuiteScopeTestCase
+public abstract class AbstractNumericTestCase extends OpenSearchIntegTestCase {
     protected static long minValue, maxValue, minValues, maxValues;
 
     @Override

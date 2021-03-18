@@ -25,16 +25,16 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.suggest.term.TermSuggestion.Entry.Option;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class TermSuggestionOptionTests extends ESTestCase {
+public class TermSuggestionOptionTests extends OpenSearchTestCase {
 
     public static Option createTestItem() {
         Text text = new Text(randomAlphaOfLengthBetween(5, 15));

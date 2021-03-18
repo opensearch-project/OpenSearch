@@ -27,7 +27,7 @@ import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResultTests;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfileShardResultTests;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,10 +39,10 @@ import java.util.function.Predicate;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class SearchProfileShardResultsTests  extends ESTestCase {
+public class SearchProfileShardResultsTests  extends OpenSearchTestCase {
 
     public static SearchProfileShardResults createTestItem() {
         int size = rarely() ? 0 : randomIntBetween(1, 2);

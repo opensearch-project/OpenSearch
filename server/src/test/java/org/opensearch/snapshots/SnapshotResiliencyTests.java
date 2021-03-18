@@ -185,8 +185,8 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.disruption.DisruptableMockTransport;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportInterceptor;
@@ -236,7 +236,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-public class SnapshotResiliencyTests extends ESTestCase {
+public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
 

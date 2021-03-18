@@ -23,23 +23,23 @@ import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.Token;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RemoveDuplicatesFilterFactoryTests extends ESTokenStreamTestCase {
+public class RemoveDuplicatesFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
     public void testRemoveDuplicatesFilter() throws IOException {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put("index.analysis.filter.removedups.type", "remove_duplicates")
             .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("removedups");
         assertThat(tokenFilter, instanceOf(RemoveDuplicatesTokenFilterFactory.class));
 

@@ -27,7 +27,7 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
@@ -72,7 +72,7 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
                 };
             });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
-        executor = EsExecutors.newFixed("test", 1, 10, EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        executor = OpenSearchExecutors.newFixed("test", 1, 10, OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
     }
 
     @After

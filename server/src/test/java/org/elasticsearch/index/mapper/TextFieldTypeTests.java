@@ -40,6 +40,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.opensearch.index.mapper.FieldTypeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

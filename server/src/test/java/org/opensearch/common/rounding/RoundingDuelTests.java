@@ -22,17 +22,15 @@ package org.opensearch.common.rounding;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.joda.time.DateTimeZone;
-import org.opensearch.common.rounding.DateTimeUnit;
-import org.opensearch.common.rounding.Rounding;
 
 import java.time.ZoneOffset;
 
 import static org.hamcrest.Matchers.is;
 
-public class RoundingDuelTests extends ESTestCase  {
+public class RoundingDuelTests extends OpenSearchTestCase {
 
     // dont include nano/micro seconds as rounding would become zero then and throw an exception
     private static final String[] ALLOWED_TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};

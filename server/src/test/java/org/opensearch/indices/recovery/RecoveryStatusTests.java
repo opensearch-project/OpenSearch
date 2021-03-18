@@ -24,13 +24,13 @@ import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-public class RecoveryStatusTests extends ESSingleNodeTestCase {
+public class RecoveryStatusTests extends OpenSearchSingleNodeTestCase {
     private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.opensearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
     public void testRenameTempFiles() throws IOException {

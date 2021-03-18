@@ -25,8 +25,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.opensearch.common.Randomness;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.env.Environment;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class KeyStoreWrapperTests extends ESTestCase {
+public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     Environment env;
     List<FileSystem> fileSystems = new ArrayList<>();

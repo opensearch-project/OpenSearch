@@ -23,11 +23,11 @@ import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class CborXContentParserTests extends ESTestCase {
+public class CborXContentParserTests extends OpenSearchTestCase {
     public void testEmptyValue() throws IOException {
         BytesReference ref = BytesReference.bytes(XContentFactory.cborBuilder().startObject().field("field", "").endObject());
 

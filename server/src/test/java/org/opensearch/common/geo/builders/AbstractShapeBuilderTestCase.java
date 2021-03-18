@@ -29,15 +29,15 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?,?,?>> extends ESTestCase {
+public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?,?,?>> extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
@@ -114,6 +114,6 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?,?,?
     protected static <T extends NamedWriteable> T copyShape(T original) throws IOException {
         @SuppressWarnings("unchecked")
         Reader<T> reader = (Reader<T>) namedWriteableRegistry.getReader(ShapeBuilder.class, original.getWriteableName());
-        return ESTestCase.copyWriteable(original, namedWriteableRegistry, reader);
+        return OpenSearchTestCase.copyWriteable(original, namedWriteableRegistry, reader);
     }
 }

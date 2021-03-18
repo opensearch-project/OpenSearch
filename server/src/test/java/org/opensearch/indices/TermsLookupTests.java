@@ -24,13 +24,13 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class TermsLookupTests extends ESTestCase {
+public class TermsLookupTests extends OpenSearchTestCase {
     public void testTermsLookup() {
         String index = randomAlphaOfLengthBetween(1, 10);
         String type = randomAlphaOfLengthBetween(1, 10);

@@ -20,13 +20,11 @@
 package org.opensearch.common.cache;
 
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.cache.Cache;
-import org.opensearch.common.cache.CacheBuilder;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class CacheBuilderTests extends ESTestCase {
+public class CacheBuilderTests extends OpenSearchTestCase {
 
     public void testSettingExpireAfterAccess() {
         IllegalArgumentException iae =

@@ -28,8 +28,8 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.RandomObjects;
+import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.Arrays;

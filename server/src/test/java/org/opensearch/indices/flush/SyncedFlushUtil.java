@@ -24,14 +24,14 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.test.InternalTestCluster;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 
 /** Utils for SyncedFlush */
 public class SyncedFlushUtil {

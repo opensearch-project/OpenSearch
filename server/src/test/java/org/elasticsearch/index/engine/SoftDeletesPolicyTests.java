@@ -25,7 +25,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.common.lease.Releasable;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SoftDeletesPolicyTests extends ESTestCase  {
+public class SoftDeletesPolicyTests extends OpenSearchTestCase {
 
     /**
      * Makes sure we won't advance the retained seq# if the retention lock is held

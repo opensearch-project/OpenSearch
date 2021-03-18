@@ -25,7 +25,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.function.Predicate;

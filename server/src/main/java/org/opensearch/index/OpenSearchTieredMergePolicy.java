@@ -32,12 +32,12 @@ import java.util.Map;
  * {@link TieredMergePolicy#setMaxMergedSegmentMB(double)} on forced merges.
  * See https://issues.apache.org/jira/browse/LUCENE-7976.
  */
-final class EsTieredMergePolicy extends FilterMergePolicy {
+final class OpenSearchTieredMergePolicy extends FilterMergePolicy {
 
     final TieredMergePolicy regularMergePolicy;
     final TieredMergePolicy forcedMergePolicy;
 
-    EsTieredMergePolicy() {
+    OpenSearchTieredMergePolicy() {
         super(new TieredMergePolicy());
         regularMergePolicy = (TieredMergePolicy) in;
         forcedMergePolicy = new TieredMergePolicy();

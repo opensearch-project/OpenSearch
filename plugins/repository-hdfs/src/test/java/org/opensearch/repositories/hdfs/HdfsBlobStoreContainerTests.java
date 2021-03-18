@@ -43,9 +43,9 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 
-import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
-import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.readBlobFully;
-import static org.opensearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.writeBlob;
+import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase.readBlobFully;
+import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase.writeBlob;
 
 @ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
 public class HdfsBlobStoreContainerTests extends OpenSearchTestCase {

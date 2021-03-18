@@ -20,7 +20,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;

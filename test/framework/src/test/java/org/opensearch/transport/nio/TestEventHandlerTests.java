@@ -26,8 +26,8 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.nio.ServerChannelContext;
 import org.opensearch.nio.SocketChannelContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -39,7 +39,7 @@ import java.util.function.LongSupplier;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-public class TestEventHandlerTests extends ESTestCase {
+public class TestEventHandlerTests extends OpenSearchTestCase {
 
     private MockLogAppender appender;
 

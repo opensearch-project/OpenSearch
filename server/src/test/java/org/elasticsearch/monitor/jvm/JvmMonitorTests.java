@@ -20,7 +20,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class JvmMonitorTests extends ESTestCase {
+public class JvmMonitorTests extends OpenSearchTestCase {
 
     private static final JvmGcMonitorService.GcOverheadThreshold IGNORE = new JvmGcMonitorService.GcOverheadThreshold(0, 0, 0);
 

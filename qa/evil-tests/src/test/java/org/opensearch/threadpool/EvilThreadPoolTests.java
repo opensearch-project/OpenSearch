@@ -22,7 +22,7 @@ package org.opensearch.threadpool;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.opensearch.test.OpenSearchTestCase;
@@ -64,14 +64,14 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testExecutionErrorOnDirectExecutorService() throws InterruptedException {
-        final ExecutorService directExecutorService = EsExecutors.newDirectExecutorService();
+        final ExecutorService directExecutorService = OpenSearchExecutors.newDirectExecutorService();
         checkExecutionError(getExecuteRunner(directExecutorService));
         checkExecutionError(getSubmitRunner(directExecutorService));
     }
 
     public void testExecutionErrorOnFixedESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed("test", 1, 1,
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        final EsThreadPoolExecutor fixedExecutor = OpenSearchExecutors.newFixed("test", 1, 1,
+            OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
         try {
             checkExecutionError(getExecuteRunner(fixedExecutor));
             checkExecutionError(getSubmitRunner(fixedExecutor));
@@ -81,8 +81,8 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testExecutionErrorOnScalingESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling("test", 1, 1,
-            10, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        final EsThreadPoolExecutor scalingExecutor = OpenSearchExecutors.newScaling("test", 1, 1,
+            10, TimeUnit.SECONDS, OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
         try {
             checkExecutionError(getExecuteRunner(scalingExecutor));
             checkExecutionError(getSubmitRunner(scalingExecutor));
@@ -92,8 +92,8 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testExecutionErrorOnAutoQueueFixedESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor autoQueueFixedExecutor = EsExecutors.newAutoQueueFixed("test", 1, 1,
-            1, 1, 1, TimeValue.timeValueSeconds(10), EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        final EsThreadPoolExecutor autoQueueFixedExecutor = OpenSearchExecutors.newAutoQueueFixed("test", 1, 1,
+            1, 1, 1, TimeValue.timeValueSeconds(10), OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
         try {
             checkExecutionError(getExecuteRunner(autoQueueFixedExecutor));
             checkExecutionError(getSubmitRunner(autoQueueFixedExecutor));
@@ -103,8 +103,8 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testExecutionErrorOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
-        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing("test",
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
+        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = OpenSearchExecutors.newSinglePrioritizing("test",
+            OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
         try {
             checkExecutionError(getExecuteRunner(prioritizedExecutor));
             checkExecutionError(getSubmitRunner(prioritizedExecutor));
@@ -173,14 +173,14 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testExecutionExceptionOnDirectExecutorService() throws InterruptedException {
-        final ExecutorService directExecutorService = EsExecutors.newDirectExecutorService();
+        final ExecutorService directExecutorService = OpenSearchExecutors.newDirectExecutorService();
         checkExecutionException(getExecuteRunner(directExecutorService), true);
         checkExecutionException(getSubmitRunner(directExecutorService), false);
     }
 
     public void testExecutionExceptionOnFixedESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed("test", 1, 1,
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        final EsThreadPoolExecutor fixedExecutor = OpenSearchExecutors.newFixed("test", 1, 1,
+            OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
         try {
             checkExecutionException(getExecuteRunner(fixedExecutor), true);
             checkExecutionException(getSubmitRunner(fixedExecutor), false);
@@ -190,8 +190,8 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testExecutionExceptionOnScalingESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling("test", 1, 1,
-            10, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        final EsThreadPoolExecutor scalingExecutor = OpenSearchExecutors.newScaling("test", 1, 1,
+            10, TimeUnit.SECONDS, OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
         try {
             checkExecutionException(getExecuteRunner(scalingExecutor), true);
             checkExecutionException(getSubmitRunner(scalingExecutor), false);
@@ -201,8 +201,8 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testExecutionExceptionOnAutoQueueFixedESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor autoQueueFixedExecutor = EsExecutors.newAutoQueueFixed("test", 1, 1,
-            1, 1, 1, TimeValue.timeValueSeconds(10), EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        final EsThreadPoolExecutor autoQueueFixedExecutor = OpenSearchExecutors.newAutoQueueFixed("test", 1, 1,
+            1, 1, 1, TimeValue.timeValueSeconds(10), OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
         try {
             // fixed_auto_queue_size wraps stuff into TimedRunnable, which is an AbstractRunnable
             checkExecutionException(getExecuteRunner(autoQueueFixedExecutor), true);
@@ -213,8 +213,8 @@ public class EvilThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testExecutionExceptionOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
-        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing("test",
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
+        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = OpenSearchExecutors.newSinglePrioritizing("test",
+            OpenSearchExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
         try {
             checkExecutionException(getExecuteRunner(prioritizedExecutor), true);
             checkExecutionException(getSubmitRunner(prioritizedExecutor), false);

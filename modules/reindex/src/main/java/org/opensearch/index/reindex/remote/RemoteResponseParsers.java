@@ -25,7 +25,7 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ObjectParser.ValueType;
@@ -242,7 +242,7 @@ final class RemoteResponseParsers {
             switch (type) {
             // Make some effort to use the right exceptions
             case "es_rejected_execution_exception":
-                return new EsRejectedExecutionException(reason);
+                return new OpenSearchRejectedExecutionException(reason);
             case "parsing_exception":
                 XContentLocation location = null;
                 if (line != null && column != null) {

@@ -36,8 +36,8 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,7 +52,7 @@ import java.util.function.Predicate;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class IndicesModuleTests extends ESTestCase {
+public class IndicesModuleTests extends OpenSearchTestCase {
 
     private static class FakeMapperParser implements Mapper.TypeParser {
         @Override

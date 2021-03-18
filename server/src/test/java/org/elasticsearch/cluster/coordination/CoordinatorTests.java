@@ -51,7 +51,7 @@ import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.zen.PublishClusterStateStats;
 import org.opensearch.gateway.GatewayService;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.MockLogAppender;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.cluster.coordination.DetachClusterCommand;
 import org.opensearch.cluster.coordination.FollowersChecker;
 import org.opensearch.cluster.coordination.JoinHelper;
@@ -90,7 +90,7 @@ import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SH
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;

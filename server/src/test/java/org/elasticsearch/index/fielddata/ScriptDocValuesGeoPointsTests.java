@@ -22,12 +22,12 @@ package org.elasticsearch.index.fielddata;
 import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class ScriptDocValuesGeoPointsTests extends ESTestCase {
+public class ScriptDocValuesGeoPointsTests extends OpenSearchTestCase {
 
     private static MultiGeoPointValues wrap(GeoPoint[][] points) {
         return new MultiGeoPointValues() {

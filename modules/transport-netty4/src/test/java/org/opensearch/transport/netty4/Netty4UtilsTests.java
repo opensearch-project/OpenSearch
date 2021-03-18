@@ -31,11 +31,11 @@ import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class Netty4UtilsTests extends ESTestCase {
+public class Netty4UtilsTests extends OpenSearchTestCase {
 
     private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
     private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);

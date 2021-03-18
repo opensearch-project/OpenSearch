@@ -28,8 +28,8 @@ import org.elasticsearch.ingest.IngestStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.MockScriptPlugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,8 +45,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // Ideally I like this test to live in the server module, but otherwise a large part of the ScriptProcessor
 // ends up being copied into this test.
-@ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
-public class IngestRestartIT extends ESIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
+public class IngestRestartIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -20,7 +20,7 @@
 package org.opensearch.script;
 
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class ScriptLanguagesInfoTests extends ESTestCase {
+public class ScriptLanguagesInfoTests extends OpenSearchTestCase {
     public void testEmptyTypesAllowedReturnsAllTypes() {
         ScriptService ss = getMockScriptService(Settings.EMPTY);
         ScriptLanguagesInfo info = ss.getScriptLanguages();

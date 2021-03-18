@@ -25,7 +25,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.StartPersistentTaskAction.Request;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
 

@@ -20,8 +20,6 @@
 package org.opensearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.opensearch.client.core.MainResponse;
 
 import java.io.IOException;

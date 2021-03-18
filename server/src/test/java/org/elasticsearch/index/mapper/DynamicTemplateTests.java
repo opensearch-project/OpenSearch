@@ -25,13 +25,13 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DynamicTemplateTests extends ESTestCase {
+public class DynamicTemplateTests extends OpenSearchTestCase {
 
     public void testParseUnknownParam() throws Exception {
         Map<String, Object> templateDef = new HashMap<>();

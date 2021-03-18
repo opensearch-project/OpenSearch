@@ -21,16 +21,16 @@ package org.opensearch.nio;
 
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.function.Consumer;
 
-import static org.opensearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 import static org.mockito.Mockito.mock;
 
-public class NioSelectorGroupTests extends ESTestCase {
+public class NioSelectorGroupTests extends OpenSearchTestCase {
 
     private NioSelectorGroup nioGroup;
 

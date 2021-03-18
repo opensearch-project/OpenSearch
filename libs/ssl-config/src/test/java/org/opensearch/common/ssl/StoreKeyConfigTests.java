@@ -19,7 +19,7 @@
 
 package org.opensearch.common.ssl;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StoreKeyConfigTests extends ESTestCase {
+public class StoreKeyConfigTests extends OpenSearchTestCase {
 
     private static final int IP_NAME = 7;
     private static final int DNS_NAME = 2;

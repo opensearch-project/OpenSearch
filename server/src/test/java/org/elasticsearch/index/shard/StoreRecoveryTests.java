@@ -49,7 +49,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -62,7 +62,7 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class StoreRecoveryTests extends ESTestCase {
+public class StoreRecoveryTests extends OpenSearchTestCase {
 
     public void testAddIndices() throws IOException {
         Directory[] dirs = new Directory[randomIntBetween(1, 10)];

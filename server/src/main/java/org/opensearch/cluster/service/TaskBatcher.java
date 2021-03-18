@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 
 import java.util.ArrayList;
@@ -53,7 +53,7 @@ public abstract class TaskBatcher {
         this.threadExecutor = threadExecutor;
     }
 
-    public void submitTasks(List<? extends BatchedTask> tasks, @Nullable TimeValue timeout) throws EsRejectedExecutionException {
+    public void submitTasks(List<? extends BatchedTask> tasks, @Nullable TimeValue timeout) throws OpenSearchRejectedExecutionException {
         if (tasks.isEmpty()) {
             return;
         }

@@ -22,7 +22,7 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -88,7 +88,7 @@ public class BulkRejectionIT extends OpenSearchIntegTestCase {
         try {
             bulkFuture1.actionGet();
             bulkFuture2.actionGet();
-        } catch (EsRejectedExecutionException e) {
+        } catch (OpenSearchRejectedExecutionException e) {
             // ignored, one of the two bulk requests was rejected outright due to the write queue being full
         }
         internalCluster().assertSeqNos();

@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class XContentFactoryTests extends ESTestCase {
+public class XContentFactoryTests extends OpenSearchTestCase {
     public void testGuessJson() throws IOException {
         testGuessType(XContentType.JSON);
     }

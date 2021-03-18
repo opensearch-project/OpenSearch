@@ -46,7 +46,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.CharArrayReader;
 import java.io.IOException;
@@ -59,7 +59,7 @@ import static org.opensearch.search.suggest.phrase.NoisyChannelSpellChecker.REAL
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class NoisyChannelSpellCheckerTests extends ESTestCase {
+public class NoisyChannelSpellCheckerTests extends OpenSearchTestCase {
     private final BytesRef space = new BytesRef(" ");
     private final BytesRef preTag = new BytesRef("<em>");
     private final BytesRef postTag = new BytesRef("</em>");

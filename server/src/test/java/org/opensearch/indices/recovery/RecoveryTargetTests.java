@@ -34,7 +34,7 @@ import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Timer;
 import org.elasticsearch.indices.recovery.RecoveryState.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState.VerifyIndex;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class RecoveryTargetTests extends ESTestCase {
+public class RecoveryTargetTests extends OpenSearchTestCase {
     abstract class Streamer<T extends Writeable> extends Thread {
         private T lastRead;
         private final AtomicBoolean shouldStop;

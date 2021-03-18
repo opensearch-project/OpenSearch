@@ -22,13 +22,12 @@ package org.opensearch.common.unit;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DistanceUnitTests extends ESTestCase {
+public class DistanceUnitTests extends OpenSearchTestCase {
     public void testSimpleDistanceUnit() {
         assertThat(DistanceUnit.KILOMETERS.convert(10, DistanceUnit.MILES), closeTo(16.09344, 0.001));
         assertThat(DistanceUnit.MILES.convert(10, DistanceUnit.MILES), closeTo(10, 0.001));

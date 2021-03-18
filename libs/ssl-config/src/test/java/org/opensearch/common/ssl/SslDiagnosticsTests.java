@@ -20,7 +20,7 @@
 package org.opensearch.common.ssl;
 
 import org.opensearch.common.Nullable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 
@@ -43,7 +43,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class SslDiagnosticsTests extends ESTestCase {
+public class SslDiagnosticsTests extends OpenSearchTestCase {
 
     // Some constants for use in mock certificates
     private static final byte[] MOCK_ENCODING_1 = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66 };

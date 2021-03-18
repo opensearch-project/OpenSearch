@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.node;
 
 import org.opensearch.common.settings.Setting;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 
@@ -31,7 +31,7 @@ import java.util.HashSet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
-public class DiscoveryNodeRoleTests extends ESTestCase {
+public class DiscoveryNodeRoleTests extends OpenSearchTestCase {
 
     public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNames() {
         final IllegalStateException e = expectThrows(

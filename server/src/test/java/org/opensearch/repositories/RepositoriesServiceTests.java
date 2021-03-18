@@ -51,7 +51,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RepositoriesServiceTests extends ESTestCase {
+public class RepositoriesServiceTests extends OpenSearchTestCase {
 
     private RepositoriesService repositoriesService;
 

@@ -27,7 +27,7 @@ import java.util.Map;
 import org.opensearch.cli.Command;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
-import org.elasticsearch.env.Environment;
+import org.opensearch.env.Environment;
 
 import static org.hamcrest.Matchers.containsString;
 

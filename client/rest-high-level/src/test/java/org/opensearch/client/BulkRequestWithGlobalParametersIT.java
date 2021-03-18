@@ -19,7 +19,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.client.RequestOptions;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
@@ -31,10 +30,10 @@ import org.opensearch.search.SearchHit;
 import java.io.IOException;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasIndex;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasType;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasIndex;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasProperty;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasType;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;

@@ -23,6 +23,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.SpatialStrategy;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
+import org.opensearch.index.mapper.FieldTypeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

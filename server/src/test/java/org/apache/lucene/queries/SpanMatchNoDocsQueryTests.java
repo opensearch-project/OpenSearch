@@ -36,11 +36,11 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class SpanMatchNoDocsQueryTests extends ESTestCase {
+public class SpanMatchNoDocsQueryTests extends OpenSearchTestCase {
     public void testSimple() throws Exception {
         SpanMatchNoDocsQuery query = new SpanMatchNoDocsQuery("field", "a good reason");
         assertEquals(query.toString(), "SpanMatchNoDocsQuery(\"a good reason\")");

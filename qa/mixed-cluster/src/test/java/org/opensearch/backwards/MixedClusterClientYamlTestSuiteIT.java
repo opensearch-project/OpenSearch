@@ -23,10 +23,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
-public class MixedClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class MixedClusterClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     public MixedClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

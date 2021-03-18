@@ -21,11 +21,7 @@ package org.opensearch.common.time;
 
 import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.joda.Joda;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.time.DateFormatters;
-import org.opensearch.common.time.FormatNames;
-import org.opensearch.common.time.JavaDateFormatter;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -44,7 +40,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class DateFormattersTests extends ESTestCase {
+public class DateFormattersTests extends OpenSearchTestCase {
 
     public void testWeekBasedDates() {
         assumeFalse("won't work in jdk8 " +

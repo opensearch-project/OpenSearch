@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Tests for the {@link RepositoryData} class.
  */
-public class RepositoryDataTests extends ESTestCase {
+public class RepositoryDataTests extends OpenSearchTestCase {
 
     public void testEqualsAndHashCode() {
         RepositoryData repositoryData1 = generateRandomRepoData();

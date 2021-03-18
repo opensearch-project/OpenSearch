@@ -47,7 +47,7 @@ import org.opensearch.ingest.Pipeline;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchModule;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class OpenSearchRestHighLevelClientTestCase extends ESRestTestCase {
+public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRestTestCase {
 
     protected static final String CONFLICT_PIPELINE_ID = "conflict_pipeline";
 

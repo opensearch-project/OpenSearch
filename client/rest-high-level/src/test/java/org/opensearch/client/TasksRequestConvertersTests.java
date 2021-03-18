@@ -21,11 +21,10 @@ package org.opensearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.client.Request;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.client.tasks.CancelTasksRequest;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,7 +33,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TasksRequestConvertersTests extends ESTestCase {
+public class TasksRequestConvertersTests extends OpenSearchTestCase {
 
     public void testCancelTasks() {
         Map<String, String> expectedParams = new HashMap<>();

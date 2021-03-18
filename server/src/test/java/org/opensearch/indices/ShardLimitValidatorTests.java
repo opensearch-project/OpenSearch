@@ -33,7 +33,7 @@ import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Optional;
@@ -46,7 +46,7 @@ import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ShardLimitValidatorTests extends ESTestCase {
+public class ShardLimitValidatorTests extends OpenSearchTestCase {
 
     public void testOverShardLimit() {
         int nodesInCluster = randomIntBetween(1, 90);

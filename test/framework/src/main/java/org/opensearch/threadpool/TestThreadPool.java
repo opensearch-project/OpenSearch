@@ -20,7 +20,7 @@
 package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.node.Node;
 
 import java.util.concurrent.CountDownLatch;
@@ -84,8 +84,8 @@ public class TestThreadPool extends ThreadPool {
         if (rejectingExecutor != null) {
             return;
         }
-        ThreadFactory factory = EsExecutors.daemonThreadFactory("reject_thread");
-        rejectingExecutor = EsExecutors.newFixed("rejecting", 1, 0, factory, getThreadContext());
+        ThreadFactory factory = OpenSearchExecutors.daemonThreadFactory("reject_thread");
+        rejectingExecutor = OpenSearchExecutors.newFixed("rejecting", 1, 0, factory, getThreadContext());
 
         CountDownLatch startedLatch = new CountDownLatch(1);
         rejectingExecutor.execute(() -> {

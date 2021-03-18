@@ -25,7 +25,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.function.Predicate;

@@ -26,17 +26,17 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.metadata.Manifest;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ManifestTests extends ESTestCase {
+public class ManifestTests extends OpenSearchTestCase {
 
     private Manifest copyState(Manifest state, boolean introduceErrors) {
         long currentTerm = state.getCurrentTerm();

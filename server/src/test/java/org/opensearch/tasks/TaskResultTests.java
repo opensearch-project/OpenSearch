@@ -28,7 +28,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,7 +40,7 @@ import static org.opensearch.tasks.TaskInfoTests.randomTaskInfo;
 /**
  * Round trip tests for {@link TaskResult} and those classes that it includes like {@link TaskInfo} and {@link RawTaskStatus}.
  */
-public class TaskResultTests extends ESTestCase {
+public class TaskResultTests extends OpenSearchTestCase {
     public void testBinaryRoundTrip() throws IOException {
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(
             new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new)));

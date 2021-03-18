@@ -27,8 +27,8 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.analysis.AnalyzerComponents.createComponents;
 
-public class ReloadableCustomAnalyzerTests extends ESTestCase {
+public class ReloadableCustomAnalyzerTests extends OpenSearchTestCase {
 
     private static TestAnalysis testAnalysis;
     private static Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();

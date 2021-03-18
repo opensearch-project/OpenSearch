@@ -36,7 +36,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.internal.io.Streams;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -55,7 +55,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class OutboundHandlerTests extends ESTestCase {
+public class OutboundHandlerTests extends OpenSearchTestCase {
 
     private final String feature1 = "feature1";
     private final String feature2 = "feature2";

@@ -24,13 +24,13 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
+public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
     public void testNullValueObject() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("obj1").field("type", "object").endObject().endObject()

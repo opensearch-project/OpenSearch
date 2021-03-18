@@ -19,15 +19,14 @@
 
 package org.opensearch.common.collect;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.collect.CopyOnWriteHashMap;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 
-public class CopyOnWriteHashMapTests extends ESTestCase {
+public class CopyOnWriteHashMapTests extends OpenSearchTestCase {
 
     private static class O {
 

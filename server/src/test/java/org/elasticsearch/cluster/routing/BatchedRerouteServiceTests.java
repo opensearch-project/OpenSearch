@@ -28,8 +28,8 @@ import org.opensearch.cluster.routing.BatchedRerouteService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Randomness;
-import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.ClusterServiceUtils;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -48,7 +48,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.lessThan;
 
-public class BatchedRerouteServiceTests extends ESTestCase {
+public class BatchedRerouteServiceTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;

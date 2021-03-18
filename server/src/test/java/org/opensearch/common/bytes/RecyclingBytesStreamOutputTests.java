@@ -24,7 +24,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +32,7 @@ import java.nio.charset.StandardCharsets;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class RecyclingBytesStreamOutputTests extends ESTestCase {
+public class RecyclingBytesStreamOutputTests extends OpenSearchTestCase {
 
     public void testReturnsWrittenBytesAndRecyclesBufferIfPossible() throws IOException {
 

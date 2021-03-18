@@ -40,11 +40,11 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class PrunePostingsMergePolicyTests extends ESTestCase {
+public class PrunePostingsMergePolicyTests extends OpenSearchTestCase {
 
     public void testPrune() throws IOException {
         try (Directory dir = newDirectory()) {

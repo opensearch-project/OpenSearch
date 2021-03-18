@@ -23,8 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class CollectionUtilsTests extends ESTestCase {
+public class CollectionUtilsTests extends OpenSearchTestCase {
     public void testRotateEmpty() {
         assertTrue(CollectionUtils.rotate(Collections.emptyList(), randomInt()).isEmpty());
     }

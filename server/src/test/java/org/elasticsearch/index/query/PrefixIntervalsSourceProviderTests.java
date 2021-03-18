@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 

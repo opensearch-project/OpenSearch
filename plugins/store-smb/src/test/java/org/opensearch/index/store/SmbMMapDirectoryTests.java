@@ -24,7 +24,7 @@ import java.nio.file.Path;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 
-public class SmbMMapDirectoryTests extends EsBaseDirectoryTestCase {
+public class SmbMMapDirectoryTests extends OpenSearchBaseDirectoryTestCase {
 
     @Override
     protected Directory getDirectory(Path file) throws IOException {

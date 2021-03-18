@@ -35,7 +35,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,11 +43,11 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class DiscountedCumulativeGainTests extends ESTestCase {
+public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
 
     static final double EXPECTED_DCG = 13.84826362927298;
     static final double EXPECTED_IDCG = 14.595390756454922;
@@ -312,7 +312,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         DiscountedCumulativeGain original = createTestItem();
-        DiscountedCumulativeGain deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+        DiscountedCumulativeGain deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
                 DiscountedCumulativeGain::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());

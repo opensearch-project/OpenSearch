@@ -40,7 +40,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

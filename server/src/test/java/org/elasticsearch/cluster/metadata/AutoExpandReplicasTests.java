@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
-public class AutoExpandReplicasTests extends ESTestCase {
+public class AutoExpandReplicasTests extends OpenSearchTestCase {
 
     public void testParseSettings() {
         AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING

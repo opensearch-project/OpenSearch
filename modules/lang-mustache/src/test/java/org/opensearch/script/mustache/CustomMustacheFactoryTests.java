@@ -22,7 +22,7 @@ package org.opensearch.script.mustache;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.TemplateScript;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
 
@@ -34,7 +34,7 @@ import static org.opensearch.script.mustache.CustomMustacheFactory.X_WWW_FORM_UR
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CustomMustacheFactoryTests extends ESTestCase {
+public class CustomMustacheFactoryTests extends OpenSearchTestCase {
 
     public void testCreateEncoder() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder(null));

@@ -24,7 +24,7 @@ import java.nio.file.Path;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
 
-public class SmbSimpleFSDirectoryTests extends EsBaseDirectoryTestCase {
+public class SmbSimpleFSDirectoryTests extends OpenSearchBaseDirectoryTestCase {
 
     @Override
     protected Directory getDirectory(Path file) throws IOException {

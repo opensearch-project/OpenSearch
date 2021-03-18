@@ -37,7 +37,7 @@ import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;

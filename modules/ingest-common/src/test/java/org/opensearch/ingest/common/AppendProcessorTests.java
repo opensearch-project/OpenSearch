@@ -26,7 +26,7 @@ import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,7 +44,7 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class AppendProcessorTests extends ESTestCase {
+public class AppendProcessorTests extends OpenSearchTestCase {
 
     public void testAppendValuesToExistingList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());

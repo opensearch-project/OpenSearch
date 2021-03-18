@@ -30,7 +30,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -41,7 +41,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ScriptTests extends ESTestCase {
+public class ScriptTests extends OpenSearchTestCase {
 
     public void testScriptParsing() throws IOException {
         Script expectedScript = createScript();

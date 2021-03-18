@@ -18,15 +18,13 @@
  */
 package org.opensearch.common.geo;
 
-import org.opensearch.common.geo.GeoJson;
-import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.hamcrest.OpenSearchGeoAssertions;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.spatial4j.shape.Shape;
@@ -42,7 +40,7 @@ import java.util.List;
 import static org.opensearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
 
 /** Base class for all geo parsing tests */
-abstract class BaseGeoParsingTestCase extends ESTestCase {
+abstract class BaseGeoParsingTestCase extends OpenSearchTestCase {
     protected static final GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 
     public abstract void testParsePoint() throws IOException, ParseException;
@@ -57,7 +55,7 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
     protected void assertValidException(XContentBuilder builder, Class<?> expectedException) throws IOException {
         try (XContentParser parser = createParser(builder)) {
             parser.nextToken();
-            ElasticsearchGeoAssertions.assertValidException(parser, expectedException);
+            OpenSearchGeoAssertions.assertValidException(parser, expectedException);
         }
     }
 
@@ -65,12 +63,12 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
         try (XContentParser parser = createParser(geoJson)) {
             parser.nextToken();
             if (useJTS) {
-                ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildS4J());
+                OpenSearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildS4J());
             } else {
                 GeometryParser geometryParser = new GeometryParser(true, true, true);
                 org.opensearch.geometry.Geometry shape = geometryParser.parse(parser);
                 shape = new GeoShapeIndexer(true, "name").prepareForIndexing(shape);
-                ElasticsearchGeoAssertions.assertEquals(expected, shape);
+                OpenSearchGeoAssertions.assertEquals(expected, shape);
             }
         }
     }

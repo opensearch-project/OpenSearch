@@ -25,7 +25,7 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

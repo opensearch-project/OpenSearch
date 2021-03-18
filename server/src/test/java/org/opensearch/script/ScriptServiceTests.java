@@ -33,7 +33,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ScriptServiceTests extends ESTestCase {
+public class ScriptServiceTests extends OpenSearchTestCase {
 
     private ScriptEngine scriptEngine;
     private Map<String, ScriptEngine> engines;

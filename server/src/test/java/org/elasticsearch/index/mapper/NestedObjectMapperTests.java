@@ -32,9 +32,9 @@ import org.opensearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NestedObjectMapperTests extends ESSingleNodeTestCase {
+public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

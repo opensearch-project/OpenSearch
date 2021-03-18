@@ -19,8 +19,7 @@
 
 package org.opensearch.common.util.iterable;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.iterable.Iterables;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,7 +29,7 @@ import java.util.NoSuchElementException;
 
 import static org.hamcrest.object.HasToString.hasToString;
 
-public class IterablesTests extends ESTestCase {
+public class IterablesTests extends OpenSearchTestCase {
     public void testGetOverList() {
         test(Arrays.asList("a", "b", "c"));
     }

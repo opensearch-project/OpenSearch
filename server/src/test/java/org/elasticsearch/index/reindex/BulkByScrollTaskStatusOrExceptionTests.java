@@ -23,7 +23,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollTask.StatusOrException;
 
 import java.io.IOException;

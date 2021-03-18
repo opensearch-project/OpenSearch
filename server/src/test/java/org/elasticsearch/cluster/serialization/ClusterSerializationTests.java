@@ -47,7 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;

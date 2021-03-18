@@ -22,9 +22,9 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.opensearch.cluster.coordination.ApplyCommitRequest;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.Join;
@@ -38,7 +38,7 @@ import org.opensearch.cluster.coordination.StartJoinRequest;
 
 import java.util.Optional;
 
-public class MessagesTests extends ESTestCase {
+public class MessagesTests extends OpenSearchTestCase {
 
     private DiscoveryNode createNode(String id) {
         return new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT);
@@ -64,18 +64,18 @@ public class MessagesTests extends ESTestCase {
                     case 2:
                         // change term
                         return new Join(join.getSourceNode(), join.getTargetNode(),
-                            randomValueOtherThan(join.getTerm(), ESTestCase::randomNonNegativeLong), join.getLastAcceptedTerm(),
+                            randomValueOtherThan(join.getTerm(), OpenSearchTestCase::randomNonNegativeLong), join.getLastAcceptedTerm(),
                             join.getLastAcceptedVersion());
                     case 3:
                         // change last accepted term
                         return new Join(join.getSourceNode(), join.getTargetNode(), join.getTerm(),
-                            randomValueOtherThan(join.getLastAcceptedTerm(), ESTestCase::randomNonNegativeLong),
+                            randomValueOtherThan(join.getLastAcceptedTerm(), OpenSearchTestCase::randomNonNegativeLong),
                             join.getLastAcceptedVersion());
                     case 4:
                         // change version
                         return new Join(join.getSourceNode(), join.getTargetNode(),
                             join.getTerm(), join.getLastAcceptedTerm(),
-                            randomValueOtherThan(join.getLastAcceptedVersion(), ESTestCase::randomNonNegativeLong));
+                            randomValueOtherThan(join.getLastAcceptedVersion(), OpenSearchTestCase::randomNonNegativeLong));
                     default:
                         throw new AssertionError();
                 }
@@ -98,12 +98,12 @@ public class MessagesTests extends ESTestCase {
                 switch (randomInt(1)) {
                     case 0:
                         // change term
-                        return new PublishResponse(randomValueOtherThan(publishResponse.getTerm(), ESTestCase::randomNonNegativeLong),
+                        return new PublishResponse(randomValueOtherThan(publishResponse.getTerm(), OpenSearchTestCase::randomNonNegativeLong),
                             publishResponse.getVersion());
                     case 1:
                         // change version
                         return new PublishResponse(publishResponse.getTerm(),
-                            randomValueOtherThan(publishResponse.getVersion(), ESTestCase::randomNonNegativeLong));
+                            randomValueOtherThan(publishResponse.getVersion(), OpenSearchTestCase::randomNonNegativeLong));
                     default:
                         throw new AssertionError();
                 }
@@ -153,7 +153,7 @@ public class MessagesTests extends ESTestCase {
                     case 1:
                         // change term
                         return new StartJoinRequest(startJoinRequest.getSourceNode(),
-                            randomValueOtherThan(startJoinRequest.getTerm(), ESTestCase::randomNonNegativeLong));
+                            randomValueOtherThan(startJoinRequest.getTerm(), OpenSearchTestCase::randomNonNegativeLong));
                     default:
                         throw new AssertionError();
                 }
@@ -174,11 +174,11 @@ public class MessagesTests extends ESTestCase {
                     case 1:
                         // change term
                         return new ApplyCommitRequest(applyCommit.getSourceNode(),
-                            randomValueOtherThan(applyCommit.getTerm(), ESTestCase::randomNonNegativeLong), applyCommit.getVersion());
+                            randomValueOtherThan(applyCommit.getTerm(), OpenSearchTestCase::randomNonNegativeLong), applyCommit.getVersion());
                     case 2:
                         // change version
                         return new ApplyCommitRequest(applyCommit.getSourceNode(), applyCommit.getTerm(),
-                            randomValueOtherThan(applyCommit.getVersion(), ESTestCase::randomNonNegativeLong));
+                            randomValueOtherThan(applyCommit.getVersion(), OpenSearchTestCase::randomNonNegativeLong));
                     default:
                         throw new AssertionError();
                 }
@@ -199,7 +199,7 @@ public class MessagesTests extends ESTestCase {
                         joinRequest.getMinimumTerm(), joinRequest.getOptionalJoin());
                 } else if (randomBoolean()) {
                     return new JoinRequest(joinRequest.getSourceNode(),
-                        randomValueOtherThan(joinRequest.getMinimumTerm(), ESTestCase::randomNonNegativeLong),
+                        randomValueOtherThan(joinRequest.getMinimumTerm(), OpenSearchTestCase::randomNonNegativeLong),
                         joinRequest.getOptionalJoin());
                 } else {
                     // change OptionalJoin
@@ -263,7 +263,7 @@ public class MessagesTests extends ESTestCase {
                         return new PreVoteResponse(
                             preVoteResponse.getCurrentTerm(),
                             preVoteResponse.getLastAcceptedTerm(),
-                            randomValueOtherThan(preVoteResponse.getLastAcceptedVersion(), ESTestCase::randomNonNegativeLong));
+                            randomValueOtherThan(preVoteResponse.getLastAcceptedVersion(), OpenSearchTestCase::randomNonNegativeLong));
                     default:
                         throw new AssertionError();
                 }

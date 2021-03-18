@@ -19,8 +19,7 @@
 
 package org.opensearch.common;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.Table;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.Map;
@@ -28,7 +27,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class TableTests extends ESTestCase {
+public class TableTests extends OpenSearchTestCase {
 
     public void testFailOnStartRowWithoutHeader() {
         Table table = new Table();

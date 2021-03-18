@@ -22,12 +22,12 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
 
-public class TypeFieldTypeTests extends ESTestCase {
+public class TypeFieldTypeTests extends OpenSearchTestCase {
 
     public void testTermsQuery() {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);

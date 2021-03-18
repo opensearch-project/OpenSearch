@@ -28,7 +28,7 @@ import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -38,7 +38,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class URLRepositoryTests extends ESTestCase {
+public class URLRepositoryTests extends OpenSearchTestCase {
 
     private URLRepository createRepository(Settings baseSettings, RepositoryMetadata repositoryMetadata) {
         return new URLRepository(repositoryMetadata, TestEnvironment.newEnvironment(baseSettings),

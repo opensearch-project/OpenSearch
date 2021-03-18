@@ -24,13 +24,13 @@ import org.opensearch.client.TimedRequest;
 import org.opensearch.client.ValidationException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CloseIndexRequestTests extends ESTestCase {
+public class CloseIndexRequestTests extends OpenSearchTestCase {
 
     public void testIndices() {
         String[] indices = generateRandomStringArray(5, 5, false, true);

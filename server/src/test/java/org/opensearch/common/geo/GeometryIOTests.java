@@ -27,12 +27,12 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
 import org.opensearch.geometry.ShapeType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.geo.GeometryTestUtils.randomGeometry;
 import static org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor.geometryToShapeBuilder;
 
-public class GeometryIOTests extends ESTestCase {
+public class GeometryIOTests extends OpenSearchTestCase {
 
     public void testRandomSerialization() throws Exception {
         for (int i = 0; i < randomIntBetween(1, 20); i++) {

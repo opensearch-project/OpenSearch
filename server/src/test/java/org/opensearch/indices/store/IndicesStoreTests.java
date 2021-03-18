@@ -26,7 +26,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -36,7 +36,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-public class IndicesStoreTests extends ESTestCase {
+public class IndicesStoreTests extends OpenSearchTestCase {
     private static final ShardRoutingState[] NOT_STARTED_STATES;
 
     static {

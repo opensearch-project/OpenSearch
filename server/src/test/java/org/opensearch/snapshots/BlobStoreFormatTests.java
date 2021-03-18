@@ -36,7 +36,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -45,7 +45,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class BlobStoreFormatTests extends ESTestCase {
+public class BlobStoreFormatTests extends OpenSearchTestCase {
 
     public static final String BLOB_CODEC = "blob";
 

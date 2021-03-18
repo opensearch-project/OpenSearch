@@ -25,7 +25,7 @@ import org.opensearch.action.TimestampParsingException;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -133,7 +133,7 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
         final ShardSearchFailure[] searchShardFailures = new ShardSearchFailure[0];
         final String phase = randomFrom("fetch", "search", "other");
         SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures",
-            new EsRejectedExecutionException("OpenSearch rejected execution of fetch phase"), searchShardFailures);
+            new OpenSearchRejectedExecutionException("OpenSearch rejected execution of fetch phase"), searchShardFailures);
 
         assertEquals(actual.status(), RestStatus.TOO_MANY_REQUESTS);
     }
@@ -159,7 +159,7 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
 
         final String phase = randomFrom("fetch", "search", "other");
         SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures",
-            new EsRejectedExecutionException("OpenSearch rejected execution of fetch phase"), shardSearchFailures);
+            new OpenSearchRejectedExecutionException("OpenSearch rejected execution of fetch phase"), shardSearchFailures);
 
         assertEquals(actual.status(), RestStatus.BAD_REQUEST);
     }

@@ -23,7 +23,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.joni.Matcher;
 import org.mockito.Mockito;
 
@@ -37,7 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
-public class MatcherWatchdogTests extends ESTestCase {
+public class MatcherWatchdogTests extends OpenSearchTestCase {
 
     public void testInterrupt() throws Exception {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed

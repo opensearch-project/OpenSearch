@@ -42,7 +42,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class IndexMetadataTests extends ESTestCase {
+public class IndexMetadataTests extends OpenSearchTestCase {
 
     private IndicesModule INDICES_MODULE = new IndicesModule(Collections.emptyList());
 

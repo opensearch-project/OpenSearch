@@ -42,12 +42,12 @@ import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Set;
 
-public class IndicesQueryCacheTests extends ESTestCase {
+public class IndicesQueryCacheTests extends OpenSearchTestCase {
 
     private static class DummyQuery extends Query {
 

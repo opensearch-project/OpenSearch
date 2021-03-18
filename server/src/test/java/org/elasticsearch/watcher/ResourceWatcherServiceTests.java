@@ -20,7 +20,7 @@
 package org.elasticsearch.watcher;
 
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ResourceWatcherServiceTests extends ESTestCase {
+public class ResourceWatcherServiceTests extends OpenSearchTestCase {
     public void testSettings() throws Exception {
         ThreadPool threadPool = new TestThreadPool("test");
 

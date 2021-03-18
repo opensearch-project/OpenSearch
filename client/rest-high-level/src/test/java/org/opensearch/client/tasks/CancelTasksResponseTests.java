@@ -50,7 +50,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTasksResponseTests.ByNodeCancelTasksResponse,
-    org.elasticsearch.client.tasks.CancelTasksResponse> {
+    org.opensearch.client.tasks.CancelTasksResponse> {
 
     private static String NODE_ID = "node_id";
 
@@ -86,13 +86,13 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
     }
 
     @Override
-    protected org.elasticsearch.client.tasks.CancelTasksResponse doParseToClientInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.tasks.CancelTasksResponse.fromXContent(parser);
+    protected org.opensearch.client.tasks.CancelTasksResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return org.opensearch.client.tasks.CancelTasksResponse.fromXContent(parser);
     }
 
     @Override
     protected void assertInstances(ByNodeCancelTasksResponse serverTestInstance,
-                                   org.elasticsearch.client.tasks.CancelTasksResponse clientInstance) {
+                                   org.opensearch.client.tasks.CancelTasksResponse clientInstance) {
 
         // checking tasks
         List<TaskInfo> sTasks = serverTestInstance.getTasks();

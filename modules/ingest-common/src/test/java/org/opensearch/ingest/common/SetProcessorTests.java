@@ -25,14 +25,14 @@ import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SetProcessorTests extends ESTestCase {
+public class SetProcessorTests extends OpenSearchTestCase {
 
     public void testSetExistingFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());

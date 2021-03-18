@@ -51,9 +51,9 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.test.transport.CapturingTransport;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -72,15 +72,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
+import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ClusterStateHealthTests extends ESTestCase {
+public class ClusterStateHealthTests extends OpenSearchTestCase {
     private final IndexNameExpressionResolver indexNameExpressionResolver =
         new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 

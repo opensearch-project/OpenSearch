@@ -35,10 +35,9 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.reindex.RemoteInfo;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 
@@ -51,7 +50,7 @@ import static org.hamcrest.Matchers.containsString;
  * from remote don't need to come from existing indexes. It'd be silly to fail requests if the source index didn't exist on the target
  * cluster....
  */
-public class ReindexSourceTargetValidationTests extends ESTestCase {
+public class ReindexSourceTargetValidationTests extends OpenSearchTestCase {
     private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()
                 .put(index("target", "target_alias", "target_multi"), true)
                 .put(index("target2", "target_multi"), true)

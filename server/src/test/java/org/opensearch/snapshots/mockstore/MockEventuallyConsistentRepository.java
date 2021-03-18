@@ -34,7 +34,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -372,7 +372,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                         }
                     } else {
                         if (hasConsistentContent) {
-                            ESTestCase.assertArrayEquals("Tried to overwrite blob [" + blobName + "]", relevantActions.get(0).data, data);
+                            OpenSearchTestCase.assertArrayEquals("Tried to overwrite blob [" + blobName + "]", relevantActions.get(0).data, data);
                             return; // No need to add a write for this since we didn't change content
                         }
                     }
