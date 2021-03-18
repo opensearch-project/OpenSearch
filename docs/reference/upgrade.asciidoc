@@ -87,10 +87,6 @@ incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
 restored to a 7.x cluster even if they were created by a 6.x cluster. For
 information about upgrading old indices, see <<reindex-upgrade, Reindex to upgrade>>.
 
-When upgrading to a new version of {es}, you need to upgrade each
-of the products in your Elastic Stack. For more information, see the
-{stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
-
 --
 
 include::upgrade/rolling_upgrade.asciidoc[]

@@ -57,9 +57,9 @@ For Maven:
 ["source","xml",subs="attributes"]
 --------------------------------------------------
 <repository>
-    <id>elastic-lucene-snapshots</id>
-    <name>Elastic Lucene Snapshots</name>
-    <url>https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9</url>
+    <id>opensearch-lucene-snapshots</id>
+    <name>OpenSearch Lucene Snapshots</name>
+    <url>https://s3.amazonaws.com/download.opensearch.org/lucenesnapshots/00142c9</url>
     <releases><enabled>true</enabled></releases>
     <snapshots><enabled>false</enabled></snapshots>
 </repository>

@@ -96,8 +96,8 @@ add this flag to any existing system indices during upgrade.
 === New thread pools for system indices
 
 We've added two new thread pools for system indices: `system_read` and
-`system_write`. These thread pools ensure system indices critical to the Elastic
-Stack, such as those used by security or Kibana, remain responsive when
+`system_write`. These thread pools ensure system indices critical to the OpenSearch, 
+such as those used by Kibana, remain responsive when
 a cluster is under heavy query or indexing load.
 
 `system_read` is a `fixed` thread pool used to manage resources for

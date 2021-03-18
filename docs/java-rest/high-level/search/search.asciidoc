@@ -335,7 +335,7 @@ aggregation by name.
 include-tagged::{doc-tests-file}[{api}-request-aggregations-get]
 --------------------------------------------------
 <1> Get the `by_company` terms aggregation
-<2> Get the buckets that is keyed with `Elastic`
+<2> Get the buckets that is keyed with `OpenSearch`
 <3> Get the `average_age` sub-aggregation from that bucket
 
 Note that if you access aggregations by name, you need to specify the

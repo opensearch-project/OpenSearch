@@ -18,11 +18,7 @@ Need more context?
 
 Check out the <<opensearch-intro,
 {es} Introduction>> to learn the lingo and understand the basics of
-how {es} works. If you're already familiar with {es} and want to see how it works
-with the rest of the stack, you might want to jump to the
-{stack-gs}/get-started-elastic-stack.html[Elastic Stack
-Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
-{beats}, and {ls}.
+how {es} works.
 --
 
 [[getting-started-install]]
@@ -703,14 +699,5 @@ features such as using machine learning to detect anomalies.
 Now that you've set up a cluster, indexed some documents, and run some
 searches and aggregations, you might want to:
 
-* {stack-gs}/get-started-elastic-stack.html#install-kibana[Dive in to the Elastic
-Stack Tutorial] to install Kibana, Logstash, and Beats and
-set up a basic system monitoring solution.
-
 * {kibana-ref}/add-sample-data.html[Load one of the sample data sets into Kibana]
 to see how you can use {es} and Kibana together to visualize your data.
-
-* Try out one of the Elastic search solutions:
-** https://swiftype.com/documentation/site-search/crawler-quick-start[Site Search]
-** https://swiftype.com/documentation/app-search/getting-started[App Search]
-** https://swiftype.com/documentation/enterprise-search/getting-started[Enterprise Search]

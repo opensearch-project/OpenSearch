@@ -13,37 +13,37 @@ PUT /index_1
 
 PUT /index_1/_doc/1
 {
-  "title": "Elastic, Vol.1", "category": "Non-Fiction",
+  "title": "OpenSearch, Vol.1", "category": "Non-Fiction",
   "author": {
-    "first_name": "Elk",
-    "last_name": "Stack"
+    "first_name": "OpenSearch",
+    "last_name": "Project"
   }
 }
 
 PUT /index_1/_doc/2
 {
-  "title": "Elastic, Vol.2", "category": "Non-Fiction",
+  "title": "OpenSearch, Vol.2", "category": "Non-Fiction",
   "author": {
-    "first_name": "Elk",
-    "last_name": "Stack"
+    "first_name": "OpenSearch",
+    "last_name": "Project"
   }
 }
 
 PUT /index_1/_doc/3
 {
-  "title": "Elastic, Vol.3", "category": "Non-Fiction",
+  "title": "OpenSearch, Vol.3", "category": "Non-Fiction",
   "author": {
-    "first_name": "Elk",
-    "last_name": "Stack"
+    "first_name": "OpenSearch",
+    "last_name": "Project"
   }
 }
 
 PUT /index_1/_doc/4
 {
-  "title": "Elastic, Vol.4", "category": "Non-Fiction",
+  "title": "OpenSearch, Vol.4", "category": "Non-Fiction",
   "author": {
-    "first_name": "Elk",
-    "last_name": "Stack"
+    "first_name": "OpenSearch",
+    "last_name": "Project"
   }
 }
 
@@ -63,7 +63,7 @@ PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
-    "taken_by": "Elastic Machine",
+    "taken_by": "OpenSearch Machine",
     "taken_because": "backup testing"
   }
 }

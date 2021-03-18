@@ -22,7 +22,7 @@ This documentation distinguishes two categories of plugins:
 Core Plugins::    This category identifies plugins that are part of OpenSearch
 project. Delivered at the same time as OpenSearch, their version number always
 matches the version number of OpenSearch itself. These plugins are maintained
-by the Elastic team with the appreciated help of amazing community members (for
+by the OpenSearch team with the appreciated help of amazing community members (for
 open source plugins). Issues and bug reports can be reported on the
 https://github.com/elastic/elasticsearch[Github project page].
 

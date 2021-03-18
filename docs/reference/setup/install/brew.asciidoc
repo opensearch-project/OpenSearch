@@ -1,18 +1,18 @@
 [[brew]]
 === Install {es} on macOS with Homebrew
 
-Elastic publishes Homebrew formulae so you can install {es} with the
+OpenSearch publishes Homebrew formulae so you can install {es} with the
 https://brew.sh/[Homebrew] package manager.
 
 To install with Homebrew, you first need to tap the
-Elastic Homebrew repository:
+OpenSearch Homebrew repository:
 
 [source,sh]
 -------------------------
 brew tap elastic/tap
 -------------------------
 
-Once you've tapped the Elastic Homebrew repo, you can use `brew install` to
+Once you've tapped the OpenSearch Homebrew repo, you can use `brew install` to
 install the default distribution of {es}:
 
 [source,sh]

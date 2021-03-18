@@ -38,13 +38,13 @@ OpenSearch website or from our RPM repository.
 `docker`::
 
 Images are available for running OpenSearch as Docker containers. They may be
-downloaded from the Elastic Docker Registry.
+downloaded from the OpenSearch Docker Registry.
 +
 {ref}/docker.html[Install {es} with Docker]
 
 `brew`::
 
-Formulae are available from the Elastic Homebrew tap for installing
+Formulae are available from the OpenSearch Homebrew tap for installing
 {es} on macOS with the Homebrew package manager.
 +
 {ref}/brew.html[Install {es} on macOS with Homebrew]
