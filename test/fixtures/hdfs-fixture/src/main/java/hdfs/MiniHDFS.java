@@ -119,7 +119,7 @@ public class MiniHDFS {
         MiniDFSCluster dfs = builder.build();
 
         // Configure contents of the filesystem
-        org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
+        org.apache.hadoop.fs.Path opensearchUserPath = new org.apache.hadoop.fs.Path("/user/opensearch");
 
         FileSystem fs;
         if (haEnabled) {
@@ -130,12 +130,12 @@ public class MiniHDFS {
         }
 
         try {
-            // Set the elasticsearch user directory up
-            fs.mkdirs(esUserPath);
+            // Set the opensearch user directory up
+            fs.mkdirs(opensearchUserPath);
             if (UserGroupInformation.isSecurityEnabled()) {
                 List<AclEntry> acls = new ArrayList<>();
-                acls.add(new AclEntry.Builder().setType(AclEntryType.USER).setName("elasticsearch").setPermission(FsAction.ALL).build());
-                fs.modifyAclEntries(esUserPath, acls);
+                acls.add(new AclEntry.Builder().setType(AclEntryType.USER).setName("opensearch").setPermission(FsAction.ALL).build());
+                fs.modifyAclEntries(opensearchUserPath, acls);
             }
 
             // Install a pre-existing repository into HDFS
@@ -150,7 +150,7 @@ public class MiniHDFS {
 
                 fs.copyFromLocalFile(true, true,
                     new org.apache.hadoop.fs.Path(tempDirectory.resolve(directoryName).toAbsolutePath().toUri()),
-                    esUserPath.suffix("/existing/" + directoryName)
+                    opensearchUserPath.suffix("/existing/" + directoryName)
                 );
 
                 FileUtils.deleteDirectory(tempDirectory.toFile());
