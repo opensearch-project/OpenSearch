@@ -20,8 +20,7 @@
 package org.opensearch.common.network;
 
 import org.opensearch.common.collect.Tuple;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.network.Cidrs;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +28,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
-public class CidrsTests extends ESTestCase {
+public class CidrsTests extends OpenSearchTestCase {
     public void testNullCidr() {
         try {
             Cidrs.cidrMaskToMinMax(null);

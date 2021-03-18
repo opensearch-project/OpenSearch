@@ -27,10 +27,9 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.service.FakeThreadPoolMasterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -49,12 +48,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FakeThreadPoolMasterServiceTests extends ESTestCase {
+public class FakeThreadPoolMasterServiceTests extends OpenSearchTestCase {
 
     public void testFakeMasterService() {
         List<Runnable> runnableTasks = new ArrayList<>();
         AtomicReference<ClusterState> lastClusterStateRef = new AtomicReference<>();
-        DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+        DiscoveryNode discoveryNode = new DiscoveryNode("node", OpenSearchTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
             new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
         lastClusterStateRef.set(ClusterStateCreationUtils.state(discoveryNode, discoveryNode));
         long firstClusterStateVersion = lastClusterStateRef.get().version();

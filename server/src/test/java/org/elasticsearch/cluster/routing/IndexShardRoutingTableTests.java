@@ -21,14 +21,14 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class IndexShardRoutingTableTests extends ESTestCase {
+public class IndexShardRoutingTableTests extends OpenSearchTestCase {
     public void testEqualsAttributesKey() {
         List<String> attr1 = Arrays.asList("a");
         List<String> attr2 = Arrays.asList("b");

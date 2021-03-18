@@ -32,10 +32,10 @@ import org.opensearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.NodeConfigurationSource;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.MockHttpTransport;
+import org.opensearch.test.NodeConfigurationSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -55,8 +55,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFileExists;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.not;
  * configuration given the same seed / input.
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
-public class InternalTestClusterTests extends ESTestCase {
+public class InternalTestClusterTests extends OpenSearchTestCase {
 
     private static Collection<Class<? extends Plugin>> mockPlugins() {
         return Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class);

@@ -20,7 +20,7 @@ package org.elasticsearch.persistent;
 
 import org.opensearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction.Request;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 public class RestartPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
 

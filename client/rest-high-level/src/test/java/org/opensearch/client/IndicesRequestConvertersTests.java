@@ -66,7 +66,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -82,14 +82,14 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.opensearch.client.indices.RandomCreateIndexGenerator.randomAliases;
 import static org.opensearch.client.indices.RandomCreateIndexGenerator.randomMapping;
-import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAlias;
-import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
-import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.opensearch.index.RandomCreateIndexGenerator.randomAlias;
+import static org.opensearch.index.RandomCreateIndexGenerator.randomIndexSettings;
+import static org.opensearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
 import static org.opensearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class IndicesRequestConvertersTests extends ESTestCase {
+public class IndicesRequestConvertersTests extends OpenSearchTestCase {
 
     public void testAnalyzeRequest() throws Exception {
         AnalyzeRequest indexAnalyzeRequest
@@ -174,7 +174,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
     public void testCreateIndexWithTypes() throws IOException {
         org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
-            org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
+            org.opensearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
 
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
@@ -241,7 +241,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         String[] indices = RequestConvertersTests.randomIndicesNames(0, 5);
         putMappingRequest.indices(indices);
 
-        String type = ESTestCase.randomAlphaOfLengthBetween(3, 10);
+        String type = OpenSearchTestCase.randomAlphaOfLengthBetween(3, 10);
         putMappingRequest.type(type);
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -485,7 +485,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testGetSettings() throws IOException {
-        String[] indicesUnderTest = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indicesUnderTest = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
 
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indicesUnderTest);
 
@@ -496,10 +496,10 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
         RequestConvertersTests.setRandomLocal(getSettingsRequest::local, expectedParams);
 
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             // the request object will not have include_defaults present unless it is set to
             // true
-            getSettingsRequest.includeDefaults(ESTestCase.randomBoolean());
+            getSettingsRequest.includeDefaults(OpenSearchTestCase.randomBoolean());
             if (getSettingsRequest.includeDefaults()) {
                 expectedParams.put("include_defaults", Boolean.toString(true));
             }
@@ -511,11 +511,11 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         }
         endpoint.add("_settings");
 
-        if (ESTestCase.randomBoolean()) {
-            String[] names = ESTestCase.randomBoolean() ? null : new String[ESTestCase.randomIntBetween(0, 3)];
+        if (OpenSearchTestCase.randomBoolean()) {
+            String[] names = OpenSearchTestCase.randomBoolean() ? null : new String[OpenSearchTestCase.randomIntBetween(0, 3)];
             if (names != null) {
                 for (int x = 0; x < names.length; x++) {
-                    names[x] = ESTestCase.randomAlphaOfLengthBetween(3, 10);
+                    names[x] = OpenSearchTestCase.randomAlphaOfLengthBetween(3, 10);
                 }
             }
             getSettingsRequest.names(names);
@@ -533,7 +533,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testGetIndex() throws IOException {
-        String[] indicesUnderTest = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indicesUnderTest = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
 
         GetIndexRequest getIndexRequest = new GetIndexRequest(indicesUnderTest);
 
@@ -543,10 +543,10 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomLocal(getIndexRequest::local, expectedParams);
         RequestConvertersTests.setRandomHumanReadable(getIndexRequest::humanReadable, expectedParams);
 
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             // the request object will not have include_defaults present unless it is set to
             // true
-            getIndexRequest.includeDefaults(ESTestCase.randomBoolean());
+            getIndexRequest.includeDefaults(OpenSearchTestCase.randomBoolean());
             if (getIndexRequest.includeDefaults()) {
                 expectedParams.put("include_defaults", Boolean.toString(true));
             }
@@ -566,7 +566,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testGetIndexWithTypes() throws IOException {
-        String[] indicesUnderTest = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indicesUnderTest = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
 
         org.opensearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
                 new org.opensearch.action.admin.indices.get.GetIndexRequest().indices(indicesUnderTest);
@@ -578,10 +578,10 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomHumanReadable(getIndexRequest::humanReadable, expectedParams);
         expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             // the request object will not have include_defaults present unless it is set to
             // true
-            getIndexRequest.includeDefaults(ESTestCase.randomBoolean());
+            getIndexRequest.includeDefaults(OpenSearchTestCase.randomBoolean());
             if (getIndexRequest.includeDefaults()) {
                 expectedParams.put("include_defaults", Boolean.toString(true));
             }
@@ -601,7 +601,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testDeleteIndexEmptyIndices() {
-        String[] indices = ESTestCase.randomBoolean() ? null : Strings.EMPTY_ARRAY;
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : Strings.EMPTY_ARRAY;
         ActionRequestValidationException validationException = new DeleteIndexRequest(indices).validate();
         Assert.assertNotNull(validationException);
     }
@@ -626,7 +626,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testOpenIndexEmptyIndices() {
-        String[] indices = ESTestCase.randomBoolean() ? null : Strings.EMPTY_ARRAY;
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : Strings.EMPTY_ARRAY;
         ActionRequestValidationException validationException = new OpenIndexRequest(indices).validate();
         Assert.assertNotNull(validationException);
     }
@@ -651,9 +651,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testRefresh() {
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         RefreshRequest refreshRequest;
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             refreshRequest = new RefreshRequest(indices);
         } else {
             refreshRequest = new RefreshRequest();
@@ -674,9 +674,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testFlush() {
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         FlushRequest flushRequest;
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             flushRequest = new FlushRequest(indices);
         } else {
             flushRequest = new FlushRequest();
@@ -684,12 +684,12 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         }
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(flushRequest::indicesOptions, flushRequest::indicesOptions, expectedParams);
-        if (ESTestCase.randomBoolean()) {
-            flushRequest.force(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            flushRequest.force(OpenSearchTestCase.randomBoolean());
         }
         expectedParams.put("force", Boolean.toString(flushRequest.force()));
-        if (ESTestCase.randomBoolean()) {
-            flushRequest.waitIfOngoing(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            flushRequest.waitIfOngoing(OpenSearchTestCase.randomBoolean());
         }
         expectedParams.put("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
 
@@ -706,9 +706,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testSyncedFlush() {
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         SyncedFlushRequest syncedFlushRequest;
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             syncedFlushRequest = new SyncedFlushRequest(indices);
         } else {
             syncedFlushRequest = new SyncedFlushRequest();
@@ -730,9 +730,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testForceMerge() {
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         ForceMergeRequest forceMergeRequest;
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             forceMergeRequest = new ForceMergeRequest(indices);
         } else {
             forceMergeRequest = new ForceMergeRequest();
@@ -742,16 +742,16 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(forceMergeRequest::indicesOptions, forceMergeRequest::indicesOptions,
             expectedParams);
-        if (ESTestCase.randomBoolean()) {
-            forceMergeRequest.maxNumSegments(ESTestCase.randomInt());
+        if (OpenSearchTestCase.randomBoolean()) {
+            forceMergeRequest.maxNumSegments(OpenSearchTestCase.randomInt());
         }
         expectedParams.put("max_num_segments", Integer.toString(forceMergeRequest.maxNumSegments()));
-        if (ESTestCase.randomBoolean()) {
-            forceMergeRequest.onlyExpungeDeletes(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            forceMergeRequest.onlyExpungeDeletes(OpenSearchTestCase.randomBoolean());
         }
         expectedParams.put("only_expunge_deletes", Boolean.toString(forceMergeRequest.onlyExpungeDeletes()));
-        if (ESTestCase.randomBoolean()) {
-            forceMergeRequest.flush(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            forceMergeRequest.flush(OpenSearchTestCase.randomBoolean());
         }
         expectedParams.put("flush", Boolean.toString(forceMergeRequest.flush()));
 
@@ -768,9 +768,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testClearCache() {
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         ClearIndicesCacheRequest clearIndicesCacheRequest;
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             clearIndicesCacheRequest = new ClearIndicesCacheRequest(indices);
         } else {
             clearIndicesCacheRequest = new ClearIndicesCacheRequest();
@@ -779,19 +779,19 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(clearIndicesCacheRequest::indicesOptions, clearIndicesCacheRequest::indicesOptions,
             expectedParams);
-        if (ESTestCase.randomBoolean()) {
-            clearIndicesCacheRequest.queryCache(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            clearIndicesCacheRequest.queryCache(OpenSearchTestCase.randomBoolean());
         }
         expectedParams.put("query", Boolean.toString(clearIndicesCacheRequest.queryCache()));
-        if (ESTestCase.randomBoolean()) {
-            clearIndicesCacheRequest.fieldDataCache(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            clearIndicesCacheRequest.fieldDataCache(OpenSearchTestCase.randomBoolean());
         }
         expectedParams.put("fielddata", Boolean.toString(clearIndicesCacheRequest.fieldDataCache()));
-        if (ESTestCase.randomBoolean()) {
-            clearIndicesCacheRequest.requestCache(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            clearIndicesCacheRequest.requestCache(OpenSearchTestCase.randomBoolean());
         }
         expectedParams.put("request", Boolean.toString(clearIndicesCacheRequest.requestCache()));
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             clearIndicesCacheRequest.fields(RequestConvertersTests.randomIndicesNames(1, 5));
             expectedParams.put("fields", String.join(",", clearIndicesCacheRequest.fields()));
         }
@@ -810,13 +810,13 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
     public void testExistsAlias() {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         getAliasesRequest.indices(indices);
         // the HEAD endpoint requires at least an alias or an index
         boolean hasIndices = indices != null && indices.length > 0;
         String[] aliases;
         if (hasIndices) {
-            aliases = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+            aliases = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         } else {
             aliases = RequestConvertersTests.randomIndicesNames(1, 5);
         }
@@ -878,11 +878,11 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomTimeout(s -> resizeRequest.setTimeout(TimeValue.parseTimeValue(s, "timeout")),
             resizeRequest.timeout(), expectedParams);
 
-        if (ESTestCase.randomBoolean()) {
-            if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
+            if (OpenSearchTestCase.randomBoolean()) {
                 resizeRequest.setSettings(randomIndexSettings());
             }
-            if (ESTestCase.randomBoolean()) {
+            if (OpenSearchTestCase.randomBoolean()) {
                 int count = randomIntBetween(0, 2);
                 for (int i = 0; i < count; i++) {
                     resizeRequest.setAliases(singletonList(randomAlias()));
@@ -904,29 +904,29 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testRollover() throws IOException {
-        RolloverRequest rolloverRequest = new RolloverRequest(ESTestCase.randomAlphaOfLengthBetween(3, 10),
-                ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLengthBetween(3, 10));
+        RolloverRequest rolloverRequest = new RolloverRequest(OpenSearchTestCase.randomAlphaOfLengthBetween(3, 10),
+                OpenSearchTestCase.randomBoolean() ? null : OpenSearchTestCase.randomAlphaOfLengthBetween(3, 10));
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(rolloverRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(rolloverRequest, expectedParams);
-        if (ESTestCase.randomBoolean()) {
-            rolloverRequest.dryRun(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            rolloverRequest.dryRun(OpenSearchTestCase.randomBoolean());
             if (rolloverRequest.isDryRun()) {
                 expectedParams.put("dry_run", "true");
             }
         }
-        if (ESTestCase.randomBoolean()) {
-            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(ESTestCase.randomNonNegativeLong()));
+        if (OpenSearchTestCase.randomBoolean()) {
+            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(OpenSearchTestCase.randomNonNegativeLong()));
         }
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             rolloverRequest.getCreateIndexRequest().mapping(randomMapping());
         }
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             randomAliases(rolloverRequest.getCreateIndexRequest());
         }
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             rolloverRequest.getCreateIndexRequest().settings(
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings());
+                org.opensearch.index.RandomCreateIndexGenerator.randomIndexSettings());
         }
         RequestConvertersTests.setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards, expectedParams);
 
@@ -944,32 +944,32 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
     public void testRolloverWithTypes() throws IOException {
         org.opensearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
-            new org.opensearch.action.admin.indices.rollover.RolloverRequest(ESTestCase.randomAlphaOfLengthBetween(3, 10),
-            ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLengthBetween(3, 10));
+            new org.opensearch.action.admin.indices.rollover.RolloverRequest(OpenSearchTestCase.randomAlphaOfLengthBetween(3, 10),
+            OpenSearchTestCase.randomBoolean() ? null : OpenSearchTestCase.randomAlphaOfLengthBetween(3, 10));
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(rolloverRequest::timeout, rolloverRequest.timeout(), expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(rolloverRequest, expectedParams);
-        if (ESTestCase.randomBoolean()) {
-            rolloverRequest.dryRun(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            rolloverRequest.dryRun(OpenSearchTestCase.randomBoolean());
             if (rolloverRequest.isDryRun()) {
                 expectedParams.put("dry_run", "true");
             }
         }
         expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        if (ESTestCase.randomBoolean()) {
-            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(ESTestCase.randomNonNegativeLong()));
+        if (OpenSearchTestCase.randomBoolean()) {
+            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(OpenSearchTestCase.randomNonNegativeLong()));
         }
-        if (ESTestCase.randomBoolean()) {
-            String type = ESTestCase.randomAlphaOfLengthBetween(3, 10);
+        if (OpenSearchTestCase.randomBoolean()) {
+            String type = OpenSearchTestCase.randomAlphaOfLengthBetween(3, 10);
             rolloverRequest.getCreateIndexRequest().mapping(type,
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomMapping(type));
+                org.opensearch.index.RandomCreateIndexGenerator.randomMapping(type));
         }
-        if (ESTestCase.randomBoolean()) {
-            org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
+        if (OpenSearchTestCase.randomBoolean()) {
+            org.opensearch.index.RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
         }
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             rolloverRequest.getCreateIndexRequest().settings(
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings());
+                org.opensearch.index.RandomCreateIndexGenerator.randomIndexSettings());
         }
         RequestConvertersTests.setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards, expectedParams);
 
@@ -993,8 +993,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomIndicesOptions(getAliasesRequest::indicesOptions, getAliasesRequest::indicesOptions,
             expectedParams);
 
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 2);
-        String[] aliases = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 2);
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 2);
+        String[] aliases = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 2);
         getAliasesRequest.indices(indices);
         getAliasesRequest.aliases(aliases);
 
@@ -1017,15 +1017,15 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testIndexPutSettings() throws IOException {
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 2);
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 2);
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomMasterTimeout(updateSettingsRequest, expectedParams);
         RequestConvertersTests.setRandomTimeout(updateSettingsRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(updateSettingsRequest::indicesOptions, updateSettingsRequest::indicesOptions,
             expectedParams);
-        if (ESTestCase.randomBoolean()) {
-            updateSettingsRequest.setPreserveExisting(ESTestCase.randomBoolean());
+        if (OpenSearchTestCase.randomBoolean()) {
+            updateSettingsRequest.setPreserveExisting(OpenSearchTestCase.randomBoolean());
             if (updateSettingsRequest.isPreserveExisting()) {
                 expectedParams.put("preserve_existing", "true");
             }
@@ -1052,32 +1052,32 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
         org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
                 new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest()
-                .name(ESTestCase.randomFrom(names.keySet()))
-                .patterns(Arrays.asList(ESTestCase.generateRandomStringArray(20, 100, false, false)));
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.order(ESTestCase.randomInt());
+                .name(OpenSearchTestCase.randomFrom(names.keySet()))
+                .patterns(Arrays.asList(OpenSearchTestCase.generateRandomStringArray(20, 100, false, false)));
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.order(OpenSearchTestCase.randomInt());
         }
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.version(ESTestCase.randomInt());
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.version(OpenSearchTestCase.randomInt());
         }
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.settings(Settings.builder().put("setting-" + ESTestCase.randomInt(), ESTestCase.randomTimeValue()));
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.settings(Settings.builder().put("setting-" + OpenSearchTestCase.randomInt(), OpenSearchTestCase.randomTimeValue()));
         }
         Map<String, String> expectedParams = new HashMap<>();
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.mapping("doc-" + ESTestCase.randomInt(),
-                "field-" + ESTestCase.randomInt(), "type=" + ESTestCase.randomFrom("text", "keyword"));
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.mapping("doc-" + OpenSearchTestCase.randomInt(),
+                "field-" + OpenSearchTestCase.randomInt(), "type=" + OpenSearchTestCase.randomFrom("text", "keyword"));
         }
         expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.alias(new Alias("alias-" + ESTestCase.randomInt()));
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.alias(new Alias("alias-" + OpenSearchTestCase.randomInt()));
         }
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             expectedParams.put("create", Boolean.TRUE.toString());
             putTemplateRequest.create(true);
         }
-        if (ESTestCase.randomBoolean()) {
-            String cause = ESTestCase.randomUnicodeOfCodepointLengthBetween(1, 50);
+        if (OpenSearchTestCase.randomBoolean()) {
+            String cause = OpenSearchTestCase.randomUnicodeOfCodepointLengthBetween(1, 50);
             putTemplateRequest.cause(cause);
             expectedParams.put("cause", cause);
         }
@@ -1097,31 +1097,31 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         names.put("foo^bar", "foo%5Ebar");
 
         PutIndexTemplateRequest putTemplateRequest =
-                new PutIndexTemplateRequest(ESTestCase.randomFrom(names.keySet()))
-                .patterns(Arrays.asList(ESTestCase.generateRandomStringArray(20, 100, false, false)));
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.order(ESTestCase.randomInt());
+                new PutIndexTemplateRequest(OpenSearchTestCase.randomFrom(names.keySet()))
+                .patterns(Arrays.asList(OpenSearchTestCase.generateRandomStringArray(20, 100, false, false)));
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.order(OpenSearchTestCase.randomInt());
         }
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.version(ESTestCase.randomInt());
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.version(OpenSearchTestCase.randomInt());
         }
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.settings(Settings.builder().put("setting-" + ESTestCase.randomInt(), ESTestCase.randomTimeValue()));
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.settings(Settings.builder().put("setting-" + OpenSearchTestCase.randomInt(), OpenSearchTestCase.randomTimeValue()));
         }
         Map<String, String> expectedParams = new HashMap<>();
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.mapping("{ \"properties\": { \"field-" + ESTestCase.randomInt() +
-                    "\" : { \"type\" : \"" + ESTestCase.randomFrom("text", "keyword") + "\" }}}", XContentType.JSON);
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.mapping("{ \"properties\": { \"field-" + OpenSearchTestCase.randomInt() +
+                    "\" : { \"type\" : \"" + OpenSearchTestCase.randomFrom("text", "keyword") + "\" }}}", XContentType.JSON);
         }
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.alias(new Alias("alias-" + ESTestCase.randomInt()));
+        if (OpenSearchTestCase.randomBoolean()) {
+            putTemplateRequest.alias(new Alias("alias-" + OpenSearchTestCase.randomInt()));
         }
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             expectedParams.put("create", Boolean.TRUE.toString());
             putTemplateRequest.create(true);
         }
-        if (ESTestCase.randomBoolean()) {
-            String cause = ESTestCase.randomUnicodeOfCodepointLengthBetween(1, 50);
+        if (OpenSearchTestCase.randomBoolean()) {
+            String cause = OpenSearchTestCase.randomUnicodeOfCodepointLengthBetween(1, 50);
             putTemplateRequest.cause(cause);
             expectedParams.put("cause", cause);
         }
@@ -1133,10 +1133,10 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.assertToXContentBody(putTemplateRequest, request.getEntity());
     }
     public void testValidateQuery() throws Exception {
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
-        String[] types = ESTestCase.randomBoolean() ? ESTestCase.generateRandomStringArray(5, 5, false, false) : null;
+        String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
+        String[] types = OpenSearchTestCase.randomBoolean() ? OpenSearchTestCase.generateRandomStringArray(5, 5, false, false) : null;
         ValidateQueryRequest validateQueryRequest;
-        if (ESTestCase.randomBoolean()) {
+        if (OpenSearchTestCase.randomBoolean()) {
             validateQueryRequest = new ValidateQueryRequest(indices);
         } else {
             validateQueryRequest = new ValidateQueryRequest();
@@ -1146,9 +1146,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(validateQueryRequest::indicesOptions, validateQueryRequest::indicesOptions,
             expectedParams);
-        validateQueryRequest.explain(ESTestCase.randomBoolean());
-        validateQueryRequest.rewrite(ESTestCase.randomBoolean());
-        validateQueryRequest.allShards(ESTestCase.randomBoolean());
+        validateQueryRequest.explain(OpenSearchTestCase.randomBoolean());
+        validateQueryRequest.rewrite(OpenSearchTestCase.randomBoolean());
+        validateQueryRequest.allShards(OpenSearchTestCase.randomBoolean());
         expectedParams.put("explain", Boolean.toString(validateQueryRequest.explain()));
         expectedParams.put("rewrite", Boolean.toString(validateQueryRequest.rewrite()));
         expectedParams.put("all_shards", Boolean.toString(validateQueryRequest.allShards()));
@@ -1174,7 +1174,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         encodes.put("template#1", "template%231");
         encodes.put("template-*", "template-*");
         encodes.put("foo^bar", "foo%5Ebar");
-        List<String> names = ESTestCase.randomSubsetOf(1, encodes.keySet());
+        List<String> names = OpenSearchTestCase.randomSubsetOf(1, encodes.keySet());
         GetIndexTemplatesRequest getTemplatesRequest = new GetIndexTemplatesRequest(names);
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomMasterTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
@@ -1194,11 +1194,11 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
 
     public void testTemplatesExistRequest() {
-        final int numberOfNames = ESTestCase.usually()
+        final int numberOfNames = OpenSearchTestCase.usually()
             ? 1
-            : ESTestCase.randomIntBetween(2, 20);
-        final List<String> names = Arrays.asList(ESTestCase.randomArray(numberOfNames, numberOfNames, String[]::new,
-            () -> ESTestCase.randomAlphaOfLengthBetween(1, 100)));
+            : OpenSearchTestCase.randomIntBetween(2, 20);
+        final List<String> names = Arrays.asList(OpenSearchTestCase.randomArray(numberOfNames, numberOfNames, String[]::new,
+            () -> OpenSearchTestCase.randomAlphaOfLengthBetween(1, 100)));
         final Map<String, String> expectedParams = new HashMap<>();
         final IndexTemplatesExistRequest indexTemplatesExistRequest = new IndexTemplatesExistRequest(names);
         RequestConvertersTests.setRandomMasterTimeout(indexTemplatesExistRequest::setMasterNodeTimeout, expectedParams);

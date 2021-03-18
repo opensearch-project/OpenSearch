@@ -35,7 +35,7 @@ import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.RoutingFieldMapper;
@@ -94,7 +94,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception e) {
-                if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
+                if (ExceptionsHelper.unwrap(e, OpenSearchRejectedExecutionException.class) != null) {
                     searchListener.onRejection(e);
                 } else {
                     searchListener.onFailure(e);

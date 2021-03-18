@@ -30,7 +30,7 @@ import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 import org.opensearch.search.fetch.FetchSubPhaseProcessor;
 import org.opensearch.search.lookup.SourceLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,7 +39,7 @@ import java.util.Map;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FetchSourcePhaseTests extends ESTestCase {
+public class FetchSourcePhaseTests extends OpenSearchTestCase {
 
     public void testFetchSource() throws IOException {
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()

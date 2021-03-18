@@ -44,14 +44,14 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.suggest.SuggestTests;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Base64;
 
 import static java.util.Collections.emptyList;
 
-public class QuerySearchResultTests extends ESTestCase {
+public class QuerySearchResultTests extends OpenSearchTestCase {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 

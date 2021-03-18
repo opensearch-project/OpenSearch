@@ -29,7 +29,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;

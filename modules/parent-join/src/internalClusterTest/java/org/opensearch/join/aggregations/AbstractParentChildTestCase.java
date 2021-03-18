@@ -19,7 +19,7 @@
 
 package org.opensearch.join.aggregations;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 import java.util.ArrayList;
 import java.util.HashMap;

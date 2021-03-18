@@ -21,9 +21,8 @@ package org.opensearch.common.io;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.opensearch.common.io.FileSystemUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Unit tests for {@link FileSystemUtils}.
  */
 @SuppressFileSystems("WindowsFS") // tries to move away open file handles
-public class FileSystemUtilsTests extends ESTestCase {
+public class FileSystemUtilsTests extends OpenSearchTestCase {
 
     private Path src;
     private Path dst;

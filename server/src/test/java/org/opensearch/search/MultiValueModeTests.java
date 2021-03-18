@@ -39,14 +39,14 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiValueModeTests extends ESTestCase {
+public class MultiValueModeTests extends OpenSearchTestCase {
 
     @FunctionalInterface
     private interface Supplier<T> {

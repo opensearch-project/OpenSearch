@@ -19,7 +19,7 @@
 
 package org.opensearch.nio;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
 
-public class FlushOperationTests extends ESTestCase {
+public class FlushOperationTests extends OpenSearchTestCase {
 
     private BiConsumer<Void, Exception> listener;
 

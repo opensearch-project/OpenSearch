@@ -34,7 +34,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.ElectionStrategy;
 
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ClusterFormationFailureHelperTests extends ESTestCase {
+public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
 
     private static final ElectionStrategy electionStrategy = ElectionStrategy.DEFAULT_INSTANCE;
 

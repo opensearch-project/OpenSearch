@@ -48,9 +48,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.Node;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.cluster.service.MasterService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 
-public class MasterServiceTests extends ESTestCase {
+public class MasterServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
     private static long relativeTimeInMillis;

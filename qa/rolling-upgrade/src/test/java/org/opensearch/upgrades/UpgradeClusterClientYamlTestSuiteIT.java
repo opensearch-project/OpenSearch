@@ -25,10 +25,10 @@ import org.apache.lucene.util.TimeUnits;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
-public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class UpgradeClusterClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

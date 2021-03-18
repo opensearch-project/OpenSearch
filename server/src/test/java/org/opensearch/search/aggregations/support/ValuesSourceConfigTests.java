@@ -29,10 +29,10 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 // TODO: This whole set of tests needs to be rethought.
-public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
+public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testKeyword() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",

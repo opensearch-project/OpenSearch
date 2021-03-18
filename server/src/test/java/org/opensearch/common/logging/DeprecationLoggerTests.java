@@ -21,11 +21,11 @@ package org.opensearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DeprecationLoggerTests extends ESTestCase {
+public class DeprecationLoggerTests extends OpenSearchTestCase {
 
     public void testMultipleSlowLoggersUseSingleLog4jLogger() {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);

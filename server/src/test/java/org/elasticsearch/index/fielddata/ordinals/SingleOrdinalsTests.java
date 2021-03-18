@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,7 +30,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-public class SingleOrdinalsTests extends ESTestCase {
+public class SingleOrdinalsTests extends OpenSearchTestCase {
     public void testSvValues() throws IOException {
         int numDocs = 1000000;
         int numOrdinals = numDocs / 4;

@@ -20,11 +20,11 @@
 package org.opensearch.search;
 
 import org.opensearch.search.internal.ReaderContext;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
 
-public class MockSearchServiceTests extends ESTestCase {
+public class MockSearchServiceTests extends OpenSearchTestCase {
 
     public void testAssertNoInFlightContext() {
         ReaderContext reader = mock(ReaderContext.class);

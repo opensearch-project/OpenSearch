@@ -20,9 +20,9 @@
 package org.elasticsearch.cluster.routing.operation.hash.murmur3;
 
 import org.opensearch.cluster.routing.Murmur3HashFunction;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class Murmur3HashFunctionTests extends ESTestCase {
+public class Murmur3HashFunctionTests extends OpenSearchTestCase {
 
     public void testKnownValues() {
         assertHash(0x5a0cb7c3, "hell");

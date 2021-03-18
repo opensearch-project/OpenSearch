@@ -22,7 +22,7 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.analysis.HunspellService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class HunspellServiceTests extends ESTestCase {
+public class HunspellServiceTests extends OpenSearchTestCase {
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
         Settings settings = Settings.builder()
                 .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())

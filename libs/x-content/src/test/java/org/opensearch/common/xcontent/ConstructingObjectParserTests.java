@@ -24,7 +24,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.ObjectParserTests.NamedObject;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.ByteArrayOutputStream;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ConstructingObjectParserTests extends ESTestCase {
+public class ConstructingObjectParserTests extends OpenSearchTestCase {
     public void testNullDeclares() {
         ConstructingObjectParser<Void, Void> objectParser = new ConstructingObjectParser<>("foo", a -> null);
         Exception e = expectThrows(IllegalArgumentException.class,

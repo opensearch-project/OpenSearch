@@ -21,11 +21,11 @@ package org.opensearch.search.sort;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SortOrderTests extends ESTestCase {
+public class SortOrderTests extends OpenSearchTestCase {
 
     /** Check that ordinals remain stable as we rely on them for serialisation. */
     public void testDistanceUnitNames() {

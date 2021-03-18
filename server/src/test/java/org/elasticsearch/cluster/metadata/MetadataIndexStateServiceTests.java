@@ -57,8 +57,8 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInProgressException;
 import org.opensearch.snapshots.SnapshotInfoTests;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.hamcrest.CoreMatchers;
 
 import java.util.ArrayList;
@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MetadataIndexStateServiceTests extends ESTestCase {
+public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
 
     public void testCloseRoutingTable() {
         final Set<Index> nonBlockedIndices = new HashSet<>();

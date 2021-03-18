@@ -22,7 +22,8 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.opensearch.Version;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.test.rest.yaml.section.SkipSection;
 
 import java.util.Collections;
 

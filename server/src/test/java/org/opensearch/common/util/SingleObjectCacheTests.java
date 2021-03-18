@@ -20,14 +20,13 @@
 package org.opensearch.common.util;
 
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.SingleObjectCache;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SingleObjectCacheTests extends ESTestCase {
+public class SingleObjectCacheTests extends OpenSearchTestCase {
 
   public void testRefresh() {
         final AtomicInteger count = new AtomicInteger(0);

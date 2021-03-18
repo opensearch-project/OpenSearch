@@ -21,8 +21,8 @@ package org.elasticsearch.test.rest;
 
 import org.opensearch.Version;
 import org.opensearch.client.WarningsHandler;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.ESRestTestCase.VersionSensitiveWarningsHandler;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.OpenSearchRestTestCase.VersionSensitiveWarningsHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,7 +31,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
+public class VersionSensitiveWarningsHandlerTests extends OpenSearchTestCase {
 
     public void testSameVersionCluster() throws IOException {
         Set<Version> nodeVersions= new HashSet<>();
@@ -62,7 +62,7 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
 
     private static WarningsHandler expectVersionSpecificWarnings(Set<Version> nodeVersions,
             Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
-        //Based on EsRestTestCase.expectVersionSpecificWarnings helper method but without ESRestTestCase dependency
+        //Based on EsRestTestCase.expectVersionSpecificWarnings helper method but without OpenSearchRestTestCase dependency
         VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
         expectationsSetter.accept(warningsHandler);
         return warningsHandler;

@@ -33,7 +33,7 @@ import org.opensearch.common.xcontent.XContentGenerator;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -52,7 +52,7 @@ import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class XContentBuilderTests extends ESTestCase {
+public class XContentBuilderTests extends OpenSearchTestCase {
     public void testPrettyWithLfAtEnd() throws Exception {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(os);

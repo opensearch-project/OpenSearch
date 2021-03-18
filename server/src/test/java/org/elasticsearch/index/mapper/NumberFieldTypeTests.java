@@ -49,6 +49,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.mapper.FieldTypeTestCase;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;

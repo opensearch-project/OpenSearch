@@ -18,12 +18,12 @@
  */
 package org.opensearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
 
-public abstract class BaseMatrixStatsTestCase extends ESTestCase {
+public abstract class BaseMatrixStatsTestCase extends OpenSearchTestCase {
     protected final int numObs = atLeast(10000);
     protected final ArrayList<Double> fieldA = new ArrayList<>(numObs);
     protected final ArrayList<Double> fieldB = new ArrayList<>(numObs);

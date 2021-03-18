@@ -26,14 +26,14 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 /**
  * Tests for the {@link IndexId} class.
  */
-public class IndexIdTests extends ESTestCase {
+public class IndexIdTests extends OpenSearchTestCase {
 
     public void testEqualsAndHashCode() {
         // assert equals and hashcode

@@ -21,9 +21,7 @@ package org.opensearch.common.util.concurrent;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,7 +36,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ThreadContextTests extends ESTestCase {
+public class ThreadContextTests extends OpenSearchTestCase {
 
     public void testStashContext() {
         Settings build = Settings.builder().put("request.headers.default", "1").build();

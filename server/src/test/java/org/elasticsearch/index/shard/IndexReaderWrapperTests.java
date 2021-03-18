@@ -37,7 +37,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,7 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class IndexReaderWrapperTests extends ESTestCase {
+public class IndexReaderWrapperTests extends OpenSearchTestCase {
 
     public void testReaderCloseListenerIsCalled() throws IOException {
         Directory dir = newDirectory();

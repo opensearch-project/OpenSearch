@@ -21,8 +21,8 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.After;
 
 import static org.hamcrest.Matchers.nullValue;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Superclass for tests that parse parts of the test suite.
  */
-public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTestCase {
+public abstract class AbstractClientYamlTestFragmentParserTestCase extends OpenSearchTestCase {
     protected XContentParser parser;
 
     @Override

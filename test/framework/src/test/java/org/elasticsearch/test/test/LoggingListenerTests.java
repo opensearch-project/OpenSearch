@@ -22,10 +22,10 @@ package org.elasticsearch.test.test;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.junit.listeners.LoggingListener;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.junit.annotations.TestIssueLogging;
+import org.opensearch.test.junit.annotations.TestLogging;
+import org.opensearch.test.junit.listeners.LoggingListener;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 
@@ -38,7 +38,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class LoggingListenerTests extends ESTestCase {
+public class LoggingListenerTests extends OpenSearchTestCase {
 
     public void testTestRunStartedSupportsClassInDefaultPackage() throws Exception {
         LoggingListener loggingListener = new LoggingListener();

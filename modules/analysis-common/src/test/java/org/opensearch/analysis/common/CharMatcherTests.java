@@ -19,9 +19,9 @@
 
 package org.opensearch.analysis.common;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class CharMatcherTests extends ESTestCase {
+public class CharMatcherTests extends OpenSearchTestCase {
 
     public void testLetter() {
         assertTrue(CharMatcher.Basic.LETTER.isTokenChar('a')); // category Ll

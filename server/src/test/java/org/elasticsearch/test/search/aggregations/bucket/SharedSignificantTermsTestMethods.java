@@ -26,8 +26,8 @@ import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -35,9 +35,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.ESIntegTestCase.client;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.OpenSearchIntegTestCase.client;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -48,8 +48,8 @@ public class SharedSignificantTermsTestMethods {
     public static final String TEXT_FIELD = "text";
     public static final String CLASS_FIELD = "class";
 
-    public static void aggregateAndCheckFromSeveralShards(ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
-        String type = ESTestCase.randomBoolean() ? "text" : "keyword";
+    public static void aggregateAndCheckFromSeveralShards(OpenSearchIntegTestCase testCase) throws ExecutionException, InterruptedException {
+        String type = OpenSearchTestCase.randomBoolean() ? "text" : "keyword";
         String settings = "{\"index.number_of_shards\": 7, \"index.number_of_routing_shards\": 7, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings, testCase);
         testCase.ensureGreen();
@@ -57,7 +57,7 @@ public class SharedSignificantTermsTestMethods {
         checkSignificantTermsAggregationCorrect(testCase);
     }
 
-    private static void checkSignificantTermsAggregationCorrect(ESIntegTestCase testCase) {
+    private static void checkSignificantTermsAggregationCorrect(OpenSearchIntegTestCase testCase) {
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).addAggregation(
                 terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)))
                 .execute().actionGet();
@@ -76,7 +76,7 @@ public class SharedSignificantTermsTestMethods {
         }
     }
 
-    public static void index01Docs(String type, String settings, ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
+    public static void index01Docs(String type, String settings, OpenSearchIntegTestCase testCase) throws ExecutionException, InterruptedException {
         String textMappings = "type=" + type;
         if (type.equals("text")) {
             textMappings += ",fielddata=true";

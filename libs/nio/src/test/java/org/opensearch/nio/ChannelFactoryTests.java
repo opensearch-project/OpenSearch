@@ -20,7 +20,7 @@
 package org.opensearch.nio;
 
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ChannelFactoryTests extends ESTestCase {
+public class ChannelFactoryTests extends OpenSearchTestCase {
 
     private ChannelFactory<NioServerSocketChannel, NioSocketChannel> channelFactory;
     private ChannelFactory.RawChannelFactory rawChannelFactory;

@@ -22,6 +22,7 @@ package org.elasticsearch.test;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.set.Sets;
 import org.hamcrest.Matcher;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,15 +31,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.test.AbstractQueryTestCase.alterateQueries;
+import static org.opensearch.test.AbstractQueryTestCase.alterateQueries;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Various test for {@link org.elasticsearch.test.AbstractQueryTestCase}
+ * Various test for {@link org.opensearch.test.AbstractQueryTestCase}
  */
-public class AbstractQueryTestCaseTests extends ESTestCase {
+public class AbstractQueryTestCaseTests extends OpenSearchTestCase {
 
     public void testAlterateQueries() throws IOException {
         List<Tuple<String, Boolean>> alterations = alterateQueries(singleton("{\"field\": \"value\"}"), null);

@@ -21,11 +21,11 @@ package org.elasticsearch.indices.breaker;
 
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BreakerSettingsTests extends ESTestCase {
+public class BreakerSettingsTests extends OpenSearchTestCase {
 
     public void testFromSettings() {
         Settings clusterSettings = Settings.builder()

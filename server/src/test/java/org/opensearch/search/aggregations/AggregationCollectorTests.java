@@ -23,11 +23,11 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.opensearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 
-public class AggregationCollectorTests extends ESSingleNodeTestCase {
+public class AggregationCollectorTests extends OpenSearchSingleNodeTestCase {
 
     public void testNeedsScores() throws Exception {
         IndexService index = createIndex("idx");

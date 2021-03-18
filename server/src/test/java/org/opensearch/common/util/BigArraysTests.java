@@ -29,25 +29,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.opensearch.common.util.BigArray;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.BigByteArray;
-import org.opensearch.common.util.BigDoubleArray;
-import org.opensearch.common.util.BigFloatArray;
-import org.opensearch.common.util.BigIntArray;
-import org.opensearch.common.util.BigLongArray;
-import org.opensearch.common.util.BigObjectArray;
-import org.opensearch.common.util.ByteArray;
-import org.opensearch.common.util.DoubleArray;
-import org.opensearch.common.util.FloatArray;
-import org.opensearch.common.util.IntArray;
-import org.opensearch.common.util.LongArray;
-import org.opensearch.common.util.MockBigArrays;
-import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.util.ObjectArray;
-import org.opensearch.common.util.PageCacheRecycler;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -61,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class BigArraysTests extends ESTestCase {
+public class BigArraysTests extends OpenSearchTestCase {
 
     private BigArrays randombigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());

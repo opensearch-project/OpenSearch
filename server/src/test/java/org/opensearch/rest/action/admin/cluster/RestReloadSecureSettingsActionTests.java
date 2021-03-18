@@ -24,11 +24,11 @@ import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.nullValue;
 
-public class RestReloadSecureSettingsActionTests extends ESTestCase {
+public class RestReloadSecureSettingsActionTests extends OpenSearchTestCase {
 
     public void testParserWithPassword() throws Exception {
         final String request = "{" +

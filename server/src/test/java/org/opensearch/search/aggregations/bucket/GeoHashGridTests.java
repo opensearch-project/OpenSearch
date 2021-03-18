@@ -30,7 +30,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.util.Collections;
 

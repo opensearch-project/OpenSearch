@@ -34,7 +34,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.IndexingPressure;
@@ -44,10 +44,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.action.bulk.BulkItemResponse;
-import org.opensearch.action.bulk.BulkRequest;
-import org.opensearch.action.bulk.BulkResponse;
-import org.opensearch.action.bulk.TransportBulkAction;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -126,7 +122,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
         when(clusterService.localNode()).thenReturn(localNode);
         when(localNode.isIngestNode()).thenReturn(randomBoolean());
         final ThreadPool threadPool = mock(ThreadPool.class);
-        final ExecutorService direct = EsExecutors.newDirectExecutorService();
+        final ExecutorService direct = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
             null, null, null, mock(ActionFilters.class), null, null, new IndexingPressure(Settings.EMPTY), new SystemIndices(emptyMap())) {

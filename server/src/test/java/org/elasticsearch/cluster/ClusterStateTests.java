@@ -47,8 +47,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestCustomMetadata;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -66,7 +66,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREA
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClusterStateTests extends ESTestCase {
+public class ClusterStateTests extends OpenSearchTestCase {
 
     public void testSupersedes() {
         final Version version = Version.CURRENT;

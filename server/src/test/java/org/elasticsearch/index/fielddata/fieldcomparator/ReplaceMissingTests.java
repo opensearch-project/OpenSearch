@@ -28,9 +28,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class ReplaceMissingTests extends ESTestCase {
+public class ReplaceMissingTests extends OpenSearchTestCase {
 
     public void test() throws Exception {
         Directory dir = newDirectory();

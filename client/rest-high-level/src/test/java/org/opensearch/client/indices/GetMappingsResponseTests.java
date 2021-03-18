@@ -26,7 +26,7 @@ import org.opensearch.common.xcontent.ToXContent.Params;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,9 +36,9 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 import static org.opensearch.client.indices.GetMappingsResponse.MAPPINGS;
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
-public class GetMappingsResponseTests extends ESTestCase {
+public class GetMappingsResponseTests extends OpenSearchTestCase {
 
     // Because the client-side class does not have a toXContent method, we test xContent serialization by creating
     // a random client object, converting it to a server object then serializing it to xContent, and finally

@@ -47,7 +47,7 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.Strings;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.opensearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.text.BreakIterator;
 import java.util.Locale;
@@ -55,7 +55,7 @@ import java.util.Locale;
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class CustomUnifiedHighlighterTests extends ESTestCase {
+public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
     private void assertHighlightOneDoc(String fieldName, String[] inputs, Analyzer analyzer, Query query,
                                        Locale locale, BreakIterator breakIterator,
                                        int noMatchSize, String[] expectedPassages) throws Exception {

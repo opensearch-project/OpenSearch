@@ -19,9 +19,9 @@
 
 package org.opensearch.search.aggregations.support;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class ValueTypeTests extends ESTestCase {
+public class ValueTypeTests extends OpenSearchTestCase {
 
     public void testResolve() {
         assertEquals(ValueType.STRING, ValueType.lenientParse("string"));

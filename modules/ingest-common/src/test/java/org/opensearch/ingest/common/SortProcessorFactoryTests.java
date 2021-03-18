@@ -21,14 +21,14 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SortProcessorFactoryTests extends ESTestCase {
+public class SortProcessorFactoryTests extends OpenSearchTestCase {
 
     public void testCreate() throws Exception {
         String processorTag = randomAlphaOfLength(10);

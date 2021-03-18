@@ -19,11 +19,11 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 
-public class PlatformsTests extends ESTestCase {
+public class PlatformsTests extends OpenSearchTestCase {
 
     public void testNativeControllerPath() {
 

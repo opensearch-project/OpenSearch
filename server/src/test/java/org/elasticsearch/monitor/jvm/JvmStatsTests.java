@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class JvmStatsTests extends ESTestCase {
+public class JvmStatsTests extends OpenSearchTestCase {
     public void testJvmStats() throws IOException {
         JvmStats stats = JvmStats.jvmStats();
         assertNotNull(stats);

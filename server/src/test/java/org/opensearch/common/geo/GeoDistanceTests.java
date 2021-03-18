@@ -21,9 +21,7 @@ package org.opensearch.common.geo;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.DistanceUnit;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.geo.GeoDistance;
-import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -35,7 +33,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Basic Tests for {@link GeoDistance}
  */
-public class GeoDistanceTests extends ESTestCase {
+public class GeoDistanceTests extends OpenSearchTestCase {
 
     public void testGeoDistanceSerialization() throws IOException  {
         // make sure that ordinals don't change, because we rely on then in serialization

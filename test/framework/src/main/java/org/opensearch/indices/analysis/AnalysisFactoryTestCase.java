@@ -27,7 +27,7 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -45,7 +45,7 @@ import static java.util.Collections.emptyMap;
  * If we don't want to expose one for a specific reason, just map it to Void.
  * The deprecated ones can be mapped to Deprecated.class.
  */
-public abstract class AnalysisFactoryTestCase extends ESTestCase {
+public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
 
     private static final Map<String,Class<?>> KNOWN_TOKENIZERS = new MapBuilder<String,Class<?>>()
         // exposed in ES

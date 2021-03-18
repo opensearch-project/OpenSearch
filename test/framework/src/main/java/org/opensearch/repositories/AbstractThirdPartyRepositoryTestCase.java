@@ -33,7 +33,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
-public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeTestCase {
+public abstract class AbstractThirdPartyRepositoryTestCase extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {

@@ -31,12 +31,12 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MoreLikeThisQueryTests extends ESTestCase {
+public class MoreLikeThisQueryTests extends OpenSearchTestCase {
     public void testSimple() throws Exception {
         Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));

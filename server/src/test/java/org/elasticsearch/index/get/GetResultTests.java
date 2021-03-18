@@ -35,8 +35,8 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.RandomObjects;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,10 +54,10 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 import static org.elasticsearch.index.get.DocumentFieldTests.randomDocumentField;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class GetResultTests extends ESTestCase {
+public class GetResultTests extends OpenSearchTestCase {
 
     public void testToAndFromXContent() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());

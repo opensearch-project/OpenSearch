@@ -24,7 +24,7 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.List;
@@ -34,7 +34,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RestoreServiceTests extends ESTestCase {
+public class RestoreServiceTests extends OpenSearchTestCase {
 
     public void testUpdateDataStream() {
         String dataStreamName = "data-stream-1";

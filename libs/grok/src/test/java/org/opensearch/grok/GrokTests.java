@@ -20,7 +20,7 @@
 package org.opensearch.grok;
 
 import org.opensearch.grok.GrokCaptureConfig.NativeExtracterMap;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 
-public class GrokTests extends ESTestCase {
+public class GrokTests extends OpenSearchTestCase {
     public void testMatchWithoutCaptures() {
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "value", logger::warn);
         assertThat(grok.captures("value"), equalTo(org.elasticsearch.common.collect.Map.of()));

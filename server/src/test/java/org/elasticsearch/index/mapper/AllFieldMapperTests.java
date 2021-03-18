@@ -27,12 +27,12 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.VersionUtils;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class AllFieldMapperTests extends ESSingleNodeTestCase {
+public class AllFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

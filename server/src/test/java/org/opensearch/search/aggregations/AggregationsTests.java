@@ -81,10 +81,10 @@ import org.opensearch.search.aggregations.pipeline.InternalBucketMetricValueTest
 import org.opensearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
 import org.opensearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
 import org.opensearch.search.aggregations.pipeline.InternalDerivativeTests;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalMultiBucketAggregationTestCase;
+import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.After;
 import org.junit.Before;
 
@@ -97,14 +97,14 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 
 /**
  * This class tests that aggregations parsing works properly. It checks that we can parse
  * different aggregations and adds sub-aggregations where applicable.
  *
  */
-public class AggregationsTests extends ESTestCase {
+public class AggregationsTests extends OpenSearchTestCase {
     private static final List<InternalAggregationTestCase<?>> aggsTests = getAggsTests();
 
     private static List<InternalAggregationTestCase<?>> getAggsTests() {
@@ -257,7 +257,7 @@ public class AggregationsTests extends ESTestCase {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             Aggregations parsedAggregations = Aggregations.fromXContent(parser);
             BytesReference parsedBytes = XContentHelper.toXContent(parsedAggregations, xContentType, randomBoolean());
-            ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+            OpenSearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
         }
     }
 

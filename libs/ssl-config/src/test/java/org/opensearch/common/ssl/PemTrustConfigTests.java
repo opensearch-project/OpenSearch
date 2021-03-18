@@ -19,7 +19,7 @@
 
 package org.opensearch.common.ssl;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.nio.file.Files;
@@ -38,7 +38,7 @@ import java.util.stream.Stream;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
-public class PemTrustConfigTests extends ESTestCase {
+public class PemTrustConfigTests extends OpenSearchTestCase {
 
     public void testBuildTrustConfigFromSinglePemFile() throws Exception {
         final Path cert = getDataPath("/certs/ca1/ca.crt");

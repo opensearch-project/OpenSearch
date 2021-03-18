@@ -20,9 +20,9 @@
 package org.elasticsearch.index.query;
 
 import org.opensearch.action.search.SearchResponse;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
-public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {
+public class CommonTermsQueryParserTests extends OpenSearchSingleNodeTestCase {
     public void testWhenParsedQueryIsNullNoNullPointerExceptionIsThrown() {
         final String index = "test-index";
         final String type = "test-type";

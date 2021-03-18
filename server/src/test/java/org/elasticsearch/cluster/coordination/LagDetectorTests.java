@@ -22,7 +22,7 @@ import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.opensearch.cluster.coordination.LagDetector;
 
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-public class LagDetectorTests extends ESTestCase {
+public class LagDetectorTests extends OpenSearchTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
     private Set<DiscoveryNode> failedNodes;

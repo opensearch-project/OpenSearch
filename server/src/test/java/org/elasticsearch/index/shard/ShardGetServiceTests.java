@@ -27,6 +27,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;

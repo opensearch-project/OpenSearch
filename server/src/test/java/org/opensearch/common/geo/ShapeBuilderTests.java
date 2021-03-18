@@ -29,7 +29,7 @@ import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.geometry.LinearRing;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Polygon;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests for {@link ShapeBuilder}
  */
-public class ShapeBuilderTests extends ESTestCase {
+public class ShapeBuilderTests extends OpenSearchTestCase {
 
     public void testNewPoint() {
         PointBuilder pb = new PointBuilder().coordinate(-100, 45);

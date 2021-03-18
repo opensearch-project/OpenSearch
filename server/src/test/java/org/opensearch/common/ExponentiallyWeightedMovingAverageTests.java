@@ -19,8 +19,7 @@
 
 package org.opensearch.common;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.ExponentiallyWeightedMovingAverage;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -28,7 +27,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Implements exponentially weighted moving averages (commonly abbreviated EWMA) for a single value.
  */
-public class ExponentiallyWeightedMovingAverageTests extends ESTestCase {
+public class ExponentiallyWeightedMovingAverageTests extends OpenSearchTestCase {
 
     public void testEWMA() {
         final ExponentiallyWeightedMovingAverage ewma = new ExponentiallyWeightedMovingAverage(0.5, 10);

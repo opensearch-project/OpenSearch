@@ -22,7 +22,7 @@ import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.io.PathUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -53,7 +53,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class IOUtilsTests extends ESTestCase {
+public class IOUtilsTests extends OpenSearchTestCase {
 
     public void testCloseArray() throws IOException {
         runTestClose(Function.identity(), IOUtils::close);

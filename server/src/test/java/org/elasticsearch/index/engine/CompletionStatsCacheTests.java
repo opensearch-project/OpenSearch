@@ -32,7 +32,7 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.concurrent.BrokenBarrierException;
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class CompletionStatsCacheTests extends ESTestCase {
+public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
     public void testExceptionsAreNotCached() {
         final AtomicInteger openCount = new AtomicInteger();

@@ -77,7 +77,7 @@ import org.opensearch.search.aggregations.metrics.TopHits;
 import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.sort.SortOrder;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.IndexSettingsModule;
 import org.junit.After;
 import org.junit.Before;
 

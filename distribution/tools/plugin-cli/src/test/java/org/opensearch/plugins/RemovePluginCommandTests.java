@@ -27,8 +27,8 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class RemovePluginCommandTests extends ESTestCase {
+public class RemovePluginCommandTests extends OpenSearchTestCase {
 
     private Path home;
     private Environment env;

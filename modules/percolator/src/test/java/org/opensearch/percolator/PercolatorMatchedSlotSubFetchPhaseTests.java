@@ -40,7 +40,7 @@ import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 import org.opensearch.search.fetch.FetchSubPhaseProcessor;
 import org.opensearch.search.lookup.SourceLookup;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.stream.IntStream;
@@ -48,7 +48,7 @@ import java.util.stream.IntStream;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
+public class PercolatorMatchedSlotSubFetchPhaseTests extends OpenSearchTestCase {
 
     public void testHitsExecute() throws Exception {
         try (Directory directory = newDirectory()) {

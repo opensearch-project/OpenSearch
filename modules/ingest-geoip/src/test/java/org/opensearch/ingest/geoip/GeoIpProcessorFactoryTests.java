@@ -25,8 +25,8 @@ import org.opensearch.common.Randomness;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.opensearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.StreamsUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.StreamsUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class GeoIpProcessorFactoryTests extends ESTestCase {
+public class GeoIpProcessorFactoryTests extends OpenSearchTestCase {
 
     private static Map<String, DatabaseReaderLazyLoader> databaseReaders;
 

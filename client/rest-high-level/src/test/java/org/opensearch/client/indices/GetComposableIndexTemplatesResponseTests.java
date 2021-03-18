@@ -21,7 +21,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,9 +31,9 @@ import java.util.Map;
 
 import static org.opensearch.client.indices.GetComponentTemplatesResponseTests.randomMeta;
 import static org.opensearch.client.indices.GetComponentTemplatesResponseTests.randomTemplate;
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
-public class GetComposableIndexTemplatesResponseTests extends ESTestCase {
+public class GetComposableIndexTemplatesResponseTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws Exception {
         xContentTester(

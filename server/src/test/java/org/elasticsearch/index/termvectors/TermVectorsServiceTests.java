@@ -29,7 +29,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,7 +43,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class TermVectorsServiceTests extends ESSingleNodeTestCase {
+public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testTook() throws Exception {
         XContentBuilder mapping = jsonBuilder()

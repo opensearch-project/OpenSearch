@@ -29,7 +29,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningFailureException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MockRestHighLevelTests extends ESTestCase {
+public class MockRestHighLevelTests extends OpenSearchTestCase {
     private RestHighLevelClient client;
     private static final List<String> WARNINGS = Collections.singletonList("Some Warning");
 

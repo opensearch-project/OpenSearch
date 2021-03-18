@@ -22,7 +22,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests {@link DeprecationRestHandler}.
  */
-public class DeprecationRestHandlerTests extends ESTestCase {
+public class DeprecationRestHandlerTests extends OpenSearchTestCase {
 
     private RestHandler handler;
     /**

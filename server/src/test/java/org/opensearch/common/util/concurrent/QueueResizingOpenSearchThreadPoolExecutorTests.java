@@ -21,15 +21,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.util.concurrent.EsAbortPolicy;
-import org.opensearch.common.util.concurrent.EsExecutors;
-import org.opensearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
-import org.opensearch.common.util.concurrent.ResizableBlockingQueue;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.util.concurrent.TimedRunnable;
-import org.opensearch.common.util.concurrent.WrappedRunnable;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -42,7 +34,7 @@ import static org.hamcrest.Matchers.lessThan;
  * Tests for the automatic queue resizing of the {@code QueueResizingOpenSearchThreadPoolExecutorTests}
  * based on the time taken for each event.
  */
-public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
+public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTestCase {
 
     public void testExactWindowSizeAdjustment() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
@@ -56,8 +48,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 1000, fastWrapper(),
-                        measureWindow, TimeValue.timeValueMillis(1), EsExecutors.daemonThreadFactory("queuetest"),
-                        new EsAbortPolicy(), context);
+                        measureWindow, TimeValue.timeValueMillis(1), OpenSearchExecutors.daemonThreadFactory("queuetest"),
+                        new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -87,8 +79,8 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 3000, fastWrapper(),
-                        measureWindow, TimeValue.timeValueMillis(1), EsExecutors.daemonThreadFactory("queuetest"),
-                        new EsAbortPolicy(), context);
+                        measureWindow, TimeValue.timeValueMillis(1), OpenSearchExecutors.daemonThreadFactory("queuetest"),
+                        new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -115,7 +107,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 3000, slowWrapper(), measureWindow, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                        OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -143,7 +135,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, min, 100000, slowWrapper(), measureWindow, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                        OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -172,7 +164,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", threads, threads, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, max, fastWrapper(), measureWindow, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                        OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -197,7 +189,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
                 new QueueResizingEsThreadPoolExecutor(
                         "test-threadpool", 1, 1, 1000,
                         TimeUnit.MILLISECONDS, queue, 10, 200, fastWrapper(), 10, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                        OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -238,7 +230,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends ESTestCase {
             new QueueResizingEsThreadPoolExecutor(
                 "test-threadpool", 1, 1, 1000,
                 TimeUnit.MILLISECONDS, queue, 10, 200, exceptionalWrapper(), 10, TimeValue.timeValueMillis(1),
-                EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+                OpenSearchExecutors.daemonThreadFactory("queuetest"), new OpenSearchAbortPolicy(), context);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 

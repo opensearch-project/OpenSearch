@@ -27,7 +27,7 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregation.CommonFields;
 import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.search.aggregations.metrics.Percentile;
-import org.elasticsearch.test.InternalAggregationTestCase;
+import org.opensearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

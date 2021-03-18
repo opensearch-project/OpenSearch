@@ -24,11 +24,9 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.RetryableAction;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -84,9 +82,9 @@ public class RetryableActionTests extends OpenSearchTestCase {
                     listener.onResponse(true);
                 } else {
                     if (randomBoolean()) {
-                        listener.onFailure(new EsRejectedExecutionException());
+                        listener.onFailure(new OpenSearchRejectedExecutionException());
                     } else {
-                        throw new EsRejectedExecutionException();
+                        throw new OpenSearchRejectedExecutionException();
                     }
                 }
             }
@@ -94,7 +92,7 @@ public class RetryableActionTests extends OpenSearchTestCase {
             @Override
             public boolean shouldRetry(Exception e) {
                 retryCount.getAndIncrement();
-                return e instanceof EsRejectedExecutionException;
+                return e instanceof OpenSearchRejectedExecutionException;
             }
         };
         retryableAction.run();
@@ -123,16 +121,16 @@ public class RetryableActionTests extends OpenSearchTestCase {
             @Override
             public void tryAction(ActionListener<Boolean> listener) {
                 if (randomBoolean()) {
-                    listener.onFailure(new EsRejectedExecutionException());
+                    listener.onFailure(new OpenSearchRejectedExecutionException());
                 } else {
-                    throw new EsRejectedExecutionException();
+                    throw new OpenSearchRejectedExecutionException();
                 }
             }
 
             @Override
             public boolean shouldRetry(Exception e) {
                 retryCount.getAndIncrement();
-                return e instanceof EsRejectedExecutionException;
+                return e instanceof OpenSearchRejectedExecutionException;
             }
         };
         retryableAction.run();
@@ -148,7 +146,7 @@ public class RetryableActionTests extends OpenSearchTestCase {
         assertFalse(taskQueue.hasDeferredTasks());
         assertFalse(taskQueue.hasRunnableTasks());
 
-        expectThrows(EsRejectedExecutionException.class, future::actionGet);
+        expectThrows(OpenSearchRejectedExecutionException.class, future::actionGet);
     }
 
     public void testTimeoutOfZeroMeansNoRetry() {
@@ -160,19 +158,19 @@ public class RetryableActionTests extends OpenSearchTestCase {
             @Override
             public void tryAction(ActionListener<Boolean> listener) {
                 executedCount.getAndIncrement();
-                throw new EsRejectedExecutionException();
+                throw new OpenSearchRejectedExecutionException();
             }
 
             @Override
             public boolean shouldRetry(Exception e) {
-                return e instanceof EsRejectedExecutionException;
+                return e instanceof OpenSearchRejectedExecutionException;
             }
         };
         retryableAction.run();
         taskQueue.runAllRunnableTasks();
 
         assertEquals(1, executedCount.get());
-        expectThrows(EsRejectedExecutionException.class, future::actionGet);
+        expectThrows(OpenSearchRejectedExecutionException.class, future::actionGet);
     }
 
     public void testFailedBecauseNotRetryable() {
@@ -189,7 +187,7 @@ public class RetryableActionTests extends OpenSearchTestCase {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                return e instanceof EsRejectedExecutionException;
+                return e instanceof OpenSearchRejectedExecutionException;
             }
         };
         retryableAction.run();
@@ -208,7 +206,7 @@ public class RetryableActionTests extends OpenSearchTestCase {
             @Override
             public void tryAction(ActionListener<Boolean> listener) {
                 if (executedCount.incrementAndGet() == 1) {
-                    throw new EsRejectedExecutionException();
+                    throw new OpenSearchRejectedExecutionException();
                 } else {
                     listener.onResponse(true);
                 }
@@ -216,7 +214,7 @@ public class RetryableActionTests extends OpenSearchTestCase {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                return e instanceof EsRejectedExecutionException;
+                return e instanceof OpenSearchRejectedExecutionException;
             }
         };
         retryableAction.run();

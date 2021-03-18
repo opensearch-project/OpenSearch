@@ -23,8 +23,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 
@@ -45,7 +45,7 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         original.setRetryBackoffInitialTime(parseTimeValue(randomPositiveTimeValue(), "retry_backoff_initial_time"));
         original.setMaxRetries(between(0, 1000));
         original.setRequestsPerSecond(
-                randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, ESTestCase::randomFloat));
+                randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, OpenSearchTestCase::randomFloat));
         if (randomBoolean()) {
             if (randomBoolean()) {
                 original.setMaxDocs(between(0, Integer.MAX_VALUE));

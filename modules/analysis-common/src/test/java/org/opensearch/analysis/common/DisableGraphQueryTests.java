@@ -38,7 +38,7 @@ import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.index.search.MatchQuery;
 import org.opensearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Makes sure that graph analysis is disabled with shingle filters of different size
  */
-public class DisableGraphQueryTests extends ESSingleNodeTestCase {
+public class DisableGraphQueryTests extends OpenSearchSingleNodeTestCase {
     private static IndexService indexService;
     private static QueryShardContext shardContext;
     private static Query expectedQuery;

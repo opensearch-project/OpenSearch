@@ -43,9 +43,9 @@ import org.opensearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.opensearch.node.Node;
-import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.CapturingTransport;
+import org.opensearch.test.ClusterServiceUtils;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.cluster.coordination.CoordinationStateRejectedException;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.ElectionStrategy;
@@ -93,7 +93,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class NodeJoinTests extends ESTestCase {
+public class NodeJoinTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
 

@@ -23,9 +23,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class NamedAnalyzerTests extends ESTestCase {
+public class NamedAnalyzerTests extends OpenSearchTestCase {
 
     public void testCheckAllowedInMode() {
         try (NamedAnalyzer testAnalyzer = new NamedAnalyzer("my_analyzer", AnalyzerScope.INDEX,

@@ -22,9 +22,9 @@ package org.opensearch.core.internal.net;
 import org.apache.lucene.util.Constants;
 import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.core.internal.io.IOUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class NetUtilsTests extends ESTestCase {
+public class NetUtilsTests extends OpenSearchTestCase {
 
     public void testExtendedSocketOptions() {
         assumeTrue("JDK possibly not supported", Constants.JVM_NAME.contains("HotSpot") || Constants.JVM_NAME.contains("OpenJDK"));

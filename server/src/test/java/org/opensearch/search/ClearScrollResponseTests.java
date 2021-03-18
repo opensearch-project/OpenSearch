@@ -27,13 +27,13 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class ClearScrollResponseTests extends ESTestCase {
+public class ClearScrollResponseTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         ClearScrollResponse clearScrollResponse = new ClearScrollResponse(true, 10);

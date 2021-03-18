@@ -34,12 +34,12 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SingleDimensionValuesSourceTests extends ESTestCase {
+public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
     public void testBinarySorted() {
         MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
         BinaryValuesSource source = new BinaryValuesSource(

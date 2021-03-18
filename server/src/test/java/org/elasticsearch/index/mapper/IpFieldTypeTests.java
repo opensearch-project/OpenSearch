@@ -28,6 +28,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.mapper.FieldTypeTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;

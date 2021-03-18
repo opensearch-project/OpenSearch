@@ -23,7 +23,7 @@ import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.elasticsearch.test.RandomObjects;
+import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.Arrays;

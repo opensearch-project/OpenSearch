@@ -21,7 +21,7 @@ package org.opensearch.common.xcontent;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,7 +30,7 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class InstantiatingObjectParserTests extends ESTestCase {
+public class InstantiatingObjectParserTests extends OpenSearchTestCase {
 
     public static class NoAnnotations {
         final int a;

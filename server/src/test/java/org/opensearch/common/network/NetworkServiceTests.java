@@ -19,8 +19,7 @@
 
 package org.opensearch.common.network;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.network.NetworkService;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
 import java.util.Collections;
@@ -31,7 +30,7 @@ import static org.hamcrest.Matchers.is;
  * Tests for network service... try to keep them safe depending upon configuration
  * please don't actually bind to anything, just test the addresses.
  */
-public class NetworkServiceTests extends ESTestCase {
+public class NetworkServiceTests extends OpenSearchTestCase {
 
     /**
      * ensure exception if we bind to multicast ipv4 address

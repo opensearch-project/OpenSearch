@@ -25,7 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
-public class TranslogHeaderTests extends ESTestCase {
+public class TranslogHeaderTests extends OpenSearchTestCase {
 
     public void testCurrentHeaderVersion() throws Exception {
         final String translogUUID = UUIDs.randomBase64UUID();

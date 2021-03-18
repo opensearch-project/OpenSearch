@@ -30,9 +30,9 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nio.MockNioTransport;
@@ -50,7 +50,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
-public class TransportServiceHandshakeTests extends ESTestCase {
+public class TransportServiceHandshakeTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
     private static final long timeout = Long.MAX_VALUE;

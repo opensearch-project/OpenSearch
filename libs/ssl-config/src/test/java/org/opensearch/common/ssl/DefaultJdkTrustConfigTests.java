@@ -19,7 +19,7 @@
 
 package org.opensearch.common.ssl;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.not;
 
-public class DefaultJdkTrustConfigTests extends ESTestCase {
+public class DefaultJdkTrustConfigTests extends OpenSearchTestCase {
 
     private static final BiFunction<String, String, String> EMPTY_SYSTEM_PROPERTIES = (key, defaultValue) -> defaultValue;
 

@@ -36,7 +36,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.UUIDs;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,7 +45,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DocValuesSliceQueryTests extends ESTestCase {
+public class DocValuesSliceQueryTests extends OpenSearchTestCase {
 
     public void testBasics() {
         DocValuesSliceQuery query1 =

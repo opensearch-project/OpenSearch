@@ -28,6 +28,7 @@ import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.mapper.AbstractNumericFieldMapperTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;

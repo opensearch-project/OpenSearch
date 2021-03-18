@@ -50,7 +50,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
@@ -68,12 +68,6 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
-import org.opensearch.action.bulk.BulkAction;
-import org.opensearch.action.bulk.BulkItemResponse;
-import org.opensearch.action.bulk.BulkRequest;
-import org.opensearch.action.bulk.BulkResponse;
-import org.opensearch.action.bulk.TransportBulkAction;
-import org.opensearch.action.bulk.TransportSingleItemBulkWriteAction;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -189,7 +183,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
     public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
-        final ExecutorService direct = EsExecutors.newDirectExecutorService();
+        final ExecutorService direct = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
         MockitoAnnotations.initMocks(this);
         // setup services that will be called by action

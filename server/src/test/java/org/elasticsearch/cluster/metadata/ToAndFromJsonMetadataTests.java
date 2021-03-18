@@ -28,8 +28,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestCustomMetadata;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class ToAndFromJsonMetadataTests extends ESTestCase {
+public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
 
     public void testSimpleJsonFromAndTo() throws IOException {
         IndexMetadata idx1 = createFirstBackingIndex("data-stream1").build();

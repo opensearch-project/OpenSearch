@@ -36,7 +36,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchModule;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

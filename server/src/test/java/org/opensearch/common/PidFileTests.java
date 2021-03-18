@@ -19,8 +19,7 @@
 
 package org.opensearch.common;
 
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.PidFile;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * UnitTest for {@link org.opensearch.common.PidFile}
  */
-public class PidFileTests extends ESTestCase {
+public class PidFileTests extends OpenSearchTestCase {
     public void testParentIsFile() throws IOException {
         Path dir = createTempDir();
         Path parent = dir.resolve("foo");

@@ -33,13 +33,13 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StoredNumericValuesTests extends ESSingleNodeTestCase {
+public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
     public void testBytesAndNumericRepresentation() throws Exception {
         IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 

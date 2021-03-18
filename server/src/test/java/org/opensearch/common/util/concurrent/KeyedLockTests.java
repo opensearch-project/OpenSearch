@@ -20,9 +20,8 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.lease.Releasable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
-import org.opensearch.common.util.concurrent.KeyedLock;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class KeyedLockTests extends ESTestCase {
+public class KeyedLockTests extends OpenSearchTestCase {
     public void testIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();

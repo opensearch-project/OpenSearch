@@ -36,7 +36,8 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
+import org.opensearch.index.mapper.FieldMapperTestCase2;
 
 import java.io.IOException;
 import java.util.Collection;

@@ -19,7 +19,7 @@
 
 package org.opensearch.common.xcontent;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,7 +31,7 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 
-public class ObjectPathTests extends ESTestCase {
+public class ObjectPathTests extends OpenSearchTestCase {
     public void testEval() {
         Map<String, Object> map = singletonMap("key", "value");
 

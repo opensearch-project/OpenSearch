@@ -22,7 +22,7 @@ package org.elasticsearch.index.seqno;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class LocalCheckpointTrackerTests extends ESTestCase {
+public class LocalCheckpointTrackerTests extends OpenSearchTestCase {
 
     private LocalCheckpointTracker tracker;
 
@@ -140,7 +140,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         tracker.markSeqNoAsProcessed(seqNo);
         assertThat(tracker.processedSeqNo.size(), equalTo(1));
         assertThat(tracker.hasProcessed(seqNo), equalTo(true));
-        assertThat(tracker.hasProcessed(randomValueOtherThan(seqNo, ESTestCase::randomNonNegativeLong)), equalTo(false));
+        assertThat(tracker.hasProcessed(randomValueOtherThan(seqNo, OpenSearchTestCase::randomNonNegativeLong)), equalTo(false));
         assertThat(tracker.processedSeqNo.size(), equalTo(1));
     }
 
@@ -162,7 +162,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
             assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
         }
         assertThat(tracker.hasProcessed(randomFrom(seqNoList)), equalTo(true));
-        final long notCompletedSeqNo = randomValueOtherThanMany(seqNoList::contains, ESTestCase::randomNonNegativeLong);
+        final long notCompletedSeqNo = randomValueOtherThanMany(seqNoList::contains, OpenSearchTestCase::randomNonNegativeLong);
         assertThat(tracker.hasProcessed(notCompletedSeqNo), equalTo(false));
     }
 

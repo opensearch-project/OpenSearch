@@ -21,12 +21,12 @@ package org.opensearch.search.suggest.completion;
 
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.query.RegexpFlag;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class RegexOptionsTests extends ESTestCase {
+public class RegexOptionsTests extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_RUNS = 20;
 

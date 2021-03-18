@@ -54,9 +54,9 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -88,7 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class RemoteClusterConnectionTests extends ESTestCase {
+public class RemoteClusterConnectionTests extends OpenSearchTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 

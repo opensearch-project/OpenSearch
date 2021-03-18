@@ -23,7 +23,7 @@ import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -31,7 +31,7 @@ import java.nio.file.Path;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class ShardPathTests extends ESTestCase {
+public class ShardPathTests extends OpenSearchTestCase {
     public void testLoadShardPath() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);

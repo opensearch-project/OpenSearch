@@ -21,13 +21,13 @@ package org.opensearch
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.nio.NioTransportPlugin;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public abstract class NioIntegTestCase extends ESIntegTestCase {
+public abstract class NioIntegTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected boolean ignoreExternalCluster() {

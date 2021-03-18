@@ -21,7 +21,7 @@ package org.opensearch.ingest.useragent;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Strings;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class UserAgentProcessorFactoryTests extends ESTestCase {
+public class UserAgentProcessorFactoryTests extends OpenSearchTestCase {
 
     private static Map<String, UserAgentParser> userAgentParsers;
 

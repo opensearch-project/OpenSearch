@@ -44,8 +44,8 @@ import org.opensearch.search.aggregations.pipeline.AbstractPipelineAggregationBu
 import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class AggregatorFactoriesTests extends ESTestCase {
+public class AggregatorFactoriesTests extends OpenSearchTestCase {
     private NamedXContentRegistry xContentRegistry;
 
     @Override

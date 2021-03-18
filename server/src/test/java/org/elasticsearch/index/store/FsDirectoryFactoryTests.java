@@ -35,8 +35,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
 
-public class FsDirectoryFactoryTests extends ESTestCase {
+public class FsDirectoryFactoryTests extends OpenSearchTestCase {
 
     public void testPreload() throws IOException {
         doTestPreload();

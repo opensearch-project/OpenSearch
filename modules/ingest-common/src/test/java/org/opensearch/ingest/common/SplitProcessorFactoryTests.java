@@ -20,14 +20,14 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchParseException;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SplitProcessorFactoryTests extends ESTestCase {
+public class SplitProcessorFactoryTests extends OpenSearchTestCase {
 
     public void testCreate() throws Exception {
         SplitProcessor.Factory factory = new SplitProcessor.Factory();

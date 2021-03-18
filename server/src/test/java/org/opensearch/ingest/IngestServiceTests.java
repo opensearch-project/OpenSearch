@@ -48,7 +48,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.cbor.CborXContent;
@@ -122,7 +122,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
     @Before
     public void setup(){
         threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
     }
@@ -1463,7 +1463,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
         return new IngestService(mock(ClusterService.class), threadPool, null, null,

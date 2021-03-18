@@ -34,8 +34,8 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestCustomMetadata;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for the {@link ClusterChangedEvent} class.
  */
-public class ClusterChangedEventTests extends ESTestCase {
+public class ClusterChangedEventTests extends OpenSearchTestCase {
 
     private static final ClusterName TEST_CLUSTER_NAME = new ClusterName("test");
     private static final String NODE_ID_PREFIX = "node_";

@@ -24,20 +24,20 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
+import org.opensearch.index.Index;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
-public class CountResponseTests extends ESTestCase {
+public class CountResponseTests extends OpenSearchTestCase {
 
     // Not comparing XContent for equivalence as we cannot compare the ShardSearchFailure#cause, because it will be wrapped in an outer
-    // ElasticSearchException. Best effort: try to check that the original message appears somewhere in the rendered xContent
+    // OpenSearchException. Best effort: try to check that the original message appears somewhere in the rendered xContent
     // For more see ShardSearchFailureTests.
     public void testFromXContent() throws IOException {
         xContentTester(

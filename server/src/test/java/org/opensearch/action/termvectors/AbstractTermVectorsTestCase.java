@@ -50,7 +50,7 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.test.ESIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +64,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
+public abstract class AbstractTermVectorsTestCase extends OpenSearchIntegTestCase {
     protected static class TestFieldSetting {
         public final String name;
         public final boolean storedOffset;

@@ -21,7 +21,7 @@ package org.opensearch.nio;
 
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class BytesChannelContextTests extends ESTestCase {
+public class BytesChannelContextTests extends OpenSearchTestCase {
 
     private CheckedFunction<InboundChannelBuffer, Integer, IOException> readConsumer;
     private NioSocketChannel channel;

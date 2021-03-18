@@ -19,13 +19,14 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.opensearch.common.xcontent.XContentLocation;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.yaml.section.MatchAssertion;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 
-public class MatchAssertionTests extends ESTestCase  {
+public class MatchAssertionTests extends OpenSearchTestCase {
 
     public void testNull() {
         XContentLocation xContentLocation = new XContentLocation(0, 0);

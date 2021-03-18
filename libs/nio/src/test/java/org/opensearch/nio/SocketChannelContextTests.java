@@ -20,7 +20,7 @@
 package org.opensearch.nio;
 
 import org.opensearch.common.SuppressForbidden;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
@@ -51,7 +51,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SuppressForbidden(reason = "allow call to socket connect")
-public class SocketChannelContextTests extends ESTestCase {
+public class SocketChannelContextTests extends OpenSearchTestCase {
 
     private SocketChannel rawChannel;
     private TestSocketChannelContext context;

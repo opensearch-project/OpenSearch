@@ -26,15 +26,13 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.geo.GeometryFormat;
-import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
 import org.opensearch.geometry.Line;
 import org.opensearch.geometry.LinearRing;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -43,7 +41,7 @@ import java.util.Map;
 /**
  * Tests for {@link GeometryParser}
  */
-public class GeometryParserTests extends ESTestCase {
+public class GeometryParserTests extends OpenSearchTestCase {
 
     public void testGeoJsonParsing() throws Exception {
 

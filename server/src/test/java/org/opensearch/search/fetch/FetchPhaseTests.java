@@ -19,9 +19,9 @@
 
 package org.opensearch.search.fetch;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class FetchPhaseTests extends ESTestCase {
+public class FetchPhaseTests extends OpenSearchTestCase {
     public void testSequentialDocs() {
         FetchPhase.DocIdToIndex[] docs = new FetchPhase.DocIdToIndex[10];
         int start = randomIntBetween(0, Short.MAX_VALUE);

@@ -26,8 +26,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.IndexSettingsModule;
 import org.junit.Before;
+import org.opensearch.index.engine.DocIdSeqNoAndSource;
+import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.engine.TranslogHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;

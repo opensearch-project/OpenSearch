@@ -25,12 +25,12 @@ import org.apache.lucene.analysis.TokenStream;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 
-public class FlattenGraphTokenFilterFactoryTests extends ESTokenStreamTestCase {
+public class FlattenGraphTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
     public void testBasic() throws IOException {
 

@@ -27,7 +27,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 
-public class InternalSettingsPreparerTests extends ESTestCase {
+public class InternalSettingsPreparerTests extends OpenSearchTestCase {
     private static final Supplier<String> DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED = () -> {
                 throw new AssertionError("shouldn't be called");
             };

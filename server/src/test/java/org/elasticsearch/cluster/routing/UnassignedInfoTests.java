@@ -49,7 +49,7 @@ import org.elasticsearch.index.Index;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

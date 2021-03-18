@@ -39,7 +39,7 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;

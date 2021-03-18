@@ -19,11 +19,11 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 
-public class TDigestStateTests extends ESTestCase {
+public class TDigestStateTests extends OpenSearchTestCase {
 
     public void testMoreThan4BValues() {
         // Regression test for #19528

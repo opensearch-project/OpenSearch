@@ -23,7 +23,7 @@ import org.opensearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,7 +36,7 @@ import java.util.Set;
 import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 
-public class KeyValueProcessorTests extends ESTestCase {
+public class KeyValueProcessorTests extends OpenSearchTestCase {
 
     private static final KeyValueProcessor.Factory FACTORY = new KeyValueProcessor.Factory();
 

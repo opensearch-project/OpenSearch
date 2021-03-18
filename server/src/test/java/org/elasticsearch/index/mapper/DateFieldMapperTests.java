@@ -26,6 +26,7 @@ import org.opensearch.common.collect.List;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.opensearch.index.mapper.MapperTestCase;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;

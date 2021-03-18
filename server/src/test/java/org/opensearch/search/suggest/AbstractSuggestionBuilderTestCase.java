@@ -46,8 +46,8 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -55,12 +55,12 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.lucene.BytesRefs.toBytesRef;
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBuilder<SB>> extends ESTestCase {
+public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBuilder<SB>> extends OpenSearchTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     protected static NamedWriteableRegistry namedWriteableRegistry;

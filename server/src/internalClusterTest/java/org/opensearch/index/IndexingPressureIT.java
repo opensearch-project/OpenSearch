@@ -33,7 +33,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.EsRejectedExecutionException;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -270,7 +270,7 @@ public class IndexingPressureIT extends OpenSearchIntegTestCase {
                 assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
             });
 
-            expectThrows(EsRejectedExecutionException.class, () -> {
+            expectThrows(OpenSearchRejectedExecutionException.class, () -> {
                 if (randomBoolean()) {
                     client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
                 } else if (randomBoolean()) {
@@ -336,7 +336,7 @@ public class IndexingPressureIT extends OpenSearchIntegTestCase {
 
             BulkResponse responses = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
             assertTrue(responses.hasFailures());
-            assertThat(responses.getItems()[0].getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+            assertThat(responses.getItems()[0].getFailure().getCause().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
 
             replicaRelease.close();
 

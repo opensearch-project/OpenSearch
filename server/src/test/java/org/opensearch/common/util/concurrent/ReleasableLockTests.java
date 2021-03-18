@@ -21,8 +21,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ReleasableLockTests extends ESTestCase {
+public class ReleasableLockTests extends OpenSearchTestCase {
 
     /**
      * Test that accounting on whether or not a thread holds a releasable lock is correct. Previously we had a bug where on a re-entrant

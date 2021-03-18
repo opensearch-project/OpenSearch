@@ -38,7 +38,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.join.aggregations.JoinAggregationBuilders.parent;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.aggregations.AggregationBuilders.topHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ParentIT extends AbstractParentChildTestCase {

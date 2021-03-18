@@ -20,7 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.support.PlainActionFuture;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 
-public class RewriteableTests extends ESTestCase {
+public class RewriteableTests extends OpenSearchTestCase {
 
     public void testRewrite() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);

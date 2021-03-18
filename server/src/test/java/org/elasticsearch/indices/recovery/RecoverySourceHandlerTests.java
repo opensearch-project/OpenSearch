@@ -78,11 +78,11 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
-import org.elasticsearch.test.CorruptionUtils;
-import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.opensearch.test.CorruptionUtils;
+import org.opensearch.test.DummyShardLock;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.TestThreadPool;
@@ -129,7 +129,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RecoverySourceHandlerTests extends ESTestCase {
+public class RecoverySourceHandlerTests extends OpenSearchTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build());
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
@@ -936,7 +936,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
         final Set<Long> seqNos = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
-            final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
+            final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, OpenSearchTestCase::randomNonNegativeLong);
             final Translog.Operation op;
             if (randomBoolean()) {
                 op = new Translog.Index("_doc", "id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);

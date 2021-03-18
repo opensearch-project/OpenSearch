@@ -20,16 +20,16 @@ package org.elasticsearch.test.test;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
+import org.opensearch.test.InternalTestCluster;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class InternalTestClusterIT extends ESIntegTestCase {
+@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class InternalTestClusterIT extends OpenSearchIntegTestCase {
 
     public void testStartingAndStoppingNodes() throws IOException {
         logger.info("--> cluster has [{}] nodes", internalCluster().size());

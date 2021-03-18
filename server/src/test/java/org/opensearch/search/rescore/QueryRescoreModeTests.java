@@ -19,7 +19,7 @@
 
 package org.opensearch.search.rescore;
 
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
@@ -27,7 +27,7 @@ import java.io.IOException;
  * Test fixing the ordinals and names in {@link QueryRescoreMode}. These should not be changed since we
  * use the names in the parser and the ordinals in serialization.
  */
-public class QueryRescoreModeTests extends ESTestCase {
+public class QueryRescoreModeTests extends OpenSearchTestCase {
 
     /**
      * Test @link {@link QueryRescoreMode} enum ordinals and names, since serialization relies on it

@@ -23,10 +23,10 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.opensearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -34,11 +34,11 @@ import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
+public class KeepFilterFactoryTests extends OpenSearchTokenStreamTestCase {
     private static final String RESOURCE = "/org/opensearch/analysis/common/keep_analysis.json";
 
     public void testLoadWithoutSettings() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
                 createTempDir(), RESOURCE, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep");
         Assert.assertNull(tokenFilter);
@@ -90,7 +90,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testCaseInsensitiveMapping() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
                 createTempDir(), RESOURCE, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));
@@ -102,7 +102,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testCaseSensitiveMapping() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
                 createTempDir(), RESOURCE, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_case_sensitive_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));

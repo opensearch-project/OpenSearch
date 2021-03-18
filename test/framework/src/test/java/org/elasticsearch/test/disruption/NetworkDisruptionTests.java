@@ -19,14 +19,15 @@
 
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
-import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.disruption.NetworkDisruption.Bridge;
+import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
 
 import java.util.HashSet;
 import java.util.Set;
 
-public class NetworkDisruptionTests extends ESTestCase {
+public class NetworkDisruptionTests extends OpenSearchTestCase {
 
     public void testTwoPartitions() {
         Set<String> partition1 = generateRandomStringSet(1, 10);

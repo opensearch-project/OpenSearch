@@ -34,7 +34,7 @@ import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TextFieldAnalyzerModeTests extends ESTestCase {
+public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
 
     private static Map<String, NamedAnalyzer> defaultAnalyzers() {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();

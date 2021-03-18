@@ -21,9 +21,9 @@ package org.elasticsearch.index.shard;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-public class ShardIdTests extends ESTestCase {
+public class ShardIdTests extends OpenSearchTestCase {
 
     public void testShardIdFromString() {
         String indexName = randomAlphaOfLengthBetween(3,50);

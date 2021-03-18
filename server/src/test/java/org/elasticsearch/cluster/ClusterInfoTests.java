@@ -24,11 +24,11 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.DiskUsage;
 
-public class ClusterInfoTests extends ESTestCase {
+public class ClusterInfoTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         ClusterInfo clusterInfo = new ClusterInfo(

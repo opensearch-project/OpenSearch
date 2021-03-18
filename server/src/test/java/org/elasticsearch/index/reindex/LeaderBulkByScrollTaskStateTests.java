@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -35,7 +35,7 @@ import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
+public class LeaderBulkByScrollTaskStateTests extends OpenSearchTestCase {
     private int slices;
     private BulkByScrollTask task;
     private LeaderBulkByScrollTaskState taskState;

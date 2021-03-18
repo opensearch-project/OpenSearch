@@ -25,13 +25,13 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.ESTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class SnapshotRequestsTests extends ESTestCase {
+public class SnapshotRequestsTests extends OpenSearchTestCase {
     public void testRestoreSnapshotRequestParsing() throws IOException {
         RestoreSnapshotRequest request = new RestoreSnapshotRequest("test-repo", "test-snap");
 
