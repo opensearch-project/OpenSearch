@@ -17,19 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.test.loggerusage;
+package org.opensearch.test.loggerusage;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 
 /**
- * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
- * Duplicated from core as main sources of logger-usage project have no dependencies on core
+ * This class is for testing that <code>ESLoggerUsageChecker</code> can find incorrect usages of LogMessages
+ * which are subclasses of <code>ParametrizedMessage</code>
+ * @see OpenSearchLoggerUsageTests
  */
-@Retention(RetentionPolicy.CLASS)
-@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
-public @interface SuppressForbidden {
-    String reason();
+class TestMessage extends ParameterizedMessage {
+    TestMessage(String messagePattern, String xOpaqueId, Object... args) {
+        super(messagePattern, args);
+    }
 }

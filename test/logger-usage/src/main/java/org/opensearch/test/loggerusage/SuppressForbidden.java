@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,17 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.test.loggerusage;
+package org.opensearch.test.loggerusage;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * This class is for testing that <code>ESLoggerUsageChecker</code> can find incorrect usages of LogMessages
- * which are subclasses of <code>ParametrizedMessage</code>
- * @see ESLoggerUsageTests
+ * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
+ * Duplicated from core as main sources of logger-usage project have no dependencies on core
  */
-class TestMessage extends ParameterizedMessage {
-    TestMessage(String messagePattern, String xOpaqueId, Object... args) {
-        super(messagePattern, args);
-    }
+@Retention(RetentionPolicy.CLASS)
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
+public @interface SuppressForbidden {
+    String reason();
 }

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.loggerusage;
+package org.opensearch.test.loggerusage;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -58,7 +58,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ESLoggerUsageChecker {
+public class OpenSearchLoggerUsageChecker {
     public static final Type LOGGER_CLASS = Type.getType(Logger.class);
     public static final Type THROWABLE_CLASS = Type.getType(Throwable.class);
     public static final Type STRING_CLASS = Type.getType(String.class);
@@ -73,15 +73,15 @@ public class ESLoggerUsageChecker {
     // types which are subject to checking when used in logger. <code>TestMessage<code> is also declared here to
     // make sure this functionality works
     public static final Set<Type> DEPRECATED_TYPES = Stream.of(
-        Type.getObjectType("org/elasticsearch/common/logging/DeprecatedMessage"),
-        Type.getObjectType("org/elasticsearch/test/loggerusage/TestMessage")
+        Type.getObjectType("org/opensearch/common/logging/DeprecatedMessage"),
+        Type.getObjectType("org/opensearch/test/loggerusage/TestMessage")
     ).collect(Collectors.toSet());
 
     public static final Type PARAMETERIZED_MESSAGE_CLASS = Type.getType(ParameterizedMessage.class);
 
     @SuppressForbidden(reason = "command line tool")
     public static void main(String... args) throws Exception {
-        System.out.println("checking for wrong usages of ESLogger...");
+        System.out.println("checking for wrong usages of OpenSearchLogger...");
         boolean[] wrongUsageFound = new boolean[1];
         checkLoggerUsage(wrongLoggerUsage -> {
             System.err.println(wrongLoggerUsage.getErrorLines());
@@ -106,7 +106,7 @@ public class ESLoggerUsageChecker {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
                         try (InputStream in = Files.newInputStream(file)) {
-                            ESLoggerUsageChecker.check(wrongUsageCallback, in);
+                            OpenSearchLoggerUsageChecker.check(wrongUsageCallback, in);
                         }
                     }
                     return super.visitFile(file, attrs);
@@ -328,7 +328,7 @@ public class ESLoggerUsageChecker {
                     //using strings because this test do not depend on server
 
                     MethodInsnNode methodInsn = (MethodInsnNode) insn;
-                    if (methodInsn.owner.equals("org/elasticsearch/common/logging/DeprecationLogger")) {
+                    if (methodInsn.owner.equals("org/opensearch/common/logging/DeprecationLogger")) {
                         if (methodInsn.name.equals("deprecate")) {
                             Type[] argumentTypes = Type.getArgumentTypes(methodInsn.desc);
                             int markerOffset = 1; // skip key

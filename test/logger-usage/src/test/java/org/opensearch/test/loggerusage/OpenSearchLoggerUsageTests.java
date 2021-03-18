@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.loggerusage;
+package org.opensearch.test.loggerusage;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -28,7 +28,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.opensearch.common.SuppressLoggerChecks;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
+import org.opensearch.test.loggerusage.OpenSearchLoggerUsageChecker.WrongLoggerUsage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ESLoggerUsageTests extends ESTestCase {
+public class OpenSearchLoggerUsageTests extends ESTestCase {
 
     public void testLoggerUsageChecks() throws IOException {
         for (Method method : getClass().getMethods()) {
@@ -52,7 +52,7 @@ public class ESLoggerUsageTests extends ESTestCase {
                     logger.info("Checking logger usage for method {}", method.getName());
                     InputStream classInputStream = getClass().getResourceAsStream(getClass().getSimpleName() + ".class");
                     List<WrongLoggerUsage> errors = new ArrayList<>();
-                    ESLoggerUsageChecker.check(errors::add, classInputStream,
+                    OpenSearchLoggerUsageChecker.check(errors::add, classInputStream,
                         m -> m.equals(method.getName()) || m.startsWith("lambda$" + method.getName()));
                     if (method.getName().startsWith("checkFail")) {
                         assertFalse("Expected " + method.getName() + " to have wrong Logger usage", errors.isEmpty());
@@ -68,7 +68,7 @@ public class ESLoggerUsageTests extends ESTestCase {
 
     public void testLoggerUsageCheckerCompatibilityWithLog4j2Logger() throws NoSuchMethodException {
         for (Method method : Logger.class.getMethods()) {
-            if (ESLoggerUsageChecker.LOGGER_METHODS.contains(method.getName())) {
+            if (OpenSearchLoggerUsageChecker.LOGGER_METHODS.contains(method.getName())) {
                 assertThat(method.getParameterTypes().length, greaterThanOrEqualTo(1));
                 int markerOffset = method.getParameterTypes()[0].equals(Marker.class) ? 1 : 0;
                 int paramLength = method.getParameterTypes().length - markerOffset;
@@ -97,7 +97,7 @@ public class ESLoggerUsageTests extends ESTestCase {
             }
         }
 
-        for (String methodName : ESLoggerUsageChecker.LOGGER_METHODS) {
+        for (String methodName : OpenSearchLoggerUsageChecker.LOGGER_METHODS) {
             assertEquals(48, Stream.of(Logger.class.getMethods()).filter(m -> methodName.equals(m.getName())).count());
         }
 
@@ -246,7 +246,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkDeprecationLogger() {
-        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ESLoggerUsageTests.class);
+        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OpenSearchLoggerUsageTests.class);
         deprecationLogger.deprecate("key","message {}", 123);
     }
 
