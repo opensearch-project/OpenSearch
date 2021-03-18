@@ -25,7 +25,7 @@ import java.util.Random;
 
 /**
  * Random geo generation utilities for randomized {@code geo_point} type testing
- * does not depend on jts or spatial4j. Use {@link RandomShapeGenerator}
+ * does not depend on jts or spatial4j. Use {@link org.opensearch.test.geo.RandomShapeGenerator}
  * to create random OGC compliant shapes.
  */
 public class RandomGeoGenerator {
