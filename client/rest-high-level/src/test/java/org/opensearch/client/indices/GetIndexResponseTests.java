@@ -29,7 +29,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContent.Params;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
 import org.elasticsearch.test.ESTestCase;

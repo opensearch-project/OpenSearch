@@ -49,8 +49,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.opensearch.index.RandomCreateIndexGenerator.randomIndexSettings;
-import static org.opensearch.index.RandomCreateIndexGenerator.randomMappingFields;
+import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
+import static org.elasticsearch.index.RandomCreateIndexGenerator.randomMappingFields;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.equalTo;
 

@@ -29,7 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.opensearch.index.analysis.MyFilterTokenFilterFactory;
+import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
