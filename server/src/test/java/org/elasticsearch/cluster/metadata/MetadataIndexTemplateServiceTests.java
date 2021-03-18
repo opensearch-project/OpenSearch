@@ -90,7 +90,7 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.opensearch.common.settings.Settings.builder;
 import static org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
-import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;

@@ -62,7 +62,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
+import org.opensearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.rest.RestStatus;
